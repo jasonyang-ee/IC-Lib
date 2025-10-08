@@ -75,13 +75,13 @@ const VendorSearch = () => {
       {searchResults && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Digikey Results */}
-          <div className="bg-white rounded-lg shadow-md border border-gray-200">
-            <div className="p-4 border-b border-gray-200 bg-red-50">
-              <h3 className="text-lg font-semibold text-gray-900">Digikey Results</h3>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Digikey Results</h3>
             </div>
             <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
               {searchResults.digikey?.error ? (
-                <p className="text-sm text-gray-500">{searchResults.digikey.error}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.digikey.error}</p>
               ) : searchResults.digikey?.results?.length > 0 ? (
                 searchResults.digikey.results.map((part, index) => (
                   <div
@@ -89,19 +89,19 @@ const VendorSearch = () => {
                     onClick={() => setSelectedPart(part)}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
                       selectedPart?.partNumber === part.partNumber
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
                     }`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 mt-1">{part.manufacturerPartNumber}</p>
-                        <p className="text-xs text-gray-500 mt-1">{part.description}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{part.manufacturerPartNumber}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <div className="flex gap-4 mt-2">
-                          <span className="text-xs text-gray-600">Stock: {part.stock}</span>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
                           {part.pricing && part.pricing[0] && (
-                            <span className="text-xs text-green-600 font-medium">
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                               ${part.pricing[0].price}
                             </span>
                           )}
@@ -112,7 +112,7 @@ const VendorSearch = () => {
                           href={part.productUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary-600 hover:text-primary-700"
+                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -121,19 +121,19 @@ const VendorSearch = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-500">No results found</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No results found</p>
               )}
             </div>
           </div>
 
           {/* Mouser Results */}
-          <div className="bg-white rounded-lg shadow-md border border-gray-200">
-            <div className="p-4 border-b border-gray-200 bg-blue-50">
-              <h3 className="text-lg font-semibold text-gray-900">Mouser Results</h3>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Mouser Results</h3>
             </div>
             <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
               {searchResults.mouser?.error ? (
-                <p className="text-sm text-gray-500">{searchResults.mouser.error}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.mouser.error}</p>
               ) : searchResults.mouser?.results?.length > 0 ? (
                 searchResults.mouser.results.map((part, index) => (
                   <div
@@ -141,19 +141,19 @@ const VendorSearch = () => {
                     onClick={() => setSelectedPart(part)}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
                       selectedPart?.partNumber === part.partNumber
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
                     }`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 mt-1">{part.manufacturerPartNumber}</p>
-                        <p className="text-xs text-gray-500 mt-1">{part.description}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{part.manufacturerPartNumber}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <div className="flex gap-4 mt-2">
-                          <span className="text-xs text-gray-600">Stock: {part.stock}</span>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
                           {part.pricing && part.pricing[0] && (
-                            <span className="text-xs text-green-600 font-medium">
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                               ${part.pricing[0].price}
                             </span>
                           )}
@@ -164,7 +164,7 @@ const VendorSearch = () => {
                           href={part.productUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary-600 hover:text-primary-700"
+                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -173,7 +173,7 @@ const VendorSearch = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-500">No results found</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No results found</p>
               )}
             </div>
           </div>
@@ -182,8 +182,8 @@ const VendorSearch = () => {
 
       {/* Selected Part Actions */}
       {selectedPart && (
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions for Selected Part</h3>
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Actions for Selected Part</h3>
           <div className="flex gap-3">
             <button className="btn-primary flex items-center gap-2">
               <Plus className="w-4 h-4" />
@@ -207,7 +207,7 @@ const VendorSearch = () => {
             </button>
           </div>
           {downloadFootprintMutation.isSuccess && (
-            <p className="mt-3 text-sm text-green-600">
+            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
               Footprint download initiated
             </p>
           )}

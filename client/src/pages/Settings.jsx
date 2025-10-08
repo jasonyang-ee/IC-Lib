@@ -141,7 +141,10 @@ const Settings = () => {
               {categories?.map((category) => {
                 const config = partNumberConfigs[category.id] || { prefix: '', leadingZeros: 5 };
                 const isEditing = editingCategory === category.id;
-                const exampleNumber = (tempConfig.prefix || config.prefix || 'XXX') + '-' + '1'.padStart(isEditing ? tempConfig.leadingZeros : config.leadingZeros, '0');
+                // Fix: Use the correct config for each category (not tempConfig for non-editing rows)
+                const displayPrefix = isEditing ? tempConfig.prefix : config.prefix;
+                const displayLeadingZeros = isEditing ? tempConfig.leadingZeros : config.leadingZeros;
+                const exampleNumber = (displayPrefix || 'XXX') + '-' + '1'.padStart(displayLeadingZeros, '0');
 
                 return (
                   <tr key={category.id} className="border-t border-gray-200 dark:border-[#3a3a3a]">

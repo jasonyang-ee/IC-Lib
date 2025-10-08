@@ -48,7 +48,7 @@ const Reports = () => {
 
     if (!reportData || reportData.length === 0) {
       return (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           No data available for this report
         </div>
       );
@@ -58,21 +58,21 @@ const Reports = () => {
       case 'component-summary':
         return (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Components</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">With Footprint</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">With Symbol</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Components</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">With Footprint</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">With Symbol</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((row, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="px-4 py-3 text-sm font-medium">{row.category}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.total_components}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.with_footprint}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.with_symbol}</td>
+                <tr key={index} className="border-b border-gray-100 dark:border-[#3a3a3a]">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.total_components}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.with_footprint}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.with_symbol}</td>
                 </tr>
               ))}
             </tbody>
@@ -84,9 +84,9 @@ const Reports = () => {
           <div className="space-y-4">
             {reportData.map((row, index) => (
               <div key={index} className="flex items-center gap-4">
-                <div className="w-32 text-sm font-medium text-gray-700">{row.category}</div>
+                <div className="w-32 text-sm font-medium text-gray-700 dark:text-gray-300">{row.category}</div>
                 <div className="flex-1 flex items-center gap-3">
-                  <div className="flex-1 bg-gray-200 rounded-full h-6">
+                  <div className="flex-1 bg-gray-200 dark:bg-[#333333] rounded-full h-6">
                     <div
                       className="bg-primary-600 h-6 rounded-full flex items-center justify-end pr-2"
                       style={{ width: `${row.percentage}%` }}
@@ -94,7 +94,7 @@ const Reports = () => {
                       <span className="text-xs text-white font-medium">{row.percentage}%</span>
                     </div>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900 w-16 text-right">
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-16 text-right">
                     {row.count}
                   </span>
                 </div>
@@ -156,19 +156,19 @@ const Reports = () => {
       case 'manufacturer':
         return (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Manufacturer</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Component Count</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Category Count</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Manufacturer</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Component Count</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category Count</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((row, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="px-4 py-3 text-sm font-medium">{row.manufacturer}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.component_count}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.category_count}</td>
+                <tr key={index} className="border-b border-gray-100 dark:border-[#3a3a3a]">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{row.manufacturer}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.component_count}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.category_count}</td>
                 </tr>
               ))}
             </tbody>
@@ -178,25 +178,25 @@ const Reports = () => {
       case 'low-stock':
         return (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Part Number</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Current Stock</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Minimum Stock</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Shortage</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Location</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Current Stock</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Minimum Stock</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Shortage</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((row, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="px-4 py-3 text-sm font-medium">{row.part_number}</td>
-                  <td className="px-4 py-3 text-sm">{row.category}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.current_stock}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.minimum_stock}</td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{row.shortage}</td>
-                  <td className="px-4 py-3 text-sm">{row.location || 'N/A'}</td>
+                <tr key={index} className="border-b border-gray-100 dark:border-[#3a3a3a]">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{row.part_number}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.current_stock}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.minimum_stock}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold text-red-600 dark:text-red-400">{row.shortage}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.location || 'N/A'}</td>
                 </tr>
               ))}
             </tbody>
@@ -204,22 +204,22 @@ const Reports = () => {
         );
 
       default:
-        return <div>Report not implemented</div>;
+        return <div className="text-gray-900 dark:text-gray-100">Report not implemented</div>;
     }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-600 mt-1">Generate and view various reports for your component library</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Reports</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Generate and view various reports for your component library</p>
       </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Report Type Selector */}
         <div className="col-span-3">
-          <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-3">Report Types</h3>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Report Types</h3>
             <div className="space-y-2">
               {reports.map((report) => (
                 <button
@@ -227,8 +227,8 @@ const Reports = () => {
                   onClick={() => setActiveReport(report.id)}
                   className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 ${
                     activeReport === report.id
-                      ? 'bg-primary-100 text-primary-700 font-medium'
-                      : 'hover:bg-gray-100 text-gray-700'
+                      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 font-medium'
+                      : 'hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300'
                   }`}
                 >
                   <report.icon className="w-4 h-4" />
@@ -241,9 +241,9 @@ const Reports = () => {
 
         {/* Report Content */}
         <div className="col-span-9">
-          <div className="bg-white rounded-lg shadow-md border border-gray-200">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {reports.find((r) => r.id === activeReport)?.name}
               </h3>
               <button className="btn-secondary flex items-center gap-2 text-sm">
