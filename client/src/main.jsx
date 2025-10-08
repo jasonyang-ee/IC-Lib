@@ -8,12 +8,18 @@ import './index.css'
 // Initialize dark mode from localStorage before render
 const initializeDarkMode = () => {
   const savedMode = localStorage.getItem('darkMode');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const shouldBeDark = savedMode === 'true' || (!savedMode && prefersDark);
-
-  if (shouldBeDark) {
-    document.documentElement.classList.add('dark');
+  
+  // If user has explicitly set a preference, use it
+  if (savedMode !== null) {
+    const shouldBeDark = savedMode === 'true';
+    if (shouldBeDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   } else {
+    // No saved preference - default to light mode
+    // User can toggle to dark mode if they prefer
     document.documentElement.classList.remove('dark');
   }
 };

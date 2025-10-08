@@ -13,13 +13,20 @@ const Settings = () => {
   // Load dark mode preference from localStorage on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldBeDark = savedMode === 'true' || (!savedMode && prefersDark);
-
-    setDarkMode(shouldBeDark);
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark');
+    
+    // If user has explicitly set a preference, use it
+    if (savedMode !== null) {
+      const shouldBeDark = savedMode === 'true';
+      setDarkMode(shouldBeDark);
+      if (shouldBeDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     } else {
+      // No saved preference - default to light mode
+      // User can toggle to dark mode if they prefer
+      setDarkMode(false);
       document.documentElement.classList.remove('dark');
     }
   }, []);
@@ -46,11 +53,16 @@ const Settings = () => {
     setDarkMode(newMode);
     localStorage.setItem('darkMode', newMode.toString());
 
+    // Force immediate DOM update
     if (newMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    // Debug log
+    console.log('Dark mode toggled:', newMode);
+    console.log('HTML classList:', document.documentElement.className);
   };
 
   const handleEditCategory = (categoryId) => {
