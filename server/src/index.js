@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import componentRoutes from './routes/components.js';
 import categoryRoutes from './routes/categories.js';
 import distributorRoutes from './routes/distributors.js';
+import manufacturerRoutes from './routes/manufacturers.js';
 import inventoryRoutes from './routes/inventory.js';
 import searchRoutes from './routes/search.js';
 import reportsRoutes from './routes/reports.js';
@@ -39,6 +40,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/components', componentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/distributors', distributorRoutes);
+app.use('/api/manufacturers', manufacturerRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/reports', reportsRoutes);

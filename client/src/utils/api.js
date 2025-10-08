@@ -80,6 +80,13 @@ export const api = {
 
   // Distributors
   getDistributors: () => apiClient.get('/distributors'),
+
+  // Manufacturers
+  getManufacturers: (params) => apiClient.get('/manufacturers', { params }),
+  getManufacturerById: (id) => apiClient.get(`/manufacturers/${id}`),
+  createManufacturer: (data) => apiClient.post('/manufacturers', data),
+  updateManufacturer: (id, data) => apiClient.put(`/manufacturers/${id}`, data),
+  deleteManufacturer: (id) => apiClient.delete(`/manufacturers/${id}`),
 };
 
 export default apiClient;
