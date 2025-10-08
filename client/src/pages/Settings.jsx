@@ -10,11 +10,9 @@ const Settings = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [tempConfig, setTempConfig] = useState({ prefix: '', leadingZeros: 5 });
 
-  // Load dark mode preference from localStorage on mount
+  // Load dark mode from localStorage (client-side only)
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
-    
-    // If user has explicitly set a preference, use it
     if (savedMode !== null) {
       const shouldBeDark = savedMode === 'true';
       setDarkMode(shouldBeDark);
@@ -23,21 +21,32 @@ const Settings = () => {
       } else {
         document.documentElement.classList.remove('dark');
       }
-    } else {
-      // No saved preference - default to light mode
-      // User can toggle to dark mode if they prefer
-      setDarkMode(false);
-      document.documentElement.classList.remove('dark');
     }
   }, []);
 
-  // Load part number configs from localStorage
+  // Fetch settings from server (part number configs only)
+  const { data: serverSettings, isLoading: loadingSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const response = await api.getSettings();
+      return response.data;
+    },
+  });
+
+  // Update settings mutation (part number configs only)
+  const updateSettingsMutation = useMutation({
+    mutationFn: (settings) => api.updateSettings(settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['settings']);
+    },
+  });
+
+  // Load part number configs from server when available
   useEffect(() => {
-    const savedConfigs = localStorage.getItem('partNumberConfigs');
-    if (savedConfigs) {
-      setPartNumberConfigs(JSON.parse(savedConfigs));
+    if (serverSettings) {
+      setPartNumberConfigs(serverSettings.partNumberConfigs || {});
     }
-  }, []);
+  }, [serverSettings]);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -51,6 +60,8 @@ const Settings = () => {
   const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
+
+    // Save to localStorage (client-side only)
     localStorage.setItem('darkMode', newMode.toString());
 
     // Force immediate DOM update
@@ -77,7 +88,10 @@ const Settings = () => {
       [categoryId]: tempConfig,
     };
     setPartNumberConfigs(newConfigs);
-    localStorage.setItem('partNumberConfigs', JSON.stringify(newConfigs));
+    
+    // Update server
+    updateSettingsMutation.mutate({ partNumberConfigs: newConfigs });
+    
     setEditingCategory(null);
   };
 
@@ -88,57 +102,83 @@ const Settings = () => {
         <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your application preferences</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Theme Toggle Tile */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              {darkMode ? (
-                <Moon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-              ) : (
-                <Sun className="w-6 h-6 text-primary-600" />
-              )}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Theme
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {darkMode ? 'Dark Mode' : 'Light Mode'}
-                </p>
+      {/* User Settings Section */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">User Settings</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Theme Toggle Tile */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                {darkMode ? (
+                  <Moon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                ) : (
+                  <Sun className="w-6 h-6 text-primary-600" />
+                )}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    Theme
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {darkMode ? 'Dark Mode' : 'Light Mode'}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <button
-            onClick={toggleDarkMode}
-            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-[#2a2a2a] ${
-              darkMode ? 'bg-primary-600' : 'bg-gray-200'
-            }`}
-            role="switch"
-            aria-checked={darkMode}
-          >
-            <span
-              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                darkMode ? 'translate-x-9' : 'translate-x-1'
+            
+            <button
+              onClick={toggleDarkMode}
+              className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-[#2a2a2a] ${
+                darkMode ? 'bg-primary-600' : 'bg-gray-200'
               }`}
-            />
-          </button>
-          
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-            Switch between light and dark theme for better viewing experience
-          </p>
-        </div>
+              role="switch"
+              aria-checked={darkMode}
+            >
+              <span
+                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                  darkMode ? 'translate-x-9' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+              Switch between light and dark theme for better viewing experience
+            </p>
+          </div>
 
+          {/* Placeholder tiles for future user settings */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Notifications
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Coming soon...
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Language
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Coming soon...
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Part Number Configuration Section */}
+      {/* Server Settings Section */}
       <div className="mt-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Part Number Configuration</h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Configure part number prefixes and serial number format for each component category
-        </p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Server Settings</h2>
+        
+        {/* Part Number Configuration */}
+        <div className="mb-6">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Part Number Configuration</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Configure part number prefixes and serial number format for each component category
+          </p>
 
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
@@ -227,26 +267,8 @@ const Settings = () => {
         </div>
       </div>
 
+      {/* Additional Server Settings Placeholders */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-        {/* Placeholder tiles for future features */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            User Preferences
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Coming soon...
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Server Configuration
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Coming soon...
-          </p>
-        </div>
-
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             API Keys
@@ -267,12 +289,13 @@ const Settings = () => {
 
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Notifications
+            Server Configuration
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Configure alert preferences
+            Coming soon...
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

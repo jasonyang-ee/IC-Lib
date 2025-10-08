@@ -88,6 +88,10 @@ export const api = {
   createManufacturer: (data) => apiClient.post('/manufacturers', data),
   updateManufacturer: (id, data) => apiClient.put(`/manufacturers/${id}`, data),
   deleteManufacturer: (id) => apiClient.delete(`/manufacturers/${id}`),
+
+  // Settings
+  getSettings: () => apiClient.get('/settings'),
+  updateSettings: (data) => apiClient.put('/settings', data),
 };
 
 export default apiClient;

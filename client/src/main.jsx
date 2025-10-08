@@ -19,7 +19,6 @@ const initializeDarkMode = () => {
     }
   } else {
     // No saved preference - default to light mode
-    // User can toggle to dark mode if they prefer
     document.documentElement.classList.remove('dark');
   }
 };

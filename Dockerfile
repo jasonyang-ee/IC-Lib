@@ -39,8 +39,8 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Create directories for downloads
-RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
+# Create directories for downloads and config
+RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad /app/config
 
 # Copy startup script
 COPY start.sh /app/start.sh

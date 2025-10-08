@@ -14,6 +14,7 @@ import inventoryRoutes from './routes/inventory.js';
 import searchRoutes from './routes/search.js';
 import reportsRoutes from './routes/reports.js';
 import dashboardRoutes from './routes/dashboard.js';
+import settingsRoutes from './routes/settings.js';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

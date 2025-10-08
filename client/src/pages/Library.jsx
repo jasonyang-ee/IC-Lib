@@ -34,8 +34,16 @@ const Library = () => {
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
 
-  // Load part number configs from localStorage
-  const partNumberConfigs = JSON.parse(localStorage.getItem('partNumberConfigs') || '{}');
+  // Fetch settings from server for part number configs
+  const { data: serverSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const response = await api.getSettings();
+      return response.data;
+    },
+  });
+
+  const partNumberConfigs = serverSettings?.partNumberConfigs || {};
 
   // Fetch categories
   const { data: categories } = useQuery({
