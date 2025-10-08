@@ -55,44 +55,93 @@ A full-stack web application for managing OrCAD Allegro CIS component libraries 
 
 ## 📦 Installation
 
-### Option 1: Development Setup (Recommended for Development)
+### Option 1: Using Existing PostgreSQL Server (Your Setup)
 
-1. **Clone the repository**
+Perfect if you already have PostgreSQL running on a separate server.
+
+1. **Initialize Your Database**
+   
+   Your database server is already running at `infra.main.local:5435`.
+   
+   Run the initialization script:
    ```bash
-   cd f:/DevSQL/allegroSQL
+   cd scripts
+   npm install
+   npm run init-db
+   ```
+   
+   This will:
+   - Create all required tables, indexes, and triggers
+   - Optionally load sample data
+   - Verify the installation
+   
+   See [DATABASE_SETUP.md](DATABASE_SETUP.md) for detailed instructions.
+
+2. **Configure Backend Environment**
+   ```bash
+   cd server
+   # .env is already configured for your database
+   # Optionally add API keys for vendor search
    ```
 
-2. **Start PostgreSQL Database with Docker**
+3. **Install Backend Dependencies**
+   ```bash
+   npm install
+   ```
+
+4. **Start Backend Server**
+   ```bash
+   npm run dev
+   ```
+   Backend will run on http://localhost:3001
+
+5. **Configure Frontend**
+   ```bash
+   cd ../client
+   # .env is already configured for local development
+   ```
+
+6. **Start Frontend Development Server**
+   ```bash
+   npm run dev
+   ```
+   Frontend will run on http://localhost:5173
+
+### Option 2: Development Setup with Docker (Alternative)
+
+If you prefer to use Docker for the database:
+
+1. **Start PostgreSQL Database with Docker**
    ```bash
    docker-compose -f docker-compose.dev.yml up -d
    ```
    This will start PostgreSQL on port 5435 and automatically initialize the schema.
 
-3. **Configure Backend Environment**
+2. **Configure Backend Environment**
    ```bash
    cd server
    cp .env.example .env
    # Edit .env with your API keys (optional for development)
    ```
 
-4. **Install Backend Dependencies**
+3. **Install Backend Dependencies**
    ```bash
    npm install
    ```
 
-5. **Start Backend Server**
+4. **Start Backend Server**
    ```bash
    npm run dev
    ```
    Backend will run on http://localhost:3001
 
-6. **Configure Frontend**
+5. **Configure Frontend**
    ```bash
    cd ../client
    # .env is already configured for local development
    ```
 
-7. **Start Frontend Development Server**
+6. **Start Frontend Development Server**
    ```bash
    npm run dev
    ```
@@ -100,19 +149,46 @@ A full-stack web application for managing OrCAD Allegro CIS component libraries 
 
 ### Option 2: Full Docker Deployment (Production)
 
-1. **Configure Environment Variables**
-   - Edit `server/.env` with your API keys
-   - Update `docker-compose.yml` if needed
+**The application now uses a unified Docker container with both frontend and backend.**
 
-2. **Build and Start All Services**
+1. **Initialize Database First**
    ```bash
-   docker-compose up --build
+   cd scripts
+   npm run init-db
    ```
 
-3. **Access the Application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:3001
-   - PostgreSQL: localhost:5435
+2. **Configure Database Connection**
+   Edit `docker-compose.yml` and update the environment variables:
+   ```yaml
+   environment:
+     - DB_HOST=infra.main.local  # Your PostgreSQL host
+     - DB_PORT=5435              # Your PostgreSQL port
+     - DB_USER=sami
+     - DB_PASSWORD=123456
+     - DB_NAME=cip
+   ```
+
+3. **Build and Start the Application**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **View Logs**
+   ```bash
+   docker-compose logs -f web
+   ```
+
+5. **Access the Application**
+   - Frontend: http://localhost
+   - Backend API: http://localhost:3001/api (or via nginx at http://localhost/api)
+   - Health Check: http://localhost/health
+
+6. **Stop the Application**
+   ```bash
+   docker-compose down
+   ```
+
+For detailed Docker deployment documentation, see `DOCKER_DEPLOYMENT.md`.
 
 ## 🗄️ Database Schema
 

@@ -1,73 +1,46 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:18-alpine
-    container_name: allegro-postgres
-    environment:
-      POSTGRES_USER: sami
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: cip
-    ports:
-      - "5435:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    networks:
-      - allegro-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sami -d cip"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Backend API Server
-  backend:
+  # Unified Web Application (Frontend + Backend)
+  web:
     build:
-      context: ./server
+      context: .
       dockerfile: Dockerfile
-    container_name: allegro-backend
+    container_name: allegro-web
     environment:
+      # Node Environment
       - NODE_ENV=production
       - PORT=3001
-      - DB_HOST=postgres
-      - DB_PORT=5432
+      
+      # Database Connection (External PostgreSQL)
+      # Update these to match your PostgreSQL server
+      - DB_HOST=infra.main.local
+      - DB_PORT=5435
       - DB_USER=sami
       - DB_PASSWORD=123456
       - DB_NAME=cip
-      - CORS_ORIGIN=http://localhost:5173
+      
+      # CORS Configuration
+      - CORS_ORIGIN=*
+      
+      # Optional: API Keys for vendor integrations
+      # - DIGIKEY_CLIENT_ID=your_client_id
+      # - DIGIKEY_CLIENT_SECRET=your_client_secret
+      # - MOUSER_API_KEY=your_api_key
+      # - ULTRA_LIBRARIAN_TOKEN=your_token
+      # - SNAPEDA_API_KEY=your_api_key
     ports:
-      - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - allegro-network
+      - "80:80"          # Frontend (nginx)
+      # - "3001:3001"    # Backend API (optional, commented out - accessible via nginx at /api)
     volumes:
-      - ./server:/app
-      - /app/node_modules
       - footprint_downloads:/app/downloads/footprints
     restart: unless-stopped
-
-  # Frontend (for production build)
-  frontend:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    container_name: allegro-frontend
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
-    networks:
-      - allegro-network
-    restart: unless-stopped
-
-networks:
-  allegro-network:
-    driver: bridge
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
-  postgres_data:
   footprint_downloads:

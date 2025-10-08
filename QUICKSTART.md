@@ -1,14 +1,53 @@
 # Quick Start Guide
 
-## Development Setup (5 minutes)
+## Development Setup (Manual)
 
-### 1. Start PostgreSQL Database
+### Option 1: Using Existing PostgreSQL Server
+
+Since you have PostgreSQL running at `infra.main.local:5435`:
+
+#### 1. Initialize the Database
+```bash
+cd scripts
+npm install
+npm run init-db
+```
+This will set up all tables, indexes, and optionally load sample data.
+
+**Detailed instructions**: See [DATABASE_SETUP.md](DATABASE_SETUP.md)
+
+#### 2. Start Backend Server
+Open a terminal:
+```bash
+cd server
+npm run dev
+```
+Backend API will be available at http://localhost:3001
+
+#### 3. Start Frontend
+Open another terminal:
+```bash
+cd client
+npm run dev
+```
+Frontend will be available at http://localhost:5173
+
+#### 4. Access the Application
+Open your browser to http://localhost:5173
+
+---
+
+### Option 2: Using Docker for Local Database
+
+If you prefer Docker for local development:
+
+#### 1. Start PostgreSQL Database
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
 This starts PostgreSQL on port 5435 with the schema automatically initialized.
 
-### 2. Start Backend Server
+#### 2. Start Backend Server
 Open a terminal:
 ```bash
 cd server
@@ -27,6 +66,53 @@ Frontend will be available at http://localhost:5173
 ### 4. Access the Application
 Open your browser to http://localhost:5173
 
+---
+
+## Production Deployment (Docker)
+
+For production, use the unified Docker deployment:
+
+### 1. Initialize Database
+```bash
+cd scripts
+npm run init-db
+```
+
+### 2. Configure Database Connection
+Edit `docker-compose.yml` and update:
+```yaml
+environment:
+  - DB_HOST=infra.main.local  # Your PostgreSQL host
+  - DB_PORT=5435
+  - DB_USER=sami
+  - DB_PASSWORD=123456
+  - DB_NAME=cip
+```
+
+### 3. Build and Start
+```bash
+docker-compose up -d
+```
+
+### 4. View Logs
+```bash
+docker-compose logs -f web
+```
+
+### 5. Access Application
+- Frontend: http://localhost
+- API: http://localhost/api
+- Health: http://localhost/health
+
+### 6. Stop
+```bash
+docker-compose down
+```
+
+**See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for detailed production deployment guide.**
+
+---
+
 ## First Time Setup
 
 ### Configure API Keys (Optional)
@@ -43,13 +129,18 @@ SNAPEDA_API_KEY=your_api_key
 
 ## Database Access
 
-### Via Command Line
+### Using Your Existing PostgreSQL
+```bash
+psql -h infra.main.local -p 5435 -U sami -d cip
+```
+
+### If Using Docker Dev Database
 ```bash
 docker exec -it allegro-postgres-dev psql -U sami -d cip
 ```
 
 ### Via GUI Tool
-- Host: localhost
+- Host: localhost (or infra.main.local)
 - Port: 5435
 - User: sami
 - Password: 123456
@@ -57,7 +148,46 @@ docker exec -it allegro-postgres-dev psql -U sami -d cip
 
 ## Common Commands
 
-### Stop Services
+### Development
+
+#### Stop Backend/Frontend
+Press `Ctrl+C` in each terminal
+
+#### Restart Backend
+```bash
+cd server
+npm run dev
+```
+
+#### Restart Frontend
+```bash
+cd client
+npm run dev
+```
+
+### Production (Docker)
+
+#### Stop Services
+```bash
+docker-compose down
+```
+
+#### Restart Services
+```bash
+docker-compose restart web
+```
+
+#### View Logs
+```bash
+docker-compose logs -f web
+```
+
+#### Rebuild
+```bash
+docker-compose up -d --build
+```
+
+### Stop Development Database (if using Docker)
 ```bash
 # Stop database only
 docker-compose -f docker-compose.dev.yml down

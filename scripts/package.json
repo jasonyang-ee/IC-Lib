@@ -1,0 +1,14 @@
+{
+  "name": "allegro-db-scripts",
+  "version": "1.0.0",
+  "description": "Database initialization scripts for Allegro Component Library",
+  "type": "module",
+  "scripts": {
+    "init-db": "node init-database.js",
+    "reset-db": "node reset-database.js",
+    "backup-db": "node backup-database.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
