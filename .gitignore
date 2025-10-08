@@ -40,6 +40,6 @@ temp/
 *.tmp
 
 # AI notes
-.txt
-.md
+*.txt
+*.md
 !README.md
