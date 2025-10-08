@@ -284,142 +284,144 @@ const Library = () => {
 
         {/* Center - Component List */}
         <div className="col-span-6 space-y-4">
-          {/* Component Details (Upper) - Shows when editing, adding, or viewing */}
-          {(isAddMode || isEditMode || selectedComponent) && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                {isAddMode ? 'Add New Component' : 'Component Details'}
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                {isEditMode || isAddMode ? (
-                  <>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Number *</label>
-                      <input
-                        type="text"
-                        value={editData.part_number || ''}
-                        onChange={(e) => handleFieldChange('part_number', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">MFG Part Number</label>
-                      <input
-                        type="text"
-                        value={editData.manufacturer_part_number || ''}
-                        onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
-                      <textarea
-                        value={editData.description || ''}
-                        onChange={(e) => handleFieldChange('description', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        rows="3"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Category *</label>
-                      <select
-                        value={editData.category_id || ''}
-                        onChange={(e) => {
-                          const newCategoryId = e.target.value;
-                          handleFieldChange('category_id', newCategoryId);
-                          // Regenerate part number when category changes
-                          if (isAddMode) {
-                            const newPartNumber = generatePartNumber(newCategoryId, components || [], partNumberConfigs);
-                            handleFieldChange('part_number', newPartNumber);
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      >
-                        <option value="">Select category</option>
-                        {categories?.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Subcategory</label>
-                      <input
-                        type="text"
-                        value={editData.subcategory || ''}
-                        onChange={(e) => handleFieldChange('subcategory', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
-                      <select
-                        value={editData.manufacturer_id || ''}
-                        onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      >
-                        <option value="">Select manufacturer</option>
-                        {manufacturers?.map((mfr) => (
-                          <option key={mfr.id} value={mfr.id}>
-                            {mfr.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
-                      <input
-                        type="url"
-                        value={editData.datasheet_url || ''}
-                        onChange={(e) => handleFieldChange('datasheet_url', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.part_number}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">MFG Part Number:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_part_number || 'N/A'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-600 dark:text-gray-400">Description:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.description || 'No description'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Category:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.category_name}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Subcategory:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.subcategory || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_name || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Footprint:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.footprint_path || 'Not set'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Symbol:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.symbol_path || 'Not set'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Pad:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.pad_path || 'Not set'}</p>
-                    </div>
-                  </>
-                )}
-              </div>
+          {/* Component Details (Upper) - Always shown */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {isAddMode ? 'Add New Component' : 'Component Details'}
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {isEditMode || isAddMode ? (
+                <>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Number *</label>
+                    <input
+                      type="text"
+                      value={editData.part_number || ''}
+                      onChange={(e) => handleFieldChange('part_number', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">MFG Part Number</label>
+                    <input
+                      type="text"
+                      value={editData.manufacturer_part_number || ''}
+                      onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                    <textarea
+                      value={editData.description || ''}
+                      onChange={(e) => handleFieldChange('description', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      rows="3"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Category *</label>
+                    <select
+                      value={editData.category_id || ''}
+                      onChange={(e) => {
+                        const newCategoryId = e.target.value;
+                        handleFieldChange('category_id', newCategoryId);
+                        // Regenerate part number when category changes
+                        if (isAddMode) {
+                          const newPartNumber = generatePartNumber(newCategoryId, components || [], partNumberConfigs);
+                          handleFieldChange('part_number', newPartNumber);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    >
+                      <option value="">Select category</option>
+                      {categories?.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Subcategory</label>
+                    <input
+                      type="text"
+                      value={editData.subcategory || ''}
+                      onChange={(e) => handleFieldChange('subcategory', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
+                    <select
+                      value={editData.manufacturer_id || ''}
+                      onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    >
+                      <option value="">Select manufacturer</option>
+                      {manufacturers?.map((mfr) => (
+                        <option key={mfr.id} value={mfr.id}>
+                          {mfr.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
+                    <input
+                      type="url"
+                      value={editData.datasheet_url || ''}
+                      onChange={(e) => handleFieldChange('datasheet_url', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                </>
+              ) : selectedComponent && componentDetails ? (
+                <>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.part_number}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">MFG Part Number:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_part_number || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.description || 'No description'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Category:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.category_name}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Subcategory:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.subcategory || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Footprint:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.footprint_path || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Symbol:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.symbol_path || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Pad:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.pad_path || 'Not set'}</p>
+                  </div>
+                </>
+              ) : (
+                <div className="col-span-2 text-center py-8 text-gray-500 dark:text-gray-400">
+                  <p>Select a component from the list to view details</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Component List (Lower) */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
@@ -427,26 +429,6 @@ const Library = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {currentCategoryName} Components ({components?.length || 0})
               </h3>
-              <div className="flex gap-2">
-                {deleteMode ? (
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={selectedForDelete.size === 0}
-                    className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Confirm Delete ({selectedForDelete.size})
-                  </button>
-                ) : (
-                  <button 
-                    onClick={handleAddComponent}
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Component
-                  </button>
-                )}
-              </div>
             </div>
             <div className="overflow-auto max-h-[500px]">
               {isLoading ? (
@@ -572,53 +554,59 @@ const Library = () => {
             </div>
           )}
 
-          {/* Actions for View Mode */}
-          {selectedComponent && !isEditMode && !isAddMode && (
+          {/* Actions for View/Delete Mode */}
+          {!isAddMode && !isEditMode && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
               <div className="space-y-2">
-                <button
-                  onClick={handleEdit}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit Component
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Component
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Delete Mode Toggle */}
-          {!isAddMode && !isEditMode && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Bulk Actions</h3>
-              <button
-                onClick={toggleDeleteMode}
-                className={`w-full font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                  deleteMode
-                    ? 'bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300'
-                    : 'bg-red-600 hover:bg-red-700 text-white'
-                }`}
-              >
                 {deleteMode ? (
                   <>
-                    <X className="w-4 h-4" />
-                    Cancel Selection
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={selectedForDelete.size === 0}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-4 h-4" />
+                      Confirm Delete ({selectedForDelete.size})
+                    </button>
+                    <button
+                      onClick={toggleDeleteMode}
+                      className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel Selection
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Trash2 className="w-4 h-4" />
-                    Delete Multiple
+                    <button
+                      onClick={handleAddComponent}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Component
+                    </button>
+                    {selectedComponent && (
+                      <>
+                        <button
+                          onClick={handleEdit}
+                          className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Component
+                        </button>
+                        <button
+                          onClick={toggleDeleteMode}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Component
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
-              </button>
+              </div>
             </div>
           )}
         </div>
