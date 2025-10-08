@@ -40,11 +40,11 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
 # Create directories for downloads
-RUN mkdir -p /app/downloads/footprints
+RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
 
 # Copy startup script
-COPY startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # Expose ports
 EXPOSE 80 3001
@@ -53,4 +53,4 @@ EXPOSE 80 3001
 WORKDIR /app
 
 # Use our startup script as entrypoint
-ENTRYPOINT ["/app/startup.sh"]
+ENTRYPOINT ["/app/start.sh"]
