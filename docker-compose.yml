@@ -33,7 +33,7 @@ services:
       - "80:80"          # Frontend (nginx)
       # - "3001:3001"    # Backend API (optional, commented out - accessible via nginx at /api)
     volumes:
-      - footprint_downloads:/app/downloads/footprints
+      - ./download:/app/download/footprint
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]

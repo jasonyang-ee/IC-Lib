@@ -30,8 +30,8 @@ docker-compose.override.yml
 *.sqlite
 
 # Downloads
-downloads/
-footprints/
+download/
+footprint/
 
 # Temporary files
 tmp/
