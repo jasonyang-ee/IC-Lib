@@ -1,0 +1,262 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../utils/api';
+import { FileText, Download, PieChart, BarChart3 } from 'lucide-react';
+
+const Reports = () => {
+  const [activeReport, setActiveReport] = useState('component-summary');
+
+  const reports = [
+    { id: 'component-summary', name: 'Component Summary', icon: PieChart },
+    { id: 'category-distribution', name: 'Category Distribution', icon: BarChart3 },
+    { id: 'inventory-value', name: 'Inventory Value', icon: FileText },
+    { id: 'missing-footprints', name: 'Missing Footprints', icon: FileText },
+    { id: 'manufacturer', name: 'Manufacturer Report', icon: FileText },
+    { id: 'low-stock', name: 'Low Stock Report', icon: FileText },
+  ];
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['report', activeReport],
+    queryFn: async () => {
+      switch (activeReport) {
+        case 'component-summary':
+          return (await api.getComponentSummary()).data;
+        case 'category-distribution':
+          return (await api.getCategoryDistribution()).data;
+        case 'inventory-value':
+          return (await api.getInventoryValue()).data;
+        case 'missing-footprints':
+          return (await api.getMissingFootprints()).data;
+        case 'manufacturer':
+          return (await api.getManufacturerReport()).data;
+        case 'low-stock':
+          return (await api.getLowStockReport()).data;
+        default:
+          return [];
+      }
+    },
+  });
+
+  const renderReportContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        </div>
+      );
+    }
+
+    if (!reportData || reportData.length === 0) {
+      return (
+        <div className="text-center py-12 text-gray-500">
+          No data available for this report
+        </div>
+      );
+    }
+
+    switch (activeReport) {
+      case 'component-summary':
+        return (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Components</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">With Footprint</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">With Symbol</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => (
+                <tr key={index} className="border-b border-gray-100">
+                  <td className="px-4 py-3 text-sm font-medium">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.total_components}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.with_footprint}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.with_symbol}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      case 'category-distribution':
+        return (
+          <div className="space-y-4">
+            {reportData.map((row, index) => (
+              <div key={index} className="flex items-center gap-4">
+                <div className="w-32 text-sm font-medium text-gray-700">{row.category}</div>
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex-1 bg-gray-200 rounded-full h-6">
+                    <div
+                      className="bg-primary-600 h-6 rounded-full flex items-center justify-end pr-2"
+                      style={{ width: `${row.percentage}%` }}
+                    >
+                      <span className="text-xs text-white font-medium">{row.percentage}%</span>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 w-16 text-right">
+                    {row.count}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+
+      case 'inventory-value':
+        return (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Value</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Quantity</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Unique Components</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => (
+                <tr key={index} className="border-b border-gray-100">
+                  <td className="px-4 py-3 text-sm font-medium">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
+                    ${parseFloat(row.total_value || 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right">{row.total_quantity || 0}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.unique_components || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      case 'missing-footprints':
+        return (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">MFR Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Manufacturer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => (
+                <tr key={index} className="border-b border-gray-100">
+                  <td className="px-4 py-3 text-sm font-medium">{row.part_number}</td>
+                  <td className="px-4 py-3 text-sm">{row.manufacturer_part_number || 'N/A'}</td>
+                  <td className="px-4 py-3 text-sm">{row.category_name}</td>
+                  <td className="px-4 py-3 text-sm">{row.manufacturer_name || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      case 'manufacturer':
+        return (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Manufacturer</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Component Count</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Category Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => (
+                <tr key={index} className="border-b border-gray-100">
+                  <td className="px-4 py-3 text-sm font-medium">{row.manufacturer}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.component_count}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.category_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      case 'low-stock':
+        return (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Current Stock</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Minimum Stock</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Shortage</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row, index) => (
+                <tr key={index} className="border-b border-gray-100">
+                  <td className="px-4 py-3 text-sm font-medium">{row.part_number}</td>
+                  <td className="px-4 py-3 text-sm">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.current_stock}</td>
+                  <td className="px-4 py-3 text-sm text-right">{row.minimum_stock}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold text-red-600">{row.shortage}</td>
+                  <td className="px-4 py-3 text-sm">{row.location || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      default:
+        return <div>Report not implemented</div>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+        <p className="text-gray-600 mt-1">Generate and view various reports for your component library</p>
+      </div>
+
+      <div className="grid grid-cols-12 gap-6">
+        {/* Report Type Selector */}
+        <div className="col-span-3">
+          <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-3">Report Types</h3>
+            <div className="space-y-2">
+              {reports.map((report) => (
+                <button
+                  key={report.id}
+                  onClick={() => setActiveReport(report.id)}
+                  className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 ${
+                    activeReport === report.id
+                      ? 'bg-primary-100 text-primary-700 font-medium'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <report.icon className="w-4 h-4" />
+                  {report.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Report Content */}
+        <div className="col-span-9">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {reports.find((r) => r.id === activeReport)?.name}
+              </h3>
+              <button className="btn-secondary flex items-center gap-2 text-sm">
+                <Download className="w-4 h-4" />
+                Export CSV
+              </button>
+            </div>
+            <div className="p-6">{renderReportContent()}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Reports;
