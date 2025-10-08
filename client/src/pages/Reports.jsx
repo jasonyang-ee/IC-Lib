@@ -106,23 +106,23 @@ const Reports = () => {
       case 'inventory-value':
         return (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Value</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Total Quantity</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700">Unique Components</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Value</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Total Quantity</th>
+                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Unique Components</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((row, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="px-4 py-3 text-sm font-medium">{row.category}</td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold text-green-600">
+                <tr key={index} className="border-b border-gray-100 dark:border-[#3a3a3a]">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold text-green-600 dark:text-green-400">
                     ${parseFloat(row.total_value || 0).toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-right">{row.total_quantity || 0}</td>
-                  <td className="px-4 py-3 text-sm text-right">{row.unique_components || 0}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.total_quantity || 0}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{row.unique_components || 0}</td>
                 </tr>
               ))}
             </tbody>
@@ -132,21 +132,21 @@ const Reports = () => {
       case 'missing-footprints':
         return (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-[#333333]">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Part Number</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">MFR Part Number</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Category</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Manufacturer</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part Number</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Manufacturer</th>
               </tr>
             </thead>
             <tbody>
               {reportData.map((row, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="px-4 py-3 text-sm font-medium">{row.part_number}</td>
-                  <td className="px-4 py-3 text-sm">{row.manufacturer_part_number || 'N/A'}</td>
-                  <td className="px-4 py-3 text-sm">{row.category_name}</td>
-                  <td className="px-4 py-3 text-sm">{row.manufacturer_name || 'N/A'}</td>
+                <tr key={index} className="border-b border-gray-100 dark:border-[#3a3a3a]">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{row.part_number}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.manufacturer_part_number || 'N/A'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.category_name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.manufacturer_name || 'N/A'}</td>
                 </tr>
               ))}
             </tbody>

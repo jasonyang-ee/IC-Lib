@@ -258,3 +258,40 @@ export const getDistributorInfo = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateDistributorInfo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { distributors } = req.body;
+
+    if (!distributors || !Array.isArray(distributors)) {
+      return res.status(400).json({ error: 'Invalid distributors data' });
+    }
+
+    // Update each distributor's part number
+    const updates = distributors.map(async (dist) => {
+      if (dist.id) {
+        await pool.query(`
+          UPDATE distributor_info 
+          SET distributor_part_number = $1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE component_id = $2 AND id = $3
+        `, [dist.distributor_part_number || null, id, dist.id]);
+      }
+    });
+
+    await Promise.all(updates);
+
+    // Return updated distributor info
+    const result = await pool.query(`
+      SELECT di.*, d.name as distributor_name
+      FROM distributor_info di
+      JOIN distributors d ON di.distributor_id = d.id
+      WHERE di.component_id = $1
+    `, [id]);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};

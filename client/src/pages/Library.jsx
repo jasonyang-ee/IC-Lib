@@ -136,14 +136,27 @@ const Library = () => {
 
   const handleEdit = () => {
     setIsEditMode(true);
-    setEditData(componentDetails || {});
+    setEditData({
+      ...componentDetails,
+      distributors: componentDetails?.distributors || []
+    });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isAddMode) {
       addMutation.mutate(editData);
     } else if (selectedComponent) {
-      updateMutation.mutate({ id: selectedComponent.id, data: editData });
+      // Update component basic info
+      await updateMutation.mutateAsync({ id: selectedComponent.id, data: editData });
+      
+      // Update distributor info if modified
+      if (editData.distributors) {
+        try {
+          await api.updateComponentDistributors(selectedComponent.id, { distributors: editData.distributors });
+        } catch (error) {
+          console.error('Failed to update distributor info:', error);
+        }
+      }
     }
   };
 
@@ -375,6 +388,33 @@ const Library = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Footprint Path</label>
+                    <input
+                      type="text"
+                      value={editData.footprint_path || ''}
+                      onChange={(e) => handleFieldChange('footprint_path', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Symbol Path</label>
+                    <input
+                      type="text"
+                      value={editData.symbol_path || ''}
+                      onChange={(e) => handleFieldChange('symbol_path', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Pad Path</label>
+                    <input
+                      type="text"
+                      value={editData.pad_path || ''}
+                      onChange={(e) => handleFieldChange('pad_path', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
                 </>
               ) : selectedComponent && componentDetails ? (
                 <>
@@ -508,8 +548,29 @@ const Library = () => {
                   {componentDetails.distributors.map((dist, index) => (
                     <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
                       <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
-                      {dist.distributor_part_number && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400">Part #: {dist.distributor_part_number}</p>
+                      {isEditMode ? (
+                        <div className="mt-2">
+                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Part Number</label>
+                          <input
+                            type="text"
+                            value={editData.distributors?.[index]?.distributor_part_number || dist.distributor_part_number || ''}
+                            onChange={(e) => {
+                              const updatedDistributors = [...(editData.distributors || componentDetails.distributors)];
+                              updatedDistributors[index] = {
+                                ...dist,
+                                ...updatedDistributors[index],
+                                distributor_part_number: e.target.value
+                              };
+                              handleFieldChange('distributors', updatedDistributors);
+                            }}
+                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-xs"
+                            placeholder="Enter part number"
+                          />
+                        </div>
+                      ) : (
+                        dist.distributor_part_number && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400">Part #: {dist.distributor_part_number}</p>
+                        )
                       )}
                       <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity}</p>
                       {dist.price_breaks && dist.price_breaks.length > 0 && (

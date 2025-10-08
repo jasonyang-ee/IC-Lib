@@ -153,12 +153,12 @@ const ManufacturerLibrary = () => {
 
         {/* Center - Manufacturer List and Details */}
         <div className="col-span-6 space-y-4">
-          {/* Manufacturer Details (Upper) - Shown when editing or adding */}
-          {(isAddMode || (selectedManufacturer && isEditMode)) && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                {isAddMode ? 'Add New Manufacturer' : 'Edit Manufacturer'}
-              </h3>
+          {/* Manufacturer Details (Upper) - Always shown */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {isAddMode ? 'Add New Manufacturer' : 'Manufacturer Details'}
+            </h3>
+            {(isAddMode || isEditMode) ? (
               <div className="space-y-4">
                 <div>
                   <label className="block text-gray-600 dark:text-gray-400 mb-1 text-sm">Manufacturer Name *</label>
@@ -181,13 +181,7 @@ const ManufacturerLibrary = () => {
                   />
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Selected Manufacturer Details (View Mode) */}
-          {selectedManufacturer && !isEditMode && !isAddMode && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Manufacturer Details</h3>
+            ) : selectedManufacturer ? (
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">Name:</span>
@@ -204,8 +198,12 @@ const ManufacturerLibrary = () => {
                   </p>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <p>Select a manufacturer from the list to view details</p>
+              </div>
+            )}
+          </div>
 
           {/* Manufacturer List (Lower) */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
@@ -213,26 +211,6 @@ const ManufacturerLibrary = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Manufacturers ({filteredManufacturers?.length || 0})
               </h3>
-              <div className="flex gap-2">
-                {deleteMode ? (
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={selectedForDelete.size === 0}
-                    className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Confirm Delete ({selectedForDelete.size})
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleAddNew}
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Manufacturer
-                  </button>
-                )}
-              </div>
             </div>
             <div className="overflow-auto max-h-[500px]">
               {isLoading ? (
@@ -329,53 +307,59 @@ const ManufacturerLibrary = () => {
             </div>
           )}
 
-          {/* Actions for View Mode */}
-          {selectedManufacturer && !isEditMode && !isAddMode && (
+          {/* Actions for View/Delete Mode */}
+          {!isAddMode && !isEditMode && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
               <div className="space-y-2">
-                <button
-                  onClick={handleEdit}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit Manufacturer
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Manufacturer
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Delete Mode Toggle */}
-          {!isAddMode && !isEditMode && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Bulk Actions</h3>
-              <button
-                onClick={toggleDeleteMode}
-                className={`w-full font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                  deleteMode
-                    ? 'bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300'
-                    : 'bg-red-600 hover:bg-red-700 text-white'
-                }`}
-              >
                 {deleteMode ? (
                   <>
-                    <X className="w-4 h-4" />
-                    Cancel Selection
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={selectedForDelete.size === 0}
+                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Check className="w-4 h-4" />
+                      Confirm Delete ({selectedForDelete.size})
+                    </button>
+                    <button
+                      onClick={toggleDeleteMode}
+                      className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel Selection
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Trash2 className="w-4 h-4" />
-                    Delete Multiple
+                    <button
+                      onClick={handleAddNew}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Manufacturer
+                    </button>
+                    {selectedManufacturer && (
+                      <>
+                        <button
+                          onClick={handleEdit}
+                          className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Manufacturer
+                        </button>
+                        <button
+                          onClick={toggleDeleteMode}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Manufacturer
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
-              </button>
+              </div>
             </div>
           )}
         </div>

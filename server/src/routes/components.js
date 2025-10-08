@@ -27,4 +27,7 @@ router.put('/:id/specifications', componentController.updateComponentSpecificati
 // Get distributor info for component
 router.get('/:id/distributors', componentController.getDistributorInfo);
 
+// Update distributor info for component
+router.put('/:id/distributors', componentController.updateDistributorInfo);
+
 export default router;
