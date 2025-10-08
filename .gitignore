@@ -42,7 +42,7 @@ temp/
 *.txt
 *.md
 !README.md
-!app/config/README.md
+!config/README.md
 
 # Application config (settings are environment-specific)
-app/config/settings.json
+config/settings.json

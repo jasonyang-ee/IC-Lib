@@ -1,10 +1,10 @@
-# Node modules
+# Node modules (will be installed during build)
 node_modules/
 client/node_modules/
 server/node_modules/
 scripts/node_modules/
 
-# Build outputs
+# Build outputs (will be generated during build)
 client/dist/
 client/build/
 
@@ -16,7 +16,7 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
-# Environment files
+# Environment files (use docker-compose environment instead)
 .env
 .env.local
 .env.development
@@ -44,9 +44,24 @@ docker-compose*.yml
 Dockerfile
 .dockerignore
 
-# Documentation
+# Documentation (except config README)
 *.md
+!config/README.md
 docs/
+
+# Test files
+**/*.test.js
+**/*.spec.js
+**/__tests__/
+**/__mocks__/
+
+# Download cache (use volume instead)
+download/
+
+# Database files (use external database)
+database/
+*.db
+*.sqlite
 
 # Database files
 database/

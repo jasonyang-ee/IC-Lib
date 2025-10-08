@@ -6,10 +6,13 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/client
 
-COPY client/package*.json ./
+# Copy package.json
+COPY client/package.json ./
 
-RUN npm ci
+# Install dependencies (generates package-lock.json)
+RUN npm install --prefer-offline --no-audit
 
+# Copy all client source code
 COPY client/ .
 
 # Build the React app
@@ -20,15 +23,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install bash for our startup script
-RUN apk add --no-cache bash nginx
+# Install bash for our startup script and nginx for frontend
+RUN apk add --no-cache bash nginx wget
 
-# Copy backend dependencies and install
-COPY server/package*.json ./server/
+# Copy backend package.json
+COPY server/package.json ./server/
 
 WORKDIR /app/server
 
-RUN npm ci --only=production
+# Install production dependencies (generates package-lock.json)
+RUN npm install --omit=dev --prefer-offline --no-audit
 
 # Copy backend source code
 COPY server/ .
@@ -39,8 +43,11 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Create directories for downloads and config
-RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad /app/config
+# Copy config directory to /app/config
+COPY config/ /app/config/
+
+# Create directories for downloads
+RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
 
 # Copy startup script
 COPY start.sh /app/start.sh

@@ -36,7 +36,7 @@ services:
       - ./download/footprint:/app/download/footprint
       - ./download/symbol:/app/download/symbol
       - ./download/pad:/app/download/pad
-      - ./app/config:/app/config
+      - ./config:/app/config
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]

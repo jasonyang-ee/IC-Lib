@@ -5,8 +5,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Path to settings file
-const SETTINGS_FILE = path.join(__dirname, '../../../app/config/settings.json');
+// Path to settings file - relative to project root
+// In development: server/src/controllers -> ../../../config/settings.json
+// In Docker: /app/server/src/controllers -> ../../../config/settings.json (project copied to /app)
+const SETTINGS_FILE = path.join(__dirname, '../../../config/settings.json');
 
 // Default settings structure
 const DEFAULT_SETTINGS = {
