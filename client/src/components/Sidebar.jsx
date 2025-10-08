@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings } from 'lucide-react';
 
 const Sidebar = () => {
   const menuItems = [
@@ -8,6 +8,7 @@ const Sidebar = () => {
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
     { path: '/reports', icon: FileText, label: 'Reports' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   return (

@@ -19,8 +19,6 @@
   font-weight: 400;
   
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
   
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -33,6 +31,7 @@ body {
   display: flex;
   min-width: 320px;
   min-height: 100vh;
+  @apply bg-gray-50 text-gray-900 dark:bg-[#1f1f1f] dark:text-gray-100;
 }
 
 #root {

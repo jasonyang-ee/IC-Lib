@@ -44,12 +44,12 @@ const VendorSearch = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Online Vendor Search</h1>
-        <p className="text-gray-600 mt-1">Search Digikey and Mouser for component information</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Online Vendor Search</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Search Digikey and Mouser for component information</p>
       </div>
 
       {/* Search Form */}
-      <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <form onSubmit={handleSearch} className="flex gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -58,13 +58,13 @@ const VendorSearch = () => {
               placeholder="Enter part number or manufacturer part number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
             />
           </div>
           <button
             type="submit"
             disabled={searchMutation.isPending}
-            className="btn-primary px-8"
+            className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
           >
             {searchMutation.isPending ? 'Searching...' : 'Search'}
           </button>

@@ -93,7 +93,7 @@ Perfect if you already have PostgreSQL running on a separate server.
    ```bash
    npm run dev
    ```
-   Backend will run on http://localhost:3001
+   Backend will run on http://localhost:3500
 
 5. **Configure Frontend**
    ```bash
@@ -133,7 +133,7 @@ If you prefer to use Docker for the database:
    ```bash
    npm run dev
    ```
-   Backend will run on http://localhost:3001
+   Backend will run on http://localhost:3500
 
 5. **Configure Frontend**
    ```bash
@@ -161,11 +161,11 @@ If you prefer to use Docker for the database:
    Edit `docker-compose.yml` and update the environment variables:
    ```yaml
    environment:
-     - DB_HOST=infra.main.local  # Your PostgreSQL host
-     - DB_PORT=5435              # Your PostgreSQL port
-     - DB_USER=sami
-     - DB_PASSWORD=123456
-     - DB_NAME=cip
+     - DB_HOST=
+     - DB_PORT=
+     - DB_USER=
+     - DB_PASSWORD=
+     - DB_NAME=
    ```
 
 3. **Build and Start the Application**

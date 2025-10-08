@@ -5,6 +5,7 @@ import Library from './pages/Library'
 import Inventory from './pages/Inventory'
 import VendorSearch from './pages/VendorSearch'
 import Reports from './pages/Reports'
+import Settings from './pages/Settings'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/vendor-search" element={<VendorSearch />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>
   )

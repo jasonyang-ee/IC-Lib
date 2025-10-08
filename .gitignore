@@ -38,3 +38,8 @@ footprint/
 tmp/
 temp/
 *.tmp
+
+# AI notes
+.txt
+.md
+!README.md
