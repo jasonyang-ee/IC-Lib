@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-Development: http://localhost:3001/api
+Development: http://localhost:3500/api
 Production: https://your-domain.com/api
 ```
 
@@ -441,14 +441,14 @@ Currently no rate limiting is implemented. Consider adding rate limiting for pro
 
 1. **Search for part on vendors**:
 ```bash
-curl -X POST http://localhost:3001/api/search/all \
+curl -X POST http://localhost:3500/api/search/all \
   -H "Content-Type: application/json" \
   -d '{"partNumber": "LM358"}'
 ```
 
 2. **Create the component**:
 ```bash
-curl -X POST http://localhost:3001/api/components \
+curl -X POST http://localhost:3500/api/components \
   -H "Content-Type: application/json" \
   -d '{
     "category_id": "ic-category-uuid",
@@ -464,14 +464,14 @@ curl -X POST http://localhost:3001/api/components \
 
 3. **Download footprint**:
 ```bash
-curl -X POST http://localhost:3001/api/search/footprint/ultra-librarian \
+curl -X POST http://localhost:3500/api/search/footprint/ultra-librarian \
   -H "Content-Type: application/json" \
   -d '{"partNumber": "LM358DR", "componentId": "component-uuid"}'
 ```
 
 4. **Add to inventory**:
 ```bash
-curl -X POST http://localhost:3001/api/inventory \
+curl -X POST http://localhost:3500/api/inventory \
   -H "Content-Type: application/json" \
   -d '{
     "component_id": "component-uuid",

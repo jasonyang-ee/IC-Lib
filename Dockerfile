@@ -47,7 +47,7 @@ COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Expose ports
-EXPOSE 80 3001
+EXPOSE 80 3500
 
 # Set working directory back to /app
 WORKDIR /app
