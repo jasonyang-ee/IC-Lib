@@ -53,8 +53,8 @@ RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-# Expose ports
-EXPOSE 80 3500
+# Expose only port 80 (nginx handles both frontend and API proxy)
+EXPOSE 80
 
 # Set working directory back to /app
 WORKDIR /app

@@ -30,8 +30,7 @@ services:
       # - ULTRA_LIBRARIAN_TOKEN=your_token
       # - SNAPEDA_API_KEY=your_api_key
     ports:
-      - "80:80"          # Frontend (nginx)
-      - "3500:3500"      # Backend API
+      - "80:80"          # All traffic (frontend + API via nginx proxy)
     volumes:
       - ./download/footprint:/app/download/footprint
       - ./download/symbol:/app/download/symbol
