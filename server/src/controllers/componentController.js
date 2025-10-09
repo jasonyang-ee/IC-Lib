@@ -487,9 +487,10 @@ export const updateDistributorInfo = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid distributors data' });
     }
 
-    // Update each distributor's SKU (part number)
+    // Handle both INSERT (new records) and UPDATE (existing records)
     const updates = distributors.map(async (dist) => {
       if (dist.id) {
+        // Update existing distributor_info record
         await pool.query(`
           UPDATE distributor_info 
           SET sku = $1,
@@ -507,6 +508,33 @@ export const updateDistributorInfo = async (req, res, next) => {
           dist.stock_quantity || 0,
           id, 
           dist.id
+        ]);
+      } else if (dist.distributor_id && dist.sku) {
+        // Insert new distributor_info record
+        await pool.query(`
+          INSERT INTO distributor_info (
+            component_id,
+            distributor_id,
+            sku,
+            url,
+            price,
+            in_stock,
+            stock_quantity
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (component_id, distributor_id, sku) DO UPDATE
+          SET url = EXCLUDED.url,
+              price = EXCLUDED.price,
+              in_stock = EXCLUDED.in_stock,
+              stock_quantity = EXCLUDED.stock_quantity,
+              last_updated = CURRENT_TIMESTAMP
+        `, [
+          id,
+          dist.distributor_id,
+          dist.sku,
+          dist.url || null,
+          dist.price || null,
+          dist.in_stock || false,
+          dist.stock_quantity || 0
         ]);
       }
     });
