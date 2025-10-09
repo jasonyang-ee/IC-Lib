@@ -208,7 +208,12 @@ const Library = () => {
       manufacturer_id: '',
       manufacturer_pn: '',
       description: '',
+      value: '',
+      pcb_footprint: '',
+      package_size: '',
       datasheet_url: '',
+      status: 'Active',
+      notes: '',
     });
   };
 
@@ -369,29 +374,41 @@ const Library = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Footprint Path</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Value</label>
                     <input
                       type="text"
-                      value={editData.footprint_path || ''}
-                      onChange={(e) => handleFieldChange('footprint_path', e.target.value)}
+                      value={editData.value || ''}
+                      onChange={(e) => handleFieldChange('value', e.target.value)}
+                      placeholder="e.g., 10uF, 10kΩ"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Symbol Path</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
                     <input
                       type="text"
-                      value={editData.symbol_path || ''}
-                      onChange={(e) => handleFieldChange('symbol_path', e.target.value)}
+                      value={editData.pcb_footprint || ''}
+                      onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
+                      placeholder="e.g., C_0805, SOIC-8"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Pad Path</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Package Size</label>
                     <input
                       type="text"
-                      value={editData.pad_path || ''}
-                      onChange={(e) => handleFieldChange('pad_path', e.target.value)}
+                      value={editData.package_size || ''}
+                      onChange={(e) => handleFieldChange('package_size', e.target.value)}
+                      placeholder="e.g., 0805, SOIC-8"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Notes</label>
+                    <textarea
+                      value={editData.notes || ''}
+                      onChange={(e) => handleFieldChange('notes', e.target.value)}
+                      rows="2"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
@@ -411,6 +428,14 @@ const Library = () => {
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.description || 'No description'}</p>
                   </div>
                   <div>
+                    <span className="text-gray-600 dark:text-gray-400">Value:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.value || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Package:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.package_size || 'N/A'}</p>
+                  </div>
+                  <div>
                     <span className="text-gray-600 dark:text-gray-400">Category:</span>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.category_name}</p>
                   </div>
@@ -419,16 +444,12 @@ const Library = () => {
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_name || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600 dark:text-gray-400">Footprint:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.footprint_path || 'Not set'}</p>
+                    <span className="text-gray-600 dark:text-gray-400">PCB Footprint:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.pcb_footprint || 'Not set'}</p>
                   </div>
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Symbol:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.symbol_path || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Pad:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100 text-xs">{componentDetails?.pad_path || 'Not set'}</p>
+                  <div className="col-span-2">
+                    <span className="text-gray-600 dark:text-gray-400">Notes:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">{componentDetails?.notes || 'N/A'}</p>
                   </div>
                 </>
               ) : (
@@ -526,37 +547,47 @@ const Library = () => {
                       <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
                       {isEditMode ? (
                         <div className="mt-2">
-                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Part Number</label>
+                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">SKU / Part Number</label>
                           <input
                             type="text"
-                            value={editData.distributors?.[index]?.distributor_part_number || dist.distributor_part_number || ''}
+                            value={editData.distributors?.[index]?.sku || dist.sku || ''}
                             onChange={(e) => {
                               const updatedDistributors = [...(editData.distributors || componentDetails.distributors)];
                               updatedDistributors[index] = {
                                 ...dist,
                                 ...updatedDistributors[index],
-                                distributor_part_number: e.target.value
+                                sku: e.target.value
                               };
                               handleFieldChange('distributors', updatedDistributors);
                             }}
                             className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-xs"
-                            placeholder="Enter part number"
+                            placeholder="Enter SKU/part number"
                           />
                         </div>
                       ) : (
-                        dist.distributor_part_number && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Part #: {dist.distributor_part_number}</p>
+                        dist.sku && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400">SKU: {dist.sku}</p>
                         )
                       )}
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity}</p>
-                      {dist.price_breaks && dist.price_breaks.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {dist.price_breaks.slice(0, 3).map((price, idx) => (
-                            <p key={idx} className="text-xs text-gray-600 dark:text-gray-400">
-                              {price.quantity}+: ${price.price}
-                            </p>
-                          ))}
-                        </div>
+                      {dist.stock_quantity !== null && dist.stock_quantity !== undefined && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Stock: {dist.in_stock ? `${dist.stock_quantity} available` : 'Out of stock'}
+                        </p>
+                      )}
+                      {dist.price && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Price: ${dist.price} {dist.currency || 'USD'}
+                        </p>
+                      )}
+                      {dist.url && (
+                        <a 
+                          href={dist.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                        >
+                          View on {dist.distributor_name}
+                        </a>
                       )}
                     </div>
                   ))}
