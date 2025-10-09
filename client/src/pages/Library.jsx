@@ -79,16 +79,22 @@ const Library = () => {
     queryKey: ['componentDetails', selectedComponent?.id],
     enabled: !!selectedComponent,
     queryFn: async () => {
-      const [details, specifications, distributors] = await Promise.all([
-        api.getComponentById(selectedComponent.id),
-        api.getComponentSpecifications(selectedComponent.id),
-        api.getComponentDistributors(selectedComponent.id),
-      ]);
-      return {
-        ...details.data,
-        specifications: specifications.data,
-        distributors: distributors.data,
-      };
+      try {
+        const [details, specifications, distributors] = await Promise.allSettled([
+          api.getComponentById(selectedComponent.id),
+          api.getComponentSpecifications(selectedComponent.id),
+          api.getComponentDistributors(selectedComponent.id),
+        ]);
+        
+        return {
+          ...(details.status === 'fulfilled' ? details.value.data : {}),
+          specifications: specifications.status === 'fulfilled' ? specifications.value.data : [],
+          distributors: distributors.status === 'fulfilled' ? distributors.value.data : [],
+        };
+      } catch (error) {
+        console.error('Error fetching component details:', error);
+        throw error;
+      }
     },
   });
 

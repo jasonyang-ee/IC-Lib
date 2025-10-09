@@ -70,27 +70,51 @@ const Settings = () => {
 
   // Database operations mutations
   const initDbMutation = useMutation({
-    mutationFn: () => api.initDatabase(),
-    onSuccess: () => {
+    mutationFn: async () => {
+      console.log('Calling initDatabase API...');
+      const response = await api.initDatabase();
+      console.log('initDatabase response:', response);
+      return response;
+    },
+    onSuccess: (data) => {
+      console.log('initDatabase onSuccess:', data);
       setDbOperationStatus({ show: true, type: 'success', message: 'Database initialized successfully!' });
       refetchStats();
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to initialize database: ${error.message}` });
+      console.error('initDatabase onError:', error);
+      console.error('Error response:', error.response);
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
 
   const resetDbMutation = useMutation({
-    mutationFn: () => api.resetDatabase(),
+    mutationFn: () => api.clearDatabase(),  // Clear data only (preserves schema)
     onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Database reset successfully!' });
+      setDbOperationStatus({ show: true, type: 'success', message: 'Database data cleared successfully! Schema preserved.' });
       refetchStats();
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to reset database: ${error.message}` });
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Failed to clear database: ${errorMsg}` });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
+  const fullResetMutation = useMutation({
+    mutationFn: () => api.resetDatabase(true),  // Full reset - drops and recreates all tables
+    onSuccess: () => {
+      setDbOperationStatus({ show: true, type: 'success', message: 'Database fully reset! All tables dropped and recreated.' });
+      refetchStats();
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Failed to reset database: ${errorMsg}` });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -103,7 +127,8 @@ const Settings = () => {
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to load sample data: ${error.message}` });
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Failed to load sample data: ${errorMsg}` });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -155,9 +180,13 @@ const Settings = () => {
         title = 'Initialize Database';
         message = 'This will create all tables, triggers, and required schema. Continue?';
         break;
-      case 'reset':
-        title = 'Reset Database';
-        message = 'This will DELETE ALL DATA from the database. This action cannot be undone. Are you sure?';
+      case 'clear':
+        title = 'Clear All Data';
+        message = 'This will DELETE ALL DATA but preserve the database schema (tables, triggers). Continue?';
+        break;
+      case 'fullreset':
+        title = 'Full Database Reset';
+        message = '⚠️ WARNING: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE LOST. This action cannot be undone. Are you absolutely sure?';
         break;
       case 'load':
         title = 'Load Sample Data';
@@ -178,8 +207,11 @@ const Settings = () => {
       case 'init':
         initDbMutation.mutate();
         break;
-      case 'reset':
+      case 'clear':
         resetDbMutation.mutate();
+        break;
+      case 'fullreset':
+        fullResetMutation.mutate();
         break;
       case 'load':
         loadSampleMutation.mutate();
@@ -502,7 +534,7 @@ const Settings = () => {
         )}
 
         {/* Database Operations */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Initialize Database */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
             <div className="flex items-center mb-3">
@@ -512,7 +544,7 @@ const Settings = () => {
               </h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Create all database tables, triggers, and CIS-compliant schema structure
+              Create all database tables, triggers, and CIS-compliant schema structure (first-time setup only)
             </p>
             <button
               onClick={() => handleDatabaseOperation('init')}
@@ -530,29 +562,56 @@ const Settings = () => {
             </button>
           </div>
 
-          {/* Reset Database */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
+          {/* Clear Data Only */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-yellow-300 dark:border-yellow-600 p-6">
             <div className="flex items-center mb-3">
-              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
                 Clear All Data
               </h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Delete all components, manufacturers, and other data (preserves schema)
+              Delete all data (components, manufacturers, etc.) but preserve schema structure
             </p>
             <button
-              onClick={() => handleDatabaseOperation('reset')}
+              onClick={() => handleDatabaseOperation('clear')}
               disabled={resetDbMutation.isPending}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
             >
               {resetDbMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                'Clear Data'
+              )}
+            </button>
+          </div>
+
+          {/* Full Reset - Drops Tables */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border-2 border-red-500 dark:border-red-600 p-6">
+            <div className="flex items-center mb-3">
+              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
+                Full Database Reset
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              ⚠️ DROP ALL TABLES and recreate schema. Use for schema updates or complete reset.
+            </p>
+            <button
+              onClick={() => handleDatabaseOperation('fullreset')}
+              disabled={fullResetMutation.isPending}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+            >
+              {fullResetMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Resetting...
                 </>
               ) : (
-                'Clear Data'
+                'Full Reset (Drop Tables)'
               )}
             </button>
           </div>

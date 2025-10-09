@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const runScript = (scriptPath, scriptName) => {
   return new Promise((resolve, reject) => {
     const scriptFullPath = path.join(__dirname, '../../../scripts', scriptPath);
-    const process = spawn('node', [scriptFullPath], {
+    const childProcess = spawn('node', [scriptFullPath], {
       cwd: path.join(__dirname, '../../../scripts'),
       env: { ...process.env }
     });
@@ -18,17 +18,17 @@ const runScript = (scriptPath, scriptName) => {
     let stdout = '';
     let stderr = '';
 
-    process.stdout.on('data', (data) => {
+    childProcess.stdout.on('data', (data) => {
       stdout += data.toString();
       console.log(`[${scriptName}]`, data.toString());
     });
 
-    process.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data) => {
       stderr += data.toString();
       console.error(`[${scriptName} ERROR]`, data.toString());
     });
 
-    process.on('close', (code) => {
+    childProcess.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`${scriptName} failed with code ${code}: ${stderr}`));
       } else {
@@ -36,7 +36,7 @@ const runScript = (scriptPath, scriptName) => {
       }
     });
 
-    process.on('error', (error) => {
+    childProcess.on('error', (error) => {
       reject(new Error(`Failed to start ${scriptName}: ${error.message}`));
     });
   });

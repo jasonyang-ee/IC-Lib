@@ -95,10 +95,14 @@ export const api = {
   getSettings: () => apiClient.get('/settings'),
   updateSettings: (data) => apiClient.put('/settings', data),
   
-  // Admin - Database Management
-  initDatabase: () => apiClient.post('/admin/init'),
-  resetDatabase: () => apiClient.post('/admin/reset'),
-  loadSampleData: () => apiClient.post('/admin/load-sample-data'),
+  // Database Management (Silent Mode API - No User Prompts)
+  getDatabaseStatus: () => apiClient.get('/settings/database/status'),
+  clearDatabase: () => apiClient.post('/settings/database/clear'),
+  resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
+  initDatabase: () => apiClient.post('/settings/database/init'),
+  loadSampleData: () => apiClient.post('/settings/database/sample-data'),
+  
+  // Legacy Admin endpoints (if still needed)
   getDatabaseStats: () => apiClient.get('/admin/stats'),
   verifyCISCompliance: () => apiClient.get('/admin/verify-cis'),
 };

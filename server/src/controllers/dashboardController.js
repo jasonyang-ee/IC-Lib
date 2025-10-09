@@ -19,7 +19,7 @@ export const getDashboardStats = async (req, res, next) => {
 
     // Get components without footprints
     const missingFootprintsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE footprint_path IS NULL OR footprint_path = ''"
+      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''"
     );
 
     // Get low stock count

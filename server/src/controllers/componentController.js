@@ -109,9 +109,9 @@ export const createComponent = async (req, res, next) => {
       if (specifications && Array.isArray(specifications)) {
         for (const spec of specifications) {
           await client.query(`
-            INSERT INTO component_specifications (component_id, spec_key, spec_value, spec_unit)
+            INSERT INTO component_specifications (component_id, spec_name, spec_value, unit)
             VALUES ($1, $2, $3, $4)
-          `, [component.id, spec.key, spec.value, spec.unit]);
+          `, [component.id, spec.name || spec.key, spec.value, spec.unit]);
         }
       }
 
@@ -129,11 +129,13 @@ export const createComponent = async (req, res, next) => {
       res.status(201).json(fullComponent.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
+      console.error('Error creating component:', error);
       throw error;
     } finally {
       client.release();
     }
   } catch (error) {
+    console.error('Error in createComponent:', error);
     next(error);
   }
 };
@@ -197,6 +199,7 @@ export const deleteComponent = async (req, res, next) => {
 
     res.json({ message: 'Component deleted successfully' });
   } catch (error) {
+    console.error('Error deleting component:', error);
     next(error);
   }
 };
@@ -206,12 +209,13 @@ export const getComponentSpecifications = async (req, res, next) => {
     const { id } = req.params;
     
     const result = await pool.query(
-      'SELECT * FROM component_specifications WHERE component_id = $1 ORDER BY spec_key',
+      'SELECT * FROM component_specifications WHERE component_id = $1 ORDER BY spec_name',
       [id]
     );
 
     res.json(result.rows);
   } catch (error) {
+    console.error('Error fetching component specifications:', error);
     next(error);
   }
 };
@@ -232,9 +236,9 @@ export const updateComponentSpecifications = async (req, res, next) => {
       if (specifications && Array.isArray(specifications)) {
         for (const spec of specifications) {
           await client.query(`
-            INSERT INTO component_specifications (component_id, spec_key, spec_value, spec_unit)
+            INSERT INTO component_specifications (component_id, spec_name, spec_value, unit)
             VALUES ($1, $2, $3, $4)
-          `, [id, spec.key, spec.value, spec.unit]);
+          `, [id, spec.name || spec.key, spec.value, spec.unit]);
         }
       }
 
@@ -253,6 +257,7 @@ export const updateComponentSpecifications = async (req, res, next) => {
       client.release();
     }
   } catch (error) {
+    console.error('Error updating component specifications:', error);
     next(error);
   }
 };
