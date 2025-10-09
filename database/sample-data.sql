@@ -165,3 +165,222 @@ ON CONFLICT (part_number) DO NOTHING;
 -- Note: Components are automatically synchronized to the components table
 -- via triggers. No need to insert into components table manually.
 -- ============================================================================
+
+-- ============================================================================
+-- Distributor Data
+-- ============================================================================
+
+-- Insert distributors
+INSERT INTO distributors (name, api_endpoint) VALUES
+    ('Digikey', 'https://api.digikey.com/v1'),
+    ('Mouser', 'https://api.mouser.com/api/v1'),
+    ('Newark', 'https://api.newark.com/v1'),
+    ('Arrow', 'https://api.arrow.com/v1'),
+    ('LCSC', 'https://cart.lcsc.com')
+ON CONFLICT (name) DO NOTHING;
+
+-- Add distributor information for sample components
+-- First we need to get component IDs and distributor IDs via joins
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'GRM21BR61E106KA73L',
+    'https://www.digikey.com/product-detail/en/murata-electronics/GRM21BR61E106KA73L/490-1670-1-ND/587771',
+    0.12,
+    'USD',
+    true,
+    15000,
+    1,
+    'Cut Tape'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'CAP-001' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    '81-GRM21BR61E106KA3L',
+    'https://www.mouser.com/ProductDetail/Murata-Electronics/GRM21BR61E106KA73L',
+    0.15,
+    'USD',
+    true,
+    8500,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'CAP-001' AND d.name = 'Mouser'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'CL10B104KB8NNNC',
+    'https://www.digikey.com/product-detail/en/samsung-electro-mechanics/CL10B104KB8NNNC/1276-1006-1-ND/3889092',
+    0.02,
+    'USD',
+    true,
+    50000,
+    1,
+    'Cut Tape'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'CAP-002' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'RC0603FR-0710KL',
+    'https://www.digikey.com/product-detail/en/yageo/RC0603FR-0710KL/311-10.0KHRCT-ND/729790',
+    0.01,
+    'USD',
+    true,
+    100000,
+    1,
+    'Cut Tape'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'RES-001' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    '603-RC0603FR-0710KL',
+    'https://www.mouser.com/ProductDetail/Yageo/RC0603FR-0710KL',
+    0.01,
+    'USD',
+    true,
+    75000,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'RES-001' AND d.name = 'Mouser'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'CRCW0805100RFKEA',
+    'https://www.digikey.com/product-detail/en/vishay-dale/CRCW0805100RFKEA/541-100CCT-ND/1179956',
+    0.01,
+    'USD',
+    true,
+    85000,
+    1,
+    'Cut Tape'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'RES-002' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'LM358DR',
+    'https://www.digikey.com/product-detail/en/texas-instruments/LM358DR/296-14592-1-ND/382296',
+    0.35,
+    'USD',
+    true,
+    25000,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'IC-001' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    '595-LM358DR',
+    'https://www.mouser.com/ProductDetail/Texas-Instruments/LM358DR',
+    0.38,
+    'USD',
+    true,
+    18000,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'IC-001' AND d.name = 'Mouser'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'ATMEGA328P-AU',
+    'https://www.digikey.com/product-detail/en/microchip-technology/ATMEGA328P-AU/ATMEGA328P-AU-ND/1914589',
+    2.15,
+    'USD',
+    true,
+    5000,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'IC-003' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    '1N4148WT',
+    'https://www.digikey.com/product-detail/en/on-semiconductor/1N4148WT/1N4148WTCT-ND/965333',
+    0.05,
+    'USD',
+    true,
+    30000,
+    1,
+    'Cut Tape'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'DIODE-001' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    '12401610E4#2A',
+    'https://www.digikey.com/product-detail/en/amphenol-icc-fci/12401610E4-2A/609-5394-1-ND/5376773',
+    1.25,
+    'USD',
+    true,
+    12000,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'CONN-001' AND d.name = 'Digikey'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity, minimum_order_quantity, packaging)
+SELECT 
+    c.id,
+    d.id,
+    'C29944',
+    'https://lcsc.com/product-detail/USB-Type-C_Amphenol-ICC-12401610E4-2A_C29944.html',
+    0.89,
+    'USD',
+    true,
+    8500,
+    1,
+    'Tape & Reel'
+FROM components c
+CROSS JOIN distributors d
+WHERE c.part_number = 'CONN-001' AND d.name = 'LCSC'
+ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;

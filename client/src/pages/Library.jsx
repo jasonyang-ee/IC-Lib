@@ -62,6 +62,15 @@ const Library = () => {
     },
   });
 
+  // Fetch distributors
+  const { data: distributors } = useQuery({
+    queryKey: ['distributors'],
+    queryFn: async () => {
+      const response = await api.getDistributors();
+      return response.data;
+    },
+  });
+
   // Fetch components
   const { data: components, isLoading } = useQuery({
     queryKey: ['components', selectedCategory, searchTerm],
@@ -100,7 +109,31 @@ const Library = () => {
 
   // Add mutation
   const addMutation = useMutation({
-    mutationFn: (data) => api.createComponent(data),
+    mutationFn: async (data) => {
+      // Create the component first
+      const response = await api.createComponent(data);
+      const newComponent = response.data;
+      
+      // If distributor SKUs were provided, save them
+      if (data.distributorSkus && Object.keys(data.distributorSkus).length > 0) {
+        const distributorData = Object.entries(data.distributorSkus)
+          .filter(([_, sku]) => sku && sku.trim() !== '') // Only include non-empty SKUs
+          .map(([distributorId, sku]) => ({
+            distributor_id: distributorId,
+            sku: sku.trim()
+          }));
+        
+        if (distributorData.length > 0) {
+          try {
+            await api.updateComponentDistributors(newComponent.id, { distributors: distributorData });
+          } catch (error) {
+            console.error('Failed to save distributor info:', error);
+          }
+        }
+      }
+      
+      return newComponent;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['components']);
       setIsAddMode(false);
@@ -153,16 +186,18 @@ const Library = () => {
     if (isAddMode) {
       addMutation.mutate(editData);
     } else if (selectedComponent) {
-      // Update component basic info
-      await updateMutation.mutateAsync({ id: selectedComponent.id, data: editData });
-      
-      // Update distributor info if modified
-      if (editData.distributors) {
-        try {
+      try {
+        // Update component basic info
+        await updateMutation.mutateAsync({ id: selectedComponent.id, data: editData });
+        
+        // Update distributor info if modified
+        if (editData.distributors) {
           await api.updateComponentDistributors(selectedComponent.id, { distributors: editData.distributors });
-        } catch (error) {
-          console.error('Failed to update distributor info:', error);
+          // Invalidate the componentDetails query to refresh the display
+          queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
         }
+      } catch (error) {
+        console.error('Failed to save component:', error);
       }
     }
   };
@@ -595,6 +630,39 @@ const Library = () => {
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No distributor information</p>
               )}
+            </div>
+          )}
+
+          {/* Distributor Info for Add Mode */}
+          {isAddMode && (
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info (Optional)</h3>
+              <div className="space-y-3">
+                {distributors && distributors.length > 0 ? (
+                  distributors.map((dist, index) => (
+                    <div key={dist.id} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
+                      <p className="font-medium text-sm text-gray-900 dark:text-gray-100 mb-2">{dist.name}</p>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                          SKU / Part Number
+                        </label>
+                        <input
+                          type="text"
+                          value={editData.distributorSkus?.[dist.id] || ''}
+                          onChange={(e) => {
+                            const updatedSkus = { ...(editData.distributorSkus || {}), [dist.id]: e.target.value };
+                            handleFieldChange('distributorSkus', updatedSkus);
+                          }}
+                          placeholder={`Enter ${dist.name} part number`}
+                          className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-xs"
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No distributors configured</p>
+                )}
+              </div>
             </div>
           )}
 
