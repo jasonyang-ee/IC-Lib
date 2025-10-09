@@ -562,29 +562,29 @@ const Settings = () => {
             </button>
           </div>
 
-          {/* Clear Data Only */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-yellow-300 dark:border-yellow-600 p-6">
+          {/* Load Sample Data */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
             <div className="flex items-center mb-3">
-              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Clear All Data
+                Load Sample Data
               </h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Delete all data (components, manufacturers, etc.) but preserve schema structure
+              Populate database with 40+ sample components across all categories
             </p>
             <button
-              onClick={() => handleDatabaseOperation('clear')}
-              disabled={resetDbMutation.isPending}
-              className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+              onClick={() => handleDatabaseOperation('load')}
+              disabled={loadSampleMutation.isPending}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
             >
-              {resetDbMutation.isPending ? (
+              {loadSampleMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Clearing...
+                  Loading...
                 </>
               ) : (
-                'Clear Data'
+                'Load Samples'
               )}
             </button>
           </div>
@@ -616,29 +616,29 @@ const Settings = () => {
             </button>
           </div>
 
-          {/* Load Sample Data */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
+          {/* Clear Data Only */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-yellow-300 dark:border-yellow-600 p-6">
             <div className="flex items-center mb-3">
-              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Load Sample Data
+                Clear All Data
               </h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Populate database with 40+ sample components across all categories
+              Delete all data (components, manufacturers, etc.) but preserve schema structure
             </p>
             <button
-              onClick={() => handleDatabaseOperation('load')}
-              disabled={loadSampleMutation.isPending}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+              onClick={() => handleDatabaseOperation('clear')}
+              disabled={resetDbMutation.isPending}
+              className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
             >
-              {loadSampleMutation.isPending ? (
+              {resetDbMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading...
+                  Clearing...
                 </>
               ) : (
-                'Load Samples'
+                'Clear Data'
               )}
             </button>
           </div>

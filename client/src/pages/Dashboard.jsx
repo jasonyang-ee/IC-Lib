@@ -1,36 +1,96 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, Database, AlertTriangle, TrendingUp, Box, Layers } from 'lucide-react';
+import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings } from 'lucide-react';
 
 const Dashboard = () => {
-  const { data: stats, isLoading } = useQuery({
+  const navigate = useNavigate();
+
+  const { data: stats, isLoading, error: statsError } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
       const response = await api.getDashboardStats();
       return response.data;
     },
+    retry: false,
   });
 
-  const { data: categoryBreakdown } = useQuery({
+  const { data: categoryBreakdown, error: categoryError } = useQuery({
     queryKey: ['categoryBreakdown'],
     queryFn: async () => {
       const response = await api.getCategoryBreakdown();
       return response.data;
     },
+    retry: false,
   });
 
-  const { data: recentActivities } = useQuery({
+  const { data: recentActivities, error: activitiesError } = useQuery({
     queryKey: ['recentActivities'],
     queryFn: async () => {
       const response = await api.getRecentActivities();
       return response.data;
     },
+    retry: false,
   });
+
+  // Check if database is not initialized (500 errors related to missing tables)
+  const isDatabaseNotInitialized = 
+    statsError?.response?.status === 500 || 
+    categoryError?.response?.status === 500 || 
+    activitiesError?.response?.status === 500;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  // Show database initialization message
+  if (isDatabaseNotInitialized) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Overview of your component library</p>
+        </div>
+
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-600 p-6 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-8 w-8 text-yellow-400 dark:text-yellow-500" />
+            </div>
+            <div className="ml-4 flex-1">
+              <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+                Database Not Initialized
+              </h3>
+              <p className="text-yellow-700 dark:text-yellow-300 mb-4">
+                The database has not been initialized yet. Please go to the Settings page to initialize the database before using the application.
+              </p>
+              <button
+                onClick={() => navigate('/settings')}
+                className="inline-flex items-center px-4 py-2 bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-700 dark:hover:bg-yellow-800 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                Go to Settings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 dark:bg-[#2a2a2a] border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            Quick Start Guide
+          </h3>
+          <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+            <li>Navigate to Settings using the button above or the sidebar</li>
+            <li>Click on "Database Management" section</li>
+            <li>Click "Initialize Database" to create the database schema</li>
+            <li>Optionally, load sample data to get started quickly</li>
+            <li>Return to the Dashboard to see your component library</li>
+          </ol>
+        </div>
       </div>
     );
   }
