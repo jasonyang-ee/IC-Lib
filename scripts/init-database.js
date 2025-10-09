@@ -128,6 +128,40 @@ async function initializeDatabase() {
     tablesResult.rows.forEach(row => {
       console.log(`  ✓ ${row.tablename}`);
     });
+    
+    console.log();
+    log('Verifying CIS-specific tables...', 'yellow');
+    const cisTableNames = [
+      'capacitors', 'resistors', 'ics', 'diodes', 'inductors', 
+      'connectors', 'crystals_and_oscillators', 'relays', 
+      'switches', 'transformers', 'misc'
+    ];
+    
+    const cisTables = tablesResult.rows.filter(row => 
+      cisTableNames.includes(row.tablename)
+    );
+    
+    if (cisTables.length === 11) {
+      log('✓ All 11 CIS category tables created successfully', 'green');
+    } else {
+      log(`⚠ Warning: Only ${cisTables.length} of 11 CIS tables found`, 'yellow');
+    }
+    
+    // Verify triggers
+    const triggersResult = await client.query(`
+      SELECT trigger_name 
+      FROM information_schema.triggers 
+      WHERE trigger_schema = 'public'
+      ORDER BY trigger_name
+    `);
+    
+    console.log();
+    log(`Triggers created: ${triggersResult.rows.length}`, 'blue');
+    const categoryTriggers = triggersResult.rows.filter(row => 
+      row.trigger_name.includes('to_components') || 
+      row.trigger_name.includes('to_category')
+    );
+    log(`  ✓ Category synchronization triggers: ${categoryTriggers.length}`, 'green');
 
     // Ask about sample data
     console.log();
@@ -148,15 +182,35 @@ async function initializeDatabase() {
         console.log('Record counts:');
         
         const counts = await client.query(`
-          SELECT 'Components' as table_name, COUNT(*) as count FROM components
+          SELECT 'Components (Master)' as table_name, COUNT(*) as count FROM components
           UNION ALL
           SELECT 'Categories', COUNT(*) FROM component_categories
           UNION ALL
           SELECT 'Manufacturers', COUNT(*) FROM manufacturers
           UNION ALL
-          SELECT 'Inventory Items', COUNT(*) FROM inventory
-          UNION ALL
           SELECT 'Distributors', COUNT(*) FROM distributors
+          UNION ALL
+          SELECT 'Capacitors', COUNT(*) FROM capacitors
+          UNION ALL
+          SELECT 'Resistors', COUNT(*) FROM resistors
+          UNION ALL
+          SELECT 'ICs', COUNT(*) FROM ics
+          UNION ALL
+          SELECT 'Diodes', COUNT(*) FROM diodes
+          UNION ALL
+          SELECT 'Inductors', COUNT(*) FROM inductors
+          UNION ALL
+          SELECT 'Connectors', COUNT(*) FROM connectors
+          UNION ALL
+          SELECT 'Crystals/Oscillators', COUNT(*) FROM crystals_and_oscillators
+          UNION ALL
+          SELECT 'Relays', COUNT(*) FROM relays
+          UNION ALL
+          SELECT 'Switches', COUNT(*) FROM switches
+          UNION ALL
+          SELECT 'Transformers', COUNT(*) FROM transformers
+          UNION ALL
+          SELECT 'Misc', COUNT(*) FROM misc
         `);
         
         counts.rows.forEach(row => {
