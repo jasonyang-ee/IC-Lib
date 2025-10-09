@@ -2,7 +2,7 @@ import pool from '../config/database.js';
 
 export const getAllComponents = async (req, res, next) => {
   try {
-    const { category, search, subcategory } = req.query;
+    const { category, search } = req.query;
     
     let query = `
       SELECT c.*, cat.name as category_name, m.name as manufacturer_name
@@ -20,14 +20,8 @@ export const getAllComponents = async (req, res, next) => {
       paramCount++;
     }
 
-    if (subcategory) {
-      query += ` AND c.subcategory = $${paramCount}`;
-      params.push(subcategory);
-      paramCount++;
-    }
-
     if (search) {
-      query += ` AND (c.part_number ILIKE $${paramCount} OR c.description ILIKE $${paramCount} OR c.manufacturer_part_number ILIKE $${paramCount})`;
+      query += ` AND (c.part_number ILIKE $${paramCount} OR c.description ILIKE $${paramCount} OR c.manufacturer_pn ILIKE $${paramCount})`;
       params.push(`%${search}%`);
       paramCount++;
     }
@@ -69,9 +63,8 @@ export const createComponent = async (req, res, next) => {
       category_id,
       part_number,
       manufacturer_id,
-      manufacturer_part_number,
+      manufacturer_pn,
       description,
-      subcategory,
       datasheet_url,
       footprint_path,
       symbol_path,
@@ -84,16 +77,30 @@ export const createComponent = async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
-      // Insert component
-      const componentResult = await client.query(`
-        INSERT INTO components (
-          category_id, part_number, manufacturer_id, manufacturer_part_number,
-          description, subcategory, datasheet_url, footprint_path, symbol_path, pad_path
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      // Get category table name
+      const categoryResult = await client.query(
+        'SELECT table_name FROM component_categories WHERE id = $1',
+        [category_id]
+      );
+
+      if (categoryResult.rows.length === 0) {
+        throw new Error('Invalid category_id');
+      }
+
+      const categoryTable = categoryResult.rows[0].table_name;
+
+      // Insert into category-specific table (triggers will sync to master components table)
+      const insertQuery = `
+        INSERT INTO ${categoryTable} (
+          category_id, part_number, manufacturer_id, manufacturer_pn,
+          description, datasheet_url, footprint_path, symbol_path, pad_path
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
-      `, [
-        category_id, part_number, manufacturer_id, manufacturer_part_number,
-        description, subcategory, datasheet_url, footprint_path, symbol_path, pad_path
+      `;
+
+      const componentResult = await client.query(insertQuery, [
+        category_id, part_number, manufacturer_id, manufacturer_pn,
+        description, datasheet_url, footprint_path, symbol_path, pad_path
       ]);
 
       const component = componentResult.rows[0];
@@ -109,7 +116,17 @@ export const createComponent = async (req, res, next) => {
       }
 
       await client.query('COMMIT');
-      res.status(201).json(component);
+      
+      // Fetch the complete component with joined data
+      const fullComponent = await client.query(`
+        SELECT c.*, cat.name as category_name, m.name as manufacturer_name
+        FROM components c
+        LEFT JOIN component_categories cat ON c.category_id = cat.id
+        LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+        WHERE c.id = $1
+      `, [component.id]);
+
+      res.status(201).json(fullComponent.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -128,9 +145,8 @@ export const updateComponent = async (req, res, next) => {
       category_id,
       part_number,
       manufacturer_id,
-      manufacturer_part_number,
+      manufacturer_pn,
       description,
-      subcategory,
       datasheet_url,
       footprint_path,
       symbol_path,
@@ -142,19 +158,18 @@ export const updateComponent = async (req, res, next) => {
         category_id = COALESCE($1, category_id),
         part_number = COALESCE($2, part_number),
         manufacturer_id = COALESCE($3, manufacturer_id),
-        manufacturer_part_number = COALESCE($4, manufacturer_part_number),
+        manufacturer_pn = COALESCE($4, manufacturer_pn),
         description = COALESCE($5, description),
-        subcategory = COALESCE($6, subcategory),
-        datasheet_url = COALESCE($7, datasheet_url),
-        footprint_path = COALESCE($8, footprint_path),
-        symbol_path = COALESCE($9, symbol_path),
-        pad_path = COALESCE($10, pad_path),
+        datasheet_url = COALESCE($6, datasheet_url),
+        footprint_path = COALESCE($7, footprint_path),
+        symbol_path = COALESCE($8, symbol_path),
+        pad_path = COALESCE($9, pad_path),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $10
       RETURNING *
     `, [
-      category_id, part_number, manufacturer_id, manufacturer_part_number,
-      description, subcategory, datasheet_url, footprint_path, symbol_path, pad_path, id
+      category_id, part_number, manufacturer_id, manufacturer_pn,
+      description, datasheet_url, footprint_path, symbol_path, pad_path, id
     ]);
 
     if (result.rows.length === 0) {

@@ -94,6 +94,13 @@ export const api = {
   // Settings
   getSettings: () => apiClient.get('/settings'),
   updateSettings: (data) => apiClient.put('/settings', data),
+  
+  // Admin - Database Management
+  initDatabase: () => apiClient.post('/admin/init'),
+  resetDatabase: () => apiClient.post('/admin/reset'),
+  loadSampleData: () => apiClient.post('/admin/load-sample-data'),
+  getDatabaseStats: () => apiClient.get('/admin/stats'),
+  verifyCISCompliance: () => apiClient.get('/admin/verify-cis'),
 };
 
 export default apiClient;

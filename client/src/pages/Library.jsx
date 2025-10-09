@@ -26,7 +26,6 @@ const Library = () => {
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [subcategoryFilter, setSubcategoryFilter] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
@@ -65,21 +64,15 @@ const Library = () => {
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, searchTerm, subcategoryFilter],
+    queryKey: ['components', selectedCategory, searchTerm],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
         search: searchTerm,
-        subcategory: subcategoryFilter,
       });
       return response.data;
     },
   });
-
-  // Get unique subcategories for the selected category
-  const subcategories = components
-    ? [...new Set(components.map((c) => c.subcategory).filter(Boolean))]
-    : [];
 
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
@@ -207,9 +200,8 @@ const Library = () => {
       category_id: selectedCategory || (categories?.[0]?.id),
       part_number: partNumber,
       manufacturer_id: '',
-      manufacturer_part_number: '',
+      manufacturer_pn: '',
       description: '',
-      subcategory: '',
       datasheet_url: '',
     });
   };
@@ -284,23 +276,6 @@ const Library = () => {
               />
             </div>
           </div>
-
-          {/* Subcategory Filter */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Subcategory</h3>
-            <select
-              value={subcategoryFilter}
-              onChange={(e) => setSubcategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-            >
-              <option value="">All Subcategories</option>
-              {subcategories.map((sub) => (
-                <option key={sub} value={sub}>
-                  {sub}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* Center - Component List */}
@@ -326,8 +301,8 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">MFG Part Number</label>
                     <input
                       type="text"
-                      value={editData.manufacturer_part_number || ''}
-                      onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
+                      value={editData.manufacturer_pn || ''}
+                      onChange={(e) => handleFieldChange('manufacturer_pn', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
@@ -362,15 +337,6 @@ const Library = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Subcategory</label>
-                    <input
-                      type="text"
-                      value={editData.subcategory || ''}
-                      onChange={(e) => handleFieldChange('subcategory', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
                   </div>
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
@@ -432,7 +398,7 @@ const Library = () => {
                   </div>
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">MFG Part Number:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_part_number || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.manufacturer_pn || 'N/A'}</p>
                   </div>
                   <div className="col-span-2">
                     <span className="text-gray-600 dark:text-gray-400">Description:</span>
@@ -441,10 +407,6 @@ const Library = () => {
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Category:</span>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.category_name}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Subcategory:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails?.subcategory || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
@@ -529,7 +491,7 @@ const Library = () => {
                           </td>
                         )}
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{component.part_number}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_pn || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.category_name}</td>
                       </tr>
