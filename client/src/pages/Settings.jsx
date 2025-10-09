@@ -46,7 +46,18 @@ const Settings = () => {
   // Load part number configs from server when available
   useEffect(() => {
     if (serverSettings) {
-      setPartNumberConfigs(serverSettings.partNumberConfigs || {});
+      // Filter out any invalid keys (non-integer category IDs) to prevent ghost entries
+      const validConfigs = {};
+      const configs = serverSettings.partNumberConfigs || {};
+      
+      Object.keys(configs).forEach(key => {
+        // Only keep integer keys (valid category IDs are integers 1-11)
+        if (/^\d+$/.test(key)) {
+          validConfigs[key] = configs[key];
+        }
+      });
+      
+      setPartNumberConfigs(validConfigs);
     }
   }, [serverSettings]);
 
@@ -159,8 +170,22 @@ const Settings = () => {
   };
 
   const handleSaveConfig = (categoryId) => {
+    // Validate that categoryId is an integer (prevent ghost UUID entries)
+    if (typeof categoryId !== 'number' && !/^\d+$/.test(String(categoryId))) {
+      console.error('Invalid category ID:', categoryId);
+      return;
+    }
+    
+    // Filter out any non-integer keys from existing configs
+    const cleanedConfigs = {};
+    Object.keys(partNumberConfigs).forEach(key => {
+      if (/^\d+$/.test(key)) {
+        cleanedConfigs[key] = partNumberConfigs[key];
+      }
+    });
+    
     const newConfigs = {
-      ...partNumberConfigs,
+      ...cleanedConfigs,
       [categoryId]: tempConfig,
     };
     setPartNumberConfigs(newConfigs);

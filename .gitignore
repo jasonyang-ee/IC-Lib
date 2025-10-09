@@ -43,6 +43,3 @@ temp/
 *.md
 !README.md
 !config/README.md
-
-# Application config (settings are environment-specific)
-config/settings.json
