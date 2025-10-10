@@ -382,7 +382,7 @@ const Library = () => {
       </div>
 
       {/* 3-Column Layout: Left Sidebar | Center List | Right Details */}
-      <div className="grid grid-cols-1 xl:grid-cols-library gap-6 min-h-[600px]">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(250px,1fr)_minmax(400px,2fr)_minmax(350px,1.5fr)] gap-6 min-h-[600px]">
         {/* Left Sidebar - Filters */}
         <div className="space-y-4 xl:min-w-[250px]">
           {/* Category Selector */}
