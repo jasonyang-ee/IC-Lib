@@ -43,9 +43,6 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy config directory to /app/config
-COPY config/ /app/config/
-
 # Create directories for downloads
 RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
 
