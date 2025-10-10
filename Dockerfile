@@ -22,6 +22,9 @@ WORKDIR /app
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
 
+# Copy database sql file
+COPY database/ /app/database/
+
 # Copy backend source code
 WORKDIR /app/server
 COPY server/ .
