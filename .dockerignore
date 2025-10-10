@@ -58,13 +58,15 @@ docs/
 # Download cache (use volume instead)
 download/
 
-# Database files (use external database)
-database/
+# Database files (use external database, but keep SQL schemas)
+# Allow .sql files for initialization
 *.db
 *.sqlite
+*.dbc
+database/*.db
+database/*.sqlite
 
-# Database files
-database/
+# Scripts directory (no longer needed, using SQL files directly)
 scripts/
 
 # Testing
