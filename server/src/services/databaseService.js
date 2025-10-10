@@ -31,11 +31,11 @@ const __dirname = dirname(__filename);
 
 // Database configuration from environment or defaults
 const getDbConfig = () => ({
-  host: process.env.DB_HOST || 'infra.main.local',
-  port: parseInt(process.env.DB_PORT) || 5435,
-  user: process.env.DB_USER || 'sami',
-  password: process.env.DB_PASSWORD || '123456',
-  database: process.env.DB_NAME || 'cip',
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 });
 
 /**
