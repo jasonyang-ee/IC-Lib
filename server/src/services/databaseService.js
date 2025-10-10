@@ -258,7 +258,7 @@ export const loadSampleData = async () => {
   try {
     await client.connect();
     
-    const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'sample-data-simplified.sql');
+    const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'init-sample-data.sql');
     const sampleData = readFileSync(sampleDataPath, 'utf8');
     
     // Split into individual statements and execute one by one
