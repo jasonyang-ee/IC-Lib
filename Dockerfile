@@ -18,7 +18,8 @@ RUN npm run build
 FROM node:22-alpine
 
 WORKDIR /app
-COPY database .
+# Ensure the 'database' directory exists in your build context, or update the path below if needed
+COPY ./database . 
 
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
