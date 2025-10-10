@@ -5,7 +5,7 @@ const Layout = ({ children }) => {
     <div className="flex min-h-screen bg-gray-50 dark:bg-[#1f1f1f]">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="container mx-auto p-6">
+        <div className="w-full mx-auto p-6">
           {children}
         </div>
       </main>

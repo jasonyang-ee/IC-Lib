@@ -254,6 +254,7 @@ GROUP BY c.id, cat.name, cat.prefix, m.name, m.website, inv.total_quantity;
 
 -- Function to generate part_type string from category and subcategories
 -- This replaces the generated column which cannot use subqueries
+-- Automatically ignores empty subcategories (NULL or empty string)
 CREATE OR REPLACE FUNCTION get_part_type(
     p_category_id INTEGER,
     p_sub_category1 VARCHAR,
@@ -269,17 +270,17 @@ BEGIN
     FROM component_categories
     WHERE id = p_category_id;
     
-    -- Build part_type string
+    -- Build part_type string, skipping NULL or empty subcategories
     IF v_category_name IS NOT NULL THEN
         v_part_type := v_category_name;
         
-        IF p_sub_category1 IS NOT NULL THEN
+        IF p_sub_category1 IS NOT NULL AND TRIM(p_sub_category1) <> '' THEN
             v_part_type := v_part_type || '/' || p_sub_category1;
             
-            IF p_sub_category2 IS NOT NULL THEN
+            IF p_sub_category2 IS NOT NULL AND TRIM(p_sub_category2) <> '' THEN
                 v_part_type := v_part_type || '/' || p_sub_category2;
                 
-                IF p_sub_category3 IS NOT NULL THEN
+                IF p_sub_category3 IS NOT NULL AND TRIM(p_sub_category3) <> '' THEN
                     v_part_type := v_part_type || '/' || p_sub_category3;
                 END IF;
             END IF;
