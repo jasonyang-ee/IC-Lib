@@ -92,23 +92,6 @@ CREATE TABLE IF NOT EXISTS components (
     sub_category2 VARCHAR(100),
     sub_category3 VARCHAR(100),
     
-    -- Auto-generated part type from category + sub-categories
-    -- Format: "CategoryName/Sub1/Sub2/Sub3"
-    part_type VARCHAR(500) GENERATED ALWAYS AS (
-        CASE 
-            WHEN category_id IS NOT NULL THEN
-                (SELECT name FROM component_categories WHERE id = category_id) ||
-                CASE 
-                    WHEN sub_category1 IS NOT NULL THEN 
-                        '/' || sub_category1 || 
-                        COALESCE('/' || sub_category2, '') ||
-                        COALESCE('/' || sub_category3, '')
-                    ELSE ''
-                END
-            ELSE NULL
-        END
-    ) STORED,
-    
     -- CAD files
     schematic VARCHAR(255),
     step_model VARCHAR(255),
@@ -199,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_components_category ON components(category_id);
 CREATE INDEX IF NOT EXISTS idx_components_manufacturer ON components(manufacturer_id);
 CREATE INDEX IF NOT EXISTS idx_components_part_number ON components(part_number);
 CREATE INDEX IF NOT EXISTS idx_components_status ON components(status);
-CREATE INDEX IF NOT EXISTS idx_components_part_type ON components(part_type);
+-- Note: part_type index removed as column is no longer generated
 
 -- Component specifications indexes
 CREATE INDEX IF NOT EXISTS idx_comp_specs_component ON component_specifications(component_id);
@@ -264,6 +247,57 @@ LEFT JOIN (
     GROUP BY component_id
 ) inv ON c.id = inv.component_id
 GROUP BY c.id, cat.name, cat.prefix, m.name, m.website, inv.total_quantity;
+
+-- ============================================================================
+-- PART 6: HELPER FUNCTION FOR PART_TYPE
+-- ============================================================================
+
+-- Function to generate part_type string from category and subcategories
+-- This replaces the generated column which cannot use subqueries
+CREATE OR REPLACE FUNCTION get_part_type(
+    p_category_id INTEGER,
+    p_sub_category1 VARCHAR,
+    p_sub_category2 VARCHAR,
+    p_sub_category3 VARCHAR
+) RETURNS VARCHAR AS $$
+DECLARE
+    v_category_name VARCHAR;
+    v_part_type VARCHAR;
+BEGIN
+    -- Get category name
+    SELECT name INTO v_category_name
+    FROM component_categories
+    WHERE id = p_category_id;
+    
+    -- Build part_type string
+    IF v_category_name IS NOT NULL THEN
+        v_part_type := v_category_name;
+        
+        IF p_sub_category1 IS NOT NULL THEN
+            v_part_type := v_part_type || '/' || p_sub_category1;
+            
+            IF p_sub_category2 IS NOT NULL THEN
+                v_part_type := v_part_type || '/' || p_sub_category2;
+                
+                IF p_sub_category3 IS NOT NULL THEN
+                    v_part_type := v_part_type || '/' || p_sub_category3;
+                END IF;
+            END IF;
+        END IF;
+        
+        RETURN v_part_type;
+    ELSE
+        RETURN NULL;
+    END IF;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Create a view that includes the computed part_type
+CREATE OR REPLACE VIEW components_with_part_type AS
+SELECT 
+    c.*,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+FROM components c;
 
 -- ============================================================================
 -- Schema version tracking

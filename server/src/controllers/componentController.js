@@ -10,7 +10,7 @@ export const getAllComponents = async (req, res, next) => {
         cat.name as category_name,
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
-        c.part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -33,7 +33,7 @@ export const getAllComponents = async (req, res, next) => {
         OR c.sub_category1 ILIKE $${paramCount}
         OR c.sub_category2 ILIKE $${paramCount}
         OR c.sub_category3 ILIKE $${paramCount}
-        OR c.part_type ILIKE $${paramCount}
+        OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) ILIKE $${paramCount}
         OR cat.name ILIKE $${paramCount}
       )`;
       params.push(`%${search}%`);
@@ -60,7 +60,7 @@ export const getComponentById = async (req, res, next) => {
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
         m.website as manufacturer_website,
-        c.part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -139,7 +139,7 @@ export const createComponent = async (req, res, next) => {
         cat.name as category_name,
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
-        c.part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -227,7 +227,7 @@ export const updateComponent = async (req, res, next) => {
         cat.name as category_name,
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
-        c.part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -312,13 +312,16 @@ export const updateComponentSpecifications = async (req, res, next) => {
       // Delete existing specifications
       await client.query('DELETE FROM component_specifications WHERE component_id = $1', [id]);
 
-      // Insert new specifications
+      // Insert new specifications (filter out empty ones)
       if (specifications && Array.isArray(specifications)) {
         for (const spec of specifications) {
+          // Skip specifications with empty name or value
+          if (!spec.spec_name || !spec.spec_value) continue;
+          
           await client.query(`
             INSERT INTO component_specifications (component_id, spec_name, spec_value, unit)
             VALUES ($1, $2, $3, $4)
-          `, [id, spec.name || spec.key, spec.value, spec.unit]);
+          `, [id, spec.spec_name, spec.spec_value, spec.unit || null]);
         }
       }
 

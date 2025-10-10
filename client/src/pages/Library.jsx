@@ -111,12 +111,42 @@ const Library = () => {
       ...componentDetails,
       manufacturer_id: componentDetails?.manufacturer_id || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
+      specifications: componentDetails?.specifications || [],
+      distributors: componentDetails?.distributors || [],
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (selectedComponent) {
-      updateMutation.mutate({ id: selectedComponent.id, data: editData });
+      try {
+        // Extract specifications and distributors from editData
+        const { specifications, distributors, ...componentData } = editData;
+        
+        // Update component basic data
+        await updateMutation.mutateAsync({ id: selectedComponent.id, data: componentData });
+        
+        // Filter and update specifications (only non-empty ones)
+        const validSpecs = specifications?.filter(spec => spec.spec_name && spec.spec_value) || [];
+        if (validSpecs.length > 0) {
+          await api.updateComponentSpecifications(selectedComponent.id, { specifications: validSpecs });
+        } else {
+          // If no valid specs, clear all specifications
+          await api.updateComponentSpecifications(selectedComponent.id, { specifications: [] });
+        }
+        
+        // Update distributors if present
+        if (distributors && distributors.length > 0) {
+          await api.updateComponentDistributors(selectedComponent.id, { distributors });
+        }
+        
+        // Refresh the component details
+        queryClient.invalidateQueries(['components']);
+        queryClient.invalidateQueries(['componentDetails']);
+        setIsEditMode(false);
+      } catch (error) {
+        console.error('Error saving component:', error);
+        alert('Failed to save component. Please try again.');
+      }
     }
   };
 
@@ -151,10 +181,12 @@ const Library = () => {
       step_model: '',
       pspice: '',
       datasheet_url: '',
+      specifications: [], // Array of {spec_name, spec_value, unit}
+      distributors: [], // Array of {distributor_id, sku, price, url}
     });
   };
 
-  // Function to generate next part number based on category
+  // Function to generate next part number based on category  // Function to generate next part number based on category
   const generateNextPartNumber = (categoryId) => {
     if (!categoryId || !components || !categories) return '';
     
@@ -200,9 +232,32 @@ const Library = () => {
     }
   };
 
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = async () => {
     if (editData.category_id && editData.part_number) {
-      addMutation.mutate(editData);
+      try {
+        // Extract specifications and distributors from editData
+        const { specifications, distributors, ...componentData } = editData;
+        
+        // Create component
+        const response = await addMutation.mutateAsync(componentData);
+        const newComponentId = response.data?.id;
+        
+        // Filter and add specifications (only non-empty ones)
+        const validSpecs = specifications?.filter(spec => spec.spec_name && spec.spec_value) || [];
+        if (newComponentId && validSpecs.length > 0) {
+          await api.updateComponentSpecifications(newComponentId, { specifications: validSpecs });
+        }
+        
+        // Add distributors if present
+        if (newComponentId && distributors && distributors.length > 0) {
+          await api.updateComponentDistributors(newComponentId, { distributors });
+        }
+        
+        // Cleanup will be handled by mutation's onSuccess
+      } catch (error) {
+        console.error('Error adding component:', error);
+        alert('Failed to add component. Please try again.');
+      }
     } else {
       alert('Please fill in required fields: Category and Part Number');
     }
@@ -247,11 +302,11 @@ const Library = () => {
         <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
       </div>
 
-      {/* 4-Column Layout: Left Sidebar | Center List | Right Details | Specifications */}
-      {/* Increased width of columns 2 & 3 for better visibility */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(250px,0.8fr)_minmax(500px,2.5fr)_minmax(450px,2fr)_minmax(300px,1fr)] gap-6 min-h-[600px]">
+      {/* 4-Column Layout: Left Sidebar | Center List | Right Details (wider) | Specifications */}
+      {/* Full screen width utilization with wider component details */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,0.6fr)_minmax(550px,2.5fr)_minmax(600px,3fr)_minmax(280px,1fr)] gap-4 min-h-[600px]">
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:min-w-[250px]">
+        <div className="space-y-4 xl:min-w-[220px]">
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -385,7 +440,7 @@ const Library = () => {
         </div>
 
         {/* Center - Component List */}
-        <div className="space-y-4 xl:min-w-[400px]">
+        <div className="space-y-4 xl:min-w-[550px]">
           {/* Component List */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
             <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
@@ -448,7 +503,7 @@ const Library = () => {
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                          {component.category_name}{component.part_type ? `/${component.part_type.trim()}` : ''}
+                          {component.part_type || component.category_name || 'N/A'}
                         </td>
                       </tr>
                     ))}
@@ -464,16 +519,16 @@ const Library = () => {
         </div>
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
-        <div className="space-y-4 xl:min-w-[350px]">
+        <div className="space-y-4 xl:min-w-[600px]">
           {/* Component Details - Always Shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
               {isAddMode ? 'Add New Component' : 'Component Details'}
             </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-3 gap-4 text-sm">
               {(isEditMode || isAddMode) ? (
                 <>
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Category *</label>
                     <select
                       value={editData.category_id || ''}
@@ -491,12 +546,13 @@ const Library = () => {
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Part Number * {isAddMode && <span className="text-xs text-gray-500">(Auto-generated)</span>}
+                      {isEditMode && <span className="text-xs text-gray-500">(Locked)</span>}
                     </label>
                     <input
                       type="text"
                       value={editData.part_number || ''}
                       onChange={(e) => handleFieldChange('part_number', e.target.value)}
-                      disabled={isAddMode}
+                      disabled={isAddMode || isEditMode}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
                       placeholder={isAddMode ? "Select category first" : "e.g., RES-0001"}
                     />
@@ -511,14 +567,14 @@ const Library = () => {
                       placeholder="e.g., CRCW0603"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
                     <select
                       value={editData.manufacturer_id || ''}
                       onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     >
-                      <option value="">Select manufacturer (optional)</option>
+                      <option value="">Select manufacturer</option>
                       {manufacturers?.map((mfr) => (
                         <option key={mfr.id} value={mfr.id}>
                           {mfr.name}
@@ -526,7 +582,7 @@ const Library = () => {
                       ))}
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
                     <textarea
                       value={editData.description || ''}
@@ -626,7 +682,7 @@ const Library = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
                     <input
                       type="url"
@@ -635,6 +691,131 @@ const Library = () => {
                       placeholder="https://..."
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
+                  </div>
+
+                  {/* Specifications Section */}
+                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h4>
+                    {(editData.specifications || []).map((spec, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={spec.spec_name || ''}
+                          onChange={(e) => {
+                            const newSpecs = [...(editData.specifications || [])];
+                            newSpecs[index] = { ...newSpecs[index], spec_name: e.target.value };
+                            handleFieldChange('specifications', newSpecs);
+                          }}
+                          placeholder="Name (e.g., Resistance)"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                        />
+                        <input
+                          type="text"
+                          value={spec.spec_value || ''}
+                          onChange={(e) => {
+                            const newSpecs = [...(editData.specifications || [])];
+                            newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
+                            handleFieldChange('specifications', newSpecs);
+                          }}
+                          placeholder="Value (e.g., 10k)"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                        />
+                        <input
+                          type="text"
+                          value={spec.unit || ''}
+                          onChange={(e) => {
+                            const newSpecs = [...(editData.specifications || [])];
+                            newSpecs[index] = { ...newSpecs[index], unit: e.target.value };
+                            handleFieldChange('specifications', newSpecs);
+                          }}
+                          placeholder="Unit (Ω)"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100 w-20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSpecs = (editData.specifications || []).filter((_, i) => i !== index);
+                            handleFieldChange('specifications', newSpecs);
+                          }}
+                          className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSpecs = [...(editData.specifications || []), { spec_name: '', spec_value: '', unit: '' }];
+                        handleFieldChange('specifications', newSpecs);
+                      }}
+                      className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add Specification
+                    </button>
+                  </div>
+
+                  {/* Distributors Section */}
+                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
+                    {(editData.distributors || []).map((dist, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={dist.distributor_name || ''}
+                          onChange={(e) => {
+                            const newDists = [...(editData.distributors || [])];
+                            newDists[index] = { ...newDists[index], distributor_name: e.target.value };
+                            handleFieldChange('distributors', newDists);
+                          }}
+                          placeholder="Distributor (e.g., Digikey)"
+                          disabled={isEditMode}
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
+                        />
+                        <input
+                          type="text"
+                          value={dist.sku || ''}
+                          onChange={(e) => {
+                            const newDists = [...(editData.distributors || [])];
+                            newDists[index] = { ...newDists[index], sku: e.target.value };
+                            handleFieldChange('distributors', newDists);
+                          }}
+                          placeholder="SKU"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                        />
+                        <input
+                          type="text"
+                          value={dist.url || ''}
+                          onChange={(e) => {
+                            const newDists = [...(editData.distributors || [])];
+                            newDists[index] = { ...newDists[index], url: e.target.value };
+                            handleFieldChange('distributors', newDists);
+                          }}
+                          placeholder="URL"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDists = (editData.distributors || []).filter((_, i) => i !== index);
+                            handleFieldChange('distributors', newDists);
+                          }}
+                          className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newDists = [...(editData.distributors || []), { distributor_name: '', sku: '', url: '' }];
+                        handleFieldChange('distributors', newDists);
+                      }}
+                      className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add Distributor
+                    </button>
                   </div>
                 </>
               ) : selectedComponent && componentDetails ? (
@@ -647,13 +828,13 @@ const Library = () => {
                     <span className="text-gray-600 dark:text-gray-400">MFR Part Number:</span>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_pn || 'N/A'}</p>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600 dark:text-gray-400">Description:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.description || 'No description'}</p>
-                  </div>
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Category:</span>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.category_name}</p>
+                  </div>
+                  <div className="col-span-3">
+                    <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.description || 'No description'}</p>
                   </div>
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Part Type:</span>
@@ -680,19 +861,19 @@ const Library = () => {
                   {(componentDetails.schematic || componentDetails.step_model || componentDetails.pspice) && (
                     <>
                       {componentDetails.schematic && (
-                        <div className="col-span-2">
+                        <div className="col-span-3">
                           <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
                           <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.schematic}</p>
                         </div>
                       )}
                       {componentDetails.step_model && (
-                        <div className="col-span-2">
+                        <div className="col-span-3">
                           <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
                           <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.step_model}</p>
                         </div>
                       )}
                       {componentDetails.pspice && (
-                        <div className="col-span-2">
+                        <div className="col-span-3">
                           <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
                           <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.pspice}</p>
                         </div>
@@ -701,7 +882,7 @@ const Library = () => {
                   )}
                 </>
               ) : (
-                <div className="col-span-2 text-center py-8 text-gray-500 dark:text-gray-400">
+                <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
                   <p>Select a component to view details</p>
                   <p className="text-sm mt-2">or click "Add Component" to create a new one</p>
                 </div>
@@ -719,7 +900,10 @@ const Library = () => {
                   .map((dist, index) => (
                   <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
                     <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity}</p>
+                    {dist.sku && (
+                      <p className="text-xs text-gray-600 dark:text-gray-400">SKU: {dist.sku}</p>
+                    )}
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity || 'N/A'}</p>
                     {dist.price_breaks && dist.price_breaks.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {dist.price_breaks.slice(0, 3).map((price, idx) => (
@@ -739,7 +923,7 @@ const Library = () => {
         </div>
 
         {/* Fourth Column - Component Specifications */}
-        <div className="space-y-4 xl:min-w-[300px]">
+        <div className="space-y-4 xl:min-w-[280px]">
           {/* Component Specifications - Always shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
