@@ -384,7 +384,7 @@ const Library = () => {
       {/* 3-Column Layout: Left Sidebar | Center List | Right Details */}
       <div className="grid grid-cols-1 xl:grid-cols-library gap-6 min-h-[600px]">
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:min-w-[250px]">{/* Category Selector */}
+        <div className="space-y-4 xl:min-w-[250px]">
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -446,11 +446,73 @@ const Library = () => {
               ))}
             </select>
           </div>
+
+          {/* Actions */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Component
+            </button>
+          </div>
         </div>
 
         {/* Center - Component List */}
         <div className="space-y-4 xl:min-w-[400px]">
-          {/* Selected Component Details (Upper) */}
+          {/* Component List */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Components ({components?.length || 0})
+              </h3>
+            </div>
+            <div className="overflow-auto" style={{maxHeight: 'calc(100vh - 300px)'}}>
+              {isLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                </div>
+              ) : components?.length > 0 ? (
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part #</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {components.map((component) => (
+                      <tr
+                        key={component.id}
+                        onClick={() => setSelectedComponent(component)}
+                        className={`cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
+                          selectedComponent?.id === component.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{component.part_number}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.category_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  No components found
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
+        <div className="space-y-4 xl:min-w-[350px]">
+          {/* Component Details */}
           {selectedComponent && componentDetails && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Component Details</h3>
@@ -644,63 +706,6 @@ const Library = () => {
             </div>
           )}
 
-          {/* Component List (Lower) */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Components ({components?.length || 0})
-              </h3>
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
-                className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Component
-              </button>
-            </div>
-            <div className="overflow-auto max-h-[500px]">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                </div>
-              ) : components?.length > 0 ? (
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part #</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {components.map((component) => (
-                      <tr
-                        key={component.id}
-                        onClick={() => setSelectedComponent(component)}
-                        className={`cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
-                          selectedComponent?.id === component.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{component.part_number}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.category_name}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  No components found
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Sidebar - Details & Distributor Info */}
-        <div className="space-y-4 xl:min-w-[350px]">
           {/* Distributor Info */}
           {selectedComponent && componentDetails && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">

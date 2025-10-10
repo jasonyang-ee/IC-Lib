@@ -314,8 +314,7 @@ export const getCategoryConfigs = async (req, res) => {
         prefix,
         leading_zeros,
         enabled,
-        created_at,
-        updated_at
+        created_at
       FROM component_categories
       ORDER BY name
     `);
@@ -378,14 +377,13 @@ export const updateCategoryConfig = async (req, res) => {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
     values.push(id);
 
     const result = await pool.query(`
       UPDATE component_categories
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, name, prefix, leading_zeros, enabled, created_at, updated_at
+      RETURNING id, name, prefix, leading_zeros, enabled, created_at
     `, values);
 
     if (result.rows.length === 0) {
@@ -432,7 +430,7 @@ export const createCategory = async (req, res) => {
     const result = await pool.query(`
       INSERT INTO component_categories (name, prefix, leading_zeros, enabled)
       VALUES ($1, $2, $3, $4)
-      RETURNING id, name, prefix, leading_zeros, enabled, created_at, updated_at
+      RETURNING id, name, prefix, leading_zeros, enabled, created_at
     `, [name.trim(), prefix.trim(), validLeadingZeros, validEnabled]);
 
     res.status(201).json({

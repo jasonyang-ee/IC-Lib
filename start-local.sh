@@ -163,6 +163,7 @@ echo ""
 # Start frontend with hot reload
 echo -e "${BLUE}→ Starting Frontend (Vite dev server)...${NC}"
 cd client
+npm run build
 npm run dev &
 FRONTEND_PID=$!
 cd ..

@@ -32,6 +32,13 @@ apiClient.interceptors.response.use(
 
 // API methods
 export const api = {
+  // Generic HTTP methods
+  get: (url, config) => apiClient.get(url, config),
+  post: (url, data, config) => apiClient.post(url, data, config),
+  put: (url, data, config) => apiClient.put(url, data, config),
+  delete: (url, config) => apiClient.delete(url, config),
+  patch: (url, data, config) => apiClient.patch(url, data, config),
+
   // Dashboard
   getDashboardStats: () => apiClient.get('/dashboard/stats'),
   getRecentActivities: () => apiClient.get('/dashboard/recent-activities'),
