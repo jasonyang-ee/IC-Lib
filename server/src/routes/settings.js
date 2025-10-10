@@ -6,7 +6,10 @@ import {
   clearDatabase,
   resetDatabase,
   initDatabase,
-  loadSampleData
+  loadSampleData,
+  getCategoryConfigs,
+  updateCategoryConfig,
+  createCategory
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -14,6 +17,11 @@ const router = express.Router();
 // Application settings routes
 router.get('/', getSettings);
 router.put('/', updateSettings);
+
+// Category configuration routes
+router.get('/categories', getCategoryConfigs);
+router.put('/categories/:id', updateCategoryConfig);
+router.post('/categories', createCategory);
 
 // Database management routes
 router.get('/database/status', getDatabaseStatus);

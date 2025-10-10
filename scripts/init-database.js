@@ -108,7 +108,7 @@ async function initializeDatabase() {
     console.log();
     log('Initializing database schema...', 'yellow');
     
-    const schemaPath = join(__dirname, '..', 'database', 'schema.sql');
+    const schemaPath = join(__dirname, '..', 'database', 'schema-simplified.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     
     await client.query(schema);
@@ -130,21 +130,21 @@ async function initializeDatabase() {
     });
     
     console.log();
-    log('Verifying CIS-specific tables...', 'yellow');
-    const cisTableNames = [
-      'capacitors', 'resistors', 'ics', 'diodes', 'inductors', 
-      'connectors', 'crystals_and_oscillators', 'relays', 
-      'switches', 'transformers', 'misc'
+    log('Verifying simplified schema...', 'yellow');
+    const requiredTables = [
+      'components', 'component_categories', 'manufacturers', 
+      'distributors', 'component_specifications', 'distributor_info', 
+      'inventory', 'footprint_sources'
     ];
     
-    const cisTables = tablesResult.rows.filter(row => 
-      cisTableNames.includes(row.tablename)
+    const foundTables = tablesResult.rows.filter(row => 
+      requiredTables.includes(row.tablename)
     );
     
-    if (cisTables.length === 11) {
-      log('✓ All 11 CIS category tables created successfully', 'green');
+    if (foundTables.length === requiredTables.length) {
+      log('✓ All required tables created successfully', 'green');
     } else {
-      log(`⚠ Warning: Only ${cisTables.length} of 11 CIS tables found`, 'yellow');
+      log(`⚠ Warning: Only ${foundTables.length} of ${requiredTables.length} required tables found`, 'yellow');
     }
     
     // Verify triggers
@@ -157,11 +157,6 @@ async function initializeDatabase() {
     
     console.log();
     log(`Triggers created: ${triggersResult.rows.length}`, 'blue');
-    const categoryTriggers = triggersResult.rows.filter(row => 
-      row.trigger_name.includes('to_components') || 
-      row.trigger_name.includes('to_category')
-    );
-    log(`  ✓ Category synchronization triggers: ${categoryTriggers.length}`, 'green');
 
     // Ask about sample data
     console.log();
@@ -170,7 +165,7 @@ async function initializeDatabase() {
     if (loadSample.toLowerCase() === 'yes') {
       log('Loading sample data...', 'yellow');
       
-      const sampleDataPath = join(__dirname, '..', 'database', 'sample-data.sql');
+      const sampleDataPath = join(__dirname, '..', 'database', 'sample-data-simplified.sql');
       const sampleData = readFileSync(sampleDataPath, 'utf8');
       
       try {
@@ -182,7 +177,7 @@ async function initializeDatabase() {
         console.log('Record counts:');
         
         const counts = await client.query(`
-          SELECT 'Components (Master)' as table_name, COUNT(*) as count FROM components
+          SELECT 'Components' as table_name, COUNT(*) as count FROM components
           UNION ALL
           SELECT 'Categories', COUNT(*) FROM component_categories
           UNION ALL
@@ -190,27 +185,11 @@ async function initializeDatabase() {
           UNION ALL
           SELECT 'Distributors', COUNT(*) FROM distributors
           UNION ALL
-          SELECT 'Capacitors', COUNT(*) FROM capacitors
+          SELECT 'Specifications', COUNT(*) FROM component_specifications
           UNION ALL
-          SELECT 'Resistors', COUNT(*) FROM resistors
+          SELECT 'Distributor Info', COUNT(*) FROM distributor_info
           UNION ALL
-          SELECT 'ICs', COUNT(*) FROM ics
-          UNION ALL
-          SELECT 'Diodes', COUNT(*) FROM diodes
-          UNION ALL
-          SELECT 'Inductors', COUNT(*) FROM inductors
-          UNION ALL
-          SELECT 'Connectors', COUNT(*) FROM connectors
-          UNION ALL
-          SELECT 'Crystals/Oscillators', COUNT(*) FROM crystals_and_oscillators
-          UNION ALL
-          SELECT 'Relays', COUNT(*) FROM relays
-          UNION ALL
-          SELECT 'Switches', COUNT(*) FROM switches
-          UNION ALL
-          SELECT 'Transformers', COUNT(*) FROM transformers
-          UNION ALL
-          SELECT 'Misc', COUNT(*) FROM misc
+          SELECT 'Inventory', COUNT(*) FROM inventory
         `);
         
         counts.rows.forEach(row => {

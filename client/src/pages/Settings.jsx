@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sun, Moon, Save, Database, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Sun, Moon, Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus } from 'lucide-react';
 import { api } from '../utils/api';
 
 const Settings = () => {
   const queryClient = useQueryClient();
   const [darkMode, setDarkMode] = useState(false);
-  const [partNumberConfigs, setPartNumberConfigs] = useState({});
   const [editingCategory, setEditingCategory] = useState(null);
-  const [tempConfig, setTempConfig] = useState({ prefix: '', leadingZeros: 5 });
+  const [tempConfig, setTempConfig] = useState({ prefix: '', leading_zeros: 5, enabled: true });
   const [dbOperationStatus, setDbOperationStatus] = useState({ show: false, type: '', message: '' });
   const [confirmDialog, setConfirmDialog] = useState({ show: false, action: '', title: '', message: '' });
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
 
-  // Load dark mode from localStorage (client-side only)
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
     if (savedMode !== null) {
@@ -26,51 +26,14 @@ const Settings = () => {
     }
   }, []);
 
-  // Fetch settings from server (part number configs only)
-  const { data: serverSettings, isLoading: loadingSettings } = useQuery({
-    queryKey: ['settings'],
+  const { data: categoryConfigs, isLoading: loadingConfigs } = useQuery({
+    queryKey: ['categoryConfigs'],
     queryFn: async () => {
-      const response = await api.getSettings();
+      const response = await api.get('/settings/categories');
       return response.data;
     },
   });
 
-  // Update settings mutation (part number configs only)
-  const updateSettingsMutation = useMutation({
-    mutationFn: (settings) => api.updateSettings(settings),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['settings']);
-    },
-  });
-
-  // Load part number configs from server when available
-  useEffect(() => {
-    if (serverSettings) {
-      // Filter out any invalid keys (non-integer category IDs) to prevent ghost entries
-      const validConfigs = {};
-      const configs = serverSettings.partNumberConfigs || {};
-      
-      Object.keys(configs).forEach(key => {
-        // Only keep integer keys (valid category IDs are integers 1-11)
-        if (/^\d+$/.test(key)) {
-          validConfigs[key] = configs[key];
-        }
-      });
-      
-      setPartNumberConfigs(validConfigs);
-    }
-  }, [serverSettings]);
-
-  // Fetch categories
-  const { data: categories } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const response = await api.getCategories();
-      return response.data;
-    },
-  });
-
-  // Database stats query
   const { data: dbStats, refetch: refetchStats } = useQuery({
     queryKey: ['databaseStats'],
     queryFn: async () => {
@@ -79,59 +42,66 @@ const Settings = () => {
     },
   });
 
-  // Database operations mutations
+  const updateCategoryMutation = useMutation({
+    mutationFn: async ({ id, config }) => {
+      const response = await api.put(`/settings/categories/\${id}`, config);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categoryConfigs']);
+      setEditingCategory(null);
+      setDbOperationStatus({ show: true, type: 'success', message: 'Category updated successfully!' });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Error updating category: \${errorMsg}` });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: async (categoryData) => {
+      const response = await api.post('/settings/categories', categoryData);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categoryConfigs']);
+      setIsAddingCategory(false);
+      setNewCategory({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
+      setDbOperationStatus({ show: true, type: 'success', message: 'Category created successfully!' });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Error creating category: \${errorMsg}` });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
   const initDbMutation = useMutation({
     mutationFn: async () => {
-      console.log('Calling initDatabase API...');
       const response = await api.initDatabase();
-      console.log('initDatabase response:', response);
       return response;
     },
-    onSuccess: (data) => {
-      console.log('initDatabase onSuccess:', data);
+    onSuccess: () => {
       setDbOperationStatus({ show: true, type: 'success', message: 'Database initialized successfully!' });
       refetchStats();
+      queryClient.invalidateQueries(['categoryConfigs']);
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
-      console.error('initDatabase onError:', error);
-      console.error('Error response:', error.response);
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
       setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
 
-  const resetDbMutation = useMutation({
-    mutationFn: () => api.clearDatabase(),  // Clear data only (preserves schema)
-    onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Database data cleared successfully! Schema preserved.' });
-      refetchStats();
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+  const loadSampleDataMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.loadSampleData();
+      return response;
     },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to clear database: ${errorMsg}` });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
-    },
-  });
-
-  const fullResetMutation = useMutation({
-    mutationFn: () => api.resetDatabase(true),  // Full reset - drops and recreates all tables
-    onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Database fully reset! All tables dropped and recreated.' });
-      refetchStats();
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to reset database: ${errorMsg}` });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
-    },
-  });
-
-  const loadSampleMutation = useMutation({
-    mutationFn: () => api.loadSampleData(),
     onSuccess: () => {
       setDbOperationStatus({ show: true, type: 'success', message: 'Sample data loaded successfully!' });
       refetchStats();
@@ -139,7 +109,30 @@ const Settings = () => {
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Failed to load sample data: ${errorMsg}` });
+      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
+  const verifyDbMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.verifyDatabase();
+      return response;
+    },
+    onSuccess: (data) => {
+      const message = data.data.valid 
+        ? 'Database schema verified successfully!' 
+        : `Schema verification failed: \${data.data.issues?.join(', ')}`;
+      setDbOperationStatus({ 
+        show: true, 
+        type: data.data.valid ? 'success' : 'error', 
+        message 
+      });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -147,529 +140,433 @@ const Settings = () => {
   const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
-
-    // Save to localStorage (client-side only)
     localStorage.setItem('darkMode', newMode.toString());
-
-    // Force immediate DOM update
     if (newMode) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
-
-    // Debug log
-    console.log('Dark mode toggled:', newMode);
-    console.log('HTML classList:', document.documentElement.className);
   };
 
-  const handleEditCategory = (categoryId) => {
-    const config = partNumberConfigs[categoryId] || { prefix: '', leadingZeros: 5 };
-    setTempConfig(config);
-    setEditingCategory(categoryId);
+  const handleEditCategory = (category) => {
+    setEditingCategory(category.id);
+    setTempConfig({
+      prefix: category.prefix,
+      leading_zeros: category.leading_zeros,
+      enabled: category.enabled ?? true
+    });
   };
 
-  const handleSaveConfig = (categoryId) => {
-    // Validate that categoryId is an integer (prevent ghost UUID entries)
-    if (typeof categoryId !== 'number' && !/^\d+$/.test(String(categoryId))) {
-      console.error('Invalid category ID:', categoryId);
+  const handleSaveCategory = (categoryId) => {
+    updateCategoryMutation.mutate({ id: categoryId, config: tempConfig });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCategory(null);
+    setTempConfig({ prefix: '', leading_zeros: 5, enabled: true });
+  };
+
+  const handleCreateCategory = () => {
+    if (!newCategory.name || !newCategory.prefix) {
+      setDbOperationStatus({ show: true, type: 'error', message: 'Name and prefix are required!' });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
       return;
     }
-    
-    // Filter out any non-integer keys from existing configs
-    const cleanedConfigs = {};
-    Object.keys(partNumberConfigs).forEach(key => {
-      if (/^\d+$/.test(key)) {
-        cleanedConfigs[key] = partNumberConfigs[key];
-      }
-    });
-    
-    const newConfigs = {
-      ...cleanedConfigs,
-      [categoryId]: tempConfig,
-    };
-    setPartNumberConfigs(newConfigs);
-    
-    // Update server
-    updateSettingsMutation.mutate({ partNumberConfigs: newConfigs });
-    
-    setEditingCategory(null);
+    createCategoryMutation.mutate(newCategory);
   };
 
   const handleDatabaseOperation = (action) => {
-    let title = '';
-    let message = '';
-
-    switch (action) {
-      case 'init':
-        title = 'Initialize Database';
-        message = 'This will create all tables, triggers, and required schema. Continue?';
-        break;
-      case 'clear':
-        title = 'Clear All Data';
-        message = 'This will DELETE ALL DATA but preserve the database schema (tables, triggers). Continue?';
-        break;
-      case 'fullreset':
-        title = 'Full Database Reset';
-        message = '⚠️ WARNING: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE LOST. This action cannot be undone. Are you absolutely sure?';
-        break;
-      case 'load':
-        title = 'Load Sample Data';
-        message = 'This will load sample components into the database. Continue?';
-        break;
-      default:
-        return;
-    }
-
-    setConfirmDialog({ show: true, action, title, message });
+    setConfirmDialog({
+      show: true,
+      action,
+      title: action === 'init' ? 'Initialize Database' : 
+             action === 'load' ? 'Load Sample Data' : 'Verify Database',
+      message: action === 'init' ? 
+               'This will drop all tables and recreate the schema. All existing data will be lost. Are you sure?' :
+               action === 'load' ?
+               'This will load sample data into the database. Existing data will not be affected. Continue?' :
+               'This will verify the database schema matches the expected structure. Continue?'
+    });
   };
 
-  const confirmDatabaseOperation = () => {
-    const { action } = confirmDialog;
+  const executeConfirmedAction = () => {
+    const action = confirmDialog.action;
     setConfirmDialog({ show: false, action: '', title: '', message: '' });
-
-    switch (action) {
-      case 'init':
-        initDbMutation.mutate();
-        break;
-      case 'clear':
-        resetDbMutation.mutate();
-        break;
-      case 'fullreset':
-        fullResetMutation.mutate();
-        break;
-      case 'load':
-        loadSampleMutation.mutate();
-        break;
+    
+    if (action === 'init') {
+      initDbMutation.mutate();
+    } else if (action === 'load') {
+      loadSampleDataMutation.mutate();
+    } else if (action === 'verify') {
+      verifyDbMutation.mutate();
     }
-  };
-
-  const cancelDatabaseOperation = () => {
-    setConfirmDialog({ show: false, action: '', title: '', message: '' });
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your application preferences</p>
+    <div className="p-6">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h2>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Configure application preferences and database settings</p>
       </div>
 
-      {/* User Settings Section */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">User Settings</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Theme Toggle Tile */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                {darkMode ? (
-                  <Moon className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-                ) : (
-                  <Sun className="w-6 h-6 text-primary-600" />
-                )}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    Theme
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {darkMode ? 'Dark Mode' : 'Light Mode'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <button
-              onClick={toggleDarkMode}
-              className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-[#2a2a2a] ${
-                darkMode ? 'bg-primary-600' : 'bg-gray-200'
-              }`}
-              role="switch"
-              aria-checked={darkMode}
-            >
-              <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                  darkMode ? 'translate-x-9' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-              Switch between light and dark theme for better viewing experience
-            </p>
-          </div>
-
-          {/* Placeholder tiles for future user settings */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Notifications
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Coming soon...
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              Language
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Coming soon...
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Server Settings Section */}
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Server Settings</h2>
-        
-        {/* Part Number Configuration */}
-        <div className="mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Part Number Configuration</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Configure part number prefixes and serial number format for each component category
-          </p>
-
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-[#333333]">
-              <tr>
-                <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
-                <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Prefix</th>
-                <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Leading Zeros</th>
-                <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Example</th>
-                <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories?.map((category) => {
-                const config = partNumberConfigs[category.id] || { prefix: '', leadingZeros: 5 };
-                const isEditing = editingCategory === category.id;
-                // Fix: Use the correct config for each category (not tempConfig for non-editing rows)
-                const displayPrefix = isEditing ? tempConfig.prefix : config.prefix;
-                const displayLeadingZeros = isEditing ? tempConfig.leadingZeros : config.leadingZeros;
-                const exampleNumber = (displayPrefix || 'XXX') + '-' + '1'.padStart(displayLeadingZeros, '0');
-
-                return (
-                  <tr key={category.id} className="border-t border-gray-200 dark:border-[#3a3a3a]">
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{category.name}</td>
-                    <td className="px-6 py-4">
-                      {isEditing ? (
-                        <input
-                          type="text"
-                          value={tempConfig.prefix}
-                          onChange={(e) => setTempConfig({ ...tempConfig, prefix: e.target.value.toUpperCase() })}
-                          placeholder="e.g., RES"
-                          className="w-32 px-3 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        />
-                      ) : (
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{config.prefix || 'Not set'}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={tempConfig.leadingZeros}
-                          onChange={(e) => setTempConfig({ ...tempConfig, leadingZeros: parseInt(e.target.value) || 5 })}
-                          className="w-20 px-3 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        />
-                      ) : (
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{config.leadingZeros}</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <code className="text-sm bg-gray-100 dark:bg-[#333333] px-2 py-1 rounded text-gray-900 dark:text-gray-100">
-                        {exampleNumber}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4">
-                      {isEditing ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSaveConfig(category.id)}
-                            className="bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-1 px-3 rounded transition-colors flex items-center gap-1"
-                          >
-                            <Save className="w-3 h-3" />
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingCategory(null)}
-                            className="bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 text-sm font-semibold py-1 px-3 rounded transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleEditCategory(category.id)}
-                          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 text-sm font-semibold"
-                        >
-                          Configure
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Additional Server Settings Placeholders */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            API Keys
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Configure Digikey, Mouser, and other API keys
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Backup & Restore
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Manage database backups
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 opacity-50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Server Configuration
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Coming soon...
-          </p>
-        </div>
-      </div>
-
-      {/* Database Management Section */}
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-          <Database className="w-6 h-6 text-primary-600 dark:text-primary-400" />
-          Database Management
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Manage database initialization, reset, and sample data loading
-        </p>
-
-        {/* Status Message */}
-        {dbOperationStatus.show && (
-          <div className={`mb-4 p-4 rounded-lg flex items-center gap-3 ${
-            dbOperationStatus.type === 'success' 
-              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-          }`}>
+      {dbOperationStatus.show && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          dbOperationStatus.type === 'success' 
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+        }`}>
+          <div className="flex items-center gap-2">
             {dbOperationStatus.type === 'success' ? (
               <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
             ) : (
               <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
             )}
-            <span className={`text-sm font-medium ${
-              dbOperationStatus.type === 'success' 
-                ? 'text-green-800 dark:text-green-200' 
+            <p className={
+              dbOperationStatus.type === 'success'
+                ? 'text-green-800 dark:text-green-200'
                 : 'text-red-800 dark:text-red-200'
-            }`}>
+            }>
               {dbOperationStatus.message}
-            </span>
-          </div>
-        )}
-
-        {/* Confirmation Dialog */}
-        {confirmDialog.show && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-              <div className="flex items-start gap-3 mb-4">
-                <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                    {confirmDialog.title}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    {confirmDialog.message}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3 justify-end mt-6">
-                <button
-                  onClick={cancelDatabaseOperation}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDatabaseOperation}
-                  className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                    confirmDialog.action === 'reset'
-                      ? 'bg-red-600 hover:bg-red-700 text-white'
-                      : 'bg-primary-600 hover:bg-primary-700 text-white'
-                  }`}
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Database Statistics */}
-        {dbStats && (
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Current Database Statistics</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Components</div>
-                <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                  {dbStats.summary?.total_components || 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Categories</div>
-                <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                  {dbStats.summary?.total_categories || 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Manufacturers</div>
-                <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                  {dbStats.summary?.total_manufacturers || 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Distributors</div>
-                <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                  {dbStats.summary?.total_distributors || 0}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Specifications</div>
-                <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                  {dbStats.summary?.total_specifications || 0}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Database Operations */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Initialize Database */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
-            <div className="flex items-center mb-3">
-              <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Initialize Database
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Create all database tables, triggers, and CIS-compliant schema structure (first-time setup only)
             </p>
-            <button
-              onClick={() => handleDatabaseOperation('init')}
-              disabled={initDbMutation.isPending}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
-            >
-              {initDbMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Initializing...
-                </>
-              ) : (
-                'Initialize Schema'
-              )}
-            </button>
-          </div>
-
-          {/* Load Sample Data */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
-            <div className="flex items-center mb-3">
-              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Load Sample Data
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Populate database with 40+ sample components across all categories
-            </p>
-            <button
-              onClick={() => handleDatabaseOperation('load')}
-              disabled={loadSampleMutation.isPending}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
-            >
-              {loadSampleMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                'Load Samples'
-              )}
-            </button>
-          </div>
-
-          {/* Full Reset - Drops Tables */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border-2 border-red-500 dark:border-red-600 p-6">
-            <div className="flex items-center mb-3">
-              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Full Database Reset
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              ⚠️ DROP ALL TABLES and recreate schema. Use for schema updates or complete reset.
-            </p>
-            <button
-              onClick={() => handleDatabaseOperation('fullreset')}
-              disabled={fullResetMutation.isPending}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
-            >
-              {fullResetMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Resetting...
-                </>
-              ) : (
-                'Full Reset (Drop Tables)'
-              )}
-            </button>
-          </div>
-
-          {/* Clear Data Only */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-yellow-300 dark:border-yellow-600 p-6">
-            <div className="flex items-center mb-3">
-              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 ml-2">
-                Clear All Data
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Delete all data (components, manufacturers, etc.) but preserve schema structure
-            </p>
-            <button
-              onClick={() => handleDatabaseOperation('clear')}
-              disabled={resetDbMutation.isPending}
-              className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
-            >
-              {resetDbMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Clearing...
-                </>
-              ) : (
-                'Clear Data'
-              )}
-            </button>
           </div>
         </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Appearance</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                <span className="text-gray-700 dark:text-gray-300">Dark Mode</span>
+              </div>
+              <button
+                onClick={toggleDarkMode}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  darkMode ? 'bg-primary-600' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    darkMode ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Database Statistics
+          </h3>
+          {dbStats ? (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Total Components:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalComponents || 0}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Total Categories:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalCategories || 0}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Total Manufacturers:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalManufacturers || 0}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Database Size:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.databaseSize || 'N/A'}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading stats...</p>
+          )}
+        </div>
       </div>
+
+      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Configuration</h3>
+          <button
+            onClick={() => setIsAddingCategory(!isAddingCategory)}
+            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+          >
+            {isAddingCategory ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {isAddingCategory ? 'Cancel' : 'Add Category'}
+          </button>
+        </div>
+
+        {isAddingCategory && (
+          <div className="mb-6 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
+            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">New Category</h4>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={newCategory.name}
+                  onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                  placeholder="e.g., Capacitors"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Prefix *</label>
+                <input
+                  type="text"
+                  value={newCategory.prefix}
+                  onChange={(e) => setNewCategory({ ...newCategory, prefix: e.target.value.toUpperCase() })}
+                  placeholder="e.g., CAP"
+                  maxLength={10}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Leading Zeros</label>
+                <input
+                  type="number"
+                  value={newCategory.leading_zeros}
+                  onChange={(e) => setNewCategory({ ...newCategory, leading_zeros: parseInt(e.target.value) || 5 })}
+                  min="1"
+                  max="10"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={newCategory.description}
+                  onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                  placeholder="Optional description"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={newCategory.enabled}
+                  onChange={(e) => setNewCategory({ ...newCategory, enabled: e.target.checked })}
+                  className="rounded border-gray-300 dark:border-[#444444]"
+                />
+                Enabled
+              </label>
+              <button
+                onClick={handleCreateCategory}
+                disabled={createCategoryMutation.isPending}
+                className="ml-auto bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {createCategoryMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Create Category
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loadingConfigs ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Prefix</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Leading Zeros</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Example</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categoryConfigs?.map((category) => (
+                  <tr key={category.id} className="border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333]">
+                    <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{category.name}</td>
+                    <td className="py-3 px-4">
+                      {editingCategory === category.id ? (
+                        <input
+                          type="text"
+                          value={tempConfig.prefix}
+                          onChange={(e) => setTempConfig({ ...tempConfig, prefix: e.target.value.toUpperCase() })}
+                          maxLength={10}
+                          className="w-24 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                        />
+                      ) : (
+                        <span className="text-gray-900 dark:text-gray-100 font-mono">{category.prefix}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {editingCategory === category.id ? (
+                        <input
+                          type="number"
+                          value={tempConfig.leading_zeros}
+                          onChange={(e) => setTempConfig({ ...tempConfig, leading_zeros: parseInt(e.target.value) || 5 })}
+                          min="1"
+                          max="10"
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                        />
+                      ) : (
+                        <span className="text-gray-900 dark:text-gray-100">{category.leading_zeros}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-gray-600 dark:text-gray-400 font-mono text-sm">
+                        {category.prefix}-{String(1).padStart(editingCategory === category.id ? tempConfig.leading_zeros : category.leading_zeros, '0')}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      {editingCategory === category.id ? (
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={tempConfig.enabled}
+                            onChange={(e) => setTempConfig({ ...tempConfig, enabled: e.target.checked })}
+                            className="rounded border-gray-300 dark:border-[#444444]"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Enabled</span>
+                        </label>
+                      ) : (
+                        <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                          category.enabled
+                            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                        }`}>
+                          {category.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {editingCategory === category.id ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleSaveCategory(category.id)}
+                            disabled={updateCategoryMutation.isPending}
+                            className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEditCategory(category)}
+                          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={() => handleDatabaseOperation('init')}
+            disabled={initDbMutation.isPending}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {initDbMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Initializing...
+              </>
+            ) : (
+              <>
+                <Database className="w-4 h-4" />
+                Initialize Database
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => handleDatabaseOperation('load')}
+            disabled={loadSampleDataMutation.isPending}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loadSampleDataMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Database className="w-4 h-4" />
+                Load Sample Data
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => handleDatabaseOperation('verify')}
+            disabled={verifyDbMutation.isPending}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {verifyDbMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                Verify Schema
+              </>
+            )}
+          </button>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+          <strong>Warning:</strong> Initialize Database will drop all existing tables and data. Always backup your database before performing this operation.
+        </p>
+      </div>
+
+      {confirmDialog.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{confirmDialog.title}</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDialog({ show: false, action: '', title: '', message: '' })}
+                className="px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeConfirmedAction}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

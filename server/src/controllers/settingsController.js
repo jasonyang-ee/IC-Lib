@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as databaseService from '../services/databaseService.js';
+import pool from '../config/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -242,6 +243,161 @@ export const loadSampleData = async (req, res) => {
     console.error('Error loading sample data:', error);
     res.status(500).json({ 
       error: 'Failed to load sample data',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * GET /api/settings/categories - Get all component categories with configuration
+ */
+export const getCategoryConfigs = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        name,
+        prefix,
+        leading_zeros,
+        enabled,
+        created_at,
+        updated_at
+      FROM component_categories
+      ORDER BY name
+    `);
+    
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching category configs:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch category configurations',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * PUT /api/settings/categories/:id - Update category configuration
+ */
+export const updateCategoryConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prefix, leading_zeros, enabled } = req.body;
+
+    // Validate inputs
+    if (prefix !== undefined && (typeof prefix !== 'string' || prefix.length === 0)) {
+      return res.status(400).json({ error: 'Invalid prefix: must be a non-empty string' });
+    }
+    
+    if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
+      return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
+    }
+    
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid enabled: must be a boolean' });
+    }
+
+    // Build dynamic update query
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (prefix !== undefined) {
+      updates.push(`prefix = $${paramCount}`);
+      values.push(prefix);
+      paramCount++;
+    }
+    
+    if (leading_zeros !== undefined) {
+      updates.push(`leading_zeros = $${paramCount}`);
+      values.push(leading_zeros);
+      paramCount++;
+    }
+    
+    if (enabled !== undefined) {
+      updates.push(`enabled = $${paramCount}`);
+      values.push(enabled);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const result = await pool.query(`
+      UPDATE component_categories
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING id, name, prefix, leading_zeros, enabled, created_at, updated_at
+    `, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.json({
+      success: true,
+      category: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating category config:', error);
+    res.status(500).json({ 
+      error: 'Failed to update category configuration',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * POST /api/settings/categories - Create new category
+ */
+export const createCategory = async (req, res) => {
+  try {
+    const { name, prefix, leading_zeros, enabled } = req.body;
+
+    // Validate required fields
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+    
+    if (!prefix || typeof prefix !== 'string' || prefix.trim().length === 0) {
+      return res.status(400).json({ error: 'Category prefix is required' });
+    }
+
+    const validLeadingZeros = leading_zeros !== undefined ? leading_zeros : 5;
+    const validEnabled = enabled !== undefined ? enabled : true;
+
+    // Validate types
+    if (typeof validLeadingZeros !== 'number' || validLeadingZeros < 1 || validLeadingZeros > 10) {
+      return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO component_categories (name, prefix, leading_zeros, enabled)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, prefix, leading_zeros, enabled, created_at, updated_at
+    `, [name.trim(), prefix.trim(), validLeadingZeros, validEnabled]);
+
+    res.status(201).json({
+      success: true,
+      category: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating category:', error);
+    
+    // Handle unique constraint violations
+    if (error.code === '23505') {
+      return res.status(409).json({ 
+        error: 'Category with this name or prefix already exists',
+        message: error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create category',
       message: error.message 
     });
   }

@@ -5,7 +5,12 @@ export const getAllComponents = async (req, res, next) => {
     const { category, search } = req.query;
     
     let query = `
-      SELECT c.*, cat.name as category_name, m.name as manufacturer_name
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        c.part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -21,7 +26,16 @@ export const getAllComponents = async (req, res, next) => {
     }
 
     if (search) {
-      query += ` AND (c.part_number ILIKE $${paramCount} OR c.description ILIKE $${paramCount} OR c.manufacturer_pn ILIKE $${paramCount})`;
+      query += ` AND (
+        c.part_number ILIKE $${paramCount} 
+        OR c.description ILIKE $${paramCount} 
+        OR c.manufacturer_pn ILIKE $${paramCount}
+        OR c.sub_category1 ILIKE $${paramCount}
+        OR c.sub_category2 ILIKE $${paramCount}
+        OR c.sub_category3 ILIKE $${paramCount}
+        OR c.part_type ILIKE $${paramCount}
+        OR cat.name ILIKE $${paramCount}
+      )`;
       params.push(`%${search}%`);
       paramCount++;
     }
@@ -40,7 +54,13 @@ export const getComponentById = async (req, res, next) => {
     const { id } = req.params;
     
     const result = await pool.query(`
-      SELECT c.*, cat.name as category_name, m.name as manufacturer_name, m.website as manufacturer_website
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        m.website as manufacturer_website,
+        c.part_type
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -66,106 +86,63 @@ export const createComponent = async (req, res, next) => {
       manufacturer_pn,
       description,
       value,
+      sub_category1,
+      sub_category2,
+      sub_category3,
       pcb_footprint,
       package_size,
+      schematic,
+      step_model,
+      pspice,
       datasheet_url,
       status,
       notes
     } = req.body;
 
-    // Start transaction
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
+    // Convert empty strings to NULL for UUID fields
+    const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
+    const validCategoryId = category_id && String(category_id).trim() !== '' ? category_id : null;
 
-      // Convert empty strings to NULL for UUID fields
-      const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
-      const validCategoryId = category_id && String(category_id).trim() !== '' ? category_id : null;
-
-      // Validate category_id is required
-      if (!validCategoryId) {
-        throw new Error('category_id is required');
-      }
-
-      // Get manufacturer name if manufacturer_id is provided
-      let manufacturerName = null;
-      if (validManufacturerId) {
-        const mfgResult = await client.query(
-          'SELECT name FROM manufacturers WHERE id = $1',
-          [validManufacturerId]
-        );
-        if (mfgResult.rows.length > 0) {
-          manufacturerName = mfgResult.rows[0].name;
-        }
-      }
-
-      // Temporarily disable triggers to prevent infinite loop
-      await client.query('SET LOCAL session_replication_role = replica');
-
-      // Insert directly into components table
-      const insertQuery = `
-        INSERT INTO components (
-          category_id, part_number, manufacturer_id, manufacturer_pn,
-          description, value, pcb_footprint, package_size,
-          datasheet_url, status, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        RETURNING *
-      `;
-
-      const componentResult = await client.query(insertQuery, [
-        validCategoryId, part_number, validManufacturerId, manufacturer_pn,
-        description, value, pcb_footprint, package_size,
-        datasheet_url, status || 'Active', notes
-      ]);
-
-      const component = componentResult.rows[0];
-
-      // Manually sync to category table (triggers still disabled)
-      const categoryResult = await client.query(
-        'SELECT table_name FROM component_categories WHERE id = $1',
-        [validCategoryId]
-      );
-
-      if (categoryResult.rows.length > 0) {
-        const categoryTable = categoryResult.rows[0].table_name;
-        
-        // Insert into category table with manufacturer name (not UUID)
-        const categoryInsertQuery = `
-          INSERT INTO ${categoryTable} (
-            part_number, manufacturer, manufacturer_pn, description, value,
-            pcb_footprint, package_size, datasheet_url, company_part_status, notes, category_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          ON CONFLICT (part_number) DO NOTHING
-        `;
-        
-        await client.query(categoryInsertQuery, [
-          part_number, manufacturerName, manufacturer_pn, description, value,
-          pcb_footprint, package_size, datasheet_url, status || 'Active', notes, validCategoryId
-        ]);
-      }
-
-      // Re-enable triggers AFTER all operations
-      await client.query('SET LOCAL session_replication_role = DEFAULT');
-
-      await client.query('COMMIT');
-      
-      // Fetch the complete component with joined data
-      const fullComponent = await client.query(`
-        SELECT c.*, cat.name as category_name, m.name as manufacturer_name
-        FROM components c
-        LEFT JOIN component_categories cat ON c.category_id = cat.id
-        LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-        WHERE c.id = $1
-      `, [component.id]);
-
-      res.status(201).json(fullComponent.rows[0]);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Error creating component:', error);
-      throw error;
-    } finally {
-      client.release();
+    // Validate category_id is required
+    if (!validCategoryId) {
+      return res.status(400).json({ error: 'category_id is required' });
     }
+
+    // Insert directly into components table (no triggers, no category table sync)
+    const insertQuery = `
+      INSERT INTO components (
+        category_id, part_number, manufacturer_id, manufacturer_pn,
+        description, value, sub_category1, sub_category2, sub_category3,
+        pcb_footprint, package_size, schematic, step_model, pspice,
+        datasheet_url, status, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *
+    `;
+
+    const componentResult = await pool.query(insertQuery, [
+      validCategoryId, part_number, validManufacturerId, manufacturer_pn,
+      description, value, sub_category1, sub_category2, sub_category3,
+      pcb_footprint, package_size, schematic, step_model, pspice,
+      datasheet_url, status || 'Active', notes
+    ]);
+
+    const component = componentResult.rows[0];
+    
+    // Fetch the complete component with joined data
+    const fullComponent = await pool.query(`
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        c.part_type
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.id = $1
+    `, [component.id]);
+
+    res.status(201).json(fullComponent.rows[0]);
   } catch (error) {
     console.error('Error in createComponent:', error);
     next(error);
@@ -182,8 +159,14 @@ export const updateComponent = async (req, res, next) => {
       manufacturer_pn,
       description,
       value,
+      sub_category1,
+      sub_category2,
+      sub_category3,
       pcb_footprint,
       package_size,
+      schematic,
+      step_model,
+      pspice,
       datasheet_url,
       status,
       notes
@@ -193,146 +176,57 @@ export const updateComponent = async (req, res, next) => {
     const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
     const validCategoryId = category_id && String(category_id).trim() !== '' ? category_id : null;
 
-    // Start transaction
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Get current component to check category change
-      const currentComponent = await client.query(
-        'SELECT category_id, part_number FROM components WHERE id = $1',
-        [id]
-      );
-
-      if (currentComponent.rows.length === 0) {
-        await client.query('ROLLBACK');
-        client.release();
-        return res.status(404).json({ error: 'Component not found' });
-      }
-
-      const oldCategoryId = currentComponent.rows[0].category_id;
-      const oldPartNumber = currentComponent.rows[0].part_number;
-      const newCategoryId = validCategoryId || oldCategoryId;
-      const newPartNumber = part_number || oldPartNumber;
-
-      // Get manufacturer name if manufacturer_id is provided
-      let manufacturerName = null;
-      if (validManufacturerId) {
-        const mfgResult = await client.query(
-          'SELECT name FROM manufacturers WHERE id = $1',
-          [validManufacturerId]
-        );
-        if (mfgResult.rows.length > 0) {
-          manufacturerName = mfgResult.rows[0].name;
-        }
-      }
-
-      // Disable triggers to prevent infinite loop
-      await client.query('SET LOCAL session_replication_role = replica');
-
-      // Update components table
-      const result = await client.query(`
-        UPDATE components SET
-          category_id = COALESCE($1, category_id),
-          part_number = COALESCE($2, part_number),
-          manufacturer_id = $3,
-          manufacturer_pn = COALESCE($4, manufacturer_pn),
-          description = COALESCE($5, description),
-          value = COALESCE($6, value),
-          pcb_footprint = COALESCE($7, pcb_footprint),
-          package_size = COALESCE($8, package_size),
-          datasheet_url = COALESCE($9, datasheet_url),
-          status = COALESCE($10, status),
-          notes = COALESCE($11, notes),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $12
-        RETURNING *
-      `, [
-        validCategoryId, part_number, validManufacturerId, manufacturer_pn,
-        description, value, pcb_footprint, package_size,
-        datasheet_url, status, notes, id
-      ]);
-
-      // Manually sync to category tables (triggers still disabled)
-      if (oldCategoryId) {
-        // If category changed, delete from old category table
-        if (validCategoryId && validCategoryId !== oldCategoryId) {
-          const oldCategoryResult = await client.query(
-            'SELECT table_name FROM component_categories WHERE id = $1',
-            [oldCategoryId]
-          );
-          if (oldCategoryResult.rows.length > 0) {
-            const oldCategoryTable = oldCategoryResult.rows[0].table_name;
-            await client.query(`DELETE FROM ${oldCategoryTable} WHERE part_number = $1`, [oldPartNumber]);
-          }
-        }
-
-        // Update or insert into new/same category table
-        const categoryResult = await client.query(
-          'SELECT table_name FROM component_categories WHERE id = $1',
-          [newCategoryId]
-        );
-
-        if (categoryResult.rows.length > 0) {
-          const categoryTable = categoryResult.rows[0].table_name;
-          
-          // Try update first, then insert if not exists
-          const updateResult = await client.query(`
-            UPDATE ${categoryTable} SET
-              manufacturer = COALESCE($1, manufacturer),
-              manufacturer_pn = COALESCE($2, manufacturer_pn),
-              description = COALESCE($3, description),
-              value = COALESCE($4, value),
-              pcb_footprint = COALESCE($5, pcb_footprint),
-              package_size = COALESCE($6, package_size),
-              datasheet_url = COALESCE($7, datasheet_url),
-              company_part_status = COALESCE($8, company_part_status),
-              notes = COALESCE($9, notes),
-              updated_at = CURRENT_TIMESTAMP
-            WHERE part_number = $10
-          `, [
-            manufacturerName, manufacturer_pn, description, value,
-            pcb_footprint, package_size, datasheet_url, status, notes, newPartNumber
-          ]);
-
-          // If no rows updated, insert new record
-          if (updateResult.rowCount === 0) {
-            await client.query(`
-              INSERT INTO ${categoryTable} (
-                part_number, manufacturer, manufacturer_pn, description, value,
-                pcb_footprint, package_size, datasheet_url, company_part_status, notes, category_id
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-              ON CONFLICT (part_number) DO NOTHING
-            `, [
-              newPartNumber, manufacturerName, manufacturer_pn, description, value,
-              pcb_footprint, package_size, datasheet_url, status || 'Active', notes, newCategoryId
-            ]);
-          }
-        }
-      }
-
-      // Re-enable triggers AFTER all operations
-      await client.query('SET LOCAL session_replication_role = DEFAULT');
-
-      await client.query('COMMIT');
-
-      // Fetch the complete component with joined data
-      const fullComponent = await client.query(`
-        SELECT c.*, cat.name as category_name, m.name as manufacturer_name
-        FROM components c
-        LEFT JOIN component_categories cat ON c.category_id = cat.id
-        LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-        WHERE c.id = $1
-      `, [id]);
-
-      res.json(fullComponent.rows[0]);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Error updating component:', error);
-      throw error;
-    } finally {
-      client.release();
+    // Check if component exists
+    const componentCheck = await pool.query('SELECT id FROM components WHERE id = $1', [id]);
+    if (componentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
     }
+
+    // Update components table directly (no triggers, no category table sync)
+    const result = await pool.query(`
+      UPDATE components SET
+        category_id = COALESCE($1, category_id),
+        part_number = COALESCE($2, part_number),
+        manufacturer_id = $3,
+        manufacturer_pn = COALESCE($4, manufacturer_pn),
+        description = COALESCE($5, description),
+        value = COALESCE($6, value),
+        sub_category1 = $7,
+        sub_category2 = $8,
+        sub_category3 = $9,
+        pcb_footprint = COALESCE($10, pcb_footprint),
+        package_size = COALESCE($11, package_size),
+        schematic = $12,
+        step_model = $13,
+        pspice = $14,
+        datasheet_url = COALESCE($15, datasheet_url),
+        status = COALESCE($16, status),
+        notes = COALESCE($17, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $18
+      RETURNING *
+    `, [
+      validCategoryId, part_number, validManufacturerId, manufacturer_pn,
+      description, value, sub_category1, sub_category2, sub_category3,
+      pcb_footprint, package_size, schematic, step_model, pspice,
+      datasheet_url, status, notes, id
+    ]);
+
+    // Fetch the complete component with joined data
+    const fullComponent = await pool.query(`
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        c.part_type
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.id = $1
+    `, [id]);
+
+    res.json(fullComponent.rows[0]);
   } catch (error) {
     console.error('Error in updateComponent:', error);
     next(error);
@@ -343,9 +237,9 @@ export const deleteComponent = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    // First, get the component to check if it exists and has a valid category_id
+    // Check if component exists
     const componentCheck = await pool.query(
-      'SELECT id, part_number, category_id FROM components WHERE id = $1',
+      'SELECT id FROM components WHERE id = $1',
       [id]
     );
 
@@ -353,40 +247,19 @@ export const deleteComponent = async (req, res, next) => {
       return res.status(404).json({ error: 'Component not found' });
     }
 
-    const component = componentCheck.rows[0];
-
-    // Always use transaction with triggers disabled to prevent sync issues
+    // Use transaction to delete from all related tables
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
-      // Disable triggers to prevent sync errors
-      await client.query('SET LOCAL session_replication_role = replica');
-      
-      // Delete from related tables first
+      // Delete from related tables first (foreign key constraints)
       await client.query('DELETE FROM component_specifications WHERE component_id = $1', [id]);
       await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
       await client.query('DELETE FROM inventory WHERE component_id = $1', [id]);
       await client.query('DELETE FROM footprint_sources WHERE component_id = $1', [id]);
       
-      // Delete the component
+      // Delete the component (no category table sync needed)
       await client.query('DELETE FROM components WHERE id = $1', [id]);
-      
-      // Manually delete from category table if category exists
-      if (component.category_id && component.part_number) {
-        const categoryResult = await client.query(
-          'SELECT table_name FROM component_categories WHERE id = $1',
-          [component.category_id]
-        );
-        
-        if (categoryResult.rows.length > 0) {
-          const categoryTable = categoryResult.rows[0].table_name;
-          await client.query(`DELETE FROM ${categoryTable} WHERE part_number = $1`, [component.part_number]);
-        }
-      }
-      
-      // Re-enable triggers after all operations
-      await client.query('SET LOCAL session_replication_role = DEFAULT');
       
       await client.query('COMMIT');
       
