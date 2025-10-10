@@ -18,12 +18,10 @@ RUN npm run build
 FROM node:22-alpine
 
 WORKDIR /app
+COPY database .
 
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
-
-# Copy database sql file
-COPY database /app/
 
 # Copy backend source code
 WORKDIR /app/server
