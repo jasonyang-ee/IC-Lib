@@ -1,12 +1,12 @@
-version: '3.8'
-
 services:
-  # Unified Web Application (Frontend + Backend)
-  web:
+  iclib-web:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: allegro-web
+    container_name: iclib-web
+    restart: unless-stopped
+    ports:
+      - "80:80"          # All traffic (frontend + API via nginx proxy)
     environment:
       # Node Environment
       - NODE_ENV=production
@@ -14,11 +14,11 @@ services:
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
-      - DB_HOST=infra.main.local
-      - DB_PORT=5435
-      - DB_USER=sami
+      - DB_HOST=localhost
+      - DB_PORT=5432
+      - DB_USER=iclib
       - DB_PASSWORD=123456
-      - DB_NAME=cip
+      - DB_NAME=iclib
       
       # CORS Configuration
       - CORS_ORIGIN=*
@@ -29,10 +29,20 @@ services:
       # - MOUSER_API_KEY=your_api_key
       # - ULTRA_LIBRARIAN_TOKEN=your_token
       # - SNAPEDA_API_KEY=your_api_key
-    ports:
-      - "80:80"          # All traffic (frontend + API via nginx proxy)
     volumes:
-      - ./download/footprint:/app/download/footprint
-      - ./download/symbol:/app/download/symbol
-      - ./download/pad:/app/download/pad
+      - ./cad-file/footprint:/app/download/footprint
+      - ./cad-file/symbol:/app/download/symbol
+      - ./cad-file/pad:/app/download/pad
+  
+  iclib-db:
+    image: postgres:18
+    container_name: iclib-db
     restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=iclib
+      - POSTGRES_PASSWORD=123456
+      - POSTGRES_DB=iclib
+    volumes:
+      - ./database:/var/lib/postgresql/data

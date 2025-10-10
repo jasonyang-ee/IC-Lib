@@ -4,277 +4,16 @@ import { api } from '../utils/api';
 import { Search, Edit, Trash2, Plus, X, Check } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
-const AddComponentModal = ({ isOpen, onClose, categories, onAdd }) => {
-  const [formData, setFormData] = useState({
-    category_id: '',
-    part_number: '',
-    manufacturer_part_number: '',
-    description: '',
-    value: '',
-    sub_category1: '',
-    sub_category2: '',
-    sub_category3: '',
-    pcb_footprint: '',
-    package_size: '',
-    schematic: '',
-    step_model: '',
-    pspice: '',
-    datasheet_url: '',
-  });
-
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onAdd(formData);
-    setFormData({
-      category_id: '',
-      part_number: '',
-      manufacturer_part_number: '',
-      description: '',
-      value: '',
-      sub_category1: '',
-      sub_category2: '',
-      sub_category3: '',
-      pcb_footprint: '',
-      package_size: '',
-      schematic: '',
-      step_model: '',
-      pspice: '',
-      datasheet_url: '',
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Add New Component</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Category *
-            </label>
-            <select
-              required
-              value={formData.category_id}
-              onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-            >
-              <option value="">Select a category</option>
-              {categories?.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Part Number *
-            </label>
-            <input
-              required
-              type="text"
-              value={formData.part_number}
-              onChange={(e) => setFormData({ ...formData, part_number: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., RES-0603-1K-1%"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Manufacturer Part Number
-            </label>
-            <input
-              type="text"
-              value={formData.manufacturer_part_number}
-              onChange={(e) => setFormData({ ...formData, manufacturer_part_number: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., CRCW06031K00FKEA"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              rows="3"
-              placeholder="Brief description of the component"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Value
-            </label>
-            <input
-              type="text"
-              value={formData.value}
-              onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., 10uF, 10kΩ, 3.3V"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Sub-Category 1
-            </label>
-            <input
-              type="text"
-              value={formData.sub_category1}
-              onChange={(e) => setFormData({ ...formData, sub_category1: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., Ceramic, Thick Film"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Sub-Category 2
-            </label>
-            <input
-              type="text"
-              value={formData.sub_category2}
-              onChange={(e) => setFormData({ ...formData, sub_category2: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., X7R, ±1%"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Sub-Category 3
-            </label>
-            <input
-              type="text"
-              value={formData.sub_category3}
-              onChange={(e) => setFormData({ ...formData, sub_category3: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., 50V, 0.1W"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              PCB Footprint
-            </label>
-            <input
-              type="text"
-              value={formData.pcb_footprint}
-              onChange={(e) => setFormData({ ...formData, pcb_footprint: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., C_0805, SOIC-8"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Package Size
-            </label>
-            <input
-              type="text"
-              value={formData.package_size}
-              onChange={(e) => setFormData({ ...formData, package_size: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="e.g., 0805, SOIC-8"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Schematic Symbol
-            </label>
-            <input
-              type="text"
-              value={formData.schematic}
-              onChange={(e) => setFormData({ ...formData, schematic: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="Path to schematic symbol file"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              STEP Model
-            </label>
-            <input
-              type="text"
-              value={formData.step_model}
-              onChange={(e) => setFormData({ ...formData, step_model: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="Path to 3D STEP model file"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              PSPICE Model
-            </label>
-            <input
-              type="text"
-              value={formData.pspice}
-              onChange={(e) => setFormData({ ...formData, pspice: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="Path to PSPICE simulation model"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Datasheet URL
-            </label>
-            <input
-              type="url"
-              value={formData.datasheet_url}
-              onChange={(e) => setFormData({ ...formData, datasheet_url: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-              placeholder="https://..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              Add Component
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 const Library = () => {
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [subcategoryFilter, setSubcategoryFilter] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isAddMode, setIsAddMode] = useState(false);
   const [editData, setEditData] = useState({});
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState(new Set());
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -287,26 +26,29 @@ const Library = () => {
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, searchTerm, subcategoryFilter],
+    queryKey: ['components', selectedCategory, searchTerm],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
         search: searchTerm,
-        subcategory: subcategoryFilter,
       });
       return response.data;
     },
   });
 
-  // Get unique subcategories for the selected category
-  const subcategories = components
-    ? [...new Set(components.map((c) => c.subcategory).filter(Boolean))]
-    : [];
+  // Fetch manufacturers for dropdown
+  const { data: manufacturers } = useQuery({
+    queryKey: ['manufacturers'],
+    queryFn: async () => {
+      const response = await api.getManufacturers();
+      return response.data;
+    },
+  });
 
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
     queryKey: ['componentDetails', selectedComponent?.id],
-    enabled: !!selectedComponent,
+    enabled: !!selectedComponent && !isAddMode,
     queryFn: async () => {
       const [details, specifications, distributors] = await Promise.all([
         api.getComponentById(selectedComponent.id),
@@ -326,16 +68,28 @@ const Library = () => {
     mutationFn: (data) => api.createComponent(data),
     onSuccess: () => {
       queryClient.invalidateQueries(['components']);
-      setIsAddModalOpen(false);
+      setIsAddMode(false);
+      setEditData({});
+      setSelectedComponent(null);
     },
   });
 
-  // Delete mutation
+  // Delete mutation - now supports bulk delete
   const deleteMutation = useMutation({
-    mutationFn: (id) => api.deleteComponent(id),
+    mutationFn: async (ids) => {
+      if (Array.isArray(ids)) {
+        // Bulk delete
+        await Promise.all(ids.map(id => api.deleteComponent(id)));
+      } else {
+        // Single delete
+        await api.deleteComponent(ids);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['components']);
       setSelectedComponent(null);
+      setBulkDeleteMode(false);
+      setSelectedForDelete(new Set());
     },
   });
 
@@ -351,7 +105,13 @@ const Library = () => {
 
   const handleEdit = () => {
     setIsEditMode(true);
-    setEditData(componentDetails || {});
+    setIsAddMode(false);
+    // Map all fields properly for editing
+    setEditData({
+      ...componentDetails,
+      manufacturer_id: componentDetails?.manufacturer_id || '',
+      manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
+    });
   };
 
   const handleSave = () => {
@@ -366,12 +126,118 @@ const Library = () => {
     }
   };
 
+  const handleBulkDelete = () => {
+    if (selectedForDelete.size > 0 && window.confirm(`Are you sure you want to delete ${selectedForDelete.size} component(s)?`)) {
+      deleteMutation.mutate(Array.from(selectedForDelete));
+    }
+  };
+
+  const handleAddNew = () => {
+    setIsAddMode(true);
+    setIsEditMode(false);
+    setSelectedComponent(null);
+    setEditData({
+      category_id: '',
+      part_number: '', // Will be auto-generated based on category
+      manufacturer_part_number: '',
+      description: '',
+      value: '',
+      sub_category1: '',
+      sub_category2: '',
+      sub_category3: '',
+      pcb_footprint: '',
+      package_size: '',
+      schematic: '',
+      step_model: '',
+      pspice: '',
+      datasheet_url: '',
+    });
+  };
+
+  // Function to generate next part number based on category
+  const generateNextPartNumber = (categoryId) => {
+    if (!categoryId || !components || !categories) return '';
+    
+    const category = categories.find(cat => cat.id === parseInt(categoryId));
+    if (!category) return '';
+    
+    // Get category prefix (e.g., "Resistors" -> "RES")
+    const prefix = category.name.substring(0, 3).toUpperCase();
+    
+    // Filter components by category
+    const categoryComponents = components.filter(
+      comp => comp.category_id === parseInt(categoryId) || comp.category_name === category.name
+    );
+    
+    if (categoryComponents.length === 0) {
+      return `${prefix}-0001`;
+    }
+    
+    // Extract numbers from part numbers with this prefix
+    const numbers = categoryComponents
+      .map(comp => {
+        const match = comp.part_number?.match(new RegExp(`^${prefix}-(\\d+)`));
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => !isNaN(num) && num > 0);
+    
+    // Find the highest number
+    const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const nextNumber = maxNumber + 1;
+    
+    // Format with leading zeros (4 digits)
+    const paddedNumber = String(nextNumber).padStart(4, '0');
+    
+    return `${prefix}-${paddedNumber}`;
+  };
+
+  // Update part number when category changes in add mode
+  const handleCategoryChange = (categoryId) => {
+    handleFieldChange('category_id', categoryId);
+    if (isAddMode) {
+      const nextPartNumber = generateNextPartNumber(categoryId);
+      handleFieldChange('part_number', nextPartNumber);
+    }
+  };
+
+  const handleConfirmAdd = () => {
+    if (editData.category_id && editData.part_number) {
+      addMutation.mutate(editData);
+    } else {
+      alert('Please fill in required fields: Category and Part Number');
+    }
+  };
+
+  const handleCancelAdd = () => {
+    setIsAddMode(false);
+    setEditData({});
+  };
+
+  const toggleBulkDeleteMode = () => {
+    setBulkDeleteMode(!bulkDeleteMode);
+    setSelectedForDelete(new Set());
+  };
+
+  const toggleSelectForDelete = (id) => {
+    const newSet = new Set(selectedForDelete);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedForDelete(newSet);
+  };
+
   const handleFieldChange = (field, value) => {
     setEditData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddComponent = (data) => {
-    addMutation.mutate(data);
+  const handleComponentClick = (component) => {
+    if (!bulkDeleteMode) {
+      setSelectedComponent(component);
+      setIsEditMode(false);
+      setIsAddMode(false);
+    }
   };
 
   return (
@@ -381,8 +247,9 @@ const Library = () => {
         <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
       </div>
 
-      {/* 3-Column Layout: Left Sidebar | Center List | Right Details */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(250px,1fr)_minmax(400px,2fr)_minmax(350px,1.5fr)] gap-6 min-h-[600px]">
+      {/* 4-Column Layout: Left Sidebar | Center List | Right Details | Specifications */}
+      {/* Increased width of columns 2 & 3 for better visibility */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(250px,0.8fr)_minmax(500px,2.5fr)_minmax(450px,2fr)_minmax(300px,1fr)] gap-6 min-h-[600px]">
         {/* Left Sidebar - Filters */}
         <div className="space-y-4 xl:min-w-[250px]">
           {/* Category Selector */}
@@ -430,33 +297,90 @@ const Library = () => {
             </div>
           </div>
 
-          {/* Subcategory Filter */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Subcategory</h3>
-            <select
-              value={subcategoryFilter}
-              onChange={(e) => setSubcategoryFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-            >
-              <option value="">All Subcategories</option>
-              {subcategories.map((sub) => (
-                <option key={sub} value={sub}>
-                  {sub}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Actions */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Add Component
-            </button>
+            <div className="space-y-2">
+              {isAddMode ? (
+                <>
+                  <button 
+                    onClick={handleConfirmAdd}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    Confirm Add
+                  </button>
+                  <button 
+                    onClick={handleCancelAdd}
+                    className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </>
+              ) : isEditMode ? (
+                <>
+                  <button
+                    onClick={handleSave}
+                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setIsEditMode(false)}
+                    className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </>
+              ) : bulkDeleteMode ? (
+                <>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={selectedForDelete.size === 0}
+                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedForDelete.size})
+                  </button>
+                  <button
+                    onClick={toggleBulkDeleteMode}
+                    className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleAddNew}
+                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Component
+                  </button>
+                  {selectedComponent && (
+                    <button
+                      onClick={handleEdit}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Edit Component
+                    </button>
+                  )}
+                  <button
+                    onClick={toggleBulkDeleteMode}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Components
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -467,9 +391,10 @@ const Library = () => {
             <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Components ({components?.length || 0})
+                {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
               </h3>
             </div>
-            <div className="overflow-auto" style={{maxHeight: 'calc(100vh - 300px)'}}>
+            <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh - 300px)'}}>
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -478,25 +403,53 @@ const Library = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
                     <tr>
+                      {bulkDeleteMode && (
+                        <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 w-12">
+                          <input
+                            type="checkbox"
+                            checked={selectedForDelete.size === components.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedForDelete(new Set(components.map(c => c.id)));
+                              } else {
+                                setSelectedForDelete(new Set());
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                        </th>
+                      )}
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part #</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Type</th>
                     </tr>
                   </thead>
                   <tbody>
                     {components.map((component) => (
                       <tr
                         key={component.id}
-                        onClick={() => setSelectedComponent(component)}
+                        onClick={() => !bulkDeleteMode && handleComponentClick(component)}
                         className={`cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
-                          selectedComponent?.id === component.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                        }`}
+                          selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                        } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
                       >
+                        {bulkDeleteMode && (
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedForDelete.has(component.id)}
+                              onChange={() => toggleSelectForDelete(component.id)}
+                              className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{component.part_number}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.category_name}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {component.category_name}{component.part_type ? `/${component.part_type.trim()}` : ''}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -512,234 +465,285 @@ const Library = () => {
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
         <div className="space-y-4 xl:min-w-[350px]">
-          {/* Component Details */}
-          {selectedComponent && componentDetails && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Component Details</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                {isEditMode ? (
-                  <>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Number</label>
-                      <input
-                        type="text"
-                        value={editData.part_number || ''}
-                        onChange={(e) => handleFieldChange('part_number', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">MFR Part Number</label>
-                      <input
-                        type="text"
-                        value={editData.manufacturer_pn || ''}
-                        onChange={(e) => handleFieldChange('manufacturer_pn', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
-                      <textarea
-                        value={editData.description || ''}
-                        onChange={(e) => handleFieldChange('description', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        rows="2"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Value</label>
-                      <input
-                        type="text"
-                        value={editData.value || ''}
-                        onChange={(e) => handleFieldChange('value', e.target.value)}
-                        placeholder="e.g., 10uF, 10kΩ"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Package</label>
-                      <input
-                        type="text"
-                        value={editData.package_size || ''}
-                        onChange={(e) => handleFieldChange('package_size', e.target.value)}
-                        placeholder="e.g., 0805"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
-                      <input
-                        type="text"
-                        value={editData.sub_category1 || ''}
-                        onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
-                        placeholder="e.g., Ceramic"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
-                      <input
-                        type="text"
-                        value={editData.sub_category2 || ''}
-                        onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
-                        placeholder="e.g., X7R"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
-                      <input
-                        type="text"
-                        value={editData.sub_category3 || ''}
-                        onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
-                        placeholder="e.g., 50V"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
-                      <input
-                        type="text"
-                        value={editData.pcb_footprint || ''}
-                        onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
-                        placeholder="e.g., C_0805"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
-                      <input
-                        type="text"
-                        value={editData.schematic || ''}
-                        onChange={(e) => handleFieldChange('schematic', e.target.value)}
-                        placeholder="Path to symbol"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP Model</label>
-                      <input
-                        type="text"
-                        value={editData.step_model || ''}
-                        onChange={(e) => handleFieldChange('step_model', e.target.value)}
-                        placeholder="Path to 3D model"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
-                      <input
-                        type="text"
-                        value={editData.pspice || ''}
-                        onChange={(e) => handleFieldChange('pspice', e.target.value)}
-                        placeholder="Path to simulation"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.part_number}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">MFR Part Number:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_pn || 'N/A'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-gray-600 dark:text-gray-400">Description:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.description || 'No description'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Category:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.category_name}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Part Type:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">
-                        {componentDetails.category_name}
-                        {componentDetails.part_type ? ` / ${componentDetails.part_type}` : ''}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Value:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.value || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Package:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.package_size || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">PCB Footprint:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.pcb_footprint || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_name || 'N/A'}</p>
-                    </div>
-                    {(componentDetails.schematic || componentDetails.step_model || componentDetails.pspice) && (
-                      <div className="col-span-2">
-                        <span className="text-gray-600 dark:text-gray-400">CAD Files:</span>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {componentDetails.schematic && (
-                            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                              📐 Schematic
-                            </span>
-                          )}
-                          {componentDetails.step_model && (
-                            <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">
-                              📦 3D Model
-                            </span>
-                          )}
-                          {componentDetails.pspice && (
-                            <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-2 py-1 rounded">
-                              ⚡ PSPICE
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Distributor Info */}
-          {selectedComponent && componentDetails && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
-              {componentDetails.distributors?.length > 0 ? (
-                <div className="space-y-3">
-                  {componentDetails.distributors
-                    .filter(dist => ['Digikey', 'Mouser', 'Newark', 'Arrow'].includes(dist.distributor_name))
-                    .map((dist, index) => (
-                    <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
-                      <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity}</p>
-                      {dist.price_breaks && dist.price_breaks.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {dist.price_breaks.slice(0, 3).map((price, idx) => (
-                            <p key={idx} className="text-xs text-gray-600 dark:text-gray-400">
-                              {price.quantity}+: ${price.price}
-                            </p>
-                          ))}
+          {/* Component Details - Always Shown */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {isAddMode ? 'Add New Component' : 'Component Details'}
+            </h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {(isEditMode || isAddMode) ? (
+                <>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Category *</label>
+                    <select
+                      value={editData.category_id || ''}
+                      onChange={(e) => isAddMode ? handleCategoryChange(e.target.value) : handleFieldChange('category_id', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    >
+                      <option value="">Select a category</option>
+                      {categories?.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Part Number * {isAddMode && <span className="text-xs text-gray-500">(Auto-generated)</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={editData.part_number || ''}
+                      onChange={(e) => handleFieldChange('part_number', e.target.value)}
+                      disabled={isAddMode}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
+                      placeholder={isAddMode ? "Select category first" : "e.g., RES-0001"}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">MFR Part Number</label>
+                    <input
+                      type="text"
+                      value={editData.manufacturer_pn || editData.manufacturer_part_number || ''}
+                      onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      placeholder="e.g., CRCW0603"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
+                    <select
+                      value={editData.manufacturer_id || ''}
+                      onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    >
+                      <option value="">Select manufacturer (optional)</option>
+                      {manufacturers?.map((mfr) => (
+                        <option key={mfr.id} value={mfr.id}>
+                          {mfr.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
+                    <textarea
+                      value={editData.description || ''}
+                      onChange={(e) => handleFieldChange('description', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      rows="2"
+                      placeholder="Brief description"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Value</label>
+                    <input
+                      type="text"
+                      value={editData.value || ''}
+                      onChange={(e) => handleFieldChange('value', e.target.value)}
+                      placeholder="e.g., 10uF, 10kΩ"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Package</label>
+                    <input
+                      type="text"
+                      value={editData.package_size || ''}
+                      onChange={(e) => handleFieldChange('package_size', e.target.value)}
+                      placeholder="e.g., 0805"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category1 || ''}
+                      onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
+                      placeholder="e.g., Ceramic"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category2 || ''}
+                      onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
+                      placeholder="e.g., X7R"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category3 || ''}
+                      onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
+                      placeholder="e.g., 50V"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
+                    <input
+                      type="text"
+                      value={editData.pcb_footprint || ''}
+                      onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
+                      placeholder="e.g., C_0805"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
+                    <input
+                      type="text"
+                      value={editData.schematic || ''}
+                      onChange={(e) => handleFieldChange('schematic', e.target.value)}
+                      placeholder="Path to symbol"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP Model</label>
+                    <input
+                      type="text"
+                      value={editData.step_model || ''}
+                      onChange={(e) => handleFieldChange('step_model', e.target.value)}
+                      placeholder="Path to 3D model"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
+                    <input
+                      type="text"
+                      value={editData.pspice || ''}
+                      onChange={(e) => handleFieldChange('pspice', e.target.value)}
+                      placeholder="Path to simulation"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
+                    <input
+                      type="url"
+                      value={editData.datasheet_url || ''}
+                      onChange={(e) => handleFieldChange('datasheet_url', e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                </>
+              ) : selectedComponent && componentDetails ? (
+                <>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.part_number}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">MFR Part Number:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_pn || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.description || 'No description'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Category:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.category_name}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Part Type:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {componentDetails.part_type || componentDetails.category_name || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Value:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.value || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Package:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.package_size || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">PCB Footprint:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.pcb_footprint || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_name || 'N/A'}</p>
+                  </div>
+                  {(componentDetails.schematic || componentDetails.step_model || componentDetails.pspice) && (
+                    <>
+                      {componentDetails.schematic && (
+                        <div className="col-span-2">
+                          <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.schematic}</p>
                         </div>
                       )}
-                    </div>
-                  ))}
-                </div>
+                      {componentDetails.step_model && (
+                        <div className="col-span-2">
+                          <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.step_model}</p>
+                        </div>
+                      )}
+                      {componentDetails.pspice && (
+                        <div className="col-span-2">
+                          <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
+                          <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.pspice}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No distributor information</p>
+                <div className="col-span-2 text-center py-8 text-gray-500 dark:text-gray-400">
+                  <p>Select a component to view details</p>
+                  <p className="text-sm mt-2">or click "Add Component" to create a new one</p>
+                </div>
               )}
             </div>
-          )}
+          </div>
 
-          {/* Component Specifications */}
-          {selectedComponent && componentDetails && componentDetails.specifications?.length > 0 && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
+          {/* Distributor Info - Always shown */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
+            {selectedComponent && componentDetails && !isAddMode && componentDetails.distributors?.length > 0 ? (
+              <div className="space-y-3">
+                {componentDetails.distributors
+                  .filter(dist => ['Digikey', 'Mouser', 'Newark', 'Arrow'].includes(dist.distributor_name))
+                  .map((dist, index) => (
+                  <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
+                    <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity}</p>
+                    {dist.price_breaks && dist.price_breaks.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {dist.price_breaks.slice(0, 3).map((price, idx) => (
+                          <p key={idx} className="text-xs text-gray-600 dark:text-gray-400">
+                            {price.quantity}+: ${price.price}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No distributor information available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Fourth Column - Component Specifications */}
+        <div className="space-y-4 xl:min-w-[300px]">
+          {/* Component Specifications - Always shown */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
+            {selectedComponent && componentDetails && componentDetails.specifications?.length > 0 && !isAddMode ? (
               <div className="space-y-2">
                 {componentDetails.specifications.map((spec, index) => (
                   <div key={index} className="flex justify-between items-center border-b border-gray-100 dark:border-[#3a3a3a] pb-2 last:border-0">
@@ -750,62 +754,12 @@ const Library = () => {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          {selectedComponent && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
-              <div className="space-y-2">
-                {isEditMode ? (
-                  <>
-                    <button
-                      onClick={handleSave}
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Check className="w-4 h-4" />
-                      Save Changes
-                    </button>
-                    <button
-                      onClick={() => setIsEditMode(false)}
-                      className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <X className="w-4 h-4" />
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={handleEdit}
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit Component
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete Component
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No specifications available</p>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Add Component Modal */}
-      <AddComponentModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        categories={categories}
-        onAdd={handleAddComponent}
-      />
     </div>
   );
 };

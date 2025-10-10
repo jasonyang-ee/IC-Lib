@@ -92,14 +92,19 @@ CREATE TABLE IF NOT EXISTS components (
     sub_category2 VARCHAR(100),
     sub_category3 VARCHAR(100),
     
-    -- Auto-generated part type from sub-categories
-    -- Note: Concatenates sub-categories with '/' separator
+    -- Auto-generated part type from category + sub-categories
+    -- Format: "CategoryName/Sub1/Sub2/Sub3"
     part_type VARCHAR(500) GENERATED ALWAYS AS (
         CASE 
-            WHEN sub_category1 IS NOT NULL THEN 
-                sub_category1 || 
-                COALESCE('/' || sub_category2, '') ||
-                COALESCE('/' || sub_category3, '')
+            WHEN category_id IS NOT NULL THEN
+                (SELECT name FROM component_categories WHERE id = category_id) ||
+                CASE 
+                    WHEN sub_category1 IS NOT NULL THEN 
+                        '/' || sub_category1 || 
+                        COALESCE('/' || sub_category2, '') ||
+                        COALESCE('/' || sub_category3, '')
+                    ELSE ''
+                END
             ELSE NULL
         END
     ) STORED,

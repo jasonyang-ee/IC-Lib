@@ -84,6 +84,7 @@ export const createComponent = async (req, res, next) => {
       part_number,
       manufacturer_id,
       manufacturer_pn,
+      manufacturer_part_number, // Accept both field names
       description,
       value,
       sub_category1,
@@ -98,6 +99,9 @@ export const createComponent = async (req, res, next) => {
       status,
       notes
     } = req.body;
+    
+    // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
+    const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
 
     // Convert empty strings to NULL for UUID fields
     const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
@@ -120,7 +124,7 @@ export const createComponent = async (req, res, next) => {
     `;
 
     const componentResult = await pool.query(insertQuery, [
-      validCategoryId, part_number, validManufacturerId, manufacturer_pn,
+      validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3,
       pcb_footprint, package_size, schematic, step_model, pspice,
       datasheet_url, status || 'Active', notes
@@ -157,6 +161,7 @@ export const updateComponent = async (req, res, next) => {
       part_number,
       manufacturer_id,
       manufacturer_pn,
+      manufacturer_part_number, // Accept both field names
       description,
       value,
       sub_category1,
@@ -171,6 +176,9 @@ export const updateComponent = async (req, res, next) => {
       status,
       notes
     } = req.body;
+    
+    // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
+    const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
 
     // Convert empty strings to NULL for UUID fields
     const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
@@ -206,7 +214,7 @@ export const updateComponent = async (req, res, next) => {
       WHERE id = $18
       RETURNING *
     `, [
-      validCategoryId, part_number, validManufacturerId, manufacturer_pn,
+      validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3,
       pcb_footprint, package_size, schematic, step_model, pspice,
       datasheet_url, status, notes, id
