@@ -13,7 +13,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo "================================================================"
-echo "  Allegro Component Library - Local Development Mode"
+echo "  OrCAD Component Library - Local Development Mode"
 echo "================================================================"
 echo ""
 

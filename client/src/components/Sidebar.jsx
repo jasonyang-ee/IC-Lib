@@ -21,8 +21,8 @@ const Sidebar = () => {
             <Box className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Allegro Component</h1>
-            <p className="text-sm text-gray-400">Library</p>
+            <h1 className="text-xl font-bold">IC Lib</h1>
+            <p className="text-sm text-gray-400">PCB Component Library</p>
           </div>
         </div>
       </div>
@@ -54,7 +54,7 @@ const Sidebar = () => {
       {/* Footer */}
       <div className="p-4 border-t border-gray-700">
         <p className="text-xs text-gray-500 text-center">
-          © 2025 Allegro Component Library
+          © 2025 PCB Component Library
         </p>
       </div>
     </div>
