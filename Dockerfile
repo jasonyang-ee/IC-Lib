@@ -23,7 +23,7 @@ WORKDIR /app
 RUN apk add --no-cache bash nginx wget
 
 # Copy database sql file
-COPY database/ /app/database/
+COPY database /app/
 
 # Copy backend source code
 WORKDIR /app/server
