@@ -2,40 +2,32 @@
 # Builds both frontend and backend in a single container
 
 # Stage 1: Build Frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
+# Copy all client source code
 WORKDIR /app/client
-
-# Copy package.json
-COPY client/package.json ./
+COPY client/ .
 
 # Install dependencies (generates package-lock.json)
 RUN npm install --prefer-offline --no-audit
-
-# Copy all client source code
-COPY client/ .
 
 # Build the React app
 RUN npm run build
 
 # Stage 2: Build Backend and Final Image
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
 
-# Copy backend package.json
-COPY server/package.json ./server/
-
+# Copy backend source code
 WORKDIR /app/server
+COPY server/ .
 
 # Install production dependencies (generates package-lock.json)
 RUN npm install --omit=dev --prefer-offline --no-audit
-
-# Copy backend source code
-COPY server/ .
 
 # Copy built frontend to nginx html directory
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
