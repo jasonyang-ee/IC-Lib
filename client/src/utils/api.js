@@ -102,6 +102,12 @@ export const api = {
   getSettings: () => apiClient.get('/settings'),
   updateSettings: (data) => apiClient.put('/settings', data),
   
+  // Specification Templates
+  getSpecificationTemplates: (categoryId) => apiClient.get('/specification-templates', { params: { category_id: categoryId } }),
+  createSpecificationTemplate: (data) => apiClient.post('/specification-templates', data),
+  updateSpecificationTemplate: (id, data) => apiClient.put(`/specification-templates/${id}`, data),
+  deleteSpecificationTemplate: (id) => apiClient.delete(`/specification-templates/${id}`),
+  
   // Database Management (Silent Mode API - No User Prompts)
   getDatabaseStatus: () => apiClient.get('/settings/database/status'),
   clearDatabase: () => apiClient.post('/settings/database/clear'),

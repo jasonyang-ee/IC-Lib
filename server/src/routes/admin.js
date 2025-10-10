@@ -4,7 +4,7 @@ import {
   resetDatabase,
   loadSampleData,
   getDatabaseStats,
-  verifyCISCompliance
+  verifyDatabaseSchema
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -14,6 +14,6 @@ router.post('/init', initializeDatabase);
 router.post('/reset', resetDatabase);
 router.post('/load-sample-data', loadSampleData);
 router.get('/stats', getDatabaseStats);
-router.get('/verify-cis', verifyCISCompliance);
+router.get('/verify-schema', verifyDatabaseSchema);
 
 export default router;

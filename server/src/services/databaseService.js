@@ -8,6 +8,24 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+/**
+ * Split SQL content into individual statements
+ * Handles multi-line statements and comments properly
+ */
+const splitSQLStatements = (sql) => {
+  // Remove comments
+  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
+  
+  // Split by semicolons but preserve them
+  const statements = withoutComments
+    .split(';')
+    .map(stmt => stmt.trim())
+    .filter(stmt => stmt.length > 0)
+    .map(stmt => stmt + ';');
+  
+  return statements;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -109,13 +127,38 @@ export const resetDatabase = async () => {
     results.steps.push('Created new schema');
 
     // Reinitialize schema from SQL file
-    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema-simplified.sql');
+    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'init-schema.sql');
     const schema = readFileSync(schemaPath, 'utf8');
+    
+    // Execute schema as single query (schema file is designed for this)
     await client.query(schema);
     results.steps.push('Reinitialized database schema');
 
+    // Load sample data statement by statement
+    try {
+      const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'init-sample-data.sql');
+      const sampleData = readFileSync(sampleDataPath, 'utf8');
+      
+      // Split into individual statements and execute one by one
+      const statements = splitSQLStatements(sampleData);
+      let executedCount = 0;
+      
+      for (const statement of statements) {
+        if (statement.trim().length > 0 && !statement.trim().startsWith('--')) {
+          await client.query(statement);
+          executedCount++;
+        }
+      }
+      
+      results.steps.push(`Loaded sample data (${executedCount} statements executed)`);
+    } catch (sampleError) {
+      console.error('Sample data error:', sampleError);
+      results.errors.push({ sampleData: sampleError.message });
+      results.steps.push('Warning: Sample data load failed (you can load it separately)');
+    }
+
     results.success = true;
-    results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized.';
+    results.message = 'Database reset completed successfully. All tables dropped, schema reinitialized, and sample data loaded.';
     
   } catch (error) {
     results.success = false;
@@ -168,7 +211,7 @@ export const initializeDatabase = async () => {
     console.log('[initDatabase] Database is empty, initializing schema...');
 
     // Load and execute schema
-    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema-simplified.sql');
+    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'init-schema.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     
     await client.query(schema);
@@ -218,7 +261,24 @@ export const loadSampleData = async () => {
     const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'sample-data-simplified.sql');
     const sampleData = readFileSync(sampleDataPath, 'utf8');
     
-    await client.query(sampleData);
+    // Split into individual statements and execute one by one
+    const statements = splitSQLStatements(sampleData);
+    let executedCount = 0;
+    
+    for (const statement of statements) {
+      if (statement.trim().length > 0 && !statement.trim().startsWith('--')) {
+        try {
+          await client.query(statement);
+          executedCount++;
+        } catch (stmtError) {
+          console.error('Statement error:', statement.substring(0, 100), stmtError.message);
+          results.errors.push({ 
+            statement: statement.substring(0, 100) + '...', 
+            error: stmtError.message 
+          });
+        }
+      }
+    }
     
     // Get record counts from the new unified schema
     const counts = await client.query(`
@@ -235,8 +295,10 @@ export const loadSampleData = async () => {
       results.recordCounts[row.table_name] = parseInt(row.count);
     });
     
-    results.success = true;
-    results.message = 'Sample data loaded successfully.';
+    results.success = results.errors.length === 0;
+    results.message = results.success 
+      ? `Sample data loaded successfully (${executedCount} statements).`
+      : `Sample data loaded with ${results.errors.length} errors (${executedCount} statements executed).`;
     
   } catch (error) {
     results.success = false;

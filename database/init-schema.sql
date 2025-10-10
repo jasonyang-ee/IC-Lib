@@ -26,18 +26,16 @@ CREATE TABLE IF NOT EXISTS component_categories (
 
 -- Insert default categories
 INSERT INTO component_categories (id, name, description, prefix, leading_zeros) VALUES
-    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5),
-    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 5),
-    (3, 'Inductors', 'Inductors and coils', 'IND', 5),
-    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5),
-    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'TRANS', 5),
-    (6, 'ICs', 'Integrated circuits', 'IC', 5),
-    (7, 'Connectors', 'Connectors and headers', 'CONN', 5),
-    (8, 'Switches', 'Switches and buttons', 'SW', 5),
-    (9, 'Relays', 'Relays and contactors', 'RELAY', 5),
-    (10, 'Crystals & Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5),
-    (11, 'Transformers', 'Transformers and magnetic components', 'XFMR', 5),
-    (12, 'Misc', 'Miscellaneous components', 'MISC', 5)
+    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 4),
+    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 4),
+    (3, 'Inductors', 'Inductors and coils', 'IND', 4),
+    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 4),
+    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 4),
+    (6, 'ICs', 'Integrated circuits', 'IC', 4),
+    (7, 'Connectors', 'Connectors and headers', 'CONN', 4),
+    (8, 'Switches', 'Switches and buttons', 'SW', 4),
+    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 4),
+    (11, 'MCU', 'Microcontroller', 'IC', 4)
 ON CONFLICT (id) DO NOTHING;
 
 -- Reset sequence to continue from 12
@@ -127,6 +125,19 @@ CREATE TABLE IF NOT EXISTS component_specifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table: specification_templates
+-- Stores pre-defined specification names per category for auto-population
+CREATE TABLE IF NOT EXISTS specification_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_id INTEGER REFERENCES component_categories(id) ON DELETE CASCADE,
+    spec_name VARCHAR(100) NOT NULL,
+    unit VARCHAR(50),
+    display_order INTEGER DEFAULT 0,
+    is_required BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category_id, spec_name)
+);
+
 -- Table: distributor_info
 -- Stores pricing and availability from different distributors
 CREATE TABLE IF NOT EXISTS distributor_info (
@@ -187,6 +198,10 @@ CREATE INDEX IF NOT EXISTS idx_components_status ON components(status);
 -- Component specifications indexes
 CREATE INDEX IF NOT EXISTS idx_comp_specs_component ON component_specifications(component_id);
 CREATE INDEX IF NOT EXISTS idx_comp_specs_name ON component_specifications(spec_name);
+
+-- Specification templates indexes
+CREATE INDEX IF NOT EXISTS idx_spec_templates_category ON specification_templates(category_id);
+CREATE INDEX IF NOT EXISTS idx_spec_templates_display_order ON specification_templates(display_order);
 
 -- Distributor info indexes
 CREATE INDEX IF NOT EXISTS idx_distributor_info_component ON distributor_info(component_id);
@@ -313,3 +328,64 @@ CREATE TABLE IF NOT EXISTS schema_version (
 INSERT INTO schema_version (version, description) VALUES
     ('2.0.0', 'Simplified single-table architecture')
 ON CONFLICT (version) DO NOTHING;
+
+-- ============================================================================
+-- Sample Specification Templates
+-- ============================================================================
+
+-- Capacitors templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (1, 'Capacitance', 'F', 1, true),
+    (1, 'Voltage Rating', 'V', 2, true),
+    (1, 'Tolerance', '%', 3, false),
+    (1, 'Dielectric Type', '', 4, false),
+    (1, 'Temperature Coefficient', 'ppm/°C', 5, false),
+    (1, 'ESR', 'Ω', 6, false),
+    (1, 'Operating Temperature', '°C', 7, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Resistors templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (2, 'Resistance', 'Ω', 1, true),
+    (2, 'Power Rating', 'W', 2, true),
+    (2, 'Tolerance', '%', 3, false),
+    (2, 'Temperature Coefficient', 'ppm/°C', 4, false),
+    (2, 'Operating Temperature', '°C', 5, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Inductors templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (3, 'Inductance', 'H', 1, true),
+    (3, 'Current Rating', 'A', 2, true),
+    (3, 'Tolerance', '%', 3, false),
+    (3, 'DC Resistance', 'Ω', 4, false),
+    (3, 'Saturation Current', 'A', 5, false),
+    (3, 'Self-Resonant Frequency', 'Hz', 6, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Diodes templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (4, 'Forward Voltage', 'V', 1, false),
+    (4, 'Current Rating', 'A', 2, true),
+    (4, 'Reverse Voltage', 'V', 3, false),
+    (4, 'Power Dissipation', 'W', 4, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Transistors templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (5, 'Transistor Type', '', 1, true),
+    (5, 'VDS/VCE Max', 'V', 2, true),
+    (5, 'ID/IC Max', 'A', 3, true),
+    (5, 'Power Dissipation', 'W', 4, false),
+    (5, 'Gate Threshold Voltage', 'V', 5, false),
+    (5, 'RDS(on)', 'Ω', 6, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- ICs templates
+INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+    (6, 'Supply Voltage', 'V', 1, true),
+    (6, 'Operating Current', 'A', 2, false),
+    (6, 'Operating Temperature', '°C', 3, false),
+    (6, 'Number of Channels', '', 4, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+

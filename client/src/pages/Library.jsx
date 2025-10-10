@@ -182,7 +182,12 @@ const Library = () => {
       pspice: '',
       datasheet_url: '',
       specifications: [], // Array of {spec_name, spec_value, unit}
-      distributors: [], // Array of {distributor_id, sku, price, url}
+      distributors: [ // Default four distributors
+        { distributor_name: 'Digikey', sku: '', url: '' },
+        { distributor_name: 'Mouser', sku: '', url: '' },
+        { distributor_name: 'Arrow', sku: '', url: '' },
+        { distributor_name: 'Newark', sku: '', url: '' },
+      ],
     });
   };
 
@@ -224,11 +229,29 @@ const Library = () => {
   };
 
   // Update part number when category changes in add mode
-  const handleCategoryChange = (categoryId) => {
+  const handleCategoryChange = async (categoryId) => {
     handleFieldChange('category_id', categoryId);
     if (isAddMode) {
       const nextPartNumber = generateNextPartNumber(categoryId);
       handleFieldChange('part_number', nextPartNumber);
+      
+      // Load specification templates for this category
+      try {
+        const response = await api.getSpecificationTemplates(categoryId);
+        const templates = response.data || [];
+        
+        // Convert templates to specifications with empty values
+        const autoSpecs = templates.map(template => ({
+          spec_name: template.spec_name,
+          spec_value: '',
+          unit: template.unit || ''
+        }));
+        
+        handleFieldChange('specifications', autoSpecs);
+      } catch (error) {
+        console.error('Error loading specification templates:', error);
+        // Continue without templates if error occurs
+      }
     }
   };
 
@@ -795,8 +818,8 @@ const Library = () => {
                             handleFieldChange('distributors', newDists);
                           }}
                           placeholder="Distributor (e.g., Digikey)"
-                          disabled={isEditMode}
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
+                          disabled={true}
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-gray-100 dark:bg-[#2a2a2a] dark:text-gray-100 cursor-not-allowed"
                         />
                         <input
                           type="text"
@@ -820,28 +843,36 @@ const Library = () => {
                           placeholder="URL"
                           className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newDists = (editData.distributors || []).filter((_, i) => i !== index);
-                            handleFieldChange('distributors', newDists);
-                          }}
-                          className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {/* Remove button hidden in add mode */}
+                        {!isAddMode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newDists = (editData.distributors || []).filter((_, i) => i !== index);
+                              handleFieldChange('distributors', newDists);
+                            }}
+                            className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        {/* Spacer for add mode to maintain grid alignment */}
+                        {isAddMode && <div></div>}
                       </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newDists = [...(editData.distributors || []), { distributor_name: '', sku: '', url: '' }];
-                        handleFieldChange('distributors', newDists);
-                      }}
-                      className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> Add Distributor
-                    </button>
+                    {/* Add Distributor button hidden in add mode */}
+                    {!isAddMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDists = [...(editData.distributors || []), { distributor_name: '', sku: '', url: '' }];
+                          handleFieldChange('distributors', newDists);
+                        }}
+                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add Distributor
+                      </button>
+                    )}
                   </div>
                 </>
               ) : selectedComponent && componentDetails ? (

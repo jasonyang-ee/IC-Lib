@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
@@ -6,52 +6,100 @@ import pool from '../config/database.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper function to run Node.js scripts
-const runScript = (scriptPath, scriptName) => {
-  return new Promise((resolve, reject) => {
-    const scriptFullPath = path.join(__dirname, '../../../scripts', scriptPath);
-    const childProcess = spawn('node', [scriptFullPath], {
-      cwd: path.join(__dirname, '../../../scripts'),
-      env: { ...process.env }
-    });
+/**
+ * Split SQL content into individual statements
+ * Handles multi-line statements and comments properly
+ */
+const splitSQLStatements = (sql) => {
+  // Remove comments
+  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
+  
+  // Split by semicolons but preserve them
+  const statements = withoutComments
+    .split(';')
+    .map(stmt => stmt.trim())
+    .filter(stmt => stmt.length > 0)
+    .map(stmt => stmt + ';');
+  
+  return statements;
+};
 
-    let stdout = '';
-    let stderr = '';
-
-    childProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
-      console.log(`[${scriptName}]`, data.toString());
-    });
-
-    childProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
-      console.error(`[${scriptName} ERROR]`, data.toString());
-    });
-
-    childProcess.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`${scriptName} failed with code ${code}: ${stderr}`));
-      } else {
-        resolve({ stdout, stderr, code });
+/**
+ * Execute SQL file statement by statement
+ */
+const executeSQLFile = async (client, filePath, fileName) => {
+  const sql = readFileSync(filePath, 'utf8');
+  const statements = splitSQLStatements(sql);
+  
+  let executedCount = 0;
+  const errors = [];
+  
+  for (const statement of statements) {
+    if (statement.trim().length > 0 && !statement.trim().startsWith('--')) {
+      try {
+        await client.query(statement);
+        executedCount++;
+      } catch (error) {
+        console.error(`[${fileName}] Statement error:`, statement.substring(0, 100), error.message);
+        errors.push({
+          statement: statement.substring(0, 100) + '...',
+          error: error.message
+        });
       }
-    });
-
-    childProcess.on('error', (error) => {
-      reject(new Error(`Failed to start ${scriptName}: ${error.message}`));
-    });
-  });
+    }
+  }
+  
+  return { executedCount, errors };
 };
 
 // Initialize database with full schema
 export const initializeDatabase = async (req, res, next) => {
+  const client = await pool.connect();
+  
   try {
     console.log('Starting database initialization...');
-    const result = await runScript('init-database.js', 'init-database');
+    
+    // Check if tables already exist
+    const tableCheck = await client.query(`
+      SELECT COUNT(*) as count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+    `);
+    
+    const tableCount = parseInt(tableCheck.rows[0].count);
+    
+    if (tableCount > 0) {
+      return res.json({
+        success: true,
+        message: `Database already initialized with ${tableCount} tables`,
+        tableCount: tableCount,
+        skipped: true
+      });
+    }
+    
+    // Execute init-schema.sql
+    const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
+    console.log('Loading schema from:', schemaPath);
+    
+    const result = await executeSQLFile(client, schemaPath, 'init-schema.sql');
+    
+    // Verify tables were created
+    const finalTableCheck = await client.query(`
+      SELECT COUNT(*) as count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+    `);
+    
+    const finalTableCount = parseInt(finalTableCheck.rows[0].count);
     
     res.json({
       success: true,
-      message: 'Database initialized successfully',
-      output: result.stdout
+      message: `Database initialized successfully with ${finalTableCount} tables`,
+      tableCount: finalTableCount,
+      statementsExecuted: result.executedCount,
+      errors: result.errors
     });
   } catch (error) {
     console.error('Database initialization error:', error);
@@ -60,19 +108,49 @@ export const initializeDatabase = async (req, res, next) => {
       error: 'Failed to initialize database',
       message: error.message
     });
+  } finally {
+    client.release();
   }
 };
 
-// Reset database (clear all data)
+// Reset database (drop all tables and recreate)
 export const resetDatabase = async (req, res, next) => {
+  const client = await pool.connect();
+  
   try {
     console.log('Starting database reset...');
-    const result = await runScript('reset-database.js', 'reset-database');
+    
+    // Drop all tables
+    await client.query('DROP SCHEMA public CASCADE');
+    console.log('Dropped existing schema');
+    
+    // Recreate schema
+    await client.query('CREATE SCHEMA public');
+    await client.query('GRANT ALL ON SCHEMA public TO postgres');
+    await client.query('GRANT ALL ON SCHEMA public TO public');
+    console.log('Created new schema');
+    
+    // Execute init-schema.sql to recreate tables
+    const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
+    const schemaResult = await executeSQLFile(client, schemaPath, 'init-schema.sql');
+    console.log(`Schema recreated: ${schemaResult.executedCount} statements`);
+    
+    // Load sample data
+    const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
+    const sampleResult = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
+    console.log(`Sample data loaded: ${sampleResult.executedCount} statements`);
     
     res.json({
       success: true,
-      message: 'Database reset successfully',
-      output: result.stdout
+      message: 'Database reset and reinitialized successfully',
+      schema: {
+        statementsExecuted: schemaResult.executedCount,
+        errors: schemaResult.errors
+      },
+      sampleData: {
+        statementsExecuted: sampleResult.executedCount,
+        errors: sampleResult.errors
+      }
     });
   } catch (error) {
     console.error('Database reset error:', error);
@@ -81,38 +159,40 @@ export const resetDatabase = async (req, res, next) => {
       error: 'Failed to reset database',
       message: error.message
     });
+  } finally {
+    client.release();
   }
 };
 
 // Load sample data
 export const loadSampleData = async (req, res, next) => {
+  const client = await pool.connect();
+  
   try {
     console.log('Loading sample data...');
     
-    // Read and execute sample-data-simplified.sql
-    const fs = await import('fs/promises');
-    const sampleDataPath = path.join(__dirname, '../../../database/sample-data-simplified.sql');
-    const sampleDataSQL = await fs.readFile(sampleDataPath, 'utf8');
+    // Execute init-sample-data.sql
+    const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
+    const result = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
     
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Execute the SQL file
-      await client.query(sampleDataSQL);
-      
-      await client.query('COMMIT');
-      
-      res.json({
-        success: true,
-        message: 'Sample data loaded successfully'
-      });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    // Get record counts
+    const counts = await client.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM components) as components,
+        (SELECT COUNT(*) FROM manufacturers) as manufacturers,
+        (SELECT COUNT(*) FROM component_specifications) as specifications,
+        (SELECT COUNT(*) FROM distributor_info) as distributor_info
+    `);
+    
+    res.json({
+      success: result.errors.length === 0,
+      message: result.errors.length === 0 
+        ? `Sample data loaded successfully (${result.executedCount} statements)`
+        : `Sample data loaded with ${result.errors.length} errors`,
+      statementsExecuted: result.executedCount,
+      recordCounts: counts.rows[0],
+      errors: result.errors
+    });
   } catch (error) {
     console.error('Load sample data error:', error);
     res.status(500).json({
@@ -120,6 +200,8 @@ export const loadSampleData = async (req, res, next) => {
       error: 'Failed to load sample data',
       message: error.message
     });
+  } finally {
+    client.release();
   }
 };
 
@@ -240,9 +322,4 @@ export const verifyDatabaseSchema = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-};
-
-// Keep old CIS function for backward compatibility (deprecated)
-export const verifyCISCompliance = async (req, res, next) => {
-  return verifyDatabaseSchema(req, res, next);
 };
