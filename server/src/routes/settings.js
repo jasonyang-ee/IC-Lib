@@ -7,6 +7,7 @@ import {
   resetDatabase,
   initDatabase,
   loadSampleData,
+  verifyDatabase,
   getCategoryConfigs,
   updateCategoryConfig,
   createCategory
@@ -29,5 +30,6 @@ router.post('/database/clear', clearDatabase);
 router.post('/database/reset', resetDatabase);
 router.post('/database/init', initDatabase);
 router.post('/database/sample-data', loadSampleData);
+router.get('/database/verify', verifyDatabase);
 
 export default router;

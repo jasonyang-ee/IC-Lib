@@ -101,6 +101,7 @@ export const api = {
   resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
   initDatabase: () => apiClient.post('/settings/database/init'),
   loadSampleData: () => apiClient.post('/settings/database/sample-data'),
+  verifyDatabase: () => apiClient.get('/settings/database/verify'),
   
   // Legacy Admin endpoints (if still needed)
   getDatabaseStats: () => apiClient.get('/admin/stats'),

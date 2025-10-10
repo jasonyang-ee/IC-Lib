@@ -40,38 +40,27 @@ export const clearDatabaseData = async () => {
     // Disable triggers temporarily to avoid cascade issues
     await client.query('SET session_replication_role = replica;');
     
-    // Clear all CIS category tables
-    const cisTables = [
-      'capacitors', 'resistors', 'ics', 'diodes', 'inductors',
-      'connectors', 'crystals_and_oscillators', 'relays', 
-      'switches', 'transformers', 'misc'
-    ];
-    
-    for (const table of cisTables) {
-      try {
-        await client.query(`TRUNCATE TABLE ${table} CASCADE`);
-        results.clearedTables.push(table);
-      } catch (error) {
-        results.errors.push({ table, error: error.message });
-      }
-    }
-    
-    // Clear supporting tables
-    const supportingTables = [
-      'components',
-      'distributor_info',
-      'inventory',
-      'component_specifications',
+    // Clear main tables in the simplified schema (in reverse dependency order)
+    const mainTables = [
       'footprint_sources',
+      'inventory',
+      'distributor_info',
+      'component_specifications',
+      'components',
+      'component_categories',
+      'distributors',
       'manufacturers'
     ];
     
-    for (const table of supportingTables) {
+    for (const table of mainTables) {
       try {
         await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         results.clearedTables.push(table);
       } catch (error) {
-        results.errors.push({ table, error: error.message });
+        // Ignore errors for tables that might not exist
+        if (error.code !== '42P01') { // undefined_table error
+          results.errors.push({ table, error: error.message });
+        }
       }
     }
     
@@ -120,7 +109,7 @@ export const resetDatabase = async () => {
     results.steps.push('Created new schema');
 
     // Reinitialize schema from SQL file
-    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema.sql');
+    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema-simplified.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     await client.query(schema);
     results.steps.push('Reinitialized database schema');
@@ -179,7 +168,7 @@ export const initializeDatabase = async () => {
     console.log('[initDatabase] Database is empty, initializing schema...');
 
     // Load and execute schema
-    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema.sql');
+    const schemaPath = join(__dirname, '..', '..', '..', 'database', 'schema-simplified.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     
     await client.query(schema);
@@ -226,22 +215,20 @@ export const loadSampleData = async () => {
   try {
     await client.connect();
     
-    const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'sample-data.sql');
+    const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'sample-data-simplified.sql');
     const sampleData = readFileSync(sampleDataPath, 'utf8');
     
     await client.query(sampleData);
     
-    // Get record counts
+    // Get record counts from the new unified schema
     const counts = await client.query(`
       SELECT 'components' as table_name, COUNT(*) as count FROM components
       UNION ALL
       SELECT 'manufacturers', COUNT(*) FROM manufacturers
       UNION ALL
-      SELECT 'capacitors', COUNT(*) FROM capacitors
+      SELECT 'categories', COUNT(*) FROM component_categories
       UNION ALL
-      SELECT 'resistors', COUNT(*) FROM resistors
-      UNION ALL
-      SELECT 'ics', COUNT(*) FROM ics
+      SELECT 'inventory', COUNT(*) FROM inventory
     `);
     
     counts.rows.forEach(row => {
@@ -308,11 +295,7 @@ export const getDatabaseStatus = async () => {
           UNION ALL
           SELECT 'manufacturers', COUNT(*) FROM manufacturers
           UNION ALL
-          SELECT 'capacitors', COUNT(*) FROM capacitors
-          UNION ALL
-          SELECT 'resistors', COUNT(*) FROM resistors
-          UNION ALL
-          SELECT 'ics', COUNT(*) FROM ics
+          SELECT 'categories', COUNT(*) FROM component_categories
           UNION ALL
           SELECT 'inventory', COUNT(*) FROM inventory
         `);

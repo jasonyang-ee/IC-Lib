@@ -249,6 +249,60 @@ export const loadSampleData = async (req, res) => {
 };
 
 /**
+ * GET /api/settings/database/verify - Verify database schema
+ */
+export const verifyDatabase = async (req, res) => {
+  try {
+    console.log('Verifying database schema...');
+    
+    // Expected tables for the simplified schema
+    const expectedTables = [
+      'component_categories',
+      'manufacturers',
+      'distributors',
+      'components',
+      'component_specifications',
+      'distributor_info',
+      'inventory',
+      'footprint_sources',
+      'schema_version'
+    ];
+    
+    const result = await pool.query(`
+      SELECT tablename 
+      FROM pg_tables 
+      WHERE schemaname = 'public'
+      ORDER BY tablename
+    `);
+    
+    const existingTables = result.rows.map(row => row.tablename);
+    const missingTables = expectedTables.filter(t => !existingTables.includes(t));
+    const extraTables = existingTables.filter(t => !expectedTables.includes(t));
+    
+    const valid = missingTables.length === 0;
+    
+    res.json({
+      valid,
+      message: valid ? 'Database schema is valid' : 'Database schema has issues',
+      expectedTables,
+      existingTables,
+      missingTables,
+      extraTables,
+      issues: valid ? [] : [
+        ...missingTables.map(t => `Missing table: ${t}`),
+        ...extraTables.map(t => `Unexpected table: ${t}`)
+      ]
+    });
+  } catch (error) {
+    console.error('Error verifying database:', error);
+    res.status(500).json({ 
+      error: 'Failed to verify database',
+      message: error.message 
+    });
+  }
+};
+
+/**
  * GET /api/settings/categories - Get all component categories with configuration
  */
 export const getCategoryConfigs = async (req, res) => {

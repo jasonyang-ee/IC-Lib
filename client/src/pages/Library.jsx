@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Edit, Trash2, Plus, X, Check } from 'lucide-react';
 
+// Component Library - Fixed 3-Column Layout
 const AddComponentModal = ({ isOpen, onClose, categories, onAdd }) => {
   const [formData, setFormData] = useState({
     category_id: '',
@@ -380,10 +381,10 @@ const Library = () => {
         <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
       </div>
 
-      {/* 3-Column Layout: 25% Left Sidebar | 40% Center | 35% Right Details */}
-      <div className="grid grid-cols-library gap-6">
+      {/* 3-Column Layout: Left Sidebar | Center List | Right Details */}
+      <div className="grid grid-cols-1 xl:grid-cols-library gap-6 min-h-[600px]">
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4">
+        <div className="space-y-4 xl:min-w-[250px]">{/* Category Selector */}
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -448,7 +449,7 @@ const Library = () => {
         </div>
 
         {/* Center - Component List */}
-        <div className="space-y-4">
+        <div className="space-y-4 xl:min-w-[400px]">
           {/* Selected Component Details (Upper) */}
           {selectedComponent && componentDetails && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
@@ -699,7 +700,7 @@ const Library = () => {
         </div>
 
         {/* Right Sidebar - Details & Distributor Info */}
-        <div className="space-y-4">
+        <div className="space-y-4 xl:min-w-[350px]">
           {/* Distributor Info */}
           {selectedComponent && componentDetails && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">

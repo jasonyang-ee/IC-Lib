@@ -22,7 +22,7 @@ export default {
         },
       },
       gridTemplateColumns: {
-        'library': '25% 40% 35%',
+        'library': 'minmax(250px, 1fr) minmax(400px, 2fr) minmax(350px, 1.5fr)',
       },
     },
   },

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sun, Moon, Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus } from 'lucide-react';
 import { api } from '../utils/api';
 
+// Settings Page - Updated with Advanced Operations
 const Settings = () => {
   const queryClient = useQueryClient();
   const [darkMode, setDarkMode] = useState(false);
@@ -12,6 +13,7 @@ const Settings = () => {
   const [confirmDialog, setConfirmDialog] = useState({ show: false, action: '', title: '', message: '' });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
+  const [showAdvancedOps, setShowAdvancedOps] = useState(false);
 
   useEffect(() => {
     const savedMode = localStorage.getItem('darkMode');
@@ -44,7 +46,7 @@ const Settings = () => {
 
   const updateCategoryMutation = useMutation({
     mutationFn: async ({ id, config }) => {
-      const response = await api.put(`/settings/categories/\${id}`, config);
+      const response = await api.put(`/settings/categories/${id}`, config);
       return response.data;
     },
     onSuccess: () => {
@@ -55,7 +57,7 @@ const Settings = () => {
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Error updating category: \${errorMsg}` });
+      setDbOperationStatus({ show: true, type: 'error', message: `Error updating category: ${errorMsg}` });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -74,7 +76,7 @@ const Settings = () => {
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Error creating category: \${errorMsg}` });
+      setDbOperationStatus({ show: true, type: 'error', message: `Error creating category: ${errorMsg}` });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -122,12 +124,30 @@ const Settings = () => {
     onSuccess: (data) => {
       const message = data.data.valid 
         ? 'Database schema verified successfully!' 
-        : `Schema verification failed: \${data.data.issues?.join(', ')}`;
+        : `Schema verification failed: ${data.data.issues?.join(', ')}`;
       setDbOperationStatus({ 
         show: true, 
         type: data.data.valid ? 'success' : 'error', 
         message 
       });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
+  const resetDbMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.resetDatabase(true);
+      return response;
+    },
+    onSuccess: () => {
+      setDbOperationStatus({ show: true, type: 'success', message: 'Database reset completed! All tables dropped and schema reinitialized.' });
+      refetchStats();
+      queryClient.invalidateQueries(['categoryConfigs']);
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
@@ -180,11 +200,14 @@ const Settings = () => {
       show: true,
       action,
       title: action === 'init' ? 'Initialize Database' : 
-             action === 'load' ? 'Load Sample Data' : 'Verify Database',
+             action === 'load' ? 'Load Sample Data' : 
+             action === 'reset' ? 'Full Database Reset' : 'Verify Database',
       message: action === 'init' ? 
-               'This will drop all tables and recreate the schema. All existing data will be lost. Are you sure?' :
+               'This will create the database schema (only works on empty databases). Continue?' :
                action === 'load' ?
                'This will load sample data into the database. Existing data will not be affected. Continue?' :
+               action === 'reset' ?
+               '⚠️ DANGER: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE PERMANENTLY LOST! This cannot be undone. Are you absolutely sure?' :
                'This will verify the database schema matches the expected structure. Continue?'
     });
   };
@@ -199,6 +222,8 @@ const Settings = () => {
       loadSampleDataMutation.mutate();
     } else if (action === 'verify') {
       verifyDbMutation.mutate();
+    } else if (action === 'reset') {
+      resetDbMutation.mutate();
     }
   };
 
@@ -487,7 +512,9 @@ const Settings = () => {
 
       <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        {/* Standard Operations */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <button
             onClick={() => handleDatabaseOperation('init')}
             disabled={initDbMutation.isPending}
@@ -540,16 +567,89 @@ const Settings = () => {
             )}
           </button>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
-          <strong>Warning:</strong> Initialize Database will drop all existing tables and data. Always backup your database before performing this operation.
-        </p>
+
+        {/* Advanced/Dangerous Operations */}
+        <div className="border-t border-gray-200 dark:border-[#3a3a3a] pt-4">
+          <button
+            onClick={() => setShowAdvancedOps(!showAdvancedOps)}
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-2 mb-3"
+          >
+            <AlertCircle className="w-4 h-4" />
+            {showAdvancedOps ? 'Hide' : 'Show'} Advanced Operations
+          </button>
+          
+          {showAdvancedOps && (
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="flex items-start gap-3 mb-3">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-red-900 dark:text-red-200 mb-1">Danger Zone</h4>
+                  <p className="text-sm text-red-800 dark:text-red-300 mb-3">
+                    These operations will permanently delete data. Use with extreme caution.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleDatabaseOperation('reset')}
+                disabled={resetDbMutation.isPending}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {resetDbMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Resetting Database...
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    Full Database Reset (Drop All Tables)
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Initialize Database:</strong> Creates schema in an empty database. Won't work if tables exist.
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Load Sample Data:</strong> Populates database with example components. Safe to run multiple times.
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Verify Schema:</strong> Checks if all required tables exist and match expected schema.
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            <strong>Full Database Reset:</strong> ⚠️ Drops ALL tables and recreates schema. ALL DATA IS LOST!
+          </p>
+        </div>
       </div>
 
       {confirmDialog.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{confirmDialog.title}</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">{confirmDialog.message}</p>
+          <div className={`bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 max-w-md w-full mx-4 ${
+            confirmDialog.action === 'reset' ? 'border-4 border-red-600' : ''
+          }`}>
+            <div className="flex items-center gap-3 mb-3">
+              {confirmDialog.action === 'reset' && (
+                <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+              )}
+              <h3 className={`text-lg font-semibold ${
+                confirmDialog.action === 'reset' 
+                  ? 'text-red-900 dark:text-red-200' 
+                  : 'text-gray-900 dark:text-gray-100'
+              }`}>
+                {confirmDialog.title}
+              </h3>
+            </div>
+            <p className={`mb-6 ${
+              confirmDialog.action === 'reset'
+                ? 'text-red-800 dark:text-red-300 font-medium'
+                : 'text-gray-600 dark:text-gray-400'
+            }`}>
+              {confirmDialog.message}
+            </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmDialog({ show: false, action: '', title: '', message: '' })}
@@ -559,9 +659,13 @@ const Settings = () => {
               </button>
               <button
                 onClick={executeConfirmedAction}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                className={`px-4 py-2 rounded-lg transition-colors font-semibold ${
+                  confirmDialog.action === 'reset'
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-primary-600 hover:bg-primary-700 text-white'
+                }`}
               >
-                Confirm
+                {confirmDialog.action === 'reset' ? 'Yes, Delete Everything' : 'Confirm'}
               </button>
             </div>
           </div>
