@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings } from 'lucide-react';
+import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, Edit, Trash2 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -197,27 +197,56 @@ const Dashboard = () => {
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Activities</h2>
           <div className="space-y-4">
-            {recentActivities?.slice(0, 6).map((activity, index) => (
-              <div key={index} className="flex items-start gap-3 pb-3 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
-                <div className="bg-primary-100 dark:bg-primary-900 p-2 rounded-lg">
-                  <Package className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+            {recentActivities?.slice(0, 6).map((activity, index) => {
+              const activityConfig = {
+                added: {
+                  icon: Package,
+                  bgColor: 'bg-primary-100 dark:bg-primary-900',
+                  iconColor: 'text-primary-600 dark:text-primary-400',
+                  badgeColor: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
+                  label: 'Added'
+                },
+                updated: {
+                  icon: Edit,
+                  bgColor: 'bg-blue-100 dark:bg-blue-900',
+                  iconColor: 'text-blue-600 dark:text-blue-400',
+                  badgeColor: 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200',
+                  label: 'Updated'
+                },
+                deleted: {
+                  icon: Trash2,
+                  bgColor: 'bg-red-100 dark:bg-red-900',
+                  iconColor: 'text-red-600 dark:text-red-400',
+                  badgeColor: 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
+                  label: 'Deleted'
+                }
+              };
+
+              const config = activityConfig[activity.activity_type] || activityConfig.added;
+              const IconComponent = config.icon;
+
+              return (
+                <div key={index} className="flex items-start gap-3 pb-3 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
+                  <div className={`${config.bgColor} p-2 rounded-lg`}>
+                    <IconComponent className={`w-4 h-4 ${config.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {activity.part_number}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {activity.description || 'No description'}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {new Date(activity.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`text-xs ${config.badgeColor} px-2 py-1 rounded`}>
+                    {config.label}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {activity.part_number}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {activity.description || 'No description'}
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {new Date(activity.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">
-                  Added
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

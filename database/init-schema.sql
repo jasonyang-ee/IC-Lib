@@ -427,3 +427,23 @@ INSERT INTO category_specifications (category_id, spec_name, unit, display_order
     (6, 'Number of Channels', '', 4, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
+-- ============================================================================
+-- PART 5: ACTIVITY LOG
+-- ============================================================================
+
+-- Table: activity_log
+-- Stores component activity history for dashboard
+CREATE TABLE IF NOT EXISTS activity_log (
+    id SERIAL PRIMARY KEY,
+    component_id UUID REFERENCES components(id) ON DELETE SET NULL,
+    part_number VARCHAR(100) NOT NULL,
+    description TEXT,
+    category_name VARCHAR(100),
+    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
+

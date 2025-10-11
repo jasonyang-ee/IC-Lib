@@ -53,15 +53,15 @@ export const getRecentActivities = async (req, res, next) => {
 
     const result = await pool.query(`
       SELECT 
-        c.id,
-        c.part_number,
-        c.description,
-        cat.name as category_name,
-        c.created_at,
-        'component_added' as activity_type
-      FROM components c
-      LEFT JOIN component_categories cat ON c.category_id = cat.id
-      ORDER BY c.created_at DESC
+        id,
+        component_id,
+        part_number,
+        description,
+        category_name,
+        activity_type,
+        created_at
+      FROM activity_log
+      ORDER BY created_at DESC
       LIMIT $1
     `, [limit]);
 

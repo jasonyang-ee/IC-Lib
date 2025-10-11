@@ -26,18 +26,29 @@ export const getAllComponents = async (req, res, next) => {
     }
 
     if (search) {
-      query += ` AND (
-        c.part_number ILIKE $${paramCount} 
-        OR c.description ILIKE $${paramCount} 
-        OR c.manufacturer_pn ILIKE $${paramCount}
-        OR c.sub_category1 ILIKE $${paramCount}
-        OR c.sub_category2 ILIKE $${paramCount}
-        OR c.sub_category3 ILIKE $${paramCount}
-        OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) ILIKE $${paramCount}
-        OR cat.name ILIKE $${paramCount}
-      )`;
-      params.push(`%${search}%`);
-      paramCount++;
+      // Split search term by spaces to support multi-keyword search
+      const keywords = search.trim().split(/\s+/).filter(k => k.length > 0);
+      
+      if (keywords.length > 0) {
+        const searchConditions = keywords.map((_, index) => {
+          const paramIndex = paramCount + index;
+          return `(
+            c.part_number ILIKE $${paramIndex} 
+            OR c.description ILIKE $${paramIndex} 
+            OR c.manufacturer_pn ILIKE $${paramIndex}
+            OR c.sub_category1 ILIKE $${paramIndex}
+            OR c.sub_category2 ILIKE $${paramIndex}
+            OR c.sub_category3 ILIKE $${paramIndex}
+            OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) ILIKE $${paramIndex}
+            OR cat.name ILIKE $${paramIndex}
+            OR m.name ILIKE $${paramIndex}
+          )`;
+        }).join(' AND ');
+        
+        query += ` AND (${searchConditions})`;
+        keywords.forEach(keyword => params.push(`%${keyword}%`));
+        paramCount += keywords.length;
+      }
     }
 
     query += ' ORDER BY c.created_at DESC';
@@ -132,6 +143,13 @@ export const createComponent = async (req, res, next) => {
 
     const component = componentResult.rows[0];
     
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
+      SELECT $1, $2, $3, cat.name, 'added'
+      FROM component_categories cat WHERE cat.id = $4
+    `, [component.id, component.part_number, component.description, validCategoryId]);
+    
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
       SELECT 
@@ -220,6 +238,13 @@ export const updateComponent = async (req, res, next) => {
       datasheet_url, status, notes, id
     ]);
 
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
+      SELECT $1, $2, $3, cat.name, 'updated'
+      FROM component_categories cat WHERE cat.id = $4
+    `, [id, result.rows[0].part_number, result.rows[0].description, result.rows[0].category_id]);
+
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
       SELECT 
@@ -245,9 +270,12 @@ export const deleteComponent = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    // Check if component exists
+    // Check if component exists and get its details for logging
     const componentCheck = await pool.query(
-      'SELECT id FROM components WHERE id = $1',
+      `SELECT c.id, c.part_number, c.description, cat.name as category_name 
+       FROM components c 
+       LEFT JOIN component_categories cat ON c.category_id = cat.id
+       WHERE c.id = $1`,
       [id]
     );
 
@@ -255,10 +283,18 @@ export const deleteComponent = async (req, res, next) => {
       return res.status(404).json({ error: 'Component not found' });
     }
 
+    const component = componentCheck.rows[0];
+
     // Use transaction to delete from all related tables
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      
+      // Log activity before deletion
+      await client.query(`
+        INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
+        VALUES ($1, $2, $3, $4, 'deleted')
+      `, [component.id, component.part_number, component.description, component.category_name]);
       
       // Delete from related tables first (foreign key constraints)
       await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);

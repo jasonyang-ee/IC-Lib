@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -16,6 +16,15 @@ const Library = () => {
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
+  const [copiedText, setCopiedText] = useState('');
+
+  // Copy to clipboard handler
+  const handleCopyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedText(label);
+      setTimeout(() => setCopiedText(''), 2000);
+    });
+  };
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -118,22 +127,33 @@ const Library = () => {
     setIsEditMode(true);
     setIsAddMode(false);
     
-    // Prepare default distributors if none exist
+    // Always show all 4 supported distributors in edit mode
     const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    let editDistributors = componentDetails?.distributors || [];
+    const existingDistributors = componentDetails?.distributors || [];
     
-    // If no distributors exist, create default entries with distributor_id
-    if (editDistributors.length === 0 && distributors) {
-      editDistributors = defaultDistributorNames.map(name => {
-        const dist = distributors.find(d => d.name === name);
-        return {
-          distributor_id: dist?.id || '',
-          distributor_name: name,
-          sku: '',
-          url: ''
-        };
-      });
-    }
+    // Create a map of existing distributors by name
+    const existingDistMap = new Map();
+    existingDistributors.forEach(dist => {
+      if (dist.distributor_name) {
+        existingDistMap.set(dist.distributor_name, dist);
+      }
+    });
+    
+    // Merge: always show all 4 distributors with existing values or empty
+    const editDistributors = defaultDistributorNames.map(name => {
+      const existing = existingDistMap.get(name);
+      const dist = distributors?.find(d => d.name === name);
+      return {
+        id: existing?.id || undefined, // Keep existing ID if updating
+        distributor_id: dist?.id || '',
+        distributor_name: name,
+        sku: existing?.sku || '',
+        url: existing?.url || '',
+        price: existing?.price || null,
+        in_stock: existing?.in_stock || false,
+        stock_quantity: existing?.stock_quantity || 0
+      };
+    });
     
     // Fetch all category specifications and merge with existing component specifications
     let editSpecifications = componentDetails?.specifications || [];
@@ -185,7 +205,16 @@ const Library = () => {
     if (selectedComponent) {
       // Validate required fields
       if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
-        setWarningModal({ show: true, message: 'Please fill in all required fields: Manufacturer, MFG Part Number, and Value' });
+        setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
+        return;
+      }
+
+      // Validate required specifications
+      const requiredSpecs = editData.specifications?.filter(spec => spec.is_required) || [];
+      const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value || spec.spec_value.trim() === '');
+      
+      if (missingRequiredSpecs.length > 0) {
+        setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
         return;
       }
 
@@ -384,12 +413,21 @@ const Library = () => {
   const handleConfirmAdd = async () => {
     // Validate required fields
     if (!editData.category_id || !editData.part_number) {
-      setWarningModal({ show: true, message: 'Please fill in required fields: Category and Part Number' });
+      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
       return;
     }
     
     if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
-      setWarningModal({ show: true, message: 'Please fill in all required fields: Manufacturer, MFG Part Number, and Value' });
+      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
+      return;
+    }
+
+    // Validate required specifications
+    const requiredSpecs = editData.specifications?.filter(spec => spec.is_required) || [];
+    const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value || spec.spec_value.trim() === '');
+    
+    if (missingRequiredSpecs.length > 0) {
+      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
       return;
     }
 
@@ -712,7 +750,7 @@ const Library = () => {
                   {/* Row 1: Part Number, Part Type (Category) */}
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Part Number * {isAddMode && <span className="text-xs text-gray-500">(Auto-generated)</span>}
+                      Part Number <span className="text-red-500">*</span> {isAddMode && <span className="text-xs text-gray-500">(Auto-generated)</span>}
                       {isEditMode && <span className="text-xs text-gray-500">(Locked)</span>}
                     </label>
                     <input
@@ -725,7 +763,7 @@ const Library = () => {
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Type (Category) *</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Type (Category) <span className="text-red-500">*</span></label>
                     <select
                       value={editData.category_id || ''}
                       onChange={(e) => isAddMode ? handleCategoryChange(e.target.value) : handleFieldChange('category_id', e.target.value)}
@@ -743,7 +781,7 @@ const Library = () => {
                   {/* Row 2: Manufacturer, MFG Part Number */}
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Manufacturer *
+                      Manufacturer <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={editData.manufacturer_id || ''}
@@ -760,7 +798,7 @@ const Library = () => {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      MFG Part Number *
+                      MFG Part Number <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -774,7 +812,7 @@ const Library = () => {
                   {/* Row 3: Value, Package */}
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Value *
+                      Value <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -973,36 +1011,10 @@ const Library = () => {
                           placeholder="URL"
                           className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
-                        {/* Remove button hidden in add mode */}
-                        {!isAddMode && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newDists = (editData.distributors || []).filter((_, i) => i !== index);
-                              handleFieldChange('distributors', newDists);
-                            }}
-                            className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                        {/* Spacer for add mode to maintain grid alignment */}
-                        {isAddMode && <div></div>}
+                        {/* Spacer to maintain grid alignment (no add/remove in add or edit mode) */}
+                        <div></div>
                       </div>
                     ))}
-                    {/* Add Distributor button hidden in add mode */}
-                    {!isAddMode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newDists = [...(editData.distributors || []), { distributor_name: '', sku: '', url: '' }];
-                          handleFieldChange('distributors', newDists);
-                        }}
-                        className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3" /> Add Distributor
-                      </button>
-                    )}
                   </div>
                 </>
               ) : selectedComponent && componentDetails ? (
@@ -1010,7 +1022,19 @@ const Library = () => {
                   {/* Row 1: Part Number, Part Type */}
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.part_number}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.part_number}</p>
+                      <button
+                        onClick={() => handleCopyToClipboard(componentDetails.part_number, 'part_number')}
+                        className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                        title="Copy Part Number"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      {copiedText === 'part_number' && (
+                        <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <span className="text-gray-600 dark:text-gray-400">Part Type:</span>
@@ -1106,23 +1130,47 @@ const Library = () => {
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
             {selectedComponent && componentDetails && !isAddMode && componentDetails.distributors?.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {componentDetails.distributors
                   .filter(dist => ['Digikey', 'Mouser', 'Newark', 'Arrow'].includes(dist.distributor_name))
                   .map((dist, index) => (
-                  <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-3 last:border-0">
-                    <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
+                  <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-4 last:border-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
+                      {dist.url && (
+                        <a 
+                          href={dist.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                        >
+                          Link
+                        </a>
+                      )}
+                    </div>
                     {dist.sku && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400">SKU: {dist.sku}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs text-gray-600 dark:text-gray-400">SKU: {dist.sku}</p>
+                        <button
+                          onClick={() => handleCopyToClipboard(dist.sku, `sku_${index}`)}
+                          className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                          title="Copy SKU"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        {copiedText === `sku_${index}` && (
+                          <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
+                        )}
+                      </div>
                     )}
                     {dist.price ? (
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                         Price: ${Number(dist.price).toFixed(2)} {dist.currency || 'USD'}
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Price: </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Price: </p>
                     )}
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Stock: {dist.stock_quantity || 'N/A'}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Stock: {dist.stock_quantity || 'N/A'}</p>
                     {dist.price_breaks && dist.price_breaks.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {dist.price_breaks.slice(0, 3).map((price, idx) => (

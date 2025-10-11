@@ -301,31 +301,31 @@ const CategorySpecificationsManager = () => {
                             <button
                               onClick={handleSaveSpec}
                               disabled={updateSpecMutation.isPending}
-                              className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-sm"
                             >
-                              <Check className="w-4 h-4" />
+                              Save
                             </button>
                             <button
                               onClick={() => setEditingSpec(null)}
-                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-3 rounded transition-colors text-sm"
                             >
-                              <X className="w-4 h-4" />
+                              Cancel
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleEditSpec(spec)}
-                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                              className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-3 rounded transition-colors text-sm"
                             >
-                              <Edit className="w-4 h-4" />
+                              Edit
                             </button>
                             <button
                               onClick={() => handleDeleteSpec(spec.id)}
                               disabled={deleteSpecMutation.isPending}
-                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-sm"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              Delete
                             </button>
                           </div>
                         )}
@@ -786,23 +786,23 @@ const Settings = () => {
                           <button
                             onClick={() => handleSaveCategory(category.id)}
                             disabled={updateCategoryMutation.isPending}
-                            className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded disabled:opacity-50 transition-colors"
                           >
-                            <Check className="w-4 h-4" />
+                            Save
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded transition-colors"
                           >
-                            <X className="w-4 h-4" />
+                            Cancel
                           </button>
                         </div>
                       ) : (
                         <button
                           onClick={() => handleEditCategory(category)}
-                          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                          className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded transition-colors"
                         >
-                          <Edit className="w-4 h-4" />
+                          Edit
                         </button>
                       )}
                     </td>
