@@ -74,18 +74,17 @@ export const createInventory = async (req, res, next) => {
       location,
       quantity,
       minimum_quantity,
-      purchase_date,
-      purchase_price,
+      last_counted,
       notes
     } = req.body;
 
     const result = await pool.query(`
       INSERT INTO inventory (
         component_id, location, quantity, minimum_quantity,
-        purchase_date, purchase_price, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        last_counted, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [component_id, location, quantity, minimum_quantity, purchase_date, purchase_price, notes]);
+    `, [component_id, location, quantity, minimum_quantity, last_counted, notes]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -100,8 +99,7 @@ export const updateInventory = async (req, res, next) => {
       location,
       quantity,
       minimum_quantity,
-      purchase_date,
-      purchase_price,
+      last_counted,
       notes
     } = req.body;
 
@@ -110,13 +108,12 @@ export const updateInventory = async (req, res, next) => {
         location = COALESCE($1, location),
         quantity = COALESCE($2, quantity),
         minimum_quantity = COALESCE($3, minimum_quantity),
-        purchase_date = COALESCE($4, purchase_date),
-        purchase_price = COALESCE($5, purchase_price),
-        notes = COALESCE($6, notes),
+        last_counted = COALESCE($4, last_counted),
+        notes = COALESCE($5, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $6
       RETURNING *
-    `, [location, quantity, minimum_quantity, purchase_date, purchase_price, notes, id]);
+    `, [location, quantity, minimum_quantity, last_counted, notes, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Inventory item not found' });

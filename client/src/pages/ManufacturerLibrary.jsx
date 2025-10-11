@@ -340,23 +340,21 @@ const ManufacturerLibrary = () => {
                       Add Manufacturer
                     </button>
                     {selectedManufacturer && (
-                      <>
-                        <button
-                          onClick={handleEdit}
-                          className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Edit className="w-4 h-4" />
-                          Edit Manufacturer
-                        </button>
-                        <button
-                          onClick={toggleDeleteMode}
-                          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete Manufacturer
-                        </button>
-                      </>
+                      <button
+                        onClick={handleEdit}
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        Edit Manufacturer
+                      </button>
                     )}
+                    <button
+                      onClick={toggleDeleteMode}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Manufacturers
+                    </button>
                   </>
                 )}
               </div>

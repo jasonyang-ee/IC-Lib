@@ -10,6 +10,9 @@ const Inventory = () => {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [editingQty, setEditingQty] = useState(null);
   const [newQty, setNewQty] = useState('');
+  const [consumeQty, setConsumeQty] = useState('');
+  const [editingLocation, setEditingLocation] = useState(null);
+  const [newLocation, setNewLocation] = useState('');
   const [copiedLabel, setCopiedLabel] = useState('');
   const barcodeRef = useRef(null);
 
@@ -93,6 +96,7 @@ const Inventory = () => {
   const handleEditQty = (item) => {
     setEditingQty(item.id);
     setNewQty(item.quantity.toString());
+    setConsumeQty('');
   };
 
   const handleSaveQty = (id) => {
@@ -100,6 +104,24 @@ const Inventory = () => {
     if (!isNaN(qty) && qty >= 0) {
       updateQtyMutation.mutate({ id, quantity: qty });
     }
+  };
+
+  const handleConsumeQty = (item) => {
+    const consume = parseInt(consumeQty);
+    if (!isNaN(consume) && consume > 0) {
+      const newQuantity = Math.max(0, item.quantity - consume);
+      updateQtyMutation.mutate({ id: item.id, quantity: newQuantity });
+    }
+  };
+
+  const handleEditLocation = (item) => {
+    setEditingLocation(item.id);
+    setNewLocation(item.location || '');
+  };
+
+  const handleSaveLocation = (id) => {
+    updateQtyMutation.mutate({ id, location: newLocation });
+    setEditingLocation(null);
   };
 
   const handleBarcodeSearch = () => {
@@ -249,7 +271,7 @@ const Inventory = () => {
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
-                <th className="text-right px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Status</th>
               </tr>
@@ -268,42 +290,94 @@ const Inventory = () => {
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.manufacturer_name || 'N/A'}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.description?.substring(0, 40) || 'N/A'}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{item.category_name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-gray-400" />
-                        {item.location || 'Not set'}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      {editingQty === item.id ? (
-                        <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-3 text-sm">
+                      {editingLocation === item.id ? (
+                        <div className="flex items-center gap-2">
                           <input
-                            type="number"
-                            value={newQty}
-                            onChange={(e) => setNewQty(e.target.value)}
-                            className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                            type="text"
+                            value={newLocation}
+                            onChange={(e) => setNewLocation(e.target.value)}
+                            placeholder="Enter location..."
+                            className="flex-1 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             autoFocus
                           />
                           <button
-                            onClick={() => handleSaveQty(item.id)}
+                            onClick={() => handleSaveLocation(item.id)}
                             disabled={updateQtyMutation.isPending}
-                            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-xs"
+                            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-xs whitespace-nowrap"
                           >
                             Save
                           </button>
                           <button
-                            onClick={() => setEditingQty(null)}
-                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-3 rounded transition-colors text-xs"
+                            onClick={() => setEditingLocation(null)}
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-3 rounded transition-colors text-xs whitespace-nowrap"
                           >
                             Cancel
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3 h-3 text-gray-400" />
+                          <span className="text-gray-900 dark:text-gray-100">{item.location || 'Not set'}</span>
+                          <button
+                            onClick={() => handleEditLocation(item)}
+                            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-2 rounded transition-colors text-xs whitespace-nowrap"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {editingQty === item.id ? (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">Set to:</span>
+                            <input
+                              type="number"
+                              value={newQty}
+                              onChange={(e) => setNewQty(e.target.value)}
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveQty(item.id)}
+                              disabled={updateQtyMutation.isPending}
+                              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-xs whitespace-nowrap"
+                            >
+                              Save
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">Consume:</span>
+                            <input
+                              type="number"
+                              value={consumeQty}
+                              onChange={(e) => setConsumeQty(e.target.value)}
+                              placeholder="0"
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                            />
+                            <button
+                              onClick={() => handleConsumeQty(item)}
+                              disabled={updateQtyMutation.isPending || !consumeQty}
+                              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-xs whitespace-nowrap"
+                            >
+                              Consume
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => setEditingQty(null)}
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-3 rounded transition-colors text-xs whitespace-nowrap"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
                           <span className="font-medium text-gray-900 dark:text-gray-100">{item.quantity}</span>
                           <button
                             onClick={() => handleEditQty(item)}
-                            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-3 rounded transition-colors text-xs"
+                            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-3 rounded transition-colors text-xs whitespace-nowrap"
                           >
                             Edit
                           </button>

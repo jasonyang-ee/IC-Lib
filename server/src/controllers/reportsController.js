@@ -6,10 +6,11 @@ export const getComponentSummary = async (req, res, next) => {
       SELECT 
         cat.name as category,
         COUNT(c.id) as total_components,
-        COUNT(CASE WHEN c.footprint_path IS NOT NULL AND c.footprint_path != '' THEN 1 END) as with_footprint,
-        COUNT(CASE WHEN c.symbol_path IS NOT NULL AND c.symbol_path != '' THEN 1 END) as with_symbol
+        COUNT(DISTINCT CASE WHEN fs.footprint_path IS NOT NULL AND fs.footprint_path != '' THEN c.id END) as with_footprint,
+        COUNT(DISTINCT CASE WHEN fs.symbol_path IS NOT NULL AND fs.symbol_path != '' THEN c.id END) as with_symbol
       FROM component_categories cat
       LEFT JOIN components c ON cat.id = c.category_id
+      LEFT JOIN footprint_sources fs ON c.id = fs.component_id
       GROUP BY cat.name
       ORDER BY cat.name
     `);
@@ -44,14 +45,14 @@ export const getInventoryValue = async (req, res, next) => {
     const result = await pool.query(`
       SELECT 
         cat.name as category,
-        SUM(i.quantity * i.purchase_price) as total_value,
+        0 as total_value,
         SUM(i.quantity) as total_quantity,
         COUNT(DISTINCT i.component_id) as unique_components
       FROM inventory i
       JOIN components c ON i.component_id = c.id
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       GROUP BY cat.name
-      ORDER BY total_value DESC NULLS LAST
+      ORDER BY total_quantity DESC NULLS LAST
     `);
 
     res.json(result.rows);
@@ -66,14 +67,15 @@ export const getMissingFootprints = async (req, res, next) => {
       SELECT 
         c.id,
         c.part_number,
-        c.manufacturer_part_number,
+        c.manufacturer_pn as manufacturer_part_number,
         c.description,
         cat.name as category_name,
         m.name as manufacturer_name
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-      WHERE c.footprint_path IS NULL OR c.footprint_path = ''
+      LEFT JOIN footprint_sources fs ON c.id = fs.component_id
+      WHERE fs.id IS NULL OR fs.footprint_path IS NULL OR fs.footprint_path = ''
       ORDER BY cat.name, c.part_number
     `);
 

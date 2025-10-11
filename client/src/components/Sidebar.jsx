@@ -18,7 +18,7 @@ const Sidebar = () => {
       <div className="p-6 border-b border-gray-700">
         <div className="flex items-center gap-3">
           <div className="bg-primary-600 p-2 rounded-lg">
-            <Box className="w-6 h-6" />
+            <img src="/logo.svg" alt="IC Lib Logo" className="w-6 h-6 text-white" style={{filter: 'brightness(0) invert(1)'}} />
           </div>
           <div>
             <h1 className="text-xl font-bold">IC Lib</h1>

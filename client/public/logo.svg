@@ -1,0 +1,26 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Box/Package -->
+  <rect x="6" y="14" width="36" height="28" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+  <path d="M6 20 H42" stroke="currentColor" stroke-width="2"/>
+  
+  <!-- IC Chip in center -->
+  <rect x="16" y="24" width="16" height="12" rx="1" fill="currentColor" opacity="0.1"/>
+  <rect x="16" y="24" width="16" height="12" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+  
+  <!-- IC Pins - Left side -->
+  <line x1="13" y1="26" x2="16" y2="26" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="13" y1="30" x2="16" y2="30" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="13" y1="34" x2="16" y2="34" stroke="currentColor" stroke-width="1.5"/>
+  
+  <!-- IC Pins - Right side -->
+  <line x1="32" y1="26" x2="35" y2="26" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="32" y1="30" x2="35" y2="30" stroke="currentColor" stroke-width="1.5"/>
+  <line x1="32" y1="34" x2="35" y2="34" stroke="currentColor" stroke-width="1.5"/>
+  
+  <!-- Box lid line -->
+  <path d="M24 6 L6 14 L24 20 L42 14 L24 6 Z" fill="currentColor" opacity="0.15"/>
+  <path d="M24 6 L6 14 M24 6 L42 14 M24 6 L24 20 M6 14 L24 20 M42 14 L24 20" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+  
+  <!-- Highlight dot on IC -->
+  <circle cx="19" cy="27" r="1.5" fill="currentColor"/>
+</svg>
