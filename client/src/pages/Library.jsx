@@ -45,6 +45,15 @@ const Library = () => {
     },
   });
 
+  // Fetch distributors for dropdown and ID mapping
+  const { data: distributors } = useQuery({
+    queryKey: ['distributors'],
+    queryFn: async () => {
+      const response = await api.getDistributors();
+      return response.data;
+    },
+  });
+
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
     queryKey: ['componentDetails', selectedComponent?.id],
@@ -106,6 +115,24 @@ const Library = () => {
   const handleEdit = () => {
     setIsEditMode(true);
     setIsAddMode(false);
+    
+    // Prepare default distributors if none exist
+    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    let editDistributors = componentDetails?.distributors || [];
+    
+    // If no distributors exist, create default entries with distributor_id
+    if (editDistributors.length === 0 && distributors) {
+      editDistributors = defaultDistributorNames.map(name => {
+        const dist = distributors.find(d => d.name === name);
+        return {
+          distributor_id: dist?.id || '',
+          distributor_name: name,
+          sku: '',
+          url: ''
+        };
+      });
+    }
+    
     // Map all fields properly for editing
     // Specifications already have category_spec_id from the backend
     setEditData({
@@ -113,12 +140,18 @@ const Library = () => {
       manufacturer_id: componentDetails?.manufacturer_id || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
       specifications: componentDetails?.specifications || [],
-      distributors: componentDetails?.distributors || [],
+      distributors: editDistributors,
     });
   };
 
   const handleSave = async () => {
     if (selectedComponent) {
+      // Validate required fields
+      if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
+        alert('Please fill in all required fields: Manufacturer, MFG Part Number, and Value');
+        return;
+      }
+
       try {
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
@@ -142,9 +175,21 @@ const Library = () => {
           await api.updateComponentSpecifications(selectedComponent.id, { specifications: [] });
         }
         
-        // Update distributors if present
-        if (distributors && distributors.length > 0) {
-          await api.updateComponentDistributors(selectedComponent.id, { distributors });
+        // Filter and update distributors (only with valid distributor_id and sku)
+        const validDistributors = distributors?.filter(dist => 
+          dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
+        ).map(dist => ({
+          id: dist.id, // Keep existing ID if updating
+          distributor_id: dist.distributor_id,
+          sku: dist.sku || '',
+          url: dist.url || '',
+          price: dist.price || null,
+          in_stock: dist.in_stock || false,
+          stock_quantity: dist.stock_quantity || 0
+        })) || [];
+        
+        if (validDistributors.length > 0) {
+          await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         }
         
         // Refresh the component details
@@ -174,6 +219,19 @@ const Library = () => {
     setIsAddMode(true);
     setIsEditMode(false);
     setSelectedComponent(null);
+    
+    // Prepare default distributors with IDs
+    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    const defaultDistributors = distributors ? defaultDistributorNames.map(name => {
+      const dist = distributors.find(d => d.name === name);
+      return {
+        distributor_id: dist?.id || '',
+        distributor_name: name,
+        sku: '',
+        url: ''
+      };
+    }) : [];
+    
     setEditData({
       category_id: '',
       part_number: '', // Will be auto-generated based on category
@@ -190,12 +248,7 @@ const Library = () => {
       pspice: '',
       datasheet_url: '',
       specifications: [], // Array of {spec_name, spec_value, unit}
-      distributors: [ // Default four distributors
-        { distributor_name: 'Digikey', sku: '', url: '' },
-        { distributor_name: 'Mouser', sku: '', url: '' },
-        { distributor_name: 'Arrow', sku: '', url: '' },
-        { distributor_name: 'Newark', sku: '', url: '' },
-      ],
+      distributors: defaultDistributors, // Default four distributors with IDs
     });
   };
 
@@ -269,6 +322,17 @@ const Library = () => {
   };
 
   const handleConfirmAdd = async () => {
+    // Validate required fields
+    if (!editData.category_id || !editData.part_number) {
+      alert('Please fill in required fields: Category and Part Number');
+      return;
+    }
+    
+    if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
+      alert('Please fill in all required fields: Manufacturer, MFG Part Number, and Value');
+      return;
+    }
+
     if (editData.category_id && editData.part_number) {
       try {
         // Extract specifications and distributors from editData
@@ -291,9 +355,20 @@ const Library = () => {
           await api.updateComponentSpecifications(newComponentId, { specifications: validSpecs });
         }
         
-        // Add distributors if present
-        if (newComponentId && distributors && distributors.length > 0) {
-          await api.updateComponentDistributors(newComponentId, { distributors });
+        // Filter and add distributors (only with valid distributor_id and sku)
+        const validDistributors = distributors?.filter(dist => 
+          dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
+        ).map(dist => ({
+          distributor_id: dist.distributor_id,
+          sku: dist.sku || '',
+          url: dist.url || '',
+          price: dist.price || null,
+          in_stock: dist.in_stock || false,
+          stock_quantity: dist.stock_quantity || 0
+        })) || [];
+        
+        if (newComponentId && validDistributors.length > 0) {
+          await api.updateComponentDistributors(newComponentId, { distributors: validDistributors });
         }
         
         // Cleanup will be handled by mutation's onSuccess
@@ -301,8 +376,6 @@ const Library = () => {
         console.error('Error adding component:', error);
         alert('Failed to add component. Please try again.');
       }
-    } else {
-      alert('Please fill in required fields: Category and Part Number');
     }
   };
 
@@ -525,7 +598,7 @@ const Library = () => {
                         </th>
                       )}
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part #</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG Part Number</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
                     </tr>
@@ -550,7 +623,7 @@ const Library = () => {
                           </td>
                         )}
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{component.part_number}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.value || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 80) || 'N/A'}</td>
                       </tr>
@@ -609,7 +682,9 @@ const Library = () => {
 
                   {/* Row 2: Manufacturer, MFG Part Number */}
                   <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Manufacturer</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Manufacturer *
+                    </label>
                     <select
                       value={editData.manufacturer_id || ''}
                       onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
@@ -624,7 +699,9 @@ const Library = () => {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">MFG Part Number</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      MFG Part Number *
+                    </label>
                     <input
                       type="text"
                       value={editData.manufacturer_pn || editData.manufacturer_part_number || ''}
@@ -636,7 +713,9 @@ const Library = () => {
 
                   {/* Row 3: Value, Package */}
                   <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Value</label>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Value *
+                    </label>
                     <input
                       type="text"
                       value={editData.value || ''}
@@ -652,6 +731,38 @@ const Library = () => {
                       value={editData.package_size || ''}
                       onChange={(e) => handleFieldChange('package_size', e.target.value)}
                       placeholder="e.g., 0805"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+
+                  {/* Sub-categories (moved before description) */}
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category1 || ''}
+                      onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
+                      placeholder="e.g., Ceramic"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category2 || ''}
+                      onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
+                      placeholder="e.g., X7R"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
+                    <input
+                      type="text"
+                      value={editData.sub_category3 || ''}
+                      onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
+                      placeholder="e.g., 50V"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
@@ -724,38 +835,6 @@ const Library = () => {
                       value={editData.datasheet_url || ''}
                       onChange={(e) => handleFieldChange('datasheet_url', e.target.value)}
                       placeholder="https://..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-
-                  {/* Sub-categories (optional, kept for data completeness) */}
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
-                    <input
-                      type="text"
-                      value={editData.sub_category1 || ''}
-                      onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
-                      placeholder="e.g., Ceramic"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
-                    <input
-                      type="text"
-                      value={editData.sub_category2 || ''}
-                      onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
-                      placeholder="e.g., X7R"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
-                    <input
-                      type="text"
-                      value={editData.sub_category3 || ''}
-                      onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
-                      placeholder="e.g., 50V"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>

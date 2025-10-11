@@ -380,14 +380,6 @@ const Settings = () => {
     },
   });
 
-  const { data: dbStats, refetch: refetchStats } = useQuery({
-    queryKey: ['databaseStats'],
-    queryFn: async () => {
-      const response = await api.getDatabaseStats();
-      return response.data;
-    },
-  });
-
   const updateCategoryMutation = useMutation({
     mutationFn: async ({ id, config }) => {
       const response = await api.put(`/settings/categories/${id}`, config);
@@ -624,35 +616,6 @@ const Settings = () => {
               </button>
             </div>
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Database className="w-5 h-5" />
-            Database Statistics
-          </h3>
-          {dbStats ? (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Total Components:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalComponents || 0}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Total Categories:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalCategories || 0}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Total Manufacturers:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.totalManufacturers || 0}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Database Size:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{dbStats.databaseSize || 'N/A'}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading stats...</p>
-          )}
         </div>
       </div>
 
