@@ -44,14 +44,19 @@ const Inventory = () => {
 
   // Update quantity mutation
   const updateQtyMutation = useMutation({
-    mutationFn: async ({ id, quantity }) => {
-      await api.updateInventory(id, { quantity });
+    mutationFn: async ({ id, quantity, location }) => {
+      const updateData = {};
+      if (quantity !== undefined) updateData.quantity = quantity;
+      if (location !== undefined) updateData.location = location;
+      await api.updateInventory(id, updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['inventory']);
       queryClient.invalidateQueries(['lowStock']);
       setEditingQty(null);
       setNewQty('');
+      setEditingLocation(null);
+      setNewLocation('');
     },
   });
 
