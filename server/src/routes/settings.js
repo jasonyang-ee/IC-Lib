@@ -10,7 +10,12 @@ import {
   verifyDatabase,
   getCategoryConfigs,
   updateCategoryConfig,
-  createCategory
+  createCategory,
+  getCategorySpecifications,
+  createCategorySpecification,
+  updateCategorySpecification,
+  deleteCategorySpecification,
+  reorderCategorySpecifications
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -23,6 +28,13 @@ router.put('/', updateSettings);
 router.get('/categories', getCategoryConfigs);
 router.put('/categories/:id', updateCategoryConfig);
 router.post('/categories', createCategory);
+
+// Category specifications routes
+router.get('/categories/:categoryId/specifications', getCategorySpecifications);
+router.post('/categories/:categoryId/specifications', createCategorySpecification);
+router.put('/categories/:categoryId/specifications/reorder', reorderCategorySpecifications);
+router.put('/specifications/:id', updateCategorySpecification);
+router.delete('/specifications/:id', deleteCategorySpecification);
 
 // Database management routes
 router.get('/database/status', getDatabaseStatus);

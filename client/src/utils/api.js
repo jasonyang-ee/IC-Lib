@@ -102,8 +102,15 @@ export const api = {
   getSettings: () => apiClient.get('/settings'),
   updateSettings: (data) => apiClient.put('/settings', data),
   
-  // Specification Templates
-  getSpecificationTemplates: (categoryId) => apiClient.get('/specification-templates', { params: { category_id: categoryId } }),
+  // Category Specifications (New Schema)
+  getCategorySpecifications: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
+  createCategorySpecification: (categoryId, data) => apiClient.post(`/settings/categories/${categoryId}/specifications`, data),
+  updateCategorySpecification: (id, data) => apiClient.put(`/settings/specifications/${id}`, data),
+  deleteCategorySpecification: (id) => apiClient.delete(`/settings/specifications/${id}`),
+  reorderCategorySpecifications: (categoryId, data) => apiClient.put(`/settings/categories/${categoryId}/specifications/reorder`, data),
+  
+  // Specification Templates (Legacy - kept for backward compatibility)
+  getSpecificationTemplates: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
   createSpecificationTemplate: (data) => apiClient.post('/specification-templates', data),
   updateSpecificationTemplate: (id, data) => apiClient.put(`/specification-templates/${id}`, data),
   deleteSpecificationTemplate: (id) => apiClient.delete(`/specification-templates/${id}`),

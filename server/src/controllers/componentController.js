@@ -261,7 +261,7 @@ export const deleteComponent = async (req, res, next) => {
       await client.query('BEGIN');
       
       // Delete from related tables first (foreign key constraints)
-      await client.query('DELETE FROM component_specifications WHERE component_id = $1', [id]);
+      await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
       await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
       await client.query('DELETE FROM inventory WHERE component_id = $1', [id]);
       await client.query('DELETE FROM footprint_sources WHERE component_id = $1', [id]);
@@ -288,10 +288,22 @@ export const getComponentSpecifications = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const result = await pool.query(
-      'SELECT * FROM component_specifications WHERE component_id = $1 ORDER BY spec_name',
-      [id]
-    );
+    // Use the view for convenient access to specifications with names and units
+    const result = await pool.query(`
+      SELECT 
+        csv.id,
+        csv.component_id,
+        cs.id as category_spec_id,
+        cs.spec_name,
+        cs.unit,
+        csv.spec_value,
+        cs.is_required,
+        cs.display_order
+      FROM component_specification_values csv
+      JOIN category_specifications cs ON csv.category_spec_id = cs.id
+      WHERE csv.component_id = $1
+      ORDER BY cs.display_order, cs.spec_name
+    `, [id]);
 
     res.json(result.rows);
   } catch (error) {
@@ -309,28 +321,44 @@ export const updateComponentSpecifications = async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
-      // Delete existing specifications
-      await client.query('DELETE FROM component_specifications WHERE component_id = $1', [id]);
+      // Delete existing specification values
+      await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
 
-      // Insert new specifications (filter out empty ones)
+      // Insert new specification values (filter out empty ones)
       if (specifications && Array.isArray(specifications)) {
         for (const spec of specifications) {
-          // Skip specifications with empty name or value
-          if (!spec.spec_name || !spec.spec_value) continue;
+          // Skip specifications with empty value or missing category_spec_id
+          if (!spec.category_spec_id || !spec.spec_value || spec.spec_value.trim() === '') continue;
           
           await client.query(`
-            INSERT INTO component_specifications (component_id, spec_name, spec_value, unit)
-            VALUES ($1, $2, $3, $4)
-          `, [id, spec.spec_name, spec.spec_value, spec.unit || null]);
+            INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (component_id, category_spec_id)
+            DO UPDATE SET 
+              spec_value = EXCLUDED.spec_value,
+              updated_at = CURRENT_TIMESTAMP
+          `, [id, spec.category_spec_id, spec.spec_value]);
         }
       }
 
       await client.query('COMMIT');
 
-      const result = await client.query(
-        'SELECT * FROM component_specifications WHERE component_id = $1',
-        [id]
-      );
+      // Return updated specifications with full details
+      const result = await client.query(`
+        SELECT 
+          csv.id,
+          csv.component_id,
+          cs.id as category_spec_id,
+          cs.spec_name,
+          cs.unit,
+          csv.spec_value,
+          cs.is_required,
+          cs.display_order
+        FROM component_specification_values csv
+        JOIN category_specifications cs ON csv.category_spec_id = cs.id
+        WHERE csv.component_id = $1
+        ORDER BY cs.display_order, cs.spec_name
+      `, [id]);
 
       res.json(result.rows);
     } catch (error) {

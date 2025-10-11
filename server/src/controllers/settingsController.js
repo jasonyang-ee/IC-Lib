@@ -454,3 +454,206 @@ export const createCategory = async (req, res) => {
     });
   }
 };
+
+/**
+ * GET /api/settings/categories/:categoryId/specifications
+ * Get all specifications for a specific category
+ */
+export const getCategorySpecifications = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        id,
+        category_id,
+        spec_name,
+        unit,
+        display_order,
+        is_required,
+        created_at,
+        updated_at
+      FROM category_specifications
+      WHERE category_id = $1
+      ORDER BY display_order ASC, spec_name ASC
+    `, [categoryId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching category specifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch category specifications',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * POST /api/settings/categories/:categoryId/specifications
+ * Create a new specification for a category
+ */
+export const createCategorySpecification = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { spec_name, unit, display_order, is_required } = req.body;
+    
+    if (!spec_name || spec_name.trim() === '') {
+      return res.status(400).json({ error: 'spec_name is required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO category_specifications 
+        (category_id, spec_name, unit, display_order, is_required)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [
+      categoryId, 
+      spec_name.trim(), 
+      unit || null, 
+      display_order || 0, 
+      is_required || false
+    ]);
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating category specification:', error);
+    
+    // Handle unique constraint violation
+    if (error.code === '23505') {
+      return res.status(409).json({ 
+        error: 'This specification already exists for this category' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create category specification',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * PUT /api/settings/specifications/:id
+ * Update a category specification
+ */
+export const updateCategorySpecification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { spec_name, unit, display_order, is_required } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE category_specifications
+      SET 
+        spec_name = COALESCE($1, spec_name),
+        unit = COALESCE($2, unit),
+        display_order = COALESCE($3, display_order),
+        is_required = COALESCE($4, is_required),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING *
+    `, [spec_name, unit, display_order, is_required, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Specification not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating category specification:', error);
+    
+    // Handle unique constraint violation
+    if (error.code === '23505') {
+      return res.status(409).json({ 
+        error: 'A specification with this name already exists for this category' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to update category specification',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * DELETE /api/settings/specifications/:id
+ * Delete a category specification (will cascade delete all component values)
+ */
+export const deleteCategorySpecification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      DELETE FROM category_specifications
+      WHERE id = $1
+      RETURNING *
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Specification not found' });
+    }
+    
+    res.json({ 
+      success: true,
+      message: 'Specification deleted successfully',
+      deleted: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error deleting category specification:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete category specification',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * PUT /api/settings/categories/:categoryId/specifications/reorder
+ * Batch update display order for specifications
+ */
+export const reorderCategorySpecifications = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { specifications } = req.body; // Array of {id, display_order}
+    
+    if (!Array.isArray(specifications)) {
+      return res.status(400).json({ error: 'specifications must be an array' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      for (const spec of specifications) {
+        await client.query(`
+          UPDATE category_specifications
+          SET display_order = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2 AND category_id = $3
+        `, [spec.display_order, spec.id, categoryId]);
+      }
+      
+      await client.query('COMMIT');
+      
+      // Return updated list
+      const result = await client.query(`
+        SELECT * FROM category_specifications
+        WHERE category_id = $1
+        ORDER BY display_order ASC, spec_name ASC
+      `, [categoryId]);
+      
+      res.json(result.rows);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error reordering category specifications:', error);
+    res.status(500).json({ 
+      error: 'Failed to reorder specifications',
+      message: error.message 
+    });
+  }
+};
+

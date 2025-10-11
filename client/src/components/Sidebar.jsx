@@ -54,7 +54,7 @@ const Sidebar = () => {
       {/* Footer */}
       <div className="p-4 border-t border-gray-700">
         <p className="text-xs text-gray-500 text-center">
-          © 2025 IC Lib. All rights reserved.
+          © 2025 IC Lib. AGPL-3.0 Licensed Application.
         </p>
       </div>
     </div>

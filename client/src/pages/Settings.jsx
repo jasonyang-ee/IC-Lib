@@ -1,7 +1,351 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sun, Moon, Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus } from 'lucide-react';
+import { Sun, Moon, Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2 } from 'lucide-react';
 import { api } from '../utils/api';
+
+// Category Specifications Manager Component
+const CategorySpecificationsManager = () => {
+  const queryClient = useQueryClient();
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [isAddingSpec, setIsAddingSpec] = useState(false);
+  const [editingSpec, setEditingSpec] = useState(null);
+  const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', is_required: false });
+  const [tempSpec, setTempSpec] = useState({});
+
+  // Fetch categories
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await api.getCategories();
+      return response.data;
+    },
+  });
+
+  // Fetch specifications for selected category
+  const { data: specifications, isLoading: loadingSpecs } = useQuery({
+    queryKey: ['categorySpecifications', selectedCategory],
+    enabled: !!selectedCategory,
+    queryFn: async () => {
+      const response = await api.getCategorySpecifications(selectedCategory);
+      return response.data;
+    },
+  });
+
+  // Create specification mutation
+  const createSpecMutation = useMutation({
+    mutationFn: async (data) => {
+      await api.createCategorySpecification(selectedCategory, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      setIsAddingSpec(false);
+      setNewSpec({ spec_name: '', unit: '', is_required: false });
+    },
+  });
+
+  // Update specification mutation
+  const updateSpecMutation = useMutation({
+    mutationFn: async ({ id, data }) => {
+      await api.updateCategorySpecification(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      setEditingSpec(null);
+    },
+  });
+
+  // Delete specification mutation
+  const deleteSpecMutation = useMutation({
+    mutationFn: async (id) => {
+      await api.deleteCategorySpecification(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+    },
+  });
+
+  const handleAddSpec = () => {
+    if (newSpec.spec_name.trim()) {
+      const maxOrder = specifications?.reduce((max, spec) => Math.max(max, spec.display_order || 0), 0) || 0;
+      createSpecMutation.mutate({
+        ...newSpec,
+        display_order: maxOrder + 1,
+      });
+    }
+  };
+
+  const handleEditSpec = (spec) => {
+    setEditingSpec(spec.id);
+    setTempSpec({ ...spec });
+  };
+
+  const handleSaveSpec = () => {
+    if (editingSpec) {
+      updateSpecMutation.mutate({
+        id: editingSpec,
+        data: tempSpec,
+      });
+    }
+  };
+
+  const handleDeleteSpec = (id) => {
+    if (window.confirm('Delete this specification? This will also remove all component values for this specification.')) {
+      deleteSpecMutation.mutate(id);
+    }
+  };
+
+  return (
+    <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        Category Specifications
+      </h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Manage specification fields for each category. All components in a category will use these specifications.
+      </p>
+
+      {/* Category Selector */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Select Category
+        </label>
+        <select
+          value={selectedCategory}
+          onChange={(e) => {
+            setSelectedCategory(e.target.value);
+            setIsAddingSpec(false);
+            setEditingSpec(null);
+          }}
+          className="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+        >
+          <option value="">-- Select a category --</option>
+          {categories?.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selectedCategory && (
+        <>
+          {/* Add Specification Form */}
+          <div className="mb-4">
+            <button
+              onClick={() => setIsAddingSpec(!isAddingSpec)}
+              className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+            >
+              {isAddingSpec ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {isAddingSpec ? 'Cancel' : 'Add Specification'}
+            </button>
+          </div>
+
+          {isAddingSpec && (
+            <div className="mb-4 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    Specification Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newSpec.spec_name}
+                    onChange={(e) => setNewSpec({ ...newSpec, spec_name: e.target.value })}
+                    placeholder="e.g., Capacitance, Voltage Rating"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={newSpec.unit}
+                    onChange={(e) => setNewSpec({ ...newSpec, unit: e.target.value })}
+                    placeholder="e.g., F, V, Ω"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={newSpec.is_required}
+                      onChange={(e) => setNewSpec({ ...newSpec, is_required: e.target.checked })}
+                      className="rounded border-gray-300 dark:border-[#444444]"
+                    />
+                    Required
+                  </label>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={handleAddSpec}
+                  disabled={!newSpec.spec_name.trim() || createSpecMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {createSpecMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Add Specification
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Specifications List */}
+          {loadingSpecs ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            </div>
+          ) : specifications && specifications.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Specification Name
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Unit
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Required
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Display Order
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {specifications.map((spec) => (
+                    <tr
+                      key={spec.id}
+                      className="border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333]"
+                    >
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <input
+                            type="text"
+                            value={tempSpec.spec_name}
+                            onChange={(e) => setTempSpec({ ...tempSpec, spec_name: e.target.value })}
+                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          />
+                        ) : (
+                          <span className="text-gray-900 dark:text-gray-100">{spec.spec_name}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <input
+                            type="text"
+                            value={tempSpec.unit || ''}
+                            onChange={(e) => setTempSpec({ ...tempSpec, unit: e.target.value })}
+                            className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          />
+                        ) : (
+                          <span className="text-gray-600 dark:text-gray-400 text-sm">
+                            {spec.unit || '-'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <input
+                            type="checkbox"
+                            checked={tempSpec.is_required}
+                            onChange={(e) => setTempSpec({ ...tempSpec, is_required: e.target.checked })}
+                            className="rounded border-gray-300 dark:border-[#444444]"
+                          />
+                        ) : (
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                              spec.is_required
+                                ? 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                            }`}
+                          >
+                            {spec.is_required ? 'Required' : 'Optional'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <input
+                            type="number"
+                            value={tempSpec.display_order}
+                            onChange={(e) =>
+                              setTempSpec({ ...tempSpec, display_order: parseInt(e.target.value) || 0 })
+                            }
+                            className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          />
+                        ) : (
+                          <span className="text-gray-600 dark:text-gray-400 text-sm">
+                            {spec.display_order}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleSaveSpec}
+                              disabled={updateSpecMutation.isPending}
+                              className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingSpec(null)}
+                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditSpec(spec)}
+                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSpec(spec.id)}
+                              disabled={deleteSpecMutation.isPending}
+                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p>No specifications defined for this category yet.</p>
+              <p className="text-sm mt-2">Click "Add Specification" to create one.</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 // Settings Page - Updated with Advanced Operations
 const Settings = () => {
@@ -509,6 +853,9 @@ const Settings = () => {
           </div>
         )}
       </div>
+
+      {/* Category Specifications Management */}
+      <CategorySpecificationsManager />
 
       <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h3>

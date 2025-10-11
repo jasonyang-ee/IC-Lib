@@ -114,20 +114,11 @@ CREATE TABLE IF NOT EXISTS components (
 -- PART 3: SUPPORTING TABLES
 -- ============================================================================
 
--- Table: component_specifications
--- Stores additional specifications as key-value pairs
-CREATE TABLE IF NOT EXISTS component_specifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    component_id UUID REFERENCES components(id) ON DELETE CASCADE,
-    spec_name VARCHAR(100) NOT NULL,
-    spec_value VARCHAR(500),
-    unit VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Table: specification_templates
--- Stores pre-defined specification names per category for auto-population
-CREATE TABLE IF NOT EXISTS specification_templates (
+-- Table: category_specifications
+-- Master list of specification names/fields per category
+-- This defines what specifications are available for each category
+-- Managed in the Settings page
+CREATE TABLE IF NOT EXISTS category_specifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_id INTEGER REFERENCES component_categories(id) ON DELETE CASCADE,
     spec_name VARCHAR(100) NOT NULL,
@@ -135,7 +126,22 @@ CREATE TABLE IF NOT EXISTS specification_templates (
     display_order INTEGER DEFAULT 0,
     is_required BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(category_id, spec_name)
+);
+
+-- Table: component_specification_values
+-- Stores the actual specification values for each component
+-- Links to category_specifications for the spec definition
+-- Each component stores its own values, but all use the same spec names from their category
+CREATE TABLE IF NOT EXISTS component_specification_values (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    component_id UUID REFERENCES components(id) ON DELETE CASCADE,
+    category_spec_id UUID REFERENCES category_specifications(id) ON DELETE CASCADE,
+    spec_value VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(component_id, category_spec_id)
 );
 
 -- Table: distributor_info
@@ -195,13 +201,13 @@ CREATE INDEX IF NOT EXISTS idx_components_part_number ON components(part_number)
 CREATE INDEX IF NOT EXISTS idx_components_status ON components(status);
 -- Note: part_type index removed as column is no longer generated
 
--- Component specifications indexes
-CREATE INDEX IF NOT EXISTS idx_comp_specs_component ON component_specifications(component_id);
-CREATE INDEX IF NOT EXISTS idx_comp_specs_name ON component_specifications(spec_name);
+-- Category specifications indexes
+CREATE INDEX IF NOT EXISTS idx_category_specs_category ON category_specifications(category_id);
+CREATE INDEX IF NOT EXISTS idx_category_specs_display_order ON category_specifications(display_order);
 
--- Specification templates indexes
-CREATE INDEX IF NOT EXISTS idx_spec_templates_category ON specification_templates(category_id);
-CREATE INDEX IF NOT EXISTS idx_spec_templates_display_order ON specification_templates(display_order);
+-- Component specification values indexes
+CREATE INDEX IF NOT EXISTS idx_comp_spec_values_component ON component_specification_values(component_id);
+CREATE INDEX IF NOT EXISTS idx_comp_spec_values_category_spec ON component_specification_values(category_spec_id);
 
 -- Distributor info indexes
 CREATE INDEX IF NOT EXISTS idx_distributor_info_component ON distributor_info(component_id);
@@ -237,6 +243,16 @@ CREATE TRIGGER update_inventory_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_category_specs_updated_at
+    BEFORE UPDATE ON category_specifications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_comp_spec_values_updated_at
+    BEFORE UPDATE ON component_specification_values
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ============================================================================
 -- PART 6: VIEWS FOR COMMON QUERIES
 -- ============================================================================
@@ -262,6 +278,28 @@ LEFT JOIN (
     GROUP BY component_id
 ) inv ON c.id = inv.component_id
 GROUP BY c.id, cat.name, cat.prefix, m.name, m.website, inv.total_quantity;
+
+-- View: component_specifications_view
+-- Convenient view to see component specifications with their names and units
+CREATE OR REPLACE VIEW component_specifications_view AS
+SELECT 
+    csv.id,
+    csv.component_id,
+    c.part_number,
+    c.category_id,
+    cat.name as category_name,
+    cs.spec_name,
+    cs.unit,
+    csv.spec_value,
+    cs.is_required,
+    cs.display_order,
+    csv.created_at,
+    csv.updated_at
+FROM component_specification_values csv
+JOIN category_specifications cs ON csv.category_spec_id = cs.id
+JOIN components c ON csv.component_id = c.id
+JOIN component_categories cat ON c.category_id = cat.id
+ORDER BY csv.component_id, cs.display_order;
 
 -- ============================================================================
 -- PART 6: HELPER FUNCTION FOR PART_TYPE
@@ -330,11 +368,11 @@ INSERT INTO schema_version (version, description) VALUES
 ON CONFLICT (version) DO NOTHING;
 
 -- ============================================================================
--- Sample Specification Templates
+-- Sample Category Specifications (Master Spec Definitions)
 -- ============================================================================
 
--- Capacitors templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- Capacitors specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (1, 'Capacitance', 'F', 1, true),
     (1, 'Voltage Rating', 'V', 2, true),
     (1, 'Tolerance', '%', 3, false),
@@ -344,8 +382,8 @@ INSERT INTO specification_templates (category_id, spec_name, unit, display_order
     (1, 'Operating Temperature', '°C', 7, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Resistors templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- Resistors specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (2, 'Resistance', 'Ω', 1, true),
     (2, 'Power Rating', 'W', 2, true),
     (2, 'Tolerance', '%', 3, false),
@@ -353,8 +391,8 @@ INSERT INTO specification_templates (category_id, spec_name, unit, display_order
     (2, 'Operating Temperature', '°C', 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Inductors templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- Inductors specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (3, 'Inductance', 'H', 1, true),
     (3, 'Current Rating', 'A', 2, true),
     (3, 'Tolerance', '%', 3, false),
@@ -363,16 +401,16 @@ INSERT INTO specification_templates (category_id, spec_name, unit, display_order
     (3, 'Self-Resonant Frequency', 'Hz', 6, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Diodes templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- Diodes specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (4, 'Forward Voltage', 'V', 1, false),
     (4, 'Current Rating', 'A', 2, true),
     (4, 'Reverse Voltage', 'V', 3, false),
     (4, 'Power Dissipation', 'W', 4, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Transistors templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- Transistors specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (5, 'Transistor Type', '', 1, true),
     (5, 'VDS/VCE Max', 'V', 2, true),
     (5, 'ID/IC Max', 'A', 3, true),
@@ -381,8 +419,8 @@ INSERT INTO specification_templates (category_id, spec_name, unit, display_order
     (5, 'RDS(on)', 'Ω', 6, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- ICs templates
-INSERT INTO specification_templates (category_id, spec_name, unit, display_order, is_required) VALUES
+-- ICs specifications
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
     (6, 'Supply Voltage', 'V', 1, true),
     (6, 'Operating Current', 'A', 2, false),
     (6, 'Operating Temperature', '°C', 3, false),

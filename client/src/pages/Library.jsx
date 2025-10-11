@@ -107,6 +107,7 @@ const Library = () => {
     setIsEditMode(true);
     setIsAddMode(false);
     // Map all fields properly for editing
+    // Specifications already have category_spec_id from the backend
     setEditData({
       ...componentDetails,
       manufacturer_id: componentDetails?.manufacturer_id || '',
@@ -125,8 +126,15 @@ const Library = () => {
         // Update component basic data
         await updateMutation.mutateAsync({ id: selectedComponent.id, data: componentData });
         
-        // Filter and update specifications (only non-empty ones)
-        const validSpecs = specifications?.filter(spec => spec.spec_name && spec.spec_value) || [];
+        // Filter and update specifications (only non-empty values)
+        // Ensure we're sending category_spec_id and spec_value
+        const validSpecs = specifications?.filter(spec => 
+          spec.category_spec_id && spec.spec_value && spec.spec_value.trim() !== ''
+        ).map(spec => ({
+          category_spec_id: spec.category_spec_id,
+          spec_value: spec.spec_value
+        })) || [];
+        
         if (validSpecs.length > 0) {
           await api.updateComponentSpecifications(selectedComponent.id, { specifications: validSpecs });
         } else {
@@ -235,22 +243,27 @@ const Library = () => {
       const nextPartNumber = generateNextPartNumber(categoryId);
       handleFieldChange('part_number', nextPartNumber);
       
-      // Load specification templates for this category
+      // Load category specifications (from new schema)
       try {
-        const response = await api.getSpecificationTemplates(categoryId);
-        const templates = response.data || [];
+        const response = await api.getCategorySpecifications(categoryId);
+        const categorySpecs = response.data || [];
         
-        // Convert templates to specifications with empty values
-        const autoSpecs = templates.map(template => ({
-          spec_name: template.spec_name,
+        // Convert category specs to editable format with empty values
+        // Store category_spec_id to link back to the master spec definition
+        const autoSpecs = categorySpecs.map(spec => ({
+          category_spec_id: spec.id,
+          spec_name: spec.spec_name,
           spec_value: '',
-          unit: template.unit || ''
+          unit: spec.unit || '',
+          is_required: spec.is_required,
+          display_order: spec.display_order
         }));
         
         handleFieldChange('specifications', autoSpecs);
       } catch (error) {
-        console.error('Error loading specification templates:', error);
+        console.error('Error loading category specifications:', error);
         // Continue without templates if error occurs
+        handleFieldChange('specifications', []);
       }
     }
   };
@@ -265,8 +278,15 @@ const Library = () => {
         const response = await addMutation.mutateAsync(componentData);
         const newComponentId = response.data?.id;
         
-        // Filter and add specifications (only non-empty ones)
-        const validSpecs = specifications?.filter(spec => spec.spec_name && spec.spec_value) || [];
+        // Filter and add specifications (only non-empty values)
+        // Ensure we're sending category_spec_id and spec_value
+        const validSpecs = specifications?.filter(spec => 
+          spec.category_spec_id && spec.spec_value && spec.spec_value.trim() !== ''
+        ).map(spec => ({
+          category_spec_id: spec.category_spec_id,
+          spec_value: spec.spec_value
+        })) || [];
+        
         if (newComponentId && validSpecs.length > 0) {
           await api.updateComponentSpecifications(newComponentId, { specifications: validSpecs });
         }
@@ -481,10 +501,10 @@ const Library = () => {
                 <table className="w-full">
                   <colgroup>
                     {bulkDeleteMode && <col style={{width: '48px'}} />}
-                    <col style={{width: '200px'}} /> {/* Part Number - 2x bigger */}
+                    <col style={{width: '150px'}} /> {/* Part Number*/}
                     <col style={{width: '180px'}} /> {/* MFR Part # */}
+                    <col style={{width: '120px'}} /> {/* Value - new position */}
                     <col style={{width: 'auto'}} />   {/* Description - takes remaining space */}
-                    <col style={{width: '180px'}} /> {/* Part Type */}
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
                     <tr>
@@ -506,8 +526,8 @@ const Library = () => {
                       )}
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFR Part #</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Type</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -531,10 +551,8 @@ const Library = () => {
                         )}
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{component.part_number}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_part_number || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 50) || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                          {component.part_type || component.category_name || 'N/A'}
-                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.value || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 80) || 'N/A'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -745,63 +763,36 @@ const Library = () => {
                   {/* Specifications Section */}
                   <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h4>
-                    {(editData.specifications || []).map((spec, index) => (
-                      <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={spec.spec_name || ''}
-                          onChange={(e) => {
-                            const newSpecs = [...(editData.specifications || [])];
-                            newSpecs[index] = { ...newSpecs[index], spec_name: e.target.value };
-                            handleFieldChange('specifications', newSpecs);
-                          }}
-                          placeholder="Name (e.g., Resistance)"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                        />
-                        <input
-                          type="text"
-                          value={spec.spec_value || ''}
-                          onChange={(e) => {
-                            const newSpecs = [...(editData.specifications || [])];
-                            newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
-                            handleFieldChange('specifications', newSpecs);
-                          }}
-                          placeholder="Value (e.g., 10k)"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                        />
-                        <input
-                          type="text"
-                          value={spec.unit || ''}
-                          onChange={(e) => {
-                            const newSpecs = [...(editData.specifications || [])];
-                            newSpecs[index] = { ...newSpecs[index], unit: e.target.value };
-                            handleFieldChange('specifications', newSpecs);
-                          }}
-                          placeholder="Unit (Ω)"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100 w-20"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newSpecs = (editData.specifications || []).filter((_, i) => i !== index);
-                            handleFieldChange('specifications', newSpecs);
-                          }}
-                          className="px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newSpecs = [...(editData.specifications || []), { spec_name: '', spec_value: '', unit: '' }];
-                        handleFieldChange('specifications', newSpecs);
-                      }}
-                      className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> Add Specification
-                    </button>
+                    {(editData.specifications || []).length > 0 ? (
+                      (editData.specifications || []).map((spec, index) => (
+                        <div key={index} className="grid grid-cols-[2fr_2fr_1fr] gap-2 mb-2">
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {spec.spec_name}
+                              {spec.is_required && <span className="text-red-500 ml-1">*</span>}
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={spec.spec_value || ''}
+                            onChange={(e) => {
+                              const newSpecs = [...(editData.specifications || [])];
+                              newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
+                              handleFieldChange('specifications', newSpecs);
+                            }}
+                            placeholder={`Enter ${spec.spec_name.toLowerCase()}`}
+                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                          />
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            {spec.unit || ''}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {isAddMode ? 'Select a category to see available specifications' : 'No specifications defined for this category'}
+                      </p>
+                    )}
                   </div>
 
                   {/* Distributors Section */}
