@@ -6,6 +6,7 @@ import ManufacturerLibrary from './pages/ManufacturerLibrary'
 import Inventory from './pages/Inventory'
 import VendorSearch from './pages/VendorSearch'
 import Reports from './pages/Reports'
+import Audit from './pages/Audit'
 import Settings from './pages/Settings'
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/vendor-search" element={<VendorSearch />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/audit" element={<Audit />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

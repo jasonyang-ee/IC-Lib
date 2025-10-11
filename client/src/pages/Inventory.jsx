@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Package, AlertCircle, MapPin, Search, Edit, Barcode, Printer, Copy, Check } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check } from 'lucide-react';
 
 const Inventory = () => {
   const queryClient = useQueryClient();
@@ -317,7 +317,6 @@ const Inventory = () => {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <MapPin className="w-3 h-3 text-gray-400" />
                           <span className="text-gray-900 dark:text-gray-100">{item.location || 'Not set'}</span>
                           <button
                             onClick={() => handleEditLocation(item)}

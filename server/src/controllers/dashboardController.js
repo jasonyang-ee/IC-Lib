@@ -59,11 +59,34 @@ export const getRecentActivities = async (req, res, next) => {
         description,
         category_name,
         activity_type,
+        change_details,
         created_at
       FROM activity_log
       ORDER BY created_at DESC
       LIMIT $1
     `, [limit]);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllActivities = async (req, res, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        id,
+        component_id,
+        part_number,
+        description,
+        category_name,
+        activity_type,
+        change_details,
+        created_at
+      FROM activity_log
+      ORDER BY created_at DESC
+    `);
 
     res.json(result.rows);
   } catch (error) {

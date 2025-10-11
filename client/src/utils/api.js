@@ -89,6 +89,9 @@ export const api = {
   getLowStockReport: () => apiClient.get('/reports/low-stock'),
   customReport: (data) => apiClient.post('/reports/custom', data),
 
+  // Audit Log
+  getAuditLog: () => apiClient.get('/dashboard/activities/all'),
+
   // Distributors
   getDistributors: () => apiClient.get('/distributors'),
 

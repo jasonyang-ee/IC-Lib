@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, Edit, Trash2 } from 'lucide-react';
+import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, Edit, Trash2, Minus, MapPin } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -219,11 +219,43 @@ const Dashboard = () => {
                   iconColor: 'text-red-600 dark:text-red-400',
                   badgeColor: 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
                   label: 'Deleted'
+                },
+                inventory_updated: {
+                  icon: TrendingUp,
+                  bgColor: 'bg-green-100 dark:bg-green-900',
+                  iconColor: 'text-green-600 dark:text-green-400',
+                  badgeColor: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
+                  label: 'Qty Updated'
+                },
+                inventory_consumed: {
+                  icon: Minus,
+                  bgColor: 'bg-orange-100 dark:bg-orange-900',
+                  iconColor: 'text-orange-600 dark:text-orange-400',
+                  badgeColor: 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200',
+                  label: 'Consumed'
+                },
+                location_updated: {
+                  icon: MapPin,
+                  bgColor: 'bg-purple-100 dark:bg-purple-900',
+                  iconColor: 'text-purple-600 dark:text-purple-400',
+                  badgeColor: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200',
+                  label: 'Location'
                 }
               };
 
               const config = activityConfig[activity.activity_type] || activityConfig.added;
               const IconComponent = config.icon;
+
+              // Parse change details if available
+              let changeText = '';
+              if (activity.change_details) {
+                const details = activity.change_details;
+                if (activity.activity_type === 'inventory_updated' || activity.activity_type === 'inventory_consumed') {
+                  changeText = ` (${details.old_quantity} → ${details.new_quantity})`;
+                } else if (activity.activity_type === 'location_updated') {
+                  changeText = ` (${details.old_location || 'None'} → ${details.new_location})`;
+                }
+              }
 
               return (
                 <div key={index} className="flex items-start gap-3 pb-3 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
@@ -233,6 +265,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {activity.part_number}
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-normal">{changeText}</span>
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {activity.description || 'No description'}

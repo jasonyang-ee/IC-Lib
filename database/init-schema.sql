@@ -439,7 +439,8 @@ CREATE TABLE IF NOT EXISTS activity_log (
     part_number VARCHAR(100) NOT NULL,
     description TEXT,
     category_name VARCHAR(100),
-    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted'
+    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted', 'inventory_updated', 'inventory_consumed', 'location_updated'
+    change_details JSONB, -- Store old/new values for inventory operations
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
