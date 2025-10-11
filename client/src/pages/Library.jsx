@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -14,6 +14,7 @@ const Library = () => {
   const [editData, setEditData] = useState({});
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
+  const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -204,15 +205,38 @@ const Library = () => {
   };
 
   const handleDelete = () => {
-    if (selectedComponent && window.confirm('Are you sure you want to delete this component?')) {
-      deleteMutation.mutate(selectedComponent.id);
+    if (selectedComponent) {
+      setDeleteConfirmation({ 
+        show: true, 
+        type: 'single', 
+        count: 1, 
+        componentName: selectedComponent.part_number || 'this component' 
+      });
     }
   };
 
   const handleBulkDelete = () => {
-    if (selectedForDelete.size > 0 && window.confirm(`Are you sure you want to delete ${selectedForDelete.size} component(s)?`)) {
+    if (selectedForDelete.size > 0) {
+      setDeleteConfirmation({ 
+        show: true, 
+        type: 'bulk', 
+        count: selectedForDelete.size, 
+        componentName: '' 
+      });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmation.type === 'single') {
+      deleteMutation.mutate(selectedComponent.id);
+    } else if (deleteConfirmation.type === 'bulk') {
       deleteMutation.mutate(Array.from(selectedForDelete));
     }
+    setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
 
   const handleAddNew = () => {
@@ -1103,6 +1127,48 @@ const Library = () => {
           </div>
         </div>
       </div>
+
+      {/* Modern Delete Confirmation Modal */}
+      {deleteConfirmation.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20">
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Confirm Deletion
+            </h3>
+            
+            {/* Message */}
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+              {deleteConfirmation.type === 'single' 
+                ? `Are you sure you want to delete "${deleteConfirmation.componentName}"? This action cannot be undone.`
+                : `Are you sure you want to delete ${deleteConfirmation.count} component(s)? This action cannot be undone.`
+              }
+            </p>
+            
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
