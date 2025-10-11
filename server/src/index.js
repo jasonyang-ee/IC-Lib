@@ -4,6 +4,14 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root (two directories up from src/index.js)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Import routes
 import componentRoutes from './routes/components.js';
@@ -18,10 +26,14 @@ import settingsRoutes from './routes/settings.js';
 import adminRoutes from './routes/admin.js';
 import specificationTemplateRoutes from './routes/specificationTemplates.js';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3500;
+
+// Log API configuration status (for debugging)
+console.log('API Configuration Status:');
+console.log('  DIGIKEY_CLIENT_ID:', process.env.DIGIKEY_CLIENT_ID ? '✓ Set' : '✗ Not set');
+console.log('  DIGIKEY_CLIENT_SECRET:', process.env.DIGIKEY_CLIENT_SECRET ? '✓ Set' : '✗ Not set');
+console.log('  MOUSER_API_KEY:', process.env.MOUSER_API_KEY ? '✓ Set' : '✗ Not set');
 
 // Middleware
 app.use(helmet());

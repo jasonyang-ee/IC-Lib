@@ -1,10 +1,7 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
 import pool from '../config/database.js';
 import fs from 'fs/promises';
 import path from 'path';
-
-dotenv.config();
 
 const FOOTPRINT_DOWNLOAD_DIR = process.env.FOOTPRINT_DOWNLOAD_DIR || './downloads/footprints';
 

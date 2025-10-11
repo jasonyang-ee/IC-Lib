@@ -1,9 +1,6 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
 
-dotenv.config();
-
-const DIGIKEY_API_BASE = 'https://api.digikey.com/v1';
+const DIGIKEY_API_BASE = 'https://api.digikey.com';
 let accessToken = null;
 let tokenExpiry = null;
 
@@ -32,7 +29,7 @@ async function getAccessToken() {
     tokenExpiry = Date.now() + (response.data.expires_in * 1000);
     return accessToken;
   } catch (error) {
-    console.error('Error getting Digikey access token:', error.message);
+    console.error('Error getting Digikey access token:', error.response?.data || error.message);
     throw new Error('Failed to authenticate with Digikey API');
   }
 }
@@ -43,48 +40,77 @@ export async function searchPart(partNumber) {
     const token = await getAccessToken();
 
     const response = await axios.post(
-      `${DIGIKEY_API_BASE}/Search/v3/Products/Keyword`,
+      `${DIGIKEY_API_BASE}/products/v4/search/keyword`,
       {
         Keywords: partNumber,
-        RecordCount: 10
+        Limit: 10,
+        Offset: 0,
+        FilterOptionsRequest: {
+          ManufacturerFilter: [],
+          MinimumQuantityAvailable: 0,
+          PackagingFilter: []
+        }
       },
       {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-DIGIKEY-Client-Id': process.env.DIGIKEY_CLIENT_ID,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-DIGIKEY-Locale-Site': 'US',
+          'X-DIGIKEY-Locale-Language': 'en',
+          'X-DIGIKEY-Locale-Currency': 'USD'
         }
       }
     );
 
+    // Debug: Log the first product to see the structure
+    if (response.data.Products && response.data.Products.length > 0) {
+      console.log('Sample Digikey Product Structure:', JSON.stringify(response.data.Products[0], null, 2));
+    }
+
     return {
       source: 'digikey',
-      results: response.data.Products?.map(product => ({
-        partNumber: product.DigiKeyPartNumber,
-        manufacturerPartNumber: product.ManufacturerPartNumber,
-        manufacturer: product.Manufacturer?.Name,
-        description: product.ProductDescription,
-        datasheet: product.PrimaryDatasheet,
-        pricing: product.StandardPricing?.map(price => ({
-          quantity: price.BreakQuantity,
-          price: price.UnitPrice,
-          currency: 'USD'
-        })),
-        stock: product.QuantityAvailable,
-        specifications: product.Parameters?.reduce((acc, param) => {
-          acc[param.Parameter] = {
-            value: param.Value,
-            unit: param.ValueType
-          };
-          return acc;
-        }, {}),
-        productUrl: product.ProductUrl
-      })) || []
+      results: response.data.Products?.map(product => {
+        // Get the first product variation (usually the primary packaging)
+        const primaryVariation = product.ProductVariations?.[0];
+        
+        return {
+          partNumber: primaryVariation?.DigiKeyProductNumber || 'N/A',
+          manufacturerPartNumber: product.ManufacturerProductNumber || 'N/A',
+          manufacturer: product.Manufacturer?.Name || 'N/A',
+          description: product.Description?.ProductDescription || product.Description?.DetailedDescription || 'N/A',
+          datasheet: product.DatasheetUrl || '',
+          pricing: primaryVariation?.StandardPricing?.map(price => ({
+            quantity: price.BreakQuantity,
+            price: price.UnitPrice,
+            currency: 'USD'
+          })) || (product.UnitPrice ? [{
+            quantity: 1,
+            price: product.UnitPrice,
+            currency: 'USD'
+          }] : []),
+          stock: product.QuantityAvailable || 0,
+          specifications: product.Parameters?.reduce((acc, param) => {
+            acc[param.ParameterText] = {
+              value: param.ValueText,
+              unit: param.ParameterType
+            };
+            return acc;
+          }, {}) || {},
+          productUrl: product.ProductUrl || '',
+          series: product.Series?.Name || '-',
+          category: product.Category?.Name || 'N/A',
+          packageType: primaryVariation?.PackageType?.Name || 'N/A',
+          minimumOrderQuantity: primaryVariation?.MinimumOrderQuantity || 1
+        };
+      }) || []
     };
   } catch (error) {
-    console.error('Digikey search error:', error.message);
+    console.error('Digikey search error:', error.response?.data || error.message);
+    console.error('Status:', error.response?.status);
+    console.error('Request URL:', error.config?.url);
     
-    // Return mock data for development if API is not configured
+    // Return error information
     if (error.message.includes('authenticate')) {
       return {
         source: 'digikey',
@@ -93,7 +119,19 @@ export async function searchPart(partNumber) {
       };
     }
     
-    throw error;
+    if (error.response?.status === 404) {
+      return {
+        source: 'digikey',
+        error: 'Digikey API endpoint not found. The API may have changed.',
+        results: []
+      };
+    }
+    
+    return {
+      source: 'digikey',
+      error: error.message || 'Unknown error occurred',
+      results: []
+    };
   }
 }
 
@@ -103,11 +141,14 @@ export async function getPartDetails(digikeyPartNumber) {
     const token = await getAccessToken();
 
     const response = await axios.get(
-      `${DIGIKEY_API_BASE}/Search/v3/Products/${digikeyPartNumber}`,
+      `${DIGIKEY_API_BASE}/products/v4/search/${digikeyPartNumber}/productdetails`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-DIGIKEY-Client-Id': process.env.DIGIKEY_CLIENT_ID
+          'X-DIGIKEY-Client-Id': process.env.DIGIKEY_CLIENT_ID,
+          'X-DIGIKEY-Locale-Site': 'US',
+          'X-DIGIKEY-Locale-Language': 'en',
+          'X-DIGIKEY-Locale-Currency': 'USD'
         }
       }
     );

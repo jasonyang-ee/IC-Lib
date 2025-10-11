@@ -1,7 +1,4 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const MOUSER_API_BASE = 'https://api.mouser.com/api/v1';
 const API_KEY = process.env.MOUSER_API_KEY;
