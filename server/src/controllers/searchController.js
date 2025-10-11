@@ -136,8 +136,8 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       } else {
         // Create new manufacturer
         const newManufacturer = await pool.query(
-          'INSERT INTO manufacturers (name, status) VALUES ($1, $2) RETURNING id',
-          [manufacturer, 'Active']
+          'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
+          [manufacturer]
         );
         manufacturerId = newManufacturer.rows[0].id;
       }

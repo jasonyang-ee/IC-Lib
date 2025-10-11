@@ -596,9 +596,9 @@ const Library = () => {
 
       {/* 4-Column Layout: Left Sidebar | Center List (wider) | Right Details | Specifications */}
       {/* Full screen width layout with wider component list */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(250px,1fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)] gap-4 min-h-[600px]">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)] gap-4 min-h-[600px]">
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:min-w-[250px]">
+        <div className="space-y-4 xl:min-w-[175px]">
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -1204,184 +1204,6 @@ const Library = () => {
             </div>
           </div>
 
-          {/* Vendor API Data - Shown only in Add Mode when coming from Vendor Search */}
-          {isAddMode && editData._vendorSearchData && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
-              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
-                <span className="text-lg">📦</span>
-                Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
-              </h3>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                Click any value to copy to clipboard
-              </p>
-              <div className="space-y-2 text-sm">
-                {/* Basic Info */}
-                <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturerPartNumber, 'MFG P/N')}
-                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium">MFG Part Number:</span>
-                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                      {editData._vendorSearchData.manufacturerPartNumber}
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </div>
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturer, 'Manufacturer')}
-                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium">Manufacturer:</span>
-                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                      {editData._vendorSearchData.manufacturer}
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </div>
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.description, 'Description')}
-                    className="flex flex-col py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium mb-1">Description:</span>
-                    <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-2">
-                      <span className="flex-1">{editData._vendorSearchData.description}</span>
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                    </span>
-                  </div>
-                </div>
-
-                {/* Package & Series */}
-                {(editData._vendorSearchData.packageType || editData._vendorSearchData.series) && (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    {editData._vendorSearchData.packageType && (
-                      <div 
-                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.packageType, 'Package')}
-                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                      >
-                        <span className="text-blue-700 dark:text-blue-300 font-medium">Package:</span>
-                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                          {editData._vendorSearchData.packageType}
-                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </span>
-                      </div>
-                    )}
-                    {editData._vendorSearchData.series && (
-                      <div 
-                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.series, 'Series')}
-                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                      >
-                        <span className="text-blue-700 dark:text-blue-300 font-medium">Series:</span>
-                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                          {editData._vendorSearchData.series}
-                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Distributor Info */}
-                {editData._vendorSearchData.distributor && (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <div 
-                      onClick={() => handleCopyToClipboard(editData._vendorSearchData.distributor.sku, 'Vendor SKU')}
-                      className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                    >
-                      <span className="text-blue-700 dark:text-blue-300 font-medium">Vendor SKU:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                        {editData._vendorSearchData.distributor.sku}
-                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 px-2">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium">Stock:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs">
-                        {editData._vendorSearchData.distributor.stock?.toLocaleString() || '0'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 px-2">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium">MOQ:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs">
-                        {editData._vendorSearchData.distributor.minimumOrderQuantity || '1'}
-                      </span>
-                    </div>
-                    {editData._vendorSearchData.distributor.pricing && editData._vendorSearchData.distributor.pricing.length > 0 && (
-                      <div className="mt-2">
-                        <span className="text-blue-700 dark:text-blue-300 font-medium block mb-1">Pricing:</span>
-                        <div className="space-y-1 pl-2">
-                          {editData._vendorSearchData.distributor.pricing.map((price, idx) => (
-                            <div 
-                              key={idx}
-                              onClick={() => handleCopyToClipboard(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
-                              className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                            >
-                              <span className="text-blue-800 dark:text-blue-200 text-xs">{price.quantity}+:</span>
-                              <span className="text-green-700 dark:text-green-400 font-mono text-xs flex items-center gap-2">
-                                ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
-                                <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Specifications */}
-                {editData._vendorSearchData.specifications && Object.keys(editData._vendorSearchData.specifications).length > 0 && (
-                  <div>
-                    <span className="text-blue-700 dark:text-blue-300 font-medium block mb-2">Specifications:</span>
-                    <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {Object.entries(editData._vendorSearchData.specifications).map(([key, val], idx) => {
-                        const displayValue = typeof val === 'object' ? val.value : val;
-                        const displayUnit = typeof val === 'object' ? val.unit : '';
-                        return (
-                          <div 
-                            key={idx}
-                            onClick={() => handleCopyToClipboard(`${displayValue}${displayUnit ? ' ' + displayUnit : ''}`, key)}
-                            className="flex justify-between items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                          >
-                            <span className="text-blue-700 dark:text-blue-300 text-xs flex-shrink-0 mr-2" style={{maxWidth: '40%'}}>
-                              {key}:
-                            </span>
-                            <span className="text-blue-900 dark:text-blue-100 text-xs text-right flex items-start gap-2 flex-1">
-                              <span className="flex-1">{displayValue} {displayUnit}</span>
-                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Datasheet */}
-                {editData._vendorSearchData.datasheet && (
-                  <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Datasheet:</span>
-                      <a 
-                        href={editData._vendorSearchData.datasheet}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all"
-                      >
-                        {editData._vendorSearchData.datasheet}
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Copy feedback */}
-              {copiedText && (
-                <div className="mt-3 text-xs text-center text-green-700 dark:text-green-400 font-medium animate-fade-in">
-                  ✓ Copied {copiedText}!
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Distributor Info - Always shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
@@ -1447,6 +1269,210 @@ const Library = () => {
 
         {/* Fourth Column - Component Specifications */}
         <div className="space-y-4 xl:min-w-[350px]">
+          {/* Vendor API Data - Shown only in Add Mode when coming from Vendor Search */}
+          {isAddMode && editData._vendorSearchData && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
+              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
+                <span className="text-lg">📦</span>
+                Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
+              </h3>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                Click any value to copy to clipboard • All data from vendor API
+              </p>
+              <div className="space-y-3 text-sm">
+                {/* Basic Info */}
+                <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
+                  <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Basic Information</p>
+                  <div 
+                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturerPartNumber, 'MFG P/N')}
+                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                  >
+                    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">MFG Part Number:</span>
+                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                      {editData._vendorSearchData.manufacturerPartNumber}
+                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
+                  </div>
+                  <div 
+                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturer, 'Manufacturer')}
+                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                  >
+                    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Manufacturer:</span>
+                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                      {editData._vendorSearchData.manufacturer}
+                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
+                  </div>
+                  <div 
+                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.description, 'Description')}
+                    className="flex flex-col py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                  >
+                    <span className="text-blue-700 dark:text-blue-300 font-medium mb-1 text-xs">Description:</span>
+                    <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-2">
+                      <span className="flex-1 whitespace-pre-wrap">{editData._vendorSearchData.description}</span>
+                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                    </span>
+                  </div>
+                  {editData._vendorSearchData.category && editData._vendorSearchData.category !== 'N/A' && (
+                    <div 
+                      onClick={() => handleCopyToClipboard(editData._vendorSearchData.category, 'Category')}
+                      className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                    >
+                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Category:</span>
+                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                        {editData._vendorSearchData.category}
+                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Package & Series */}
+                {(editData._vendorSearchData.packageType || editData._vendorSearchData.series) && (
+                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Package Details</p>
+                    {editData._vendorSearchData.packageType && editData._vendorSearchData.packageType !== 'N/A' && (
+                      <div 
+                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.packageType, 'Package')}
+                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                      >
+                        <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Package/Case:</span>
+                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                          {editData._vendorSearchData.packageType}
+                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                      </div>
+                    )}
+                    {editData._vendorSearchData.series && editData._vendorSearchData.series !== '-' && (
+                      <div 
+                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.series, 'Series')}
+                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                      >
+                        <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Series:</span>
+                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                          {editData._vendorSearchData.series}
+                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Distributor Info */}
+                {editData._vendorSearchData.distributor && (
+                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Distributor Information</p>
+                    <div 
+                      onClick={() => handleCopyToClipboard(editData._vendorSearchData.distributor.sku, 'Vendor SKU')}
+                      className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                    >
+                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Vendor SKU:</span>
+                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
+                        {editData._vendorSearchData.distributor.sku}
+                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 px-2">
+                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Stock Available:</span>
+                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs font-semibold">
+                        {editData._vendorSearchData.distributor.stock?.toLocaleString() || '0'} units
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 px-2">
+                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Min Order Qty:</span>
+                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs">
+                        {editData._vendorSearchData.distributor.minimumOrderQuantity || '1'}
+                      </span>
+                    </div>
+                    {editData._vendorSearchData.distributor.pricing && editData._vendorSearchData.distributor.pricing.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-900">
+                        <span className="text-blue-700 dark:text-blue-300 font-medium block mb-1 text-xs">Price Breaks:</span>
+                        <div className="space-y-1 pl-2">
+                          {editData._vendorSearchData.distributor.pricing.map((price, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => handleCopyToClipboard(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
+                              className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                            >
+                              <span className="text-blue-800 dark:text-blue-200 text-xs font-medium">{price.quantity}+ units:</span>
+                              <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2">
+                                ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
+                                <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Specifications */}
+                {editData._vendorSearchData.specifications && Object.keys(editData._vendorSearchData.specifications).length > 0 ? (
+                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide flex items-center justify-between">
+                      <span>Technical Specifications</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-normal normal-case">
+                        ({Object.keys(editData._vendorSearchData.specifications).length} specs)
+                      </span>
+                    </p>
+                    <div className="space-y-0.5 max-h-96 overflow-y-auto pr-1">
+                      {Object.entries(editData._vendorSearchData.specifications).map(([key, val], idx) => {
+                        const displayValue = typeof val === 'object' ? val.value : val;
+                        const displayUnit = typeof val === 'object' ? val.unit : '';
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={() => handleCopyToClipboard(`${displayValue}${displayUnit ? ' ' + displayUnit : ''}`, key)}
+                            className="flex justify-between items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors"
+                          >
+                            <span className="text-blue-700 dark:text-blue-300 text-xs font-medium flex-shrink-0 mr-2" style={{maxWidth: '45%'}}>
+                              {key}:
+                            </span>
+                            <span className="text-blue-900 dark:text-blue-100 text-xs text-right flex items-start gap-1 flex-1">
+                              <span className="flex-1 break-words">{displayValue} {displayUnit}</span>
+                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Technical Specifications</p>
+                    <p className="text-blue-600 dark:text-blue-400 text-xs italic">No specifications available from vendor API</p>
+                  </div>
+                )}
+
+                {/* Datasheet */}
+                {editData._vendorSearchData.datasheet && (
+                  <div className="pt-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Documentation</p>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Datasheet URL:</span>
+                      <a 
+                        href={editData._vendorSearchData.datasheet}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all font-mono bg-blue-100 dark:bg-blue-900/30 p-2 rounded"
+                      >
+                        {editData._vendorSearchData.datasheet}
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Copy feedback */}
+              {copiedText && (
+                <div className="mt-3 text-xs text-center text-green-700 dark:text-green-400 font-medium animate-fade-in bg-green-100 dark:bg-green-900/30 py-2 rounded">
+                  ✓ Copied "{copiedText}"!
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Component Specifications - Always shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>

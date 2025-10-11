@@ -32,7 +32,9 @@ const VendorSearch = () => {
       if (error.response?.status === 409) {
         alert(`This part already exists in the library as ${error.response.data.partNumber}.`);
       } else {
-        alert(`Error preparing part data: ${error.response?.data?.error || error.message}`);
+        const errorMsg = error.response?.data?.error || error.message || 'Unknown error occurred';
+        alert(`Error preparing part data: ${errorMsg}`);
+        console.error('Add to library error:', error.response?.data || error);
       }
     }
   });
