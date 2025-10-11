@@ -424,7 +424,6 @@ const Settings = () => {
     },
     onSuccess: () => {
       setDbOperationStatus({ show: true, type: 'success', message: 'Database initialized successfully!' });
-      refetchStats();
       queryClient.invalidateQueries(['categoryConfigs']);
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
@@ -442,7 +441,6 @@ const Settings = () => {
     },
     onSuccess: () => {
       setDbOperationStatus({ show: true, type: 'success', message: 'Sample data loaded successfully!' });
-      refetchStats();
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
@@ -482,7 +480,6 @@ const Settings = () => {
     },
     onSuccess: () => {
       setDbOperationStatus({ show: true, type: 'success', message: 'Database reset completed! All tables dropped and schema reinitialized.' });
-      refetchStats();
       queryClient.invalidateQueries(['categoryConfigs']);
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },

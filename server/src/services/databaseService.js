@@ -134,31 +134,11 @@ export const resetDatabase = async () => {
     await client.query(schema);
     results.steps.push('Reinitialized database schema');
 
-    // Load sample data statement by statement
-    try {
-      const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'init-sample-data.sql');
-      const sampleData = readFileSync(sampleDataPath, 'utf8');
-      
-      // Split into individual statements and execute one by one
-      const statements = splitSQLStatements(sampleData);
-      let executedCount = 0;
-      
-      for (const statement of statements) {
-        if (statement.trim().length > 0 && !statement.trim().startsWith('--')) {
-          await client.query(statement);
-          executedCount++;
-        }
-      }
-      
-      results.steps.push(`Loaded sample data (${executedCount} statements executed)`);
-    } catch (sampleError) {
-      console.error('Sample data error:', sampleError);
-      results.errors.push({ sampleData: sampleError.message });
-      results.steps.push('Warning: Sample data load failed (you can load it separately)');
-    }
-
+    // Note: Sample data is NOT loaded during reset to keep database clean
+    // Users can manually load sample data using the "Load Sample Data" button
+    
     results.success = true;
-    results.message = 'Database reset completed successfully. All tables dropped, schema reinitialized, and sample data loaded.';
+    results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized.';
     
   } catch (error) {
     results.success = false;

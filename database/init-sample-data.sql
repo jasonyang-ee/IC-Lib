@@ -30,11 +30,26 @@ VALUES (
 )
 ON CONFLICT (part_number) DO NOTHING;
 
-INSERT INTO component_specifications (component_id, spec_name, spec_value, unit) VALUES
-    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 'Resistance', '2200', 'Ω'),
-    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 'Tolerance', '1', '%'),
-    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 'Power Rating', '0.1', 'W')
-ON CONFLICT DO NOTHING;
+-- Add specifications for Resistor using new schema
+-- First ensure category specifications exist for Resistors (category_id = 2)
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
+    (2, 'Resistance', 'Ω', 1, true),
+    (2, 'Tolerance', '%', 2, true),
+    (2, 'Power Rating', 'W', 3, true)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Now insert component specification values
+INSERT INTO component_specification_values (component_id, category_spec_id, spec_value) VALUES
+    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 2 AND spec_name = 'Resistance'), 
+     '2200'),
+    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 2 AND spec_name = 'Tolerance'), 
+     '1'),
+    ((SELECT id FROM components WHERE part_number = 'RES-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 2 AND spec_name = 'Power Rating'), 
+     '0.1')
+ON CONFLICT (component_id, category_spec_id) DO NOTHING;
 
 INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity) VALUES
     ((SELECT id FROM components WHERE part_number = 'RES-0001'), (SELECT id FROM distributors WHERE name = 'Digikey'), '311-2.20KHRCT-ND', 'https://www.digikey.com/en/products/detail/yageo/RC0603FR-072K2L/727016', 0.10, 'USD', true, 50000)
@@ -58,11 +73,26 @@ VALUES (
 )
 ON CONFLICT (part_number) DO NOTHING;
 
-INSERT INTO component_specifications (component_id, spec_name, spec_value, unit) VALUES
-    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 'Capacitance', '0.1', 'uF'),
-    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 'Voltage Rating', '50', 'V'),
-    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 'Tolerance', '±10', '%')
-ON CONFLICT DO NOTHING;
+-- Add specifications for Capacitor using new schema
+-- First ensure category specifications exist for Capacitors (category_id = 1)
+INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
+    (1, 'Capacitance', 'uF', 1, true),
+    (1, 'Voltage Rating', 'V', 2, true),
+    (1, 'Tolerance', '%', 3, false)
+ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+-- Now insert component specification values
+INSERT INTO component_specification_values (component_id, category_spec_id, spec_value) VALUES
+    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 1 AND spec_name = 'Capacitance'), 
+     '0.1'),
+    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 1 AND spec_name = 'Voltage Rating'), 
+     '50'),
+    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), 
+     (SELECT id FROM category_specifications WHERE category_id = 1 AND spec_name = 'Tolerance'), 
+     '±10')
+ON CONFLICT (component_id, category_spec_id) DO NOTHING;
 
 INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity) VALUES
     ((SELECT id FROM components WHERE part_number = 'CAP-0001'), (SELECT id FROM distributors WHERE name = 'Digikey'), '399-1096-1-ND', 'https://www.digikey.com/en/products/detail/kemet/C0603C104K5RACTU/1465594', 0.12, 'USD', true, 250000)
