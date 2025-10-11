@@ -192,8 +192,9 @@ const Inventory = () => {
 
   // Generate label string with QR code data
   const generateLabelString = (item) => {
-    const qrData = item.manufacturer_pn || item.part_number;
-    return `MFG P/N: ${item.manufacturer_pn || 'N/A'}\nDesc: ${item.description?.substring(0, 50) || 'N/A'}\nQR: ${qrData}`;
+    const mfgPn = item.manufacturer_pn || 'N/A';
+    const desc = item.description || 'N/A';
+    return `${mfgPn}\n${desc}`;
   };
 
   const copyLabelToClipboard = (item) => {
@@ -205,7 +206,7 @@ const Inventory = () => {
   };
 
   const showQRCode = (item) => {
-    const qrData = item.manufacturer_pn || item.part_number;
+    const qrData = generateLabelString(item);
     setQrCodeModal({ item, qrData });
   };
 
