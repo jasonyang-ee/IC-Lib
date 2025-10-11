@@ -21,8 +21,8 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: |
-          ${{ secrets.USERNAME_DOCKERHUB }}/OrCAD-ComponentLibrary
-          ghcr.io/${{ github.actor }}/OrCAD-ComponentLibrary
+          ${{ secrets.USERNAME_DOCKERHUB }}/iclib
+          ghcr.io/${{ github.actor }}/iclib
         tags: type=ref,event=branch
         flavor: onlatest=false
 
