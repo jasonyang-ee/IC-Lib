@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Download, Plus, ExternalLink } from 'lucide-react';
 
 const VendorSearch = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
@@ -13,6 +15,26 @@ const VendorSearch = () => {
     onSuccess: (response) => {
       setSearchResults(response.data);
     },
+  });
+
+  const addToLibraryMutation = useMutation({
+    mutationFn: (partData) => api.addVendorPartToLibrary(partData),
+    onSuccess: (response) => {
+      // Navigate to Library page with vendor data pre-filled
+      navigate('/library', { 
+        state: { 
+          vendorData: response.data.vendorData,
+          source: selectedPart.source || 'vendor'
+        } 
+      });
+    },
+    onError: (error) => {
+      if (error.response?.status === 409) {
+        alert(`This part already exists in the library as ${error.response.data.partNumber}.`);
+      } else {
+        alert(`Error preparing part data: ${error.response?.data?.error || error.message}`);
+      }
+    }
   });
 
   const downloadFootprintMutation = useMutation({
@@ -29,6 +51,32 @@ const VendorSearch = () => {
     e.preventDefault();
     if (searchTerm.trim()) {
       searchMutation.mutate(searchTerm);
+    }
+  };
+
+  const handleAddToLibrary = () => {
+    if (selectedPart) {
+      // Determine source from search results
+      const source = searchResults?.digikey?.results?.find(p => p.partNumber === selectedPart.partNumber) 
+        ? 'digikey' 
+        : 'mouser';
+      
+      addToLibraryMutation.mutate({
+        partNumber: selectedPart.partNumber,
+        manufacturerPartNumber: selectedPart.manufacturerPartNumber,
+        manufacturer: selectedPart.manufacturer,
+        description: selectedPart.description,
+        datasheet: selectedPart.datasheet,
+        packageType: selectedPart.packageType,
+        series: selectedPart.series,
+        category: selectedPart.category,
+        specifications: selectedPart.specifications || {},
+        source,
+        pricing: selectedPart.pricing,
+        stock: selectedPart.stock,
+        productUrl: selectedPart.productUrl,
+        minimumOrderQuantity: selectedPart.minimumOrderQuantity
+      });
     }
   };
 
@@ -96,16 +144,28 @@ const VendorSearch = () => {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{part.manufacturerPartNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
-                        <div className="flex gap-4 mt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
+                          <span className="font-medium"> Series:</span> {part.series || '-'} | 
+                          <span className="font-medium"> Category:</span> {part.category || 'N/A'}
+                        </p>
+                        <div className="flex gap-4 mt-2 items-center">
                           <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
-                          {part.pricing && part.pricing[0] && (
-                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                              ${part.pricing[0].price}
-                            </span>
-                          )}
+                          <span className="text-xs text-gray-600 dark:text-gray-400">MOQ: {part.minimumOrderQuantity || 1}</span>
                         </div>
+                        {/* Pricing Tiers */}
+                        {part.pricing && part.pricing.length > 0 && (
+                          <div className="mt-2 text-xs">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Pricing: </span>
+                            {part.pricing.map((price, idx) => (
+                              <span key={idx} className="text-green-600 dark:text-green-400 mr-3">
+                                {price.quantity}+: ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {part.productUrl && (
                         <a
@@ -113,6 +173,7 @@ const VendorSearch = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -148,16 +209,28 @@ const VendorSearch = () => {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{part.manufacturerPartNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
-                        <div className="flex gap-4 mt-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
+                          <span className="font-medium"> Series:</span> {part.series || '-'} | 
+                          <span className="font-medium"> Category:</span> {part.category || 'N/A'}
+                        </p>
+                        <div className="flex gap-4 mt-2 items-center">
                           <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
-                          {part.pricing && part.pricing[0] && (
-                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                              ${part.pricing[0].price}
-                            </span>
-                          )}
+                          <span className="text-xs text-gray-600 dark:text-gray-400">MOQ: {part.minimumOrderQuantity || 1}</span>
                         </div>
+                        {/* Pricing Tiers */}
+                        {part.pricing && part.pricing.length > 0 && (
+                          <div className="mt-2 text-xs">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Pricing: </span>
+                            {part.pricing.map((price, idx) => (
+                              <span key={idx} className="text-green-600 dark:text-green-400 mr-3">
+                                {price.quantity}+: ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {part.productUrl && (
                         <a
@@ -165,6 +238,7 @@ const VendorSearch = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -185,9 +259,13 @@ const VendorSearch = () => {
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Actions for Selected Part</h3>
           <div className="flex gap-3">
-            <button className="btn-primary flex items-center gap-2">
+            <button 
+              onClick={handleAddToLibrary}
+              disabled={addToLibraryMutation.isPending}
+              className="btn-primary flex items-center gap-2"
+            >
               <Plus className="w-4 h-4" />
-              Add to Library
+              {addToLibraryMutation.isPending ? 'Adding...' : 'Add to Library'}
             </button>
             <button
               onClick={() => handleDownloadFootprint('ultra-librarian')}
@@ -206,6 +284,11 @@ const VendorSearch = () => {
               SnapEDA
             </button>
           </div>
+          {addToLibraryMutation.isSuccess && (
+            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
+              Part successfully added to library!
+            </p>
+          )}
           {downloadFootprintMutation.isSuccess && (
             <p className="mt-3 text-sm text-green-600 dark:text-green-400">
               Footprint download initiated

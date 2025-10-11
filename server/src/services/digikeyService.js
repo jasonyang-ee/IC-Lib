@@ -63,11 +63,6 @@ export async function searchPart(partNumber) {
       }
     );
 
-    // Debug: Log the first product to see the structure
-    if (response.data.Products && response.data.Products.length > 0) {
-      console.log('Sample Digikey Product Structure:', JSON.stringify(response.data.Products[0], null, 2));
-    }
-
     return {
       source: 'digikey',
       results: response.data.Products?.map(product => {
@@ -78,7 +73,7 @@ export async function searchPart(partNumber) {
           partNumber: primaryVariation?.DigiKeyProductNumber || 'N/A',
           manufacturerPartNumber: product.ManufacturerProductNumber || 'N/A',
           manufacturer: product.Manufacturer?.Name || 'N/A',
-          description: product.Description?.ProductDescription || product.Description?.DetailedDescription || 'N/A',
+          description: product.Description?.DetailedDescription || product.Description?.ProductDescription || 'N/A',
           datasheet: product.DatasheetUrl || '',
           pricing: primaryVariation?.StandardPricing?.map(price => ({
             quantity: price.BreakQuantity,

@@ -453,14 +453,18 @@ export const updateDistributorInfo = async (req, res, next) => {
               price = $3,
               in_stock = $4,
               stock_quantity = $5,
+              minimum_order_quantity = $6,
+              price_breaks = $7,
               last_updated = CURRENT_TIMESTAMP
-          WHERE component_id = $6 AND id = $7
+          WHERE component_id = $8 AND id = $9
         `, [
           dist.sku || dist.distributor_part_number || null, 
           dist.url || null,
           dist.price || null,
           dist.in_stock || false,
           dist.stock_quantity || 0,
+          dist.minimum_order_quantity || 1,
+          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
           id, 
           dist.id
         ]);
@@ -474,13 +478,17 @@ export const updateDistributorInfo = async (req, res, next) => {
             url,
             price,
             in_stock,
-            stock_quantity
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            stock_quantity,
+            minimum_order_quantity,
+            price_breaks
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           ON CONFLICT (component_id, distributor_id, sku) DO UPDATE
           SET url = EXCLUDED.url,
               price = EXCLUDED.price,
               in_stock = EXCLUDED.in_stock,
               stock_quantity = EXCLUDED.stock_quantity,
+              minimum_order_quantity = EXCLUDED.minimum_order_quantity,
+              price_breaks = EXCLUDED.price_breaks,
               last_updated = CURRENT_TIMESTAMP
         `, [
           id,
@@ -489,7 +497,9 @@ export const updateDistributorInfo = async (req, res, next) => {
           dist.url || null,
           dist.price || null,
           dist.in_stock || false,
-          dist.stock_quantity || 0
+          dist.stock_quantity || 0,
+          dist.minimum_order_quantity || 1,
+          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
         ]);
       }
     });

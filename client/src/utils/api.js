@@ -77,6 +77,7 @@ export const api = {
   searchDigikey: (partNumber) => apiClient.post('/search/digikey', { partNumber }),
   searchMouser: (partNumber) => apiClient.post('/search/mouser', { partNumber }),
   searchAllVendors: (partNumber) => apiClient.post('/search/all', { partNumber }),
+  addVendorPartToLibrary: (data) => apiClient.post('/search/add-to-library', data),
   downloadUltraLibrarianFootprint: (data) => apiClient.post('/search/footprint/ultra-librarian', data),
   downloadSnapEDAFootprint: (data) => apiClient.post('/search/footprint/snapeda', data),
 

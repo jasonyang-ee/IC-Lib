@@ -18,4 +18,7 @@ router.post('/footprint/ultra-librarian', searchController.downloadUltraLibraria
 // Download footprint from SnapEDA
 router.post('/footprint/snapeda', searchController.downloadSnapEDAFootprint);
 
+// Add vendor part to library
+router.post('/add-to-library', searchController.addVendorPartToLibrary);
+
 export default router;

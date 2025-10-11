@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,6 +67,49 @@ const Library = () => {
     },
   });
 
+  // Handle incoming vendor data from vendor search
+  useEffect(() => {
+    if (location.state?.vendorData && distributors && manufacturers) {
+      const vendorData = location.state.vendorData;
+      
+      // Activate add mode
+      setIsAddMode(true);
+      setIsEditMode(false);
+      setSelectedComponent(null);
+      
+      // Pre-fill edit data with vendor information
+      const preparedData = {
+        category_id: '',
+        manufacturer_id: vendorData.manufacturerId || '',
+        manufacturer_pn: vendorData.manufacturerPartNumber || '',
+        description: vendorData.description || '',
+        package_size: vendorData.packageType || '',
+        datasheet_url: vendorData.datasheet || '',
+        status: 'Active',
+        notes: vendorData.series ? `Series: ${vendorData.series}` : '',
+        // Distributor info
+        distributors: [{
+          distributor_id: vendorData.distributor?.id || '',
+          distributor_name: vendorData.distributor?.source === 'digikey' ? 'Digikey' : 'Mouser',
+          sku: vendorData.distributor?.sku || '',
+          url: vendorData.distributor?.url || '',
+          price: vendorData.distributor?.pricing?.[0]?.price || '',
+          in_stock: (vendorData.distributor?.stock || 0) > 0,
+          stock_quantity: vendorData.distributor?.stock || 0,
+          minimum_order_quantity: vendorData.distributor?.minimumOrderQuantity || 1,
+          price_breaks: vendorData.distributor?.pricing || []
+        }],
+        // Specifications from vendor
+        vendorSpecifications: vendorData.specifications || {}
+      };
+      
+      setEditData(preparedData);
+      
+      // Clear location state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, distributors, manufacturers]);
+
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
     queryKey: ['componentDetails', selectedComponent?.id],
@@ -85,7 +130,11 @@ const Library = () => {
 
   // Add mutation
   const addMutation = useMutation({
-    mutationFn: (data) => api.createComponent(data),
+    mutationFn: async (data) => {
+      // Simply create the component
+      // Distributor info and specifications will be added separately by handleSaveAdd
+      return await api.createComponent(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['components']);
       setIsAddMode(false);
@@ -462,7 +511,9 @@ const Library = () => {
           url: dist.url || '',
           price: dist.price || null,
           in_stock: dist.in_stock || false,
-          stock_quantity: dist.stock_quantity || 0
+          stock_quantity: dist.stock_quantity || 0,
+          minimum_order_quantity: dist.minimum_order_quantity || 1,
+          price_breaks: dist.price_breaks || []
         })) || [];
         
         if (newComponentId && validDistributors.length > 0) {

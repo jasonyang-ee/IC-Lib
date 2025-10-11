@@ -44,7 +44,11 @@ export async function searchPart(partNumber) {
         productUrl: part.ProductDetailUrl,
         leadTime: part.LeadTime,
         lifecycle: part.LifecycleStatus,
-        rohs: part.ROHSStatus
+        rohs: part.ROHSStatus,
+        packageType: part.PackageType || 'N/A',
+        series: part.Series || '-',
+        category: part.Category || 'N/A',
+        minimumOrderQuantity: part.Min || 1
       })) || []
     };
   } catch (error) {
