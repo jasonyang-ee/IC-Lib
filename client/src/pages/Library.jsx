@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -15,6 +15,7 @@ const Library = () => {
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
+  const [warningModal, setWarningModal] = useState({ show: false, message: '' });
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -113,7 +114,7 @@ const Library = () => {
     },
   });
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
     setIsEditMode(true);
     setIsAddMode(false);
     
@@ -134,13 +135,48 @@ const Library = () => {
       });
     }
     
+    // Fetch all category specifications and merge with existing component specifications
+    let editSpecifications = componentDetails?.specifications || [];
+    if (componentDetails?.category_id) {
+      try {
+        const categorySpecsResponse = await api.getCategorySpecifications(componentDetails.category_id);
+        const categorySpecs = categorySpecsResponse.data || [];
+        
+        // Create a map of existing specs by category_spec_id
+        const existingSpecsMap = new Map();
+        editSpecifications.forEach(spec => {
+          if (spec.category_spec_id) {
+            existingSpecsMap.set(spec.category_spec_id, spec);
+          }
+        });
+        
+        // Merge: use existing values if available, otherwise create empty spec entries
+        editSpecifications = categorySpecs.map(catSpec => {
+          const existing = existingSpecsMap.get(catSpec.id);
+          return {
+            category_spec_id: catSpec.id,
+            spec_name: catSpec.spec_name,
+            spec_value: existing?.spec_value || '',
+            unit: catSpec.unit || '',
+            is_required: catSpec.is_required || false,
+            display_order: catSpec.display_order || 0
+          };
+        });
+        
+        // Sort by display_order
+        editSpecifications.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      } catch (error) {
+        console.error('Error fetching category specifications:', error);
+        // Fall back to existing specifications if fetch fails
+      }
+    }
+    
     // Map all fields properly for editing
-    // Specifications already have category_spec_id from the backend
     setEditData({
       ...componentDetails,
       manufacturer_id: componentDetails?.manufacturer_id || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
-      specifications: componentDetails?.specifications || [],
+      specifications: editSpecifications,
       distributors: editDistributors,
     });
   };
@@ -149,7 +185,7 @@ const Library = () => {
     if (selectedComponent) {
       // Validate required fields
       if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
-        alert('Please fill in all required fields: Manufacturer, MFG Part Number, and Value');
+        setWarningModal({ show: true, message: 'Please fill in all required fields: Manufacturer, MFG Part Number, and Value' });
         return;
       }
 
@@ -199,7 +235,7 @@ const Library = () => {
         setIsEditMode(false);
       } catch (error) {
         console.error('Error saving component:', error);
-        alert('Failed to save component. Please try again.');
+        setWarningModal({ show: true, message: 'Failed to save component. Please try again.' });
       }
     }
   };
@@ -348,12 +384,12 @@ const Library = () => {
   const handleConfirmAdd = async () => {
     // Validate required fields
     if (!editData.category_id || !editData.part_number) {
-      alert('Please fill in required fields: Category and Part Number');
+      setWarningModal({ show: true, message: 'Please fill in required fields: Category and Part Number' });
       return;
     }
     
     if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
-      alert('Please fill in all required fields: Manufacturer, MFG Part Number, and Value');
+      setWarningModal({ show: true, message: 'Please fill in all required fields: Manufacturer, MFG Part Number, and Value' });
       return;
     }
 
@@ -398,7 +434,7 @@ const Library = () => {
         // Cleanup will be handled by mutation's onSuccess
       } catch (error) {
         console.error('Error adding component:', error);
-        alert('Failed to add component. Please try again.');
+        setWarningModal({ show: true, message: 'Failed to add component. Please try again.' });
       }
     }
   };
@@ -1166,6 +1202,36 @@ const Library = () => {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Warning Modal */}
+      {warningModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
+              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Warning
+            </h3>
+            
+            {/* Message */}
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+              {warningModal.message}
+            </p>
+            
+            {/* Button */}
+            <button
+              onClick={() => setWarningModal({ show: false, message: '' })}
+              className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

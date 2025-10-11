@@ -255,13 +255,14 @@ export const verifyDatabase = async (req, res) => {
   try {
     console.log('Verifying database schema...');
     
-    // Expected tables for the simplified schema
+    // Expected tables for the redesigned schema
     const expectedTables = [
       'component_categories',
       'manufacturers',
       'distributors',
       'components',
-      'component_specifications',
+      'category_specifications',
+      'component_specification_values',
       'distributor_info',
       'inventory',
       'footprint_sources',
