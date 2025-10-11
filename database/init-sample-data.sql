@@ -97,3 +97,26 @@ ON CONFLICT (component_id, category_spec_id) DO NOTHING;
 INSERT INTO distributor_info (component_id, distributor_id, sku, url, price, currency, in_stock, stock_quantity) VALUES
     ((SELECT id FROM components WHERE part_number = 'CAP-0001'), (SELECT id FROM distributors WHERE name = 'Digikey'), '399-1096-1-ND', 'https://www.digikey.com/en/products/detail/kemet/C0603C104K5RACTU/1465594', 0.12, 'USD', true, 250000)
 ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
+
+-- ============================================================================
+-- Auto-create inventory entries for sample components
+-- ============================================================================
+-- This ensures inventory entries exist (trigger should handle this automatically,
+-- but we add this for safety in case trigger hasn't been created yet)
+INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+SELECT 
+    c.id,
+    CASE 
+        WHEN c.part_number = 'RES-0001' THEN 100
+        WHEN c.part_number = 'CAP-0001' THEN 50
+        ELSE 0
+    END as quantity,
+    10 as minimum_quantity,
+    'Storage-A1' as location
+FROM components c
+WHERE c.part_number IN ('RES-0001', 'CAP-0001')
+ON CONFLICT (component_id) DO UPDATE SET
+    quantity = EXCLUDED.quantity,
+    minimum_quantity = EXCLUDED.minimum_quantity,
+    location = EXCLUDED.location;
+

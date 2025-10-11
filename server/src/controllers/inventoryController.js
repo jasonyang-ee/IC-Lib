@@ -6,6 +6,7 @@ export const getAllInventory = async (req, res, next) => {
       SELECT 
         i.*,
         c.part_number,
+        c.manufacturer_pn,
         c.description,
         cat.name as category_name,
         m.name as manufacturer_name
@@ -30,6 +31,7 @@ export const getInventoryById = async (req, res, next) => {
       SELECT 
         i.*,
         c.part_number,
+        c.manufacturer_pn,
         c.description,
         cat.name as category_name,
         m.name as manufacturer_name
@@ -159,6 +161,47 @@ export const getLowStockItems = async (req, res, next) => {
       WHERE i.quantity <= i.minimum_quantity AND i.minimum_quantity > 0
       ORDER BY (i.quantity - i.minimum_quantity)
     `);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchByBarcode = async (req, res, next) => {
+  try {
+    const { barcode } = req.body;
+
+    if (!barcode) {
+      return res.status(400).json({ error: 'Barcode is required' });
+    }
+
+    // Search for components matching the barcode in distributor SKUs
+    const result = await pool.query(`
+      SELECT DISTINCT
+        i.*,
+        c.part_number,
+        c.manufacturer_pn,
+        c.description,
+        cat.name as category_name,
+        m.name as manufacturer_name,
+        d.name as distributor_name,
+        di.sku
+      FROM components c
+      LEFT JOIN inventory i ON c.id = i.component_id
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      LEFT JOIN distributor_info di ON c.id = di.component_id
+      LEFT JOIN distributors d ON di.distributor_id = d.id
+      WHERE di.sku = $1 
+         OR c.manufacturer_pn = $1
+         OR c.part_number = $1
+      ORDER BY c.part_number
+    `, [barcode]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No component found with this barcode/SKU' });
+    }
 
     res.json(result.rows);
   } catch (error) {

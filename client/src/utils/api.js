@@ -71,6 +71,7 @@ export const api = {
   updateInventory: (id, data) => apiClient.put(`/inventory/${id}`, data),
   deleteInventory: (id) => apiClient.delete(`/inventory/${id}`),
   getLowStockItems: () => apiClient.get('/inventory/alerts/low-stock'),
+  searchByBarcode: (barcode) => apiClient.post('/inventory/search/barcode', { barcode }),
 
   // Search
   searchDigikey: (partNumber) => apiClient.post('/search/digikey', { partNumber }),
@@ -122,6 +123,7 @@ export const api = {
   initDatabase: () => apiClient.post('/settings/database/init'),
   loadSampleData: () => apiClient.post('/settings/database/sample-data'),
   verifyDatabase: () => apiClient.get('/settings/database/verify'),
+  syncInventory: () => apiClient.post('/settings/database/sync-inventory'),
   
   // Legacy Admin endpoints (if still needed)
   getDatabaseStats: () => apiClient.get('/admin/stats'),

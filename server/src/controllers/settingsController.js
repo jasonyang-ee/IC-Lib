@@ -658,3 +658,35 @@ export const reorderCategorySpecifications = async (req, res) => {
   }
 };
 
+// Sync components to inventory (create missing inventory entries)
+export const syncComponentsToInventory = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+      SELECT 
+        c.id,
+        0,
+        0,
+        NULL
+      FROM components c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM inventory i WHERE i.component_id = c.id
+      )
+      ON CONFLICT (component_id) DO NOTHING
+      RETURNING *
+    `);
+
+    res.json({ 
+      message: 'Components synced to inventory successfully',
+      created: result.rows.length,
+      entries: result.rows
+    });
+  } catch (error) {
+    console.error('Error syncing components to inventory:', error);
+    res.status(500).json({ 
+      error: 'Failed to sync components to inventory',
+      message: error.message 
+    });
+  }
+};
+

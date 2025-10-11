@@ -24,4 +24,7 @@ router.delete('/:id', inventoryController.deleteInventory);
 // Get low stock items
 router.get('/alerts/low-stock', inventoryController.getLowStockItems);
 
+// Search by barcode/SKU
+router.post('/search/barcode', inventoryController.searchByBarcode);
+
 export default router;

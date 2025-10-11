@@ -447,3 +447,56 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
 
+-- ============================================================================
+-- PART 6: TRIGGERS FOR AUTO-SYNC
+-- ============================================================================
+
+-- Function: Auto-create inventory entry when component is added
+CREATE OR REPLACE FUNCTION create_inventory_entry()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Automatically create an inventory entry with 0 quantity
+    INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+    VALUES (NEW.id, 0, 0, NULL)
+    ON CONFLICT (component_id) DO NOTHING;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: Create inventory entry on component insert
+DROP TRIGGER IF EXISTS trigger_create_inventory ON components;
+CREATE TRIGGER trigger_create_inventory
+    AFTER INSERT ON components
+    FOR EACH ROW
+    EXECUTE FUNCTION create_inventory_entry();
+
+-- Add unique constraint to inventory to prevent duplicates
+-- Drop constraint if exists, then add it
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'unique_inventory_component'
+    ) THEN
+        ALTER TABLE inventory ADD CONSTRAINT unique_inventory_component UNIQUE (component_id);
+    END IF;
+END $$;
+
+-- ============================================================================
+-- PART 7: BACKFILL INVENTORY FOR EXISTING COMPONENTS
+-- ============================================================================
+
+-- Create inventory entries for any existing components that don't have one
+INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+SELECT 
+    c.id,
+    0,
+    0,
+    NULL
+FROM components c
+WHERE NOT EXISTS (
+    SELECT 1 FROM inventory i WHERE i.component_id = c.id
+)
+ON CONFLICT (component_id) DO NOTHING;
+

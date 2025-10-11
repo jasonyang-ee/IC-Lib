@@ -15,7 +15,8 @@ import {
   createCategorySpecification,
   updateCategorySpecification,
   deleteCategorySpecification,
-  reorderCategorySpecifications
+  reorderCategorySpecifications,
+  syncComponentsToInventory
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -43,5 +44,6 @@ router.post('/database/reset', resetDatabase);
 router.post('/database/init', initDatabase);
 router.post('/database/sample-data', loadSampleData);
 router.get('/database/verify', verifyDatabase);
+router.post('/database/sync-inventory', syncComponentsToInventory);
 
 export default router;

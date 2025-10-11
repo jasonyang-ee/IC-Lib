@@ -150,6 +150,13 @@ export const createComponent = async (req, res, next) => {
       FROM component_categories cat WHERE cat.id = $4
     `, [component.id, component.part_number, component.description, validCategoryId]);
     
+    // Auto-create inventory entry (backup in case trigger doesn't exist)
+    await pool.query(`
+      INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+      VALUES ($1, 0, 0, NULL)
+      ON CONFLICT (component_id) DO NOTHING
+    `, [component.id]);
+    
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
       SELECT 
