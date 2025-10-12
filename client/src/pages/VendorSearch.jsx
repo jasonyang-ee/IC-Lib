@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Download, Plus, ExternalLink } from 'lucide-react';
+import { Search, Download, Plus, ExternalLink, X } from 'lucide-react';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
@@ -166,6 +166,16 @@ const VendorSearch = () => {
     }
   };
 
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setSearchResults(null);
+    setSelectedParts([]);
+    // Clear sessionStorage
+    sessionStorage.removeItem('vendorSearchResults');
+    sessionStorage.removeItem('vendorSearchTerm');
+    sessionStorage.removeItem('vendorSelectedParts');
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -183,8 +193,18 @@ const VendorSearch = () => {
               placeholder="Enter part number or manufacturer part number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Clear search"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
           <button
             type="submit"

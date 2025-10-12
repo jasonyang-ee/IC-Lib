@@ -222,6 +222,27 @@ const Library = () => {
   // Update alternatives and selected alternative when data changes
   // Include the primary component from components table as the first alternative
   useEffect(() => {
+    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
+    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    
+    // Helper function to normalize distributors to always have 4 in correct order
+    const normalizeDistributors = (existingDistributors = []) => {
+      return distributorOrder.map(distName => {
+        const dist = distributors?.find(d => d.name === distName);
+        const existing = existingDistributors.find(d => {
+          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
+          return existingDistName === distName;
+        });
+        
+        return {
+          distributor_id: dist?.id || null,
+          distributor_name: distName,
+          sku: existing?.sku || '',
+          url: existing?.url || ''
+        };
+      });
+    };
+    
     if (selectedComponent && !isAddMode) {
       // Create primary alternative from component data
       const primaryAlternative = {
@@ -239,7 +260,7 @@ const Library = () => {
       setAlternatives(allAlternatives);
       setSelectedAlternative(primaryAlternative); // Always default to primary
       
-      // If in edit mode, populate editData.alternatives (excluding primary)
+      // If in edit mode, populate editData.alternatives (excluding primary) with normalized distributors
       if (isEditMode && alternativesData && alternativesData.length > 0) {
         setEditData(prev => ({
           ...prev,
@@ -247,7 +268,7 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            distributors: alt.distributors || []
+            distributors: normalizeDistributors(alt.distributors)
           }))
         }));
       }
@@ -261,7 +282,7 @@ const Library = () => {
         alternatives: []
       }));
     }
-  }, [alternativesData, selectedComponent, componentDetails, isAddMode, isEditMode]);
+  }, [alternativesData, selectedComponent, componentDetails, isAddMode, isEditMode, distributors]);
 
   // Add mutation
   const addMutation = useMutation({
@@ -375,6 +396,27 @@ const Library = () => {
       }
     }
     
+    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
+    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    
+    // Helper function to normalize alternative distributors to always have 4 in correct order
+    const normalizeDistributors = (existingDistributors = []) => {
+      return distributorOrder.map(distName => {
+        const dist = distributors?.find(d => d.name === distName);
+        const existing = existingDistributors.find(d => {
+          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
+          return existingDistName === distName;
+        });
+        
+        return {
+          distributor_id: dist?.id || null,
+          distributor_name: distName,
+          sku: existing?.sku || '',
+          url: existing?.url || ''
+        };
+      });
+    };
+    
     // Map all fields properly for editing, including alternatives
     setEditData({
       ...componentDetails,
@@ -387,7 +429,7 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            distributors: alt.distributors || []
+            distributors: normalizeDistributors(alt.distributors)
           }))
         : []
     });
@@ -832,13 +874,19 @@ const Library = () => {
 
   // Alternative Parts Management Handlers
   const handleAddAlternative = () => {
-    // Initialize with 4 predefined distributor rows (matching main distributor section)
-    const defaultDistributors = (distributors || []).slice(0, 4).map(dist => ({
-      distributor_id: dist.id,
-      distributor_name: dist.name,
-      sku: '',
-      url: ''
-    }));
+    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
+    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    
+    // Initialize with 4 predefined distributor rows in specific order
+    const defaultDistributors = distributorOrder.map(distName => {
+      const dist = distributors?.find(d => d.name === distName);
+      return {
+        distributor_id: dist?.id || null,
+        distributor_name: distName,
+        sku: '',
+        url: ''
+      };
+    });
     
     setEditData((prev) => ({
       ...prev,
@@ -927,11 +975,11 @@ const Library = () => {
       {/* Full screen width layout with wider component list */}
       <div className={`grid grid-cols-1 gap-4 min-h-[600px] ${
         (isEditMode || isAddMode) 
-          ? 'xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(400px,1.5fr)_minmax(350px,1.2fr)]'
-          : 'xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)]'
+          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(400px,1.5fr)_minmax(350px,1.2fr)]'
+          : 'xl:grid-cols-[minmax(250px,250px)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:min-w-[175px]">
+        <div className="space-y-4 xl:w-[250px]">
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -1677,7 +1725,19 @@ const Library = () => {
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
               {selectedComponent && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
               <div className="space-y-4">
-                {selectedAlternative.distributors.map((dist, index) => (
+                {(() => {
+                  // Sort distributors in the standard order: Digikey, Mouser, Arrow, Newark
+                  const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+                  const sortedDistributors = [...selectedAlternative.distributors].sort((a, b) => {
+                    const indexA = distributorOrder.indexOf(a.distributor_name);
+                    const indexB = distributorOrder.indexOf(b.distributor_name);
+                    // If not in the list, put at the end
+                    const orderA = indexA === -1 ? 999 : indexA;
+                    const orderB = indexB === -1 ? 999 : indexB;
+                    return orderA - orderB;
+                  });
+                  
+                  return sortedDistributors.map((dist, index) => (
                   <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-4 last:border-0">
                     <div className="flex items-center gap-2 mb-2">
                       <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
@@ -1725,7 +1785,8 @@ const Library = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                  ));
+                })()}
               </div>
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400">No distributor information available</p>
@@ -1852,30 +1913,56 @@ const Library = () => {
                           Distributors
                         </label>
                         <div className="space-y-1">
-                          {(alt.distributors || []).map((dist, distIndex) => {
-                            const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
-                            return (
-                              <div key={distIndex} className="grid grid-cols-[80px_1fr_1fr] gap-2 items-center">
-                                <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
-                                  {distributorName}
+                          {(() => {
+                            // Ensure all 4 distributors are always shown in correct order
+                            const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+                            const altDistributors = alt.distributors || [];
+                            
+                            // Normalize to always have 4 distributors in order
+                            const normalizedDistributors = distributorOrder.map(distName => {
+                              const dist = distributors?.find(d => d.name === distName);
+                              const existing = altDistributors.find(d => {
+                                const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
+                                return existingDistName === distName;
+                              });
+                              
+                              return {
+                                distributor_id: dist?.id || null,
+                                distributor_name: distName,
+                                sku: existing?.sku || '',
+                                url: existing?.url || ''
+                              };
+                            });
+                            
+                            // Update the alternative's distributors to ensure they're normalized
+                            if (JSON.stringify(altDistributors) !== JSON.stringify(normalizedDistributors)) {
+                              handleUpdateAlternative(altIndex, 'distributors', normalizedDistributors);
+                            }
+                            
+                            return normalizedDistributors.map((dist, distIndex) => {
+                              return (
+                                <div key={distIndex} className="grid grid-cols-[80px_1fr_1fr] gap-2 items-center">
+                                  <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
+                                    {dist.distributor_name}
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={dist.sku || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
+                                    placeholder="SKU"
+                                    className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={dist.url || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
+                                    placeholder="Product URL"
+                                    className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
                                 </div>
-                                <input
-                                  type="text"
-                                  value={dist.sku || ''}
-                                  onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
-                                  placeholder="SKU"
-                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                />
-                                <input
-                                  type="text"
-                                  value={dist.url || ''}
-                                  onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
-                                  placeholder="Product URL"
-                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                />
-                              </div>
-                            );
-                          })}
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     </div>
