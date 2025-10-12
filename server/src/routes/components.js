@@ -45,7 +45,4 @@ router.put('/:id/alternatives/:altId', componentController.updateAlternative);
 // Delete alternative part
 router.delete('/:id/alternatives/:altId', componentController.deleteAlternative);
 
-// Set primary alternative
-router.put('/:id/alternatives/:altId/set-primary', componentController.setPrimaryAlternative);
-
 export default router;

@@ -594,7 +594,7 @@ export const getAlternatives = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
-    // Get all alternatives for this part number
+    // Get all alternatives for this part number (NOT including the primary component itself)
     const result = await pool.query(`
       SELECT 
         ca.*,
@@ -625,7 +625,7 @@ export const getAlternatives = async (req, res, next) => {
       FROM components_alternative ca
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
       WHERE ca.part_number = $1
-      ORDER BY ca.is_primary DESC, ca.created_at ASC
+      ORDER BY ca.created_at ASC
     `, [partNumber]);
     
     res.json(result.rows);
@@ -657,22 +657,14 @@ export const createAlternative = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
-    // If setting as primary, unset all other primaries for this part
-    if (is_primary) {
-      await pool.query(
-        'UPDATE components_alternative SET is_primary = false WHERE part_number = $1',
-        [partNumber]
-      );
-    }
-    
-    // Create the alternative
+    // Create the alternative (no is_primary field)
     const result = await pool.query(`
       INSERT INTO components_alternative (
-        part_number, manufacturer_id, manufacturer_pn, is_primary, notes
+        part_number, manufacturer_id, manufacturer_pn, notes
       )
-      VALUES ($1, $2, $3, $4, $5)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [partNumber, manufacturer_id, manufacturer_pn, is_primary, notes]);
+    `, [partNumber, manufacturer_id, manufacturer_pn, notes]);
     
     const alternativeId = result.rows[0].id;
     
@@ -685,12 +677,21 @@ export const createAlternative = async (req, res, next) => {
             in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
+          SET url = EXCLUDED.url,
+              price = EXCLUDED.price,
+              in_stock = EXCLUDED.in_stock,
+              stock_quantity = EXCLUDED.stock_quantity,
+              minimum_order_quantity = EXCLUDED.minimum_order_quantity,
+              packaging = EXCLUDED.packaging,
+              price_breaks = EXCLUDED.price_breaks,
+              last_updated = CURRENT_TIMESTAMP
         `, [
           alternativeId,
           dist.distributor_id,
-          dist.sku,
-          dist.url,
-          dist.price,
+          dist.sku || '',
+          dist.url || '',
+          dist.price || null,
           dist.currency || 'USD',
           dist.in_stock || false,
           dist.stock_quantity || 0,
@@ -716,8 +717,8 @@ export const updateAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      is_primary,
-      notes
+      notes,
+      distributors = []
     } = req.body;
     
     // Get component's part number
@@ -732,28 +733,59 @@ export const updateAlternative = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
-    // If setting as primary, unset all other primaries for this part
-    if (is_primary) {
-      await pool.query(
-        'UPDATE components_alternative SET is_primary = false WHERE part_number = $1 AND id != $2',
-        [partNumber, altId]
-      );
-    }
-    
     const result = await pool.query(`
       UPDATE components_alternative
       SET 
         manufacturer_id = COALESCE($1, manufacturer_id),
         manufacturer_pn = COALESCE($2, manufacturer_pn),
-        is_primary = COALESCE($3, is_primary),
-        notes = COALESCE($4, notes),
+        notes = COALESCE($3, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5 AND part_number = $6
+      WHERE id = $4 AND part_number = $5
       RETURNING *
-    `, [manufacturer_id, manufacturer_pn, is_primary, notes, altId, partNumber]);
+    `, [manufacturer_id, manufacturer_pn, notes, altId, partNumber]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
+    }
+    
+    // Update distributors if provided
+    if (distributors && distributors.length > 0) {
+      // Delete existing distributors for this alternative
+      await pool.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
+      
+      // Insert new distributor info
+      for (const dist of distributors) {
+        if (dist.distributor_id && (dist.sku || dist.url)) {
+          await pool.query(`
+            INSERT INTO distributor_info (
+              alternative_id, distributor_id, sku, url, price, currency,
+              in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
+            SET url = EXCLUDED.url,
+                price = EXCLUDED.price,
+                in_stock = EXCLUDED.in_stock,
+                stock_quantity = EXCLUDED.stock_quantity,
+                minimum_order_quantity = EXCLUDED.minimum_order_quantity,
+                packaging = EXCLUDED.packaging,
+                price_breaks = EXCLUDED.price_breaks,
+                last_updated = CURRENT_TIMESTAMP
+          `, [
+            altId,
+            dist.distributor_id,
+            dist.sku || '',
+            dist.url || '',
+            dist.price || null,
+            dist.currency || 'USD',
+            dist.in_stock || false,
+            dist.stock_quantity || 0,
+            dist.minimum_order_quantity || 1,
+            dist.packaging || '',
+            dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+          ]);
+        }
+      }
     }
     
     res.json(result.rows[0]);
@@ -789,44 +821,6 @@ export const deleteAlternative = async (req, res, next) => {
     }
     
     res.json({ message: 'Alternative deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const setPrimaryAlternative = async (req, res, next) => {
-  try {
-    const { id, altId } = req.params;
-    
-    // Get component's part number
-    const componentResult = await pool.query(
-      'SELECT part_number FROM components WHERE id = $1',
-      [id]
-    );
-    
-    if (componentResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Component not found' });
-    }
-    
-    const partNumber = componentResult.rows[0].part_number;
-    
-    // Unset all primaries for this part
-    await pool.query(
-      'UPDATE components_alternative SET is_primary = false WHERE part_number = $1',
-      [partNumber]
-    );
-    
-    // Set this one as primary
-    const result = await pool.query(
-      'UPDATE components_alternative SET is_primary = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND part_number = $2 RETURNING *',
-      [altId, partNumber]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Alternative not found' });
-    }
-    
-    res.json(result.rows[0]);
   } catch (error) {
     next(error);
   }

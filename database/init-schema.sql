@@ -148,12 +148,12 @@ CREATE TABLE IF NOT EXISTS component_specification_values (
 -- Stores alternative manufacturer variants for the same component
 -- Each alternative has its own manufacturer and part number
 -- Distributor info links to these alternatives instead of the parent component
+-- Note: The primary variant is the one stored in components table itself
 CREATE TABLE IF NOT EXISTS components_alternative (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
-    is_primary BOOLEAN DEFAULT false,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -181,7 +181,9 @@ CREATE TABLE IF NOT EXISTS distributor_info (
     CONSTRAINT check_component_or_alternative CHECK (
         (component_id IS NOT NULL AND alternative_id IS NULL) OR
         (component_id IS NULL AND alternative_id IS NOT NULL)
-    )
+    ),
+    UNIQUE(component_id, distributor_id, sku),
+    UNIQUE(alternative_id, distributor_id, sku)
 );
 
 -- Table: inventory
@@ -238,7 +240,6 @@ CREATE INDEX IF NOT EXISTS idx_distributor_info_distributor ON distributor_info(
 -- Components alternative indexes
 CREATE INDEX IF NOT EXISTS idx_components_alternative_part_number ON components_alternative(part_number);
 CREATE INDEX IF NOT EXISTS idx_components_alternative_manufacturer ON components_alternative(manufacturer_id);
-CREATE INDEX IF NOT EXISTS idx_components_alternative_is_primary ON components_alternative(is_primary);
 
 -- Inventory indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_component ON inventory(component_id);
