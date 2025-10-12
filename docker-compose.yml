@@ -1,14 +1,14 @@
 services:
-  iclib-web:
+  iclib:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: iclib-web
+    container_name: iclib
     restart: unless-stopped
     ports:
       - "80:80"          # All traffic (frontend + API via nginx proxy)
     environment:
-      # Node Environment
+      # Node Environment and API Port
       - NODE_ENV=production
       - PORT=3500
       
@@ -20,9 +20,6 @@ services:
       - DB_PASSWORD=123456
       - DB_NAME=iclib
       
-      # CORS Configuration
-      - CORS_ORIGIN=*
-      
       # Optional: API Keys for vendor integrations
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
@@ -30,9 +27,9 @@ services:
       # - ULTRA_LIBRARIAN_TOKEN=your_token
       # - SNAPEDA_API_KEY=your_api_key
     volumes:
-      - ./cad-file/footprint:/app/download/footprint
-      - ./cad-file/symbol:/app/download/symbol
-      - ./cad-file/pad:/app/download/pad
+      - ./iclib/download/footprint:/app/download/footprint
+      - ./iclib/download/symbol:/app/download/symbol
+      - ./iclib/download/pad:/app/download/pad
   
   iclib-db:
     image: postgres:18
@@ -45,4 +42,4 @@ services:
       - POSTGRES_PASSWORD=123456
       - POSTGRES_DB=iclib
     volumes:
-      - ./database:/var/lib/postgresql/data
+      - ./iclib/database:/var/lib/postgresql/18/docker
