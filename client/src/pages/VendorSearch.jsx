@@ -68,10 +68,15 @@ const VendorSearch = () => {
     mutationFn: (partData) => api.addVendorPartToLibrary(partData),
     onSuccess: (response) => {
       // Navigate to Library page with vendor data pre-filled
+      // Get source from the first distributor (prioritized Digikey if available)
+      const source = response.data.vendorData?.distributors?.[0]?.source || 
+                     response.data.vendorData?.distributor?.source || 
+                     'vendor';
+      
       navigate('/library', { 
         state: { 
           vendorData: response.data.vendorData,
-          source: selectedPart.source || 'vendor'
+          source: source
         } 
       });
     },

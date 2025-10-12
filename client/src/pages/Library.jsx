@@ -1644,7 +1644,7 @@ const Library = () => {
                         ({Object.keys(editData._vendorSearchData.specifications).length} specs)
                       </span>
                     </p>
-                    <div className="space-y-0.5 max-h-96 overflow-y-auto pr-1">
+                    <div className="space-y-0.5">
                       {Object.entries(editData._vendorSearchData.specifications).map(([key, val], idx) => {
                         const displayValue = typeof val === 'object' ? val.value : val;
                         const displayUnit = typeof val === 'object' ? val.unit : '';
