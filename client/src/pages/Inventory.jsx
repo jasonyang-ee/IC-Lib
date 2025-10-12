@@ -132,6 +132,7 @@ const Inventory = () => {
         initialEdits[item.id] = {
           location: item.location || '',
           quantity: item.quantity,
+          minimum_quantity: item.minimum_quantity || 0,
           consumeQty: 0
         };
       });
@@ -165,6 +166,11 @@ const Inventory = () => {
       // Check if location changed
       if (changes.location !== originalItem.location) {
         updateData.location = changes.location;
+      }
+      
+      // Check if minimum_quantity changed
+      if (changes.minimum_quantity !== originalItem.minimum_quantity) {
+        updateData.minimum_quantity = changes.minimum_quantity;
       }
       
       // Check if quantity changed (either set or consume)
@@ -295,9 +301,24 @@ const Inventory = () => {
 
   const saveAlternativeChanges = (alt) => {
     if (editingAlternative && editingAlternative[alt.id]) {
+      const changes = editingAlternative[alt.id];
+      const updateData = {};
+      
+      // Handle location
+      if (changes.location !== undefined) {
+        updateData.location = changes.location;
+      }
+      
+      // Handle quantity with consume logic
+      let finalQuantity = changes.quantity !== undefined ? changes.quantity : alt.quantity;
+      if (changes.consumeQty && changes.consumeQty > 0) {
+        finalQuantity = Math.max(0, finalQuantity - parseInt(changes.consumeQty));
+      }
+      updateData.quantity = finalQuantity;
+      
       updateAlternativeMutation.mutate({
         altId: alt.id,
-        data: editingAlternative[alt.id]
+        data: updateData
       });
     }
   };
@@ -509,6 +530,7 @@ const Inventory = () => {
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{minWidth: '200px'}}>Quantity</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Min Qty</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>
               </tr>
             </thead>
@@ -611,6 +633,20 @@ const Inventory = () => {
                       )}
                     </td>
                     
+                    {/* Min Qty */}
+                    <td className="px-4 py-3 text-sm">
+                      {editMode ? (
+                        <input
+                          type="number"
+                          value={editedItem.minimum_quantity}
+                          onChange={(e) => handleEditChange(item.id, 'minimum_quantity', parseInt(e.target.value) || 0)}
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                        />
+                      ) : (
+                        <span className="text-gray-900 dark:text-gray-100">{item.minimum_quantity || 0}</span>
+                      )}
+                    </td>
+                    
                     {/* Label Actions */}
                     <td className="px-4 py-3 text-sm">
                       <div className="flex items-center gap-2">
@@ -698,17 +734,30 @@ const Inventory = () => {
                         {/* Quantity */}
                         <td className="px-4 py-2 text-sm" style={{minWidth: '200px'}}>
                           {editMode ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                value={isEditingThis ? editingAlt.quantity : (alt.quantity || 0)}
-                                onChange={(e) => handleAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
-                                className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                              />
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Set to:</span>
+                                <input
+                                  type="number"
+                                  value={isEditingThis ? editingAlt.quantity : (alt.quantity || 0)}
+                                  onChange={(e) => handleAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
+                                  className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Consume:</span>
+                                <input
+                                  type="number"
+                                  value={isEditingThis ? (editingAlt.consumeQty || '') : ''}
+                                  onChange={(e) => handleAlternativeEdit(alt.id, 'consumeQty', parseInt(e.target.value) || 0)}
+                                  placeholder="0"
+                                  className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                                />
+                              </div>
                               {isEditingThis && (
                                 <button
                                   onClick={() => saveAlternativeChanges(alt)}
-                                  className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs"
+                                  className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs self-start"
                                 >
                                   <Check className="w-3 h-3" />
                                 </button>
@@ -717,6 +766,11 @@ const Inventory = () => {
                           ) : (
                             <span className="text-gray-900 dark:text-gray-100">{alt.quantity || 0}</span>
                           )}
+                        </td>
+                        
+                        {/* Min Qty - empty for alternatives */}
+                        <td className="px-4 py-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">-</span>
                         </td>
                         
                         {/* Label Actions */}
@@ -756,15 +810,6 @@ const Inventory = () => {
                       </tr>
                     );
                   })}
-
-                  {/* Show "No alternatives" message if expanded but no alternatives */}
-                  {isExpanded && alternatives.length === 0 && (
-                    <tr className="bg-gray-50 dark:bg-[#333333]/50">
-                      <td colSpan="8" className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic text-center">
-                        No alternative parts found
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
                 );
               })}

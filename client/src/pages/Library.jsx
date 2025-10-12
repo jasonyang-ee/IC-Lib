@@ -31,6 +31,11 @@ const Library = () => {
   const subCat2Ref = useRef(null);
   const subCat3Ref = useRef(null);
   
+  // Manufacturer state
+  const [manufacturerInput, setManufacturerInput] = useState('');
+  const [manufacturerOpen, setManufacturerOpen] = useState(false);
+  const manufacturerRef = useRef(null);
+  
   // Alternative parts state
   const [selectedAlternative, setSelectedAlternative] = useState(null);
   const [alternatives, setAlternatives] = useState([]);
@@ -46,6 +51,9 @@ const Library = () => {
       }
       if (subCat3Ref.current && !subCat3Ref.current.contains(event.target)) {
         setSubCat3Open(false);
+      }
+      if (manufacturerRef.current && !manufacturerRef.current.contains(event.target)) {
+        setManufacturerOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -296,6 +304,7 @@ const Library = () => {
       setIsAddMode(false);
       setEditData({});
       setSelectedComponent(null);
+      setManufacturerInput('');
     },
   });
 
@@ -325,12 +334,25 @@ const Library = () => {
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['componentDetails']);
       setIsEditMode(false);
+      setManufacturerInput('');
+    },
+  });
+
+  // Create manufacturer mutation
+  const createManufacturerMutation = useMutation({
+    mutationFn: (data) => api.createManufacturer(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['manufacturers']);
     },
   });
 
   const handleEdit = async () => {
     setIsEditMode(true);
     setIsAddMode(false);
+    
+    // Set manufacturer input for type-ahead
+    const manufacturerName = manufacturers?.find(m => m.id === componentDetails?.manufacturer_id)?.name || '';
+    setManufacturerInput(manufacturerName);
     
     // Always show all 4 supported distributors in edit mode
     const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
@@ -592,6 +614,9 @@ const Library = () => {
     setIsEditMode(false);
     setSelectedComponent(null);
     
+    // Reset manufacturer input for type-ahead
+    setManufacturerInput('');
+    
     // Prepare default distributors with IDs
     const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
     const defaultDistributors = distributors ? defaultDistributorNames.map(name => {
@@ -851,6 +876,7 @@ const Library = () => {
   const handleCancelAdd = () => {
     setIsAddMode(false);
     setEditData({});
+    setManufacturerInput('');
   };
 
   const toggleBulkDeleteMode = () => {
@@ -1056,7 +1082,10 @@ const Library = () => {
                     Save Changes
                   </button>
                   <button
-                    onClick={() => setIsEditMode(false)}
+                    onClick={() => {
+                      setIsEditMode(false);
+                      setManufacturerInput('');
+                    }}
                     className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <X className="w-4 h-4" />
@@ -1267,22 +1296,93 @@ const Library = () => {
                   </div>
 
                   {/* ROW 3: Manufacturer, MFG Part Number (moved up from ROW 4) */}
-                  <div>
+                  <div ref={manufacturerRef} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Manufacturer <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={editData.manufacturer_id || ''}
-                      onChange={(e) => handleFieldChange('manufacturer_id', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    >
-                      <option value="">Select manufacturer</option>
-                      {manufacturers?.map((mfr) => (
-                        <option key={mfr.id} value={mfr.id}>
-                          {mfr.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={manufacturerInput}
+                        onChange={(e) => {
+                          setManufacturerInput(e.target.value);
+                          setManufacturerOpen(true);
+                        }}
+                        onFocus={() => setManufacturerOpen(true)}
+                        placeholder="Type or select manufacturer..."
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setManufacturerOpen(!manufacturerOpen)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {manufacturerOpen && (() => {
+                        const filtered = manufacturers?.filter(mfr => 
+                          mfr.name.toLowerCase().includes(manufacturerInput.toLowerCase())
+                        ) || [];
+                        const exactMatch = filtered.find(mfr => 
+                          mfr.name.toLowerCase() === manufacturerInput.toLowerCase()
+                        );
+                        const showCreateOption = manufacturerInput.trim() && !exactMatch;
+                        
+                        return (
+                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {showCreateOption && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const response = await createManufacturerMutation.mutateAsync({ 
+                                      name: manufacturerInput.trim() 
+                                    });
+                                    const newManufacturer = response.data;
+                                    handleFieldChange('manufacturer_id', newManufacturer.id);
+                                    setManufacturerOpen(false);
+                                  } catch (error) {
+                                    console.error('Error creating manufacturer:', error);
+                                    setWarningModal({ 
+                                      show: true, 
+                                      message: 'Failed to create manufacturer. Please try again.' 
+                                    });
+                                  }
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Create: "{manufacturerInput.trim()}"
+                              </button>
+                            )}
+                            {filtered.length > 0 ? (
+                              filtered.map(mfr => (
+                                <button
+                                  key={mfr.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setManufacturerInput(mfr.name);
+                                    handleFieldChange('manufacturer_id', mfr.id);
+                                    setManufacturerOpen(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm ${
+                                    editData.manufacturer_id === mfr.id
+                                      ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                                      : 'hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300'
+                                  }`}
+                                >
+                                  {mfr.name}
+                                </button>
+                              ))
+                            ) : !showCreateOption && (
+                              <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                No manufacturers found
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">

@@ -1,11 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, Building2, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList } from 'lucide-react';
 
 const Sidebar = () => {
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/library', icon: BookOpen, label: 'Parts Library' },
-    { path: '/manufacturers', icon: Building2, label: 'Manufacturer Library' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
     { path: '/reports', icon: FileText, label: 'Reports' },
