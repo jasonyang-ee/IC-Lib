@@ -573,3 +573,261 @@ export const getSubCategorySuggestions = async (req, res, next) => {
     next(error);
   }
 };
+
+// ============================================================================
+// ALTERNATIVE PARTS MANAGEMENT
+// ============================================================================
+
+export const getAlternatives = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // First get the component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    const partNumber = componentResult.rows[0].part_number;
+    
+    // Get all alternatives for this part number
+    const result = await pool.query(`
+      SELECT 
+        ca.*,
+        m.name as manufacturer_name,
+        m.website as manufacturer_website,
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', di.id,
+              'distributor_id', di.distributor_id,
+              'distributor_name', d.name,
+              'sku', di.sku,
+              'url', di.url,
+              'price', di.price,
+              'currency', di.currency,
+              'in_stock', di.in_stock,
+              'stock_quantity', di.stock_quantity,
+              'minimum_order_quantity', di.minimum_order_quantity,
+              'packaging', di.packaging,
+              'price_breaks', di.price_breaks,
+              'last_updated', di.last_updated
+            )
+          )
+          FROM distributor_info di
+          LEFT JOIN distributors d ON di.distributor_id = d.id
+          WHERE di.alternative_id = ca.id
+        ) as distributors
+      FROM components_alternative ca
+      LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
+      WHERE ca.part_number = $1
+      ORDER BY ca.is_primary DESC, ca.created_at ASC
+    `, [partNumber]);
+    
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createAlternative = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      manufacturer_id,
+      manufacturer_pn,
+      is_primary = false,
+      notes = '',
+      distributors = [] // Array of distributor info objects
+    } = req.body;
+    
+    // Get component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    const partNumber = componentResult.rows[0].part_number;
+    
+    // If setting as primary, unset all other primaries for this part
+    if (is_primary) {
+      await pool.query(
+        'UPDATE components_alternative SET is_primary = false WHERE part_number = $1',
+        [partNumber]
+      );
+    }
+    
+    // Create the alternative
+    const result = await pool.query(`
+      INSERT INTO components_alternative (
+        part_number, manufacturer_id, manufacturer_pn, is_primary, notes
+      )
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [partNumber, manufacturer_id, manufacturer_pn, is_primary, notes]);
+    
+    const alternativeId = result.rows[0].id;
+    
+    // Add distributor info if provided
+    if (distributors && distributors.length > 0) {
+      for (const dist of distributors) {
+        await pool.query(`
+          INSERT INTO distributor_info (
+            alternative_id, distributor_id, sku, url, price, currency,
+            in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `, [
+          alternativeId,
+          dist.distributor_id,
+          dist.sku,
+          dist.url,
+          dist.price,
+          dist.currency || 'USD',
+          dist.in_stock || false,
+          dist.stock_quantity || 0,
+          dist.minimum_order_quantity || 1,
+          dist.packaging || '',
+          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+        ]);
+      }
+    }
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    if (error.code === '23505') { // Unique constraint violation
+      return res.status(409).json({ error: 'This alternative already exists for this component' });
+    }
+    next(error);
+  }
+};
+
+export const updateAlternative = async (req, res, next) => {
+  try {
+    const { id, altId } = req.params;
+    const {
+      manufacturer_id,
+      manufacturer_pn,
+      is_primary,
+      notes
+    } = req.body;
+    
+    // Get component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    const partNumber = componentResult.rows[0].part_number;
+    
+    // If setting as primary, unset all other primaries for this part
+    if (is_primary) {
+      await pool.query(
+        'UPDATE components_alternative SET is_primary = false WHERE part_number = $1 AND id != $2',
+        [partNumber, altId]
+      );
+    }
+    
+    const result = await pool.query(`
+      UPDATE components_alternative
+      SET 
+        manufacturer_id = COALESCE($1, manufacturer_id),
+        manufacturer_pn = COALESCE($2, manufacturer_pn),
+        is_primary = COALESCE($3, is_primary),
+        notes = COALESCE($4, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5 AND part_number = $6
+      RETURNING *
+    `, [manufacturer_id, manufacturer_pn, is_primary, notes, altId, partNumber]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Alternative not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteAlternative = async (req, res, next) => {
+  try {
+    const { id, altId } = req.params;
+    
+    // Get component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    const partNumber = componentResult.rows[0].part_number;
+    
+    // Delete the alternative (distributor_info will be cascade deleted)
+    const result = await pool.query(
+      'DELETE FROM components_alternative WHERE id = $1 AND part_number = $2 RETURNING *',
+      [altId, partNumber]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Alternative not found' });
+    }
+    
+    res.json({ message: 'Alternative deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const setPrimaryAlternative = async (req, res, next) => {
+  try {
+    const { id, altId } = req.params;
+    
+    // Get component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    const partNumber = componentResult.rows[0].part_number;
+    
+    // Unset all primaries for this part
+    await pool.query(
+      'UPDATE components_alternative SET is_primary = false WHERE part_number = $1',
+      [partNumber]
+    );
+    
+    // Set this one as primary
+    const result = await pool.query(
+      'UPDATE components_alternative SET is_primary = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND part_number = $2 RETURNING *',
+      [altId, partNumber]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Alternative not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+};

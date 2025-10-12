@@ -30,6 +30,10 @@ const Library = () => {
   const subCat1Ref = useRef(null);
   const subCat2Ref = useRef(null);
   const subCat3Ref = useRef(null);
+  
+  // Alternative parts state
+  const [selectedAlternative, setSelectedAlternative] = useState(null);
+  const [alternatives, setAlternatives] = useState([]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -204,6 +208,52 @@ const Library = () => {
       };
     },
   });
+
+  // Fetch alternatives for the selected component
+  const { data: alternativesData } = useQuery({
+    queryKey: ['componentAlternatives', selectedComponent?.id],
+    enabled: !!selectedComponent && !isAddMode, // Enable in view mode and edit mode
+    queryFn: async () => {
+      const response = await api.getComponentAlternatives(selectedComponent.id);
+      return response.data;
+    },
+  });
+
+  // Update alternatives and selected alternative when data changes
+  useEffect(() => {
+    if (alternativesData) {
+      setAlternatives(alternativesData);
+      // Set primary alternative as default, or first one if no primary
+      const primary = alternativesData.find(alt => alt.is_primary);
+      setSelectedAlternative(primary || alternativesData[0] || null);
+      
+      // If in edit mode, populate editData.alternatives
+      if (isEditMode && alternativesData.length > 0) {
+        setEditData(prev => ({
+          ...prev,
+          alternatives: alternativesData.map(alt => ({
+            id: alt.id,
+            manufacturer_id: alt.manufacturer_id,
+            manufacturer_pn: alt.manufacturer_pn,
+            is_primary: alt.is_primary,
+            notes: alt.notes || '',
+            distributors: alt.distributors || []
+          }))
+        }));
+      }
+    } else {
+      setAlternatives([]);
+      setSelectedAlternative(null);
+      
+      // If in edit mode and no alternatives, initialize empty array
+      if (isEditMode) {
+        setEditData(prev => ({
+          ...prev,
+          alternatives: []
+        }));
+      }
+    }
+  }, [alternativesData, isEditMode]);
 
   // Add mutation
   const addMutation = useMutation({
@@ -384,6 +434,63 @@ const Library = () => {
           await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         }
         
+        // Handle alternatives - create new, update existing, delete removed
+        if (editData.alternatives && editData.alternatives.length > 0) {
+          // Get existing alternatives to compare
+          const existingAlternatives = alternativesData || [];
+          const existingIds = new Set(existingAlternatives.map(alt => alt.id));
+          const currentIds = new Set(editData.alternatives.filter(alt => alt.id).map(alt => alt.id));
+          
+          // Delete alternatives that were removed
+          const toDelete = existingAlternatives.filter(alt => !currentIds.has(alt.id));
+          for (const alt of toDelete) {
+            await api.deleteComponentAlternative(selectedComponent.id, alt.id);
+          }
+          
+          // Create or update alternatives
+          for (const alt of editData.alternatives) {
+            // Validate required fields
+            if (!alt.manufacturer_id || !alt.manufacturer_pn?.trim()) {
+              continue; // Skip invalid alternatives
+            }
+            
+            if (alt.id && existingIds.has(alt.id)) {
+              // Update existing alternative
+              await api.updateComponentAlternative(selectedComponent.id, alt.id, {
+                manufacturer_id: alt.manufacturer_id,
+                manufacturer_pn: alt.manufacturer_pn,
+                notes: alt.notes || '',
+                is_primary: alt.is_primary || false,
+                distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
+                  distributor_id: d.distributor_id,
+                  sku: d.sku || '',
+                  url: d.url || '',
+                  price: d.price || null,
+                  stock_quantity: d.stock_quantity || 0
+                })) || []
+              });
+            } else {
+              // Create new alternative
+              await api.createComponentAlternative(selectedComponent.id, {
+                manufacturer_id: alt.manufacturer_id,
+                manufacturer_pn: alt.manufacturer_pn,
+                notes: alt.notes || '',
+                is_primary: alt.is_primary || false,
+                distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
+                  distributor_id: d.distributor_id,
+                  sku: d.sku || '',
+                  url: d.url || '',
+                  price: d.price || null,
+                  stock_quantity: d.stock_quantity || 0
+                })) || []
+              });
+            }
+          }
+          
+          // Refresh alternatives data
+          queryClient.invalidateQueries(['componentAlternatives']);
+        }
+        
         // Refresh the component details
         queryClient.invalidateQueries(['components']);
         queryClient.invalidateQueries(['componentDetails']);
@@ -464,6 +571,7 @@ const Library = () => {
       datasheet_url: '',
       specifications: [], // Array of {spec_name, spec_value, unit}
       distributors: defaultDistributors, // Default four distributors with IDs
+      alternatives: [], // Initialize empty alternatives array
     });
   };
 
@@ -662,6 +770,30 @@ const Library = () => {
           await api.updateComponentDistributors(newComponentId, { distributors: validDistributors });
         }
         
+        // Create alternatives if any
+        if (newComponentId && editData.alternatives && editData.alternatives.length > 0) {
+          for (const alt of editData.alternatives) {
+            // Validate required fields
+            if (!alt.manufacturer_id || !alt.manufacturer_pn?.trim()) {
+              continue; // Skip invalid alternatives
+            }
+            
+            await api.createComponentAlternative(newComponentId, {
+              manufacturer_id: alt.manufacturer_id,
+              manufacturer_pn: alt.manufacturer_pn,
+              notes: alt.notes || '',
+              is_primary: alt.is_primary || false,
+              distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
+                distributor_id: d.distributor_id,
+                sku: d.sku || '',
+                url: d.url || '',
+                price: d.price || null,
+                stock_quantity: d.stock_quantity || 0
+              })) || []
+            });
+          }
+        }
+        
         // Cleanup will be handled by mutation's onSuccess
       } catch (error) {
         console.error('Error adding component:', error);
@@ -692,6 +824,90 @@ const Library = () => {
 
   const handleFieldChange = (field, value) => {
     setEditData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Alternative Parts Management Handlers
+  const handleAddAlternative = () => {
+    setEditData((prev) => ({
+      ...prev,
+      alternatives: [
+        ...(prev.alternatives || []),
+        {
+          manufacturer_id: '',
+          manufacturer_pn: '',
+          is_primary: false,
+          notes: '',
+          distributors: []
+        }
+      ]
+    }));
+  };
+
+  const handleUpdateAlternative = (index, field, value) => {
+    setEditData((prev) => {
+      const updatedAlternatives = [...(prev.alternatives || [])];
+      updatedAlternatives[index] = {
+        ...updatedAlternatives[index],
+        [field]: value
+      };
+      return { ...prev, alternatives: updatedAlternatives };
+    });
+  };
+
+  const handleDeleteAlternative = (index) => {
+    setEditData((prev) => {
+      const updatedAlternatives = [...(prev.alternatives || [])];
+      updatedAlternatives.splice(index, 1);
+      return { ...prev, alternatives: updatedAlternatives };
+    });
+  };
+
+  const handleSetPrimaryAlternative = (index) => {
+    setEditData((prev) => {
+      const updatedAlternatives = (prev.alternatives || []).map((alt, i) => ({
+        ...alt,
+        is_primary: i === index
+      }));
+      return { ...prev, alternatives: updatedAlternatives };
+    });
+  };
+
+  const handleAddAlternativeDistributor = (altIndex) => {
+    setEditData((prev) => {
+      const updatedAlternatives = [...(prev.alternatives || [])];
+      updatedAlternatives[altIndex].distributors = [
+        ...(updatedAlternatives[altIndex].distributors || []),
+        {
+          distributor_id: '',
+          sku: '',
+          url: '',
+          price: '',
+          stock_quantity: ''
+        }
+      ];
+      return { ...prev, alternatives: updatedAlternatives };
+    });
+  };
+
+  const handleUpdateAlternativeDistributor = (altIndex, distIndex, field, value) => {
+    setEditData((prev) => {
+      const updatedAlternatives = [...(prev.alternatives || [])];
+      const updatedDistributors = [...(updatedAlternatives[altIndex].distributors || [])];
+      updatedDistributors[distIndex] = {
+        ...updatedDistributors[distIndex],
+        [field]: value
+      };
+      updatedAlternatives[altIndex].distributors = updatedDistributors;
+      return { ...prev, alternatives: updatedAlternatives };
+    });
+  };
+
+  const handleDeleteAlternativeDistributor = (altIndex, distIndex) => {
+    setEditData((prev) => {
+      const updatedAlternatives = [...(prev.alternatives || [])];
+      updatedAlternatives[altIndex].distributors = updatedAlternatives[altIndex].distributors.filter((_, i) => i !== distIndex);
+      return { ...prev, alternatives: updatedAlternatives };
+    });
   };
 
   const handleComponentClick = (component) => {
@@ -998,21 +1214,221 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* ROW 3: Alternative Selection Box (placeholder for future implementation) */}
+                  {/* ROW 3: Alternative Parts Management */}
                   <div className="col-span-3">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Alternative Parts
-                    </label>
-                    <div className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-500 text-sm italic flex items-center justify-between">
-                      <span>No alternative parts linked</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-gray-600 dark:text-gray-400">
+                        Alternative Parts
+                      </label>
                       <button
                         type="button"
-                        className="text-primary-600 dark:text-primary-400 hover:text-primary-700 text-xs font-medium"
-                        disabled
+                        onClick={handleAddAlternative}
+                        className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-medium flex items-center gap-1"
                       >
-                        + Add Alternative
+                        <span>+ Add Alternative</span>
                       </button>
                     </div>
+                    
+                    {(!editData.alternatives || editData.alternatives.length === 0) ? (
+                      <div className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-500 text-sm italic text-center">
+                        No alternative parts. Click "+ Add Alternative" to add one.
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                        {editData.alternatives.map((alt, altIndex) => (
+                          <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-3 bg-white dark:bg-[#2a2a2a]">
+                            {/* Alternative header with delete and primary buttons */}
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                Alternative #{altIndex + 1}
+                                {alt.is_primary && (
+                                  <span className="ml-2 px-2 py-0.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded text-xs">
+                                    Primary
+                                  </span>
+                                )}
+                              </span>
+                              <div className="flex gap-2">
+                                {!alt.is_primary && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetPrimaryAlternative(altIndex)}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                                    title="Set as primary"
+                                  >
+                                    Set Primary
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAlternative(altIndex)}
+                                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                  title="Delete alternative"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Manufacturer and MFG Part Number */}
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div>
+                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                  Manufacturer <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={alt.manufacturer_id || ''}
+                                  onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                >
+                                  <option value="">Select manufacturer</option>
+                                  {manufacturers?.map((mfr) => (
+                                    <option key={mfr.id} value={mfr.id}>
+                                      {mfr.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                  MFG Part Number <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={alt.manufacturer_pn || ''}
+                                  onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
+                                  placeholder="e.g., RC0805FR-0710KL"
+                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Notes */}
+                            <div className="mb-2">
+                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                Notes
+                              </label>
+                              <input
+                                type="text"
+                                value={alt.notes || ''}
+                                onChange={(e) => handleUpdateAlternative(altIndex, 'notes', e.target.value)}
+                                placeholder="Optional notes about this alternative"
+                                className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                              />
+                            </div>
+
+                            {/* Distributors section */}
+                            <div className="border-t border-gray-200 dark:border-[#444444] pt-2 mt-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                                  Distributors
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddAlternativeDistributor(altIndex)}
+                                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                                >
+                                  + Add Distributor
+                                </button>
+                              </div>
+
+                              {(!alt.distributors || alt.distributors.length === 0) ? (
+                                <div className="text-xs text-gray-500 dark:text-gray-500 italic text-center py-2">
+                                  No distributors. Click "+ Add Distributor" to add one.
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {alt.distributors.map((dist, distIndex) => (
+                                    <div key={distIndex} className="border border-gray-200 dark:border-[#3a3a3a] rounded p-2 bg-gray-50 dark:bg-[#252525]">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          Distributor #{distIndex + 1}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteAlternativeDistributor(altIndex, distIndex)}
+                                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Distributor
+                                          </label>
+                                          <select
+                                            value={dist.distributor_id || ''}
+                                            onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'distributor_id', e.target.value)}
+                                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                          >
+                                            <option value="">Select distributor</option>
+                                            {distributors?.map((d) => (
+                                              <option key={d.id} value={d.id}>
+                                                {d.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            SKU
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dist.sku || ''}
+                                            onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
+                                            placeholder="e.g., 311-10.0KCRCT-ND"
+                                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                          />
+                                        </div>
+                                        <div className="col-span-2">
+                                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            URL
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={dist.url || ''}
+                                            onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
+                                            placeholder="Product page URL"
+                                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Price
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={dist.price || ''}
+                                            onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'price', e.target.value)}
+                                            placeholder="0.00"
+                                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                            Stock
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={dist.stock_quantity || ''}
+                                            onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'stock_quantity', e.target.value)}
+                                            placeholder="0"
+                                            className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                   </div>
 
                   {/* ROW 4: Manufacturer, MFG Part Number */}
@@ -1371,15 +1787,88 @@ const Library = () => {
                     </p>
                   </div>
 
-                  {/* Row 2: Manufacturer, MFG Part Number */}
+                  {/* Alternative Parts Selection */}
+                  {alternatives && alternatives.length > 0 && (
+                    <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
+                      <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
+                      <select
+                        value={selectedAlternative?.id || ''}
+                        onChange={(e) => {
+                          const alt = alternatives.find(a => a.id === e.target.value);
+                          setSelectedAlternative(alt);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      >
+                        {alternatives.map((alt) => (
+                          <option key={alt.id} value={alt.id}>
+                            {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
+                            {alt.is_primary ? ' (Primary)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Row 2: Manufacturer, MFG Part Number (from selected alternative) */}
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_name || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name || 'N/A'}
+                    </p>
                   </div>
                   <div className="col-span-2">
                     <span className="text-gray-600 dark:text-gray-400">MFG Part Number:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.manufacturer_pn || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn || 'N/A'}
+                    </p>
                   </div>
+
+                  {/* Distributor Info for selected alternative */}
+                  {selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 && (
+                    <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
+                      <span className="text-gray-600 dark:text-gray-400 block mb-2 font-semibold">Distributor Information:</span>
+                      <div className="space-y-2">
+                        {selectedAlternative.distributors.map((dist, index) => (
+                          <div key={index} className="bg-gray-50 dark:bg-[#252525] rounded-md p-3 text-sm">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">Distributor:</span>
+                                <p className="font-medium text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">SKU:</span>
+                                <p className="font-medium text-gray-900 dark:text-gray-100">{dist.sku || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">Stock:</span>
+                                <p className="font-medium text-gray-900 dark:text-gray-100">
+                                  {dist.in_stock ? `${dist.stock_quantity || 0} in stock` : 'Out of stock'}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">Price:</span>
+                                <p className="font-medium text-gray-900 dark:text-gray-100">
+                                  {dist.price ? `${dist.currency || 'USD'} ${dist.price}` : 'N/A'}
+                                </p>
+                              </div>
+                              {dist.url && (
+                                <div className="col-span-2">
+                                  <a 
+                                    href={dist.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-primary-600 dark:text-primary-400 hover:underline text-xs break-all"
+                                  >
+                                    View on {dist.distributor_name}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Row 3: Value, Package */}
                   <div>

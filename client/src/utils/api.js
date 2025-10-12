@@ -54,6 +54,14 @@ export const api = {
   updateComponentSpecifications: (id, data) => apiClient.put(`/components/${id}/specifications`, data),
   getComponentDistributors: (id) => apiClient.get(`/components/${id}/distributors`),
   updateComponentDistributors: (id, data) => apiClient.put(`/components/${id}/distributors`, data),
+  
+  // Component Alternatives
+  getComponentAlternatives: (id) => apiClient.get(`/components/${id}/alternatives`),
+  createComponentAlternative: (id, data) => apiClient.post(`/components/${id}/alternatives`, data),
+  updateComponentAlternative: (id, altId, data) => apiClient.put(`/components/${id}/alternatives/${altId}`, data),
+  deleteComponentAlternative: (id, altId) => apiClient.delete(`/components/${id}/alternatives/${altId}`),
+  setPrimaryAlternative: (id, altId) => apiClient.put(`/components/${id}/alternatives/${altId}/set-primary`),
+  
   getSubCategorySuggestions: (categoryId, level, filters = {}) => {
     const params = { categoryId, level };
     if (filters.subCat1) params.subCat1 = filters.subCat1;

@@ -33,4 +33,19 @@ router.get('/:id/distributors', componentController.getDistributorInfo);
 // Update distributor info for component
 router.put('/:id/distributors', componentController.updateDistributorInfo);
 
+// Get alternative parts for a component
+router.get('/:id/alternatives', componentController.getAlternatives);
+
+// Create alternative part
+router.post('/:id/alternatives', componentController.createAlternative);
+
+// Update alternative part
+router.put('/:id/alternatives/:altId', componentController.updateAlternative);
+
+// Delete alternative part
+router.delete('/:id/alternatives/:altId', componentController.deleteAlternative);
+
+// Set primary alternative
+router.put('/:id/alternatives/:altId/set-primary', componentController.setPrimaryAlternative);
+
 export default router;
