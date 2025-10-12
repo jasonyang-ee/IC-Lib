@@ -283,22 +283,50 @@ const Inventory = () => {
     if (updates.length > 0) {
       try {
         await Promise.all(updates);
+        
+        // Refresh main inventory data
         queryClient.invalidateQueries(['inventory']);
         queryClient.invalidateQueries(['lowStock']);
+        
+        // Refresh alternatives data for all affected components
+        const affectedComponentIds = new Set();
+        for (const item of filteredInventory) {
+          const alternatives = alternativesData[item.component_id] || [];
+          if (alternatives.some(alt => editingAlternative?.[alt.id])) {
+            affectedComponentIds.add(item.component_id);
+          }
+        }
+        
+        // Fetch updated alternatives
+        for (const componentId of affectedComponentIds) {
+          try {
+            const response = await api.getInventoryAlternatives(componentId);
+            setAlternativesData(prev => ({
+              ...prev,
+              [componentId]: response.data
+            }));
+          } catch (error) {
+            console.error('Error refreshing alternatives:', error);
+          }
+        }
+        
         setEditMode(false);
         setEditedItems({});
+        setEditingAlternative({});
       } catch (error) {
         alert('Error saving changes: ' + (error.message || 'Unknown error'));
       }
     } else {
       setEditMode(false);
       setEditedItems({});
+      setEditingAlternative({});
     }
   };
 
   const handleCancelEdit = () => {
     setEditMode(false);
     setEditedItems({});
+    setEditingAlternative({});
   };
 
   const handleBarcodeSearch = () => {
@@ -513,7 +541,7 @@ const Inventory = () => {
           {/* Sorting Controls */}
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Sort:</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -529,7 +557,7 @@ const Inventory = () => {
             </div>
             
             {/* Sort Order Toggle */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Order:</label>
               <div className="flex-1 flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
                 <button
@@ -829,8 +857,12 @@ const Inventory = () => {
 
                   {/* Alternative Parts Rows */}
                   {isExpanded && alternatives.length > 0 && alternatives.map((alt, altIndex) => {
-                    const editingAlt = editingAlternative?.[alt.id] || {};
-                    const isEditingThis = Object.keys(editingAlt).length > 0;
+                    const editingAlt = editingAlternative?.[alt.id] || {
+                      location: alt.location || '',
+                      quantity: alt.quantity || 0,
+                      minimum_quantity: alt.minimum_quantity || 0,
+                      consumeQty: 0
+                    };
 
                     return (
                       <tr 
@@ -865,7 +897,7 @@ const Inventory = () => {
                           {editMode ? (
                             <input
                               type="text"
-                              value={isEditingThis ? editingAlt.location : (alt.location || '')}
+                              value={editingAlt.location}
                               onChange={(e) => handleAlternativeEdit(alt.id, 'location', e.target.value)}
                               placeholder="Enter location..."
                               className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
@@ -883,7 +915,7 @@ const Inventory = () => {
                                 <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Set to:</span>
                                 <input
                                   type="number"
-                                  value={isEditingThis ? editingAlt.quantity : (alt.quantity || 0)}
+                                  value={editingAlt.quantity}
                                   onChange={(e) => handleAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
                                   className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                                 />
@@ -892,7 +924,7 @@ const Inventory = () => {
                                 <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Consume:</span>
                                 <input
                                   type="number"
-                                  value={isEditingThis ? (editingAlt.consumeQty || '') : ''}
+                                  value={editingAlt.consumeQty || ''}
                                   onChange={(e) => handleAlternativeEdit(alt.id, 'consumeQty', parseInt(e.target.value) || 0)}
                                   placeholder="0"
                                   className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
@@ -909,7 +941,7 @@ const Inventory = () => {
                           {editMode ? (
                             <input
                               type="number"
-                              value={editingAlt?.minimum_quantity ?? alt.minimum_quantity ?? 0}
+                              value={editingAlt.minimum_quantity}
                               onChange={(e) => handleAlternativeEdit(alt.id, 'minimum_quantity', parseInt(e.target.value) || 0)}
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             />

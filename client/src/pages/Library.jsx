@@ -1109,8 +1109,8 @@ const Library = () => {
 
             {/* Sorting Controls */}
             <div className="mt-3 space-y-2">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Sort</h3>
               <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Sort:</label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
@@ -1126,8 +1126,8 @@ const Library = () => {
               </div>
               
               {/* Sort Order Toggle */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Order:</label>
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[45px]">Order:</label>
                 <div className="flex-1 flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
                   <button
                     onClick={() => setSortOrder('asc')}
