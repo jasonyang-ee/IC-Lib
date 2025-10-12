@@ -102,7 +102,8 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       pricing,
       stock,
       productUrl,
-      minimumOrderQuantity
+      minimumOrderQuantity,
+      allDistributors // Array of all selected distributors
     } = req.body;
 
     if (!manufacturerPartNumber) {
@@ -143,12 +144,49 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       }
     }
 
-    // Get distributor ID
-    const distributorResult = await pool.query(
-      'SELECT id FROM distributors WHERE LOWER(name) = LOWER($1)',
-      [source === 'digikey' ? 'Digikey' : 'Mouser']
-    );
-    const distributorId = distributorResult.rows.length > 0 ? distributorResult.rows[0].id : null;
+    // Process multiple distributors if provided
+    let distributorData = [];
+    
+    if (allDistributors && Array.isArray(allDistributors) && allDistributors.length > 0) {
+      // Process each distributor from the selection
+      for (const dist of allDistributors) {
+        const distributorResult = await pool.query(
+          'SELECT id FROM distributors WHERE LOWER(name) = LOWER($1)',
+          [dist.source === 'digikey' ? 'Digikey' : 'Mouser']
+        );
+        
+        if (distributorResult.rows.length > 0) {
+          distributorData.push({
+            id: distributorResult.rows[0].id,
+            source: dist.source,
+            sku: dist.sku,
+            url: dist.productUrl,
+            pricing: dist.pricing,
+            stock: dist.stock,
+            minimumOrderQuantity: dist.minimumOrderQuantity
+          });
+        }
+      }
+    } else {
+      // Fallback to single distributor (backward compatibility)
+      const distributorResult = await pool.query(
+        'SELECT id FROM distributors WHERE LOWER(name) = LOWER($1)',
+        [source === 'digikey' ? 'Digikey' : 'Mouser']
+      );
+      const distributorId = distributorResult.rows.length > 0 ? distributorResult.rows[0].id : null;
+      
+      if (distributorId) {
+        distributorData.push({
+          id: distributorId,
+          source,
+          sku: partNumber,
+          url: productUrl,
+          pricing,
+          stock,
+          minimumOrderQuantity
+        });
+      }
+    }
 
     // Return prepared data for frontend to use
     res.json({
@@ -162,15 +200,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
         series,
         category,
         specifications: specifications || {},
-        distributor: {
-          id: distributorId,
-          source,
-          sku: partNumber,
-          url: productUrl,
-          pricing,
-          stock,
-          minimumOrderQuantity
-        }
+        distributors: distributorData // Now returns array of all distributors
       }
     });
   } catch (error) {

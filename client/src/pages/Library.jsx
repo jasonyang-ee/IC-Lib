@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -20,10 +20,33 @@ const Library = () => {
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [copiedText, setCopiedText] = useState('');
   
-  // Sub-category suggestions
+  // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
   const [subCat2Suggestions, setSubCat2Suggestions] = useState([]);
   const [subCat3Suggestions, setSubCat3Suggestions] = useState([]);
+  const [subCat1Open, setSubCat1Open] = useState(false);
+  const [subCat2Open, setSubCat2Open] = useState(false);
+  const [subCat3Open, setSubCat3Open] = useState(false);
+  const subCat1Ref = useRef(null);
+  const subCat2Ref = useRef(null);
+  const subCat3Ref = useRef(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (subCat1Ref.current && !subCat1Ref.current.contains(event.target)) {
+        setSubCat1Open(false);
+      }
+      if (subCat2Ref.current && !subCat2Ref.current.contains(event.target)) {
+        setSubCat2Open(false);
+      }
+      if (subCat3Ref.current && !subCat3Ref.current.contains(event.target)) {
+        setSubCat3Open(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Copy to clipboard handler
   const handleCopyToClipboard = (text, label) => {
@@ -96,6 +119,37 @@ const Library = () => {
       setIsEditMode(false);
       setSelectedComponent(null);
       
+      // Process distributors - handle both new array format and legacy single distributor
+      let distributorsList = [];
+      
+      if (vendorData.distributors && Array.isArray(vendorData.distributors) && vendorData.distributors.length > 0) {
+        // New format: multiple distributors
+        distributorsList = vendorData.distributors.map(dist => ({
+          distributor_id: dist.id || '',
+          distributor_name: dist.source === 'digikey' ? 'Digikey' : 'Mouser',
+          sku: dist.sku || '',
+          url: dist.url || '',
+          price: dist.pricing?.[0]?.price || '',
+          in_stock: (dist.stock || 0) > 0,
+          stock_quantity: dist.stock || 0,
+          minimum_order_quantity: dist.minimumOrderQuantity || 1,
+          price_breaks: dist.pricing || []
+        }));
+      } else if (vendorData.distributor) {
+        // Legacy format: single distributor (backward compatibility)
+        distributorsList = [{
+          distributor_id: vendorData.distributor.id || '',
+          distributor_name: vendorData.distributor.source === 'digikey' ? 'Digikey' : 'Mouser',
+          sku: vendorData.distributor.sku || '',
+          url: vendorData.distributor.url || '',
+          price: vendorData.distributor.pricing?.[0]?.price || '',
+          in_stock: (vendorData.distributor.stock || 0) > 0,
+          stock_quantity: vendorData.distributor.stock || 0,
+          minimum_order_quantity: vendorData.distributor.minimumOrderQuantity || 1,
+          price_breaks: vendorData.distributor.pricing || []
+        }];
+      }
+      
       // Pre-fill edit data with vendor information
       const preparedData = {
         category_id: '',
@@ -106,23 +160,13 @@ const Library = () => {
         datasheet_url: vendorData.datasheet || '',
         status: 'Active',
         notes: vendorData.series ? `Series: ${vendorData.series}` : '',
-        // Distributor info
-        distributors: [{
-          distributor_id: vendorData.distributor?.id || '',
-          distributor_name: vendorData.distributor?.source === 'digikey' ? 'Digikey' : 'Mouser',
-          sku: vendorData.distributor?.sku || '',
-          url: vendorData.distributor?.url || '',
-          price: vendorData.distributor?.pricing?.[0]?.price || '',
-          in_stock: (vendorData.distributor?.stock || 0) > 0,
-          stock_quantity: vendorData.distributor?.stock || 0,
-          minimum_order_quantity: vendorData.distributor?.minimumOrderQuantity || 1,
-          price_breaks: vendorData.distributor?.pricing || []
-        }],
+        // Distributor info - now supports multiple distributors
+        distributors: distributorsList,
         // Specifications from vendor
         vendorSpecifications: vendorData.specifications || {},
         // Store complete vendor data for display in details panel
         _vendorSearchData: {
-          source: vendorData.distributor?.source || 'vendor',
+          source: vendorData.distributors?.[0]?.source || vendorData.distributor?.source || 'vendor',
           manufacturerPartNumber: vendorData.manufacturerPartNumber,
           manufacturer: vendorData.manufacturerName,
           description: vendorData.description,
@@ -131,7 +175,8 @@ const Library = () => {
           series: vendorData.series,
           category: vendorData.category,
           specifications: vendorData.specifications || {},
-          distributor: vendorData.distributor
+          distributor: vendorData.distributor, // Legacy
+          distributors: vendorData.distributors // New format
         }
       };
       
@@ -463,17 +508,18 @@ const Library = () => {
   const handleCategoryChange = async (categoryId) => {
     handleFieldChange('category_id', categoryId);
     
-    // Load sub-category suggestions for this category
+    // Load sub-category 1 suggestions for this category
     if (categoryId) {
       try {
-        const [sub1, sub2, sub3] = await Promise.all([
-          api.getSubCategorySuggestions(categoryId, 1),
-          api.getSubCategorySuggestions(categoryId, 2),
-          api.getSubCategorySuggestions(categoryId, 3)
-        ]);
+        const sub1 = await api.getSubCategorySuggestions(categoryId, 1);
         setSubCat1Suggestions(sub1.data || []);
-        setSubCat2Suggestions(sub2.data || []);
-        setSubCat3Suggestions(sub3.data || []);
+        // Clear sub2 and sub3 when category changes
+        setSubCat2Suggestions([]);
+        setSubCat3Suggestions([]);
+        // Clear sub-category values
+        handleFieldChange('sub_category1', '');
+        handleFieldChange('sub_category2', '');
+        handleFieldChange('sub_category3', '');
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -505,6 +551,53 @@ const Library = () => {
         // Continue without templates if error occurs
         handleFieldChange('specifications', []);
       }
+    }
+  };
+
+  // Load sub-category 2 suggestions when sub-category 1 changes
+  const handleSubCat1Change = async (value) => {
+    handleFieldChange('sub_category1', value);
+    
+    // Clear sub-category 2 and 3
+    handleFieldChange('sub_category2', '');
+    handleFieldChange('sub_category3', '');
+    setSubCat3Suggestions([]);
+    
+    // Load sub-category 2 suggestions filtered by sub-category 1
+    if (editData.category_id && value) {
+      try {
+        const sub2 = await api.getSubCategorySuggestions(editData.category_id, 2, { subCat1: value });
+        setSubCat2Suggestions(sub2.data || []);
+      } catch (error) {
+        console.error('Error loading sub-category 2 suggestions:', error);
+        setSubCat2Suggestions([]);
+      }
+    } else {
+      setSubCat2Suggestions([]);
+    }
+  };
+
+  // Load sub-category 3 suggestions when sub-category 2 changes
+  const handleSubCat2Change = async (value) => {
+    handleFieldChange('sub_category2', value);
+    
+    // Clear sub-category 3
+    handleFieldChange('sub_category3', '');
+    
+    // Load sub-category 3 suggestions filtered by sub-category 1 and 2
+    if (editData.category_id && editData.sub_category1 && value) {
+      try {
+        const sub3 = await api.getSubCategorySuggestions(editData.category_id, 3, { 
+          subCat1: editData.sub_category1, 
+          subCat2: value 
+        });
+        setSubCat3Suggestions(sub3.data || []);
+      } catch (error) {
+        console.error('Error loading sub-category 3 suggestions:', error);
+        setSubCat3Suggestions([]);
+      }
+    } else {
+      setSubCat3Suggestions([]);
     }
   };
 
@@ -933,54 +1026,149 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* Sub-categories (moved before description) */}
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
-                    <input
-                      type="text"
-                      list="subcat1-list"
-                      value={editData.sub_category1 || ''}
-                      onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
-                      placeholder="e.g., Ceramic (type or select)"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                    <datalist id="subcat1-list">
-                      {subCat1Suggestions.map((suggestion, idx) => (
-                        <option key={idx} value={suggestion} />
-                      ))}
-                    </datalist>
+                  {/* Sub-categories with custom dropdowns */}
+                  <div ref={subCat1Ref} className="relative">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Sub-Category 1
+                      {!editData.category_id && <span className="text-xs text-gray-500 ml-2">(Select category first)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={editData.sub_category1 || ''}
+                        onChange={(e) => {
+                          handleFieldChange('sub_category1', e.target.value);
+                          setSubCat1Open(true);
+                        }}
+                        onFocus={() => editData.category_id && setSubCat1Open(true)}
+                        disabled={!editData.category_id}
+                        placeholder={editData.category_id ? "Type or select..." : "Select category first"}
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
+                      />
+                      {editData.category_id && (
+                        <button
+                          type="button"
+                          onClick={() => setSubCat1Open(!subCat1Open)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${subCat1Open ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {subCat1Open && editData.category_id && subCat1Suggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#333333] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                        {subCat1Suggestions
+                          .filter(s => !editData.sub_category1 || s.toLowerCase().includes(editData.sub_category1.toLowerCase()))
+                          .map((suggestion, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                handleSubCat1Change(suggestion);
+                                setSubCat1Open(false);
+                              }}
+                              className="px-3 py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-900 dark:text-gray-100 text-sm border-b border-gray-100 dark:border-[#3a3a3a] last:border-b-0"
+                            >
+                              {suggestion}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
-                    <input
-                      type="text"
-                      list="subcat2-list"
-                      value={editData.sub_category2 || ''}
-                      onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
-                      placeholder="e.g., X7R (type or select)"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                    <datalist id="subcat2-list">
-                      {subCat2Suggestions.map((suggestion, idx) => (
-                        <option key={idx} value={suggestion} />
-                      ))}
-                    </datalist>
+
+                  <div ref={subCat2Ref} className="relative">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Sub-Category 2
+                      {!editData.sub_category1 && <span className="text-xs text-gray-500 ml-2">(Select sub-cat 1 first)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={editData.sub_category2 || ''}
+                        onChange={(e) => {
+                          handleFieldChange('sub_category2', e.target.value);
+                          setSubCat2Open(true);
+                        }}
+                        onFocus={() => editData.sub_category1 && setSubCat2Open(true)}
+                        disabled={!editData.sub_category1}
+                        placeholder={editData.sub_category1 ? "Type or select..." : "Select sub-category 1 first"}
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
+                      />
+                      {editData.sub_category1 && (
+                        <button
+                          type="button"
+                          onClick={() => setSubCat2Open(!subCat2Open)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${subCat2Open ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {subCat2Open && editData.sub_category1 && subCat2Suggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#333333] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                        {subCat2Suggestions
+                          .filter(s => !editData.sub_category2 || s.toLowerCase().includes(editData.sub_category2.toLowerCase()))
+                          .map((suggestion, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                handleSubCat2Change(suggestion);
+                                setSubCat2Open(false);
+                              }}
+                              className="px-3 py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-900 dark:text-gray-100 text-sm border-b border-gray-100 dark:border-[#3a3a3a] last:border-b-0"
+                            >
+                              {suggestion}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
-                    <input
-                      type="text"
-                      list="subcat3-list"
-                      value={editData.sub_category3 || ''}
-                      onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
-                      placeholder="e.g., 50V (type or select)"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                    <datalist id="subcat3-list">
-                      {subCat3Suggestions.map((suggestion, idx) => (
-                        <option key={idx} value={suggestion} />
-                      ))}
-                    </datalist>
+
+                  <div ref={subCat3Ref} className="relative">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Sub-Category 3
+                      {!editData.sub_category2 && <span className="text-xs text-gray-500 ml-2">(Select sub-cat 2 first)</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={editData.sub_category3 || ''}
+                        onChange={(e) => {
+                          handleFieldChange('sub_category3', e.target.value);
+                          setSubCat3Open(true);
+                        }}
+                        onFocus={() => editData.sub_category2 && setSubCat3Open(true)}
+                        disabled={!editData.sub_category2}
+                        placeholder={editData.sub_category2 ? "Type or select..." : "Select sub-category 2 first"}
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
+                      />
+                      {editData.sub_category2 && (
+                        <button
+                          type="button"
+                          onClick={() => setSubCat3Open(!subCat3Open)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${subCat3Open ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {subCat3Open && editData.sub_category2 && subCat3Suggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#333333] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                        {subCat3Suggestions
+                          .filter(s => !editData.sub_category3 || s.toLowerCase().includes(editData.sub_category3.toLowerCase()))
+                          .map((suggestion, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                handleFieldChange('sub_category3', suggestion);
+                                setSubCat3Open(false);
+                              }}
+                              className="px-3 py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-900 dark:text-gray-100 text-sm border-b border-gray-100 dark:border-[#3a3a3a] last:border-b-0"
+                            >
+                              {suggestion}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Row 3.5: Description (after Value and Package) */}

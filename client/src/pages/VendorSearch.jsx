@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -8,13 +8,59 @@ const VendorSearch = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
+
+  // Load cached search results from sessionStorage on mount
+  useEffect(() => {
+    const cachedResults = sessionStorage.getItem('vendorSearchResults');
+    const cachedTerm = sessionStorage.getItem('vendorSearchTerm');
+    const cachedSelected = sessionStorage.getItem('vendorSelectedParts');
+    
+    if (cachedResults) {
+      try {
+        setSearchResults(JSON.parse(cachedResults));
+      } catch (e) {
+        console.error('Error parsing cached search results:', e);
+      }
+    }
+    
+    if (cachedTerm) {
+      setSearchTerm(cachedTerm);
+    }
+    
+    if (cachedSelected) {
+      try {
+        setSelectedParts(JSON.parse(cachedSelected));
+      } catch (e) {
+        console.error('Error parsing cached selected parts:', e);
+      }
+    }
+  }, []);
+
+  // Helper to toggle part selection
+  const togglePartSelection = (part) => {
+    setSelectedParts(prev => {
+      const isSelected = prev.some(p => p.partNumber === part.partNumber);
+      const newSelection = isSelected
+        ? prev.filter(p => p.partNumber !== part.partNumber)
+        : [...prev, part];
+      sessionStorage.setItem('vendorSelectedParts', JSON.stringify(newSelection));
+      return newSelection;
+    });
+  };
+
+  // Check if part is selected
+  const isPartSelected = (partNumber) => {
+    return selectedParts.some(p => p.partNumber === partNumber);
+  };
 
   const searchMutation = useMutation({
     mutationFn: (partNumber) => api.searchAllVendors(partNumber),
     onSuccess: (response) => {
       setSearchResults(response.data);
+      // Cache results in sessionStorage
+      sessionStorage.setItem('vendorSearchResults', JSON.stringify(response.data));
+      sessionStorage.setItem('vendorSearchTerm', searchTerm);
     },
   });
 
@@ -58,35 +104,58 @@ const VendorSearch = () => {
   };
 
   const handleAddToLibrary = () => {
-    if (selectedPart) {
-      // Determine source from search results
-      const source = searchResults?.digikey?.results?.find(p => p.partNumber === selectedPart.partNumber) 
-        ? 'digikey' 
-        : 'mouser';
-      
-      addToLibraryMutation.mutate({
-        partNumber: selectedPart.partNumber,
-        manufacturerPartNumber: selectedPart.manufacturerPartNumber,
-        manufacturer: selectedPart.manufacturer,
-        description: selectedPart.description,
-        datasheet: selectedPart.datasheet,
-        packageType: selectedPart.packageType,
-        series: selectedPart.series,
-        category: selectedPart.category,
-        specifications: selectedPart.specifications || {},
-        source,
-        pricing: selectedPart.pricing,
-        stock: selectedPart.stock,
-        productUrl: selectedPart.productUrl,
-        minimumOrderQuantity: selectedPart.minimumOrderQuantity
-      });
+    if (selectedParts.length === 0) {
+      alert('Please select at least one part from the search results.');
+      return;
     }
+
+    // Prioritize Digikey for primary data
+    const digikeyPart = selectedParts.find(p => 
+      searchResults?.digikey?.results?.some(dp => dp.partNumber === p.partNumber)
+    );
+    
+    // Use Digikey as primary source if available, otherwise use first selected
+    const primaryPart = digikeyPart || selectedParts[0];
+    const primarySource = digikeyPart ? 'digikey' : 'mouser';
+    
+    // Collect all distributor info from selected parts
+    const distributorData = selectedParts.map(part => {
+      const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+      return {
+        source: isDigikey ? 'digikey' : 'mouser',
+        sku: part.partNumber,
+        pricing: part.pricing,
+        stock: part.stock,
+        productUrl: part.productUrl,
+        minimumOrderQuantity: part.minimumOrderQuantity
+      };
+    });
+    
+    addToLibraryMutation.mutate({
+      partNumber: primaryPart.partNumber,
+      manufacturerPartNumber: primaryPart.manufacturerPartNumber,
+      manufacturer: primaryPart.manufacturer,
+      description: primaryPart.description,
+      datasheet: primaryPart.datasheet,
+      packageType: primaryPart.packageType,
+      series: primaryPart.series,
+      category: primaryPart.category,
+      specifications: primaryPart.specifications || {},
+      source: primarySource,
+      pricing: primaryPart.pricing,
+      stock: primaryPart.stock,
+      productUrl: primaryPart.productUrl,
+      minimumOrderQuantity: primaryPart.minimumOrderQuantity,
+      allDistributors: distributorData // Pass all selected distributors
+    });
   };
 
   const handleDownloadFootprint = (source) => {
-    if (selectedPart) {
+    if (selectedParts.length > 0) {
+      // Use first selected part for footprint download
+      const part = selectedParts[0];
       downloadFootprintMutation.mutate({
-        partNumber: selectedPart.manufacturerPartNumber,
+        partNumber: part.manufacturerPartNumber,
         source,
       });
     }
@@ -127,24 +196,38 @@ const VendorSearch = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Digikey Results */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Digikey Results</h3>
+              {selectedParts.length > 0 && (
+                <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
+                  {selectedParts.filter(p => searchResults.digikey?.results?.some(dp => dp.partNumber === p.partNumber)).length} selected
+                </span>
+              )}
             </div>
-            <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+            <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
               {searchResults.digikey?.error ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.digikey.error}</p>
               ) : searchResults.digikey?.results?.length > 0 ? (
                 searchResults.digikey.results.map((part, index) => (
                   <div
                     key={index}
-                    onClick={() => setSelectedPart(part)}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedPart?.partNumber === part.partNumber
+                    onClick={() => togglePartSelection(part)}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors relative ${
+                      isPartSelected(part.partNumber)
                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                         : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
                     }`}
                   >
-                    <div className="flex justify-between items-start">
+                    {/* Checkbox */}
+                    <div className="absolute top-3 right-3">
+                      <input
+                        type="checkbox"
+                        checked={isPartSelected(part.partNumber)}
+                        onChange={() => {}} // Handled by div onClick
+                        className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
@@ -192,24 +275,38 @@ const VendorSearch = () => {
 
           {/* Mouser Results */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Mouser Results</h3>
+              {selectedParts.length > 0 && (
+                <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
+                  {selectedParts.filter(p => searchResults.mouser?.results?.some(mp => mp.partNumber === p.partNumber)).length} selected
+                </span>
+              )}
             </div>
-            <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+            <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
               {searchResults.mouser?.error ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.mouser.error}</p>
               ) : searchResults.mouser?.results?.length > 0 ? (
                 searchResults.mouser.results.map((part, index) => (
                   <div
                     key={index}
-                    onClick={() => setSelectedPart(part)}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedPart?.partNumber === part.partNumber
+                    onClick={() => togglePartSelection(part)}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors relative ${
+                      isPartSelected(part.partNumber)
                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                         : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
                     }`}
                   >
-                    <div className="flex justify-between items-start">
+                    {/* Checkbox */}
+                    <div className="absolute top-3 right-3">
+                      <input
+                        type="checkbox"
+                        checked={isPartSelected(part.partNumber)}
+                        onChange={() => {}} // Handled by div onClick
+                        className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
@@ -257,10 +354,55 @@ const VendorSearch = () => {
         </div>
       )}
 
-      {/* Selected Part Actions */}
-      {selectedPart && (
+      {/* Selected Parts Actions */}
+      {selectedParts.length > 0 && (
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Actions for Selected Part</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Actions for Selected Parts
+            </h3>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedParts.length} part{selectedParts.length > 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedParts([]);
+                  sessionStorage.removeItem('vendorSelectedParts');
+                }}
+                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+          
+          {/* Show selected parts info */}
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-[#1a1a1a] rounded-md">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium">Selected:</p>
+            <div className="space-y-1">
+              {selectedParts.map((part, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs">
+                  <span className={`px-2 py-0.5 rounded ${
+                    searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber)
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                  }`}>
+                    {searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber) ? 'Digikey' : 'Mouser'}
+                  </span>
+                  <span className="text-gray-700 dark:text-gray-300 font-mono">{part.partNumber}</span>
+                  <span className="text-gray-500 dark:text-gray-500">-</span>
+                  <span className="text-gray-600 dark:text-gray-400">{part.manufacturerPartNumber}</span>
+                </div>
+              ))}
+            </div>
+            {selectedParts.length > 1 && (
+              <p className="text-xs text-primary-600 dark:text-primary-400 mt-2 italic">
+                ℹ️ Primary data will be from {selectedParts.some(p => searchResults?.digikey?.results?.some(dp => dp.partNumber === p.partNumber)) ? 'Digikey' : 'Mouser'}. All selected parts will be added as distributor SKUs.
+              </p>
+            )}
+          </div>
+
           <div className="flex gap-3">
             <button 
               onClick={handleAddToLibrary}
@@ -268,7 +410,7 @@ const VendorSearch = () => {
               className="btn-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              {addToLibraryMutation.isPending ? 'Adding...' : 'Add to Library'}
+              {addToLibraryMutation.isPending ? 'Adding...' : `Add to Library (${selectedParts.length})`}
             </button>
             <button
               onClick={() => handleDownloadFootprint('ultra-librarian')}

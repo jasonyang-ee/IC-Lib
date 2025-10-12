@@ -54,7 +54,12 @@ export const api = {
   updateComponentSpecifications: (id, data) => apiClient.put(`/components/${id}/specifications`, data),
   getComponentDistributors: (id) => apiClient.get(`/components/${id}/distributors`),
   updateComponentDistributors: (id, data) => apiClient.put(`/components/${id}/distributors`, data),
-  getSubCategorySuggestions: (categoryId, level) => apiClient.get('/components/subcategories/suggestions', { params: { categoryId, level } }),
+  getSubCategorySuggestions: (categoryId, level, filters = {}) => {
+    const params = { categoryId, level };
+    if (filters.subCat1) params.subCat1 = filters.subCat1;
+    if (filters.subCat2) params.subCat2 = filters.subCat2;
+    return apiClient.get('/components/subcategories/suggestions', { params });
+  },
 
   // Categories
   getCategories: () => apiClient.get('/categories'),

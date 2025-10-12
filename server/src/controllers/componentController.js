@@ -523,7 +523,7 @@ export const updateDistributorInfo = async (req, res, next) => {
 // Get unique sub-category values for a specific category
 export const getSubCategorySuggestions = async (req, res, next) => {
   try {
-    const { categoryId, level } = req.query;
+    const { categoryId, level, subCat1, subCat2 } = req.query;
     
     if (!categoryId || !level || !['1', '2', '3'].includes(level)) {
       return res.status(400).json({ error: 'categoryId and level (1, 2, or 3) are required' });
@@ -531,14 +531,42 @@ export const getSubCategorySuggestions = async (req, res, next) => {
 
     const columnName = `sub_category${level}`;
     
-    const result = await pool.query(`
+    // Build query with cascading filters
+    let query = `
       SELECT DISTINCT ${columnName} as value
       FROM components
       WHERE category_id = $1 
         AND ${columnName} IS NOT NULL 
         AND ${columnName} != ''
-      ORDER BY ${columnName}
-    `, [categoryId]);
+    `;
+    
+    const params = [categoryId];
+    let paramCount = 2;
+    
+    // For level 2, filter by sub_category1 if provided
+    if (level === '2' && subCat1) {
+      query += ` AND sub_category1 = $${paramCount}`;
+      params.push(subCat1);
+      paramCount++;
+    }
+    
+    // For level 3, filter by sub_category1 and sub_category2 if provided
+    if (level === '3') {
+      if (subCat1) {
+        query += ` AND sub_category1 = $${paramCount}`;
+        params.push(subCat1);
+        paramCount++;
+      }
+      if (subCat2) {
+        query += ` AND sub_category2 = $${paramCount}`;
+        params.push(subCat2);
+        paramCount++;
+      }
+    }
+    
+    query += ` ORDER BY ${columnName}`;
+    
+    const result = await pool.query(query, params);
 
     res.json(result.rows.map(row => row.value));
   } catch (error) {
