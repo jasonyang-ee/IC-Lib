@@ -309,6 +309,11 @@ const Inventory = () => {
         updateData.location = changes.location;
       }
       
+      // Handle minimum_quantity
+      if (changes.minimum_quantity !== undefined) {
+        updateData.minimum_quantity = changes.minimum_quantity;
+      }
+      
       // Handle quantity with consume logic
       let finalQuantity = changes.quantity !== undefined ? changes.quantity : alt.quantity;
       if (changes.consumeQty && changes.consumeQty > 0) {
@@ -768,9 +773,18 @@ const Inventory = () => {
                           )}
                         </td>
                         
-                        {/* Min Qty - empty for alternatives */}
+                        {/* Min Qty - editable for alternatives */}
                         <td className="px-4 py-2 text-sm">
-                          <span className="text-gray-500 dark:text-gray-400">-</span>
+                          {editMode ? (
+                            <input
+                              type="number"
+                              value={editingAlt?.minimum_quantity ?? alt.minimum_quantity ?? 0}
+                              onChange={(e) => handleAlternativeEdit(alt.id, 'minimum_quantity', parseInt(e.target.value) || 0)}
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                            />
+                          ) : (
+                            <span className="text-gray-900 dark:text-gray-100">{alt.minimum_quantity || 0}</span>
+                          )}
                         </td>
                         
                         {/* Label Actions */}

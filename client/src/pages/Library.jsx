@@ -18,6 +18,8 @@ const Library = () => {
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
+  const [sortBy, setSortBy] = useState('part_number');
+  const [sortOrder, setSortOrder] = useState('asc');
   const [copiedText, setCopiedText] = useState('');
   
   // Sub-category suggestions and dropdown states
@@ -35,6 +37,11 @@ const Library = () => {
   const [manufacturerInput, setManufacturerInput] = useState('');
   const [manufacturerOpen, setManufacturerOpen] = useState(false);
   const manufacturerRef = useRef(null);
+  
+  // Alternative manufacturer state (for each alternative part)
+  const [altManufacturerInputs, setAltManufacturerInputs] = useState({});
+  const [altManufacturerOpen, setAltManufacturerOpen] = useState({});
+  const altManufacturerRefs = useRef({});
   
   // Alternative parts state
   const [selectedAlternative, setSelectedAlternative] = useState(null);
@@ -55,6 +62,12 @@ const Library = () => {
       if (manufacturerRef.current && !manufacturerRef.current.contains(event.target)) {
         setManufacturerOpen(false);
       }
+      // Close alternative manufacturer dropdowns
+      Object.keys(altManufacturerRefs.current).forEach(key => {
+        if (altManufacturerRefs.current[key] && !altManufacturerRefs.current[key].contains(event.target)) {
+          setAltManufacturerOpen(prev => ({ ...prev, [key]: false }));
+        }
+      });
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -305,6 +318,7 @@ const Library = () => {
       setEditData({});
       setSelectedComponent(null);
       setManufacturerInput('');
+      setAltManufacturerInputs({});
     },
   });
 
@@ -335,6 +349,7 @@ const Library = () => {
       queryClient.invalidateQueries(['componentDetails']);
       setIsEditMode(false);
       setManufacturerInput('');
+      setAltManufacturerInputs({});
     },
   });
 
@@ -353,6 +368,34 @@ const Library = () => {
     // Set manufacturer input for type-ahead
     const manufacturerName = manufacturers?.find(m => m.id === componentDetails?.manufacturer_id)?.name || '';
     setManufacturerInput(manufacturerName);
+    
+    // Load sub-category suggestions based on existing values
+    if (componentDetails?.category_id) {
+      try {
+        // Load sub-category 1 suggestions
+        const sub1 = await api.getSubCategorySuggestions(componentDetails.category_id, 1);
+        setSubCat1Suggestions(sub1.data || []);
+        
+        // Load sub-category 2 suggestions if sub-category 1 exists
+        if (componentDetails.sub_category1) {
+          const sub2 = await api.getSubCategorySuggestions(componentDetails.category_id, 2, { 
+            subCat1: componentDetails.sub_category1 
+          });
+          setSubCat2Suggestions(sub2.data || []);
+        }
+        
+        // Load sub-category 3 suggestions if sub-category 2 exists
+        if (componentDetails.sub_category1 && componentDetails.sub_category2) {
+          const sub3 = await api.getSubCategorySuggestions(componentDetails.category_id, 3, { 
+            subCat1: componentDetails.sub_category1,
+            subCat2: componentDetails.sub_category2
+          });
+          setSubCat3Suggestions(sub3.data || []);
+        }
+      } catch (error) {
+        console.error('Error loading sub-category suggestions:', error);
+      }
+    }
     
     // Always show all 4 supported distributors in edit mode
     const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
@@ -455,6 +498,18 @@ const Library = () => {
           }))
         : []
     });
+    
+    // Initialize alternative manufacturer inputs
+    if (alternativesData && alternativesData.length > 0) {
+      const altMfrInputs = {};
+      alternativesData.forEach((alt, index) => {
+        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
+        altMfrInputs[index] = mfrName;
+      });
+      setAltManufacturerInputs(altMfrInputs);
+    } else {
+      setAltManufacturerInputs({});
+    }
   };
 
   const handleSave = async () => {
@@ -616,6 +671,7 @@ const Library = () => {
     
     // Reset manufacturer input for type-ahead
     setManufacturerInput('');
+    setAltManufacturerInputs({});
     
     // Prepare default distributors with IDs
     const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
@@ -877,6 +933,7 @@ const Library = () => {
     setIsAddMode(false);
     setEditData({});
     setManufacturerInput('');
+    setAltManufacturerInputs({});
   };
 
   const toggleBulkDeleteMode = () => {
@@ -1085,6 +1142,7 @@ const Library = () => {
                     onClick={() => {
                       setIsEditMode(false);
                       setManufacturerInput('');
+                      setAltManufacturerInputs({});
                     }}
                     className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
@@ -1151,6 +1209,48 @@ const Library = () => {
                   Components ({components?.length || 0})
                   {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
                 </h3>
+                
+                {/* Sorting Controls */}
+                <div className="mt-3 flex items-center gap-3">
+                  <label className="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                  >
+                    <option value="part_number">Part Number</option>
+                    <option value="manufacturer_pn">MFG Part Number</option>
+                    <option value="value">Value</option>
+                    <option value="description">Description</option>
+                    <option value="created_at">Date Added</option>
+                  </select>
+                  
+                  {/* Sort Order Toggle */}
+                  <div className="flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
+                    <button
+                      onClick={() => setSortOrder('asc')}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        sortOrder === 'asc'
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                      }`}
+                      title="Ascending"
+                    >
+                      ↑ Asc
+                    </button>
+                    <button
+                      onClick={() => setSortOrder('desc')}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        sortOrder === 'desc'
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                      }`}
+                      title="Descending"
+                    >
+                      ↓ Desc
+                    </button>
+                  </div>
+                </div>
               </div>
             <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh - 300px)'}}>
               {isLoading ? (
@@ -1191,7 +1291,28 @@ const Library = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {components.map((component) => (
+                    {(() => {
+                      // Sort components based on selected sort field and order
+                      const sortedComponents = [...(components || [])].sort((a, b) => {
+                        let aVal = a[sortBy] || '';
+                        let bVal = b[sortBy] || '';
+                        
+                        // Handle null/undefined values
+                        if (!aVal && !bVal) return 0;
+                        if (!aVal) return sortOrder === 'asc' ? 1 : -1;
+                        if (!bVal) return sortOrder === 'asc' ? -1 : 1;
+                        
+                        // Convert to lowercase for string comparison
+                        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                        
+                        // Compare values
+                        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+                        return 0;
+                      });
+                      
+                      return sortedComponents.map((component) => (
                       <tr
                         key={component.id}
                         onClick={() => !bulkDeleteMode && handleComponentClick(component)}
@@ -1214,7 +1335,8 @@ const Library = () => {
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.value || 'N/A'}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 80) || 'N/A'}</td>
                       </tr>
-                    ))}
+                    ));
+                    })()}
                   </tbody>
                 </table>
               ) : (
@@ -1329,7 +1451,7 @@ const Library = () => {
                         const showCreateOption = manufacturerInput.trim() && !exactMatch;
                         
                         return (
-                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
                             {showCreateOption && (
                               <button
                                 type="button"
@@ -1410,8 +1532,16 @@ const Library = () => {
                         type="text"
                         value={editData.sub_category1 || ''}
                         onChange={(e) => {
-                          handleFieldChange('sub_category1', e.target.value);
+                          const newValue = e.target.value;
+                          handleFieldChange('sub_category1', newValue);
                           setSubCat1Open(true);
+                          // Clear sub-categories 2 and 3 when typing
+                          if (newValue !== editData.sub_category1) {
+                            handleFieldChange('sub_category2', '');
+                            handleFieldChange('sub_category3', '');
+                            setSubCat2Suggestions([]);
+                            setSubCat3Suggestions([]);
+                          }
                         }}
                         onFocus={() => editData.category_id && setSubCat1Open(true)}
                         disabled={!editData.category_id}
@@ -1460,8 +1590,14 @@ const Library = () => {
                         type="text"
                         value={editData.sub_category2 || ''}
                         onChange={(e) => {
-                          handleFieldChange('sub_category2', e.target.value);
+                          const newValue = e.target.value;
+                          handleFieldChange('sub_category2', newValue);
                           setSubCat2Open(true);
+                          // Clear sub-category 3 when typing
+                          if (newValue !== editData.sub_category2) {
+                            handleFieldChange('sub_category3', '');
+                            setSubCat3Suggestions([]);
+                          }
                         }}
                         onFocus={() => editData.sub_category1 && setSubCat2Open(true)}
                         disabled={!editData.sub_category1}
@@ -1976,22 +2112,96 @@ const Library = () => {
 
                       {/* Manufacturer and MFG Part Number */}
                       <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
+                        <div 
+                          ref={el => altManufacturerRefs.current[altIndex] = el}
+                          className="relative"
+                        >
                           <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                             Manufacturer <span className="text-red-500">*</span>
                           </label>
-                          <select
-                            value={alt.manufacturer_id || ''}
-                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                          >
-                            <option value="">Select manufacturer</option>
-                            {manufacturers?.map((mfr) => (
-                              <option key={mfr.id} value={mfr.id}>
-                                {mfr.name}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={altManufacturerInputs[altIndex] || ''}
+                              onChange={(e) => {
+                                setAltManufacturerInputs(prev => ({ ...prev, [altIndex]: e.target.value }));
+                                setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }));
+                              }}
+                              onFocus={() => setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }))}
+                              placeholder="Type or select manufacturer..."
+                              className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: !prev[altIndex] }))}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                            {altManufacturerOpen[altIndex] && (() => {
+                              const filtered = manufacturers?.filter(mfr => 
+                                mfr.name.toLowerCase().includes((altManufacturerInputs[altIndex] || '').toLowerCase())
+                              ) || [];
+                              const exactMatch = filtered.find(mfr => 
+                                mfr.name.toLowerCase() === (altManufacturerInputs[altIndex] || '').toLowerCase()
+                              );
+                              const showCreateOption = (altManufacturerInputs[altIndex] || '').trim() && !exactMatch;
+                              
+                              return (
+                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                  {showCreateOption && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const response = await createManufacturerMutation.mutateAsync({ 
+                                            name: altManufacturerInputs[altIndex].trim() 
+                                          });
+                                          const newManufacturer = response.data;
+                                          handleUpdateAlternative(altIndex, 'manufacturer_id', newManufacturer.id);
+                                          setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
+                                        } catch (error) {
+                                          console.error('Error creating manufacturer:', error);
+                                          setWarningModal({ 
+                                            show: true, 
+                                            message: 'Failed to create manufacturer. Please try again.' 
+                                          });
+                                        }
+                                      }}
+                                      className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                      Create: "{altManufacturerInputs[altIndex].trim()}"
+                                    </button>
+                                  )}
+                                  {filtered.length > 0 ? (
+                                    filtered.map(mfr => (
+                                      <button
+                                        key={mfr.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setAltManufacturerInputs(prev => ({ ...prev, [altIndex]: mfr.name }));
+                                          handleUpdateAlternative(altIndex, 'manufacturer_id', mfr.id);
+                                          setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
+                                        }}
+                                        className={`w-full text-left px-3 py-2 text-sm ${
+                                          alt.manufacturer_id === mfr.id
+                                            ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
+                                            : 'hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300'
+                                        }`}
+                                      >
+                                        {mfr.name}
+                                      </button>
+                                    ))
+                                  ) : !showCreateOption && (
+                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                      No manufacturers found
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
