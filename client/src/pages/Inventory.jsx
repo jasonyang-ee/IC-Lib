@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
@@ -100,11 +100,26 @@ const Inventory = () => {
     return matchesCategory && matchesSearch;
   });
 
-  // Expand all rows by default when inventory loads
+  // Expand all rows by default and fetch alternatives when inventory loads
   useEffect(() => {
     if (inventory && inventory.length > 0) {
       const allIds = new Set(inventory.map(item => item.id));
       setExpandedRows(allIds);
+      
+      // Fetch alternatives for all components
+      inventory.forEach(async (item) => {
+        if (!alternativesData[item.component_id]) {
+          try {
+            const response = await api.getInventoryAlternatives(item.component_id);
+            setAlternativesData(prev => ({
+              ...prev,
+              [item.component_id]: response.data
+            }));
+          } catch (error) {
+            console.error('Error fetching alternatives:', error);
+          }
+        }
+      });
     }
   }, [inventory]);
 
@@ -505,9 +520,8 @@ const Inventory = () => {
                 const alternatives = alternativesData[item.component_id] || [];
                 
                 return (
-                  <>
+                  <Fragment key={item.id}>
                     <tr 
-                      key={item.id} 
                       id={`inv-row-${item.id}`}
                       className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
                     >
@@ -751,7 +765,7 @@ const Inventory = () => {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
                 );
               })}
             </tbody>

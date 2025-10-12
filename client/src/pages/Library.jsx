@@ -923,9 +923,13 @@ const Library = () => {
         <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
       </div>
 
-      {/* 4-Column Layout: Left Sidebar | Center List (wider) | Right Details | Specifications */}
+      {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)] gap-4 min-h-[600px]">
+      <div className={`grid grid-cols-1 gap-4 min-h-[600px] ${
+        (isEditMode || isAddMode) 
+          ? 'xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(400px,1.5fr)_minmax(350px,1.2fr)]'
+          : 'xl:grid-cols-[minmax(175px,0.7fr)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)]'
+      }`}>
         {/* Left Sidebar - Filters */}
         <div className="space-y-4 xl:min-w-[175px]">
           {/* Category Selector */}
@@ -1465,257 +1469,256 @@ const Library = () => {
                   </div>
                 </>
               ) : (
-                // View Mode - existing view code
+                // View Mode - Show Component Details
                 <>
-                  {/* ... existing view mode fields ... */}
+                  {selectedComponent && componentDetails ? (
+                    <>
+                      {/* Helper component for copyable text */}
+                      {(() => {
+                        const CopyableField = ({ label, value }) => (
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400">{label}:</span>
+                            <p 
+                              className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                              onClick={() => handleCopyToClipboard(value, label)}
+                              title="Click to copy"
+                            >
+                              {value || 'N/A'}
+                            </p>
+                          </div>
+                        );
+
+                        return (
+                          <>
+                            {/* Row 1: Part Number, Part Type */}
+                            <CopyableField label="Part Number" value={componentDetails.part_number} />
+                            <div className="col-span-2">
+                              <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
+                            </div>
+
+                            {/* Row 2: Value, Package */}
+                            <CopyableField label="Value" value={componentDetails.value} />
+                            <div className="col-span-2">
+                              <CopyableField label="Package" value={componentDetails.package_size} />
+                            </div>
+
+                            {/* Row 3: Alternative Parts Selection */}
+                            {alternatives && alternatives.length > 0 && (
+                              <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
+                                <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
+                                <select
+                                  value={selectedAlternative?.id || ''}
+                                  onChange={(e) => {
+                                    const alt = alternatives.find(a => a.id === e.target.value);
+                                    setSelectedAlternative(alt);
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                                >
+                                  {alternatives.map((alt) => (
+                                    <option key={alt.id} value={alt.id}>
+                                      {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
+                                      {alt.is_primary ? ' (Primary)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {/* Row 4: Manufacturer, MFG Part Number (from selected alternative) */}
+                            <CopyableField 
+                              label="Manufacturer" 
+                              value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
+                            />
+                            <div className="col-span-2">
+                              <CopyableField 
+                                label="MFG Part Number" 
+                                value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
+                              />
+                            </div>
+
+                            {/* Row 5: Description */}
+                            {componentDetails.description && (
+                              <div className="col-span-3">
+                                <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                                <p 
+                                  className="font-medium text-gray-900 dark:text-gray-100 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors"
+                                  onClick={() => handleCopyToClipboard(componentDetails.description, 'Description')}
+                                  title="Click to copy"
+                                >
+                                  {componentDetails.description}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Row 6: PCB Footprint */}
+                            <div className="col-span-3">
+                              <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
+                            </div>
+
+                            {/* Row 7: Schematic Symbol */}
+                            {componentDetails.schematic && (
+                              <div className="col-span-3">
+                                <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
+                                <p 
+                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                                  onClick={() => handleCopyToClipboard(componentDetails.schematic, 'Schematic')}
+                                  title="Click to copy"
+                                >
+                                  {componentDetails.schematic}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Row 8: STEP 3D Model */}
+                            {componentDetails.step_model && (
+                              <div className="col-span-3">
+                                <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
+                                <p 
+                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                                  onClick={() => handleCopyToClipboard(componentDetails.step_model, 'STEP Model')}
+                                  title="Click to copy"
+                                >
+                                  {componentDetails.step_model}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Row 9: PSPICE Model */}
+                            {componentDetails.pspice && (
+                              <div className="col-span-3">
+                                <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
+                                <p 
+                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                                  onClick={() => handleCopyToClipboard(componentDetails.pspice, 'PSPICE Model')}
+                                  title="Click to copy"
+                                >
+                                  {componentDetails.pspice}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Row 10: Datasheet URL */}
+                            {componentDetails.datasheet_url && (
+                              <div className="col-span-3">
+                                <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
+                                <a 
+                                  href={componentDetails.datasheet_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-xs break-all block"
+                                >
+                                  {componentDetails.datasheet_url}
+                                </a>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                      <p>Select a component to view details</p>
+                      <p className="text-sm mt-2">or click "Add Component" to create a new one</p>
+                    </div>
+                  )}
                 </>
               )}
             </div>
           </div>
 
-          {/* Specifications Panel */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              {(isEditMode || isAddMode) ? (
-                <>
-                  {/* Specifications Section */}
-                  <div className="col-span-3">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Technical Specifications</h4>
-                    {(editData.specifications || []).length > 0 ? (
-                      (editData.specifications || []).map((spec, index) => (
-                        <div key={index} className="grid grid-cols-[2fr_2fr_1fr] gap-2 mb-2">
-                          <div className="flex items-center">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {spec.spec_name}
-                              {spec.is_required && <span className="text-red-500 ml-1">*</span>}
-                            </span>
-                          </div>
-                          <input
-                            type="text"
-                            value={spec.spec_value || ''}
-                            onChange={(e) => {
-                              const newSpecs = [...(editData.specifications || [])];
-                              newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
-                              handleFieldChange('specifications', newSpecs);
-                            }}
-                            placeholder={`Enter ${spec.spec_name.toLowerCase()}`}
-                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
-                          />
-                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                            {spec.unit || ''}
-                          </div>
+          {/* Specifications Panel - Only in Edit/Add Mode */}
+          {(isEditMode || isAddMode) && (
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                {/* Specifications Section */}
+                <div className="col-span-3">
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Technical Specifications</h4>
+                  {(editData.specifications || []).length > 0 ? (
+                    (editData.specifications || []).map((spec, index) => (
+                      <div key={index} className="grid grid-cols-[2fr_2fr_1fr] gap-2 mb-2">
+                        <div className="flex items-center">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {spec.spec_name}
+                            {spec.is_required && <span className="text-red-500 ml-1">*</span>}
+                          </span>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {isAddMode ? 'Select a category to see available specifications' : 'No specifications defined for this category'}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Distributors Section */}
-                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
-                    {(editData.distributors || []).map((dist, index) => (
-                      <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-2">
                         <input
                           type="text"
-                          value={dist.distributor_name || ''}
+                          value={spec.spec_value || ''}
                           onChange={(e) => {
-                            const newDists = [...(editData.distributors || [])];
-                            newDists[index] = { ...newDists[index], distributor_name: e.target.value };
-                            handleFieldChange('distributors', newDists);
+                            const newSpecs = [...(editData.specifications || [])];
+                            newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
+                            handleFieldChange('specifications', newSpecs);
                           }}
-                          placeholder="Distributor (e.g., Digikey)"
-                          disabled={true}
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-gray-100 dark:bg-[#2a2a2a] dark:text-gray-100 cursor-not-allowed"
+                          placeholder={`Enter ${spec.spec_name.toLowerCase()}`}
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
-                        <input
-                          type="text"
-                          value={dist.sku || ''}
-                          onChange={(e) => {
-                            const newDists = [...(editData.distributors || [])];
-                            newDists[index] = { ...newDists[index], sku: e.target.value };
-                            handleFieldChange('distributors', newDists);
-                          }}
-                          placeholder="SKU"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                        />
-                        <input
-                          type="text"
-                          value={dist.url || ''}
-                          onChange={(e) => {
-                            const newDists = [...(editData.distributors || [])];
-                            newDists[index] = { ...newDists[index], url: e.target.value };
-                            handleFieldChange('distributors', newDists);
-                          }}
-                          placeholder="URL"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                        />
-                        {/* Spacer to maintain grid alignment (no add/remove in add or edit mode) */}
-                        <div></div>
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          {spec.unit || ''}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ) : selectedComponent && componentDetails ? (
-                <>
-                  {/* Helper component for copyable text */}
-                  {(() => {
-                    const CopyableField = ({ label, value }) => (
-                      <div>
-                        <span className="text-gray-600 dark:text-gray-400">{label}:</span>
-                        <p 
-                          className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                          onClick={() => handleCopyToClipboard(value, label)}
-                          title="Click to copy"
-                        >
-                          {value || 'N/A'}
-                        </p>
-                      </div>
-                    );
-
-                    return (
-                      <>
-                        {/* Row 1: Part Number, Part Type */}
-                        <CopyableField label="Part Number" value={componentDetails.part_number} />
-                        <div className="col-span-2">
-                          <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
-                        </div>
-
-                        {/* Row 2: Value, Package */}
-                        <CopyableField label="Value" value={componentDetails.value} />
-                        <div className="col-span-2">
-                          <CopyableField label="Package" value={componentDetails.package_size} />
-                        </div>
-
-                        {/* Row 3: Alternative Parts Selection */}
-                        {alternatives && alternatives.length > 0 && (
-                          <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
-                            <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
-                            <select
-                              value={selectedAlternative?.id || ''}
-                              onChange={(e) => {
-                                const alt = alternatives.find(a => a.id === e.target.value);
-                                setSelectedAlternative(alt);
-                              }}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                            >
-                              {alternatives.map((alt) => (
-                                <option key={alt.id} value={alt.id}>
-                                  {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
-                                  {alt.is_primary ? ' (Primary)' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-
-                        {/* Row 4: Manufacturer, MFG Part Number (from selected alternative) */}
-                        <CopyableField 
-                          label="Manufacturer" 
-                          value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
-                        />
-                        <div className="col-span-2">
-                          <CopyableField 
-                            label="MFG Part Number" 
-                            value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
-                          />
-                        </div>
-
-                        {/* Row 5: Description */}
-                        {componentDetails.description && (
-                          <div className="col-span-3">
-                            <span className="text-gray-600 dark:text-gray-400">Description:</span>
-                            <p 
-                              className="font-medium text-gray-900 dark:text-gray-100 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors"
-                              onClick={() => handleCopyToClipboard(componentDetails.description, 'Description')}
-                              title="Click to copy"
-                            >
-                              {componentDetails.description}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Row 6: PCB Footprint */}
-                        <div className="col-span-3">
-                          <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
-                        </div>
-
-                        {/* Row 7: Schematic Symbol */}
-                        {componentDetails.schematic && (
-                          <div className="col-span-3">
-                            <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
-                            <p 
-                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                              onClick={() => handleCopyToClipboard(componentDetails.schematic, 'Schematic')}
-                              title="Click to copy"
-                            >
-                              {componentDetails.schematic}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Row 8: STEP 3D Model */}
-                        {componentDetails.step_model && (
-                          <div className="col-span-3">
-                            <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
-                            <p 
-                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                              onClick={() => handleCopyToClipboard(componentDetails.step_model, 'STEP Model')}
-                              title="Click to copy"
-                            >
-                              {componentDetails.step_model}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Row 9: PSPICE Model */}
-                        {componentDetails.pspice && (
-                          <div className="col-span-3">
-                            <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
-                            <p 
-                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                              onClick={() => handleCopyToClipboard(componentDetails.pspice, 'PSPICE Model')}
-                              title="Click to copy"
-                            >
-                              {componentDetails.pspice}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Row 10: Datasheet URL */}
-                        {componentDetails.datasheet_url && (
-                          <div className="col-span-3">
-                            <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
-                            <a 
-                              href={componentDetails.datasheet_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-xs break-all block"
-                            >
-                              {componentDetails.datasheet_url}
-                            </a>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </>
-              ) : (
-                <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
-                  <p>Select a component to view details</p>
-                  <p className="text-sm mt-2">or click "Add Component" to create a new one</p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {isAddMode ? 'Select a category to see available specifications' : 'No specifications defined for this category'}
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Distributor Info - Shows distributors for selected alternative or primary component */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
-            {selectedComponent && !isAddMode && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
+                {/* Distributors Section */}
+                <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
+                  {(editData.distributors || []).map((dist, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={dist.distributor_name || ''}
+                        onChange={(e) => {
+                          const newDists = [...(editData.distributors || [])];
+                          newDists[index] = { ...newDists[index], distributor_name: e.target.value };
+                          handleFieldChange('distributors', newDists);
+                        }}
+                        placeholder="Distributor (e.g., Digikey)"
+                        disabled={true}
+                        className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-gray-100 dark:bg-[#2a2a2a] dark:text-gray-100 cursor-not-allowed"
+                      />
+                      <input
+                        type="text"
+                        value={dist.sku || ''}
+                        onChange={(e) => {
+                          const newDists = [...(editData.distributors || [])];
+                          newDists[index] = { ...newDists[index], sku: e.target.value };
+                          handleFieldChange('distributors', newDists);
+                        }}
+                        placeholder="SKU"
+                        className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                      />
+                      <input
+                        type="text"
+                        value={dist.url || ''}
+                        onChange={(e) => {
+                          const newDists = [...(editData.distributors || [])];
+                          newDists[index] = { ...newDists[index], url: e.target.value };
+                          handleFieldChange('distributors', newDists);
+                        }}
+                        placeholder="URL"
+                        className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
+                      />
+                      {/* Spacer to maintain grid alignment (no add/remove in add or edit mode) */}
+                      <div></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Distributor Info - Shows distributors for selected alternative or primary component - View Mode Only */}
+          {!isEditMode && !isAddMode && (
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
+              {selectedComponent && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
               <div className="space-y-4">
                 {selectedAlternative.distributors.map((dist, index) => (
                   <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-4 last:border-0">
@@ -1770,10 +1773,129 @@ const Library = () => {
             ) : (
               <p className="text-sm text-gray-500 dark:text-gray-400">No distributor information available</p>
             )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Fourth Column - Component Specifications */}
+        {/* Fourth Column - Alternative Parts (Edit/Add Mode Only) */}
+        {(isEditMode || isAddMode) && (
+          <div className="space-y-4 xl:min-w-[400px]">
+            {/* Alternative Parts Tile - Shown in Edit Mode and Add Mode */}
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Alternative Parts
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleAddAlternative}
+                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  <span>+ Add Alternative</span>
+                </button>
+              </div>
+              
+              {(!editData.alternatives || editData.alternatives.length === 0) ? (
+                <div className="px-4 py-8 border-2 border-dashed border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-400 text-sm text-center">
+                  No alternative parts added yet. Click "+ Add Alternative" to add one.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                  {editData.alternatives.map((alt, altIndex) => (
+                    <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
+                      {/* Alternative header with delete button */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Alternative #{altIndex + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAlternative(altIndex)}
+                          className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          title="Delete alternative"
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      {/* Manufacturer and MFG Part Number */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            Manufacturer <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={alt.manufacturer_id || ''}
+                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                          >
+                            <option value="">Select manufacturer</option>
+                            {manufacturers?.map((mfr) => (
+                              <option key={mfr.id} value={mfr.id}>
+                                {mfr.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            MFG Part Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={alt.manufacturer_pn || ''}
+                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
+                            placeholder="e.g., RC0805FR-0710KL"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Distributors section */}
+                      <div className="border-t border-gray-200 dark:border-[#444444] pt-3">
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                          Distributors (optional)
+                        </label>
+                        <div className="space-y-2">
+                          {(alt.distributors || []).slice(0, 4).map((dist, distIndex) => {
+                            const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
+                            return (
+                              <div key={distIndex} className="grid grid-cols-[1fr_2fr_2fr] gap-2 items-center">
+                                <div className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                  {distributorName}
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={dist.sku || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
+                                    placeholder="SKU"
+                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={dist.url || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
+                                    placeholder="Product URL"
+                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fifth Column - Vendor API Data & Component Specifications */}
         <div className="space-y-4 xl:min-w-[350px]">
           {/* Vendor API Data - Shown only in Add Mode when coming from Vendor Search */}
           {isAddMode && editData._vendorSearchData && (
@@ -1974,121 +2096,6 @@ const Library = () => {
               {copiedText && (
                 <div className="mt-3 text-xs text-center text-green-700 dark:text-green-400 font-medium animate-fade-in bg-green-100 dark:bg-green-900/30 py-2 rounded">
                   ✓ Copied "{copiedText}"!
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Alternative Parts Tile - Shown in Edit Mode and Add Mode */}
-          {(isEditMode || isAddMode) && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Alternative Parts
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleAddAlternative}
-                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
-                >
-                  <span>+ Add Alternative</span>
-                </button>
-              </div>
-              
-              {(!editData.alternatives || editData.alternatives.length === 0) ? (
-                <div className="px-4 py-8 border-2 border-dashed border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-400 text-sm text-center">
-                  No alternative parts added yet. Click "+ Add Alternative" to add one.
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {editData.alternatives.map((alt, altIndex) => (
-                    <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
-                      {/* Alternative header with delete button */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Alternative #{altIndex + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAlternative(altIndex)}
-                          className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          title="Delete alternative"
-                        >
-                          Delete
-                        </button>
-                      </div>
-
-                      {/* Manufacturer and MFG Part Number */}
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            Manufacturer <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            value={alt.manufacturer_id || ''}
-                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                          >
-                            <option value="">Select manufacturer</option>
-                            {manufacturers?.map((mfr) => (
-                              <option key={mfr.id} value={mfr.id}>
-                                {mfr.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            MFG Part Number <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={alt.manufacturer_pn || ''}
-                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
-                            placeholder="e.g., RC0805FR-0710KL"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Distributors section */}
-                      <div className="border-t border-gray-200 dark:border-[#444444] pt-3">
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Distributors (optional)
-                        </label>
-                        <div className="space-y-2">
-                          {(alt.distributors || []).slice(0, 4).map((dist, distIndex) => {
-                            const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
-                            return (
-                              <div key={distIndex} className="grid grid-cols-[1fr_2fr_2fr] gap-2 items-center">
-                                <div className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-                                  {distributorName}
-                                </div>
-                                <div>
-                                  <input
-                                    type="text"
-                                    value={dist.sku || ''}
-                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
-                                    placeholder="SKU"
-                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                  />
-                                </div>
-                                <div>
-                                  <input
-                                    type="text"
-                                    value={dist.url || ''}
-                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
-                                    placeholder="Product URL"
-                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
