@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
@@ -99,6 +99,14 @@ const Inventory = () => {
       item.description?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  // Expand all rows by default when inventory loads
+  useEffect(() => {
+    if (inventory && inventory.length > 0) {
+      const allIds = new Set(inventory.map(item => item.id));
+      setExpandedRows(allIds);
+    }
+  }, [inventory]);
 
   // Initialize edited items when entering edit mode
   const handleToggleEditMode = () => {
@@ -279,6 +287,18 @@ const Inventory = () => {
     }
   };
 
+  // Toggle expand/collapse all rows
+  const handleToggleExpandAll = () => {
+    if (expandedRows.size === filteredInventory?.length) {
+      // All expanded - collapse all
+      setExpandedRows(new Set());
+    } else {
+      // Some or none expanded - expand all
+      const allIds = new Set(filteredInventory?.map(item => item.id));
+      setExpandedRows(allIds);
+    }
+  };
+
   const generateAlternativeLabelString = (alt) => {
     const mfgPn = alt.manufacturer_pn || 'N/A';
     const mfgName = alt.manufacturer_name || 'Unknown';
@@ -435,13 +455,31 @@ const Inventory = () => {
                 </button>
               </>
             ) : (
-              <button
-                onClick={handleToggleEditMode}
-                className="btn-primary flex items-center gap-2 text-sm"
-              >
-                <Edit className="w-4 h-4" />
-                Edit All
-              </button>
+              <>
+                <button
+                  onClick={handleToggleExpandAll}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  {expandedRows.size === filteredInventory?.length ? (
+                    <>
+                      <ChevronRight className="w-4 h-4" />
+                      Collapse All
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Expand All
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleToggleEditMode}
+                  className="btn-primary flex items-center gap-2 text-sm"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit All
+                </button>
+              </>
             )}
           </div>
         </div>
