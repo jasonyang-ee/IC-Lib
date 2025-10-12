@@ -1,7 +1,27 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const Sidebar = () => {
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Initialize dark mode from localStorage
+    const savedMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedMode);
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('darkMode', newMode.toString());
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/library', icon: BookOpen, label: 'Parts Library' },
@@ -50,6 +70,30 @@ const Sidebar = () => {
           ))}
         </ul>
       </nav>
+
+      {/* Dark Mode Toggle */}
+      <div className="px-4 pb-4">
+        <button
+          onClick={toggleDarkMode}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+        >
+          <div className="flex items-center gap-3">
+            {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            <span className="font-medium">{darkMode ? 'Dark Mode' : 'Light Mode'}</span>
+          </div>
+          <div
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              darkMode ? 'bg-primary-600' : 'bg-gray-600'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                darkMode ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </div>
+        </button>
+      </div>
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-700">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sun, Moon, Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2 } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2 } from 'lucide-react';
 import { api } from '../utils/api';
 
 // Category Specifications Manager Component
@@ -350,7 +350,6 @@ const CategorySpecificationsManager = () => {
 // Settings Page - Updated with Advanced Operations
 const Settings = () => {
   const queryClient = useQueryClient();
-  const [darkMode, setDarkMode] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [tempConfig, setTempConfig] = useState({ prefix: '', leading_zeros: 5, enabled: true });
   const [dbOperationStatus, setDbOperationStatus] = useState({ show: false, type: '', message: '' });
@@ -358,19 +357,6 @@ const Settings = () => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
-
-  useEffect(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode !== null) {
-      const shouldBeDark = savedMode === 'true';
-      setDarkMode(shouldBeDark);
-      if (shouldBeDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    }
-  }, []);
 
   const { data: categoryConfigs, isLoading: loadingConfigs } = useQuery({
     queryKey: ['categoryConfigs'],
@@ -490,17 +476,6 @@ const Settings = () => {
     },
   });
 
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('darkMode', newMode.toString());
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
-
   const handleEditCategory = (category) => {
     setEditingCategory(category.id);
     setTempConfig({
@@ -589,32 +564,6 @@ const Settings = () => {
           </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Appearance</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                <span className="text-gray-700 dark:text-gray-300">Dark Mode</span>
-              </div>
-              <button
-                onClick={toggleDarkMode}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  darkMode ? 'bg-primary-600' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    darkMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center justify-between mb-4">

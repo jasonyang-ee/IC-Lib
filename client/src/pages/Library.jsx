@@ -1106,6 +1106,54 @@ const Library = () => {
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
               />
             </div>
+
+            {/* Sorting Controls */}
+            <div className="mt-3 space-y-2">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Sort</h3>
+              <div className="flex items-center gap-3">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                >
+                  <option value="part_number">Part Number</option>
+                  <option value="manufacturer_pn">MFG Part Number</option>
+                  <option value="value">Value</option>
+                  <option value="description">Description</option>
+                  <option value="created_at">Date Added</option>
+                  <option value="updated_at">Last Edited</option>
+                </select>
+              </div>
+              
+              {/* Sort Order Toggle */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Order:</label>
+                <div className="flex-1 flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
+                  <button
+                    onClick={() => setSortOrder('asc')}
+                    className={`flex-1 py-1 text-xs rounded transition-colors ${
+                      sortOrder === 'asc'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                    }`}
+                    title="Ascending"
+                  >
+                    ↑ Asc
+                  </button>
+                  <button
+                    onClick={() => setSortOrder('desc')}
+                    className={`flex-1 py-1 text-xs rounded transition-colors ${
+                      sortOrder === 'desc'
+                        ? 'bg-primary-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                    }`}
+                    title="Descending"
+                  >
+                    ↓ Desc
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Actions */}
@@ -1209,48 +1257,6 @@ const Library = () => {
                   Components ({components?.length || 0})
                   {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
                 </h3>
-                
-                {/* Sorting Controls */}
-                <div className="mt-3 flex items-center gap-3">
-                  <label className="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                  >
-                    <option value="part_number">Part Number</option>
-                    <option value="manufacturer_pn">MFG Part Number</option>
-                    <option value="value">Value</option>
-                    <option value="description">Description</option>
-                    <option value="created_at">Date Added</option>
-                  </select>
-                  
-                  {/* Sort Order Toggle */}
-                  <div className="flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
-                    <button
-                      onClick={() => setSortOrder('asc')}
-                      className={`px-2 py-1 text-xs rounded transition-colors ${
-                        sortOrder === 'asc'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
-                      }`}
-                      title="Ascending"
-                    >
-                      ↑ Asc
-                    </button>
-                    <button
-                      onClick={() => setSortOrder('desc')}
-                      className={`px-2 py-1 text-xs rounded transition-colors ${
-                        sortOrder === 'desc'
-                          ? 'bg-primary-600 text-white'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
-                      }`}
-                      title="Descending"
-                    >
-                      ↓ Desc
-                    </button>
-                  </div>
-                </div>
               </div>
             <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh - 300px)'}}>
               {isLoading ? (
@@ -1302,9 +1308,15 @@ const Library = () => {
                         if (!aVal) return sortOrder === 'asc' ? 1 : -1;
                         if (!bVal) return sortOrder === 'asc' ? -1 : 1;
                         
-                        // Convert to lowercase for string comparison
-                        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-                        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                        // Handle date fields
+                        if (sortBy === 'created_at' || sortBy === 'updated_at') {
+                          aVal = new Date(aVal).getTime();
+                          bVal = new Date(bVal).getTime();
+                        } else if (typeof aVal === 'string') {
+                          // Convert to lowercase for string comparison
+                          aVal = aVal.toLowerCase();
+                          bVal = bVal.toLowerCase();
+                        }
                         
                         // Compare values
                         if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;

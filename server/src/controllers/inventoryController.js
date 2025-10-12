@@ -280,7 +280,7 @@ export const getAlternativeInventory = async (req, res, next) => {
         m.name as manufacturer_name,
         ia.location,
         ia.quantity,
-        ia.min_quantity,
+        ia.min_quantity as minimum_quantity,
         ia.notes,
         COALESCE(ia.id, NULL) as inventory_id
       FROM components_alternative ca

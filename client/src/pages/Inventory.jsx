@@ -16,6 +16,8 @@ const Inventory = () => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [alternativesData, setAlternativesData] = useState({});
   const [editingAlternative, setEditingAlternative] = useState(null);
+  const [sortBy, setSortBy] = useState('part_number');
+  const [sortOrder, setSortOrder] = useState('asc');
   const barcodeRef = useRef(null);
 
   // Fetch categories
@@ -100,6 +102,34 @@ const Inventory = () => {
     return matchesCategory && matchesSearch;
   });
 
+  // Sort inventory
+  const sortedInventory = filteredInventory?.slice().sort((a, b) => {
+    let aVal = a[sortBy];
+    let bVal = b[sortBy];
+    
+    // Handle null/undefined values
+    if (aVal == null) aVal = '';
+    if (bVal == null) bVal = '';
+    
+    // Handle numeric fields
+    if (sortBy === 'quantity' || sortBy === 'minimum_quantity') {
+      aVal = Number(aVal) || 0;
+      bVal = Number(bVal) || 0;
+    }
+    
+    // Handle date fields
+    if (sortBy === 'updated_at' || sortBy === 'created_at') {
+      aVal = new Date(aVal).getTime() || 0;
+      bVal = new Date(bVal).getTime() || 0;
+    }
+    
+    // Compare based on sort order
+    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+
   // Expand all rows by default and fetch alternatives when inventory loads
   useEffect(() => {
     if (inventory && inventory.length > 0) {
@@ -137,9 +167,27 @@ const Inventory = () => {
         };
       });
       setEditedItems(initialEdits);
+      
+      // Initialize alternative parts edits
+      const initialAltEdits = {};
+      filteredInventory?.forEach(item => {
+        const alternatives = alternativesData[item.component_id] || [];
+        if (alternatives.length > 0) {
+          alternatives.forEach(alt => {
+            initialAltEdits[alt.id] = {
+              location: alt.location || '',
+              quantity: alt.quantity || 0,
+              minimum_quantity: alt.minimum_quantity || 0,
+              consumeQty: 0
+            };
+          });
+        }
+      });
+      setEditingAlternative(initialAltEdits);
     } else {
       // Exiting edit mode - clear edits
       setEditedItems({});
+      setEditingAlternative({});
     }
     setEditMode(!editMode);
   };
@@ -157,6 +205,7 @@ const Inventory = () => {
   const handleSaveAll = async () => {
     const updates = [];
     
+    // Save main inventory items
     for (const [id, changes] of Object.entries(editedItems)) {
       const originalItem = filteredInventory.find(item => item.id === id);
       if (!originalItem) continue;
@@ -186,6 +235,48 @@ const Inventory = () => {
       // Only update if there are changes
       if (Object.keys(updateData).length > 0) {
         updates.push(api.updateInventory(id, updateData));
+      }
+    }
+    
+    // Save alternative parts
+    if (editingAlternative) {
+      for (const [altId, changes] of Object.entries(editingAlternative)) {
+        // Find the original alternative from alternativesData
+        let originalAlt = null;
+        for (const item of filteredInventory) {
+          const alternatives = alternativesData[item.component_id] || [];
+          originalAlt = alternatives.find(a => a.id === altId);
+          if (originalAlt) break;
+        }
+        
+        if (!originalAlt) continue;
+
+        const updateData = {};
+        
+        // Check if location changed
+        if (changes.location !== originalAlt.location) {
+          updateData.location = changes.location;
+        }
+        
+        // Check if minimum_quantity changed - send as min_quantity to backend
+        if (changes.minimum_quantity !== originalAlt.minimum_quantity) {
+          updateData.min_quantity = changes.minimum_quantity;
+        }
+        
+        // Check if quantity changed (either set or consume)
+        let finalQuantity = changes.quantity;
+        if (changes.consumeQty && changes.consumeQty > 0) {
+          finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
+        }
+        
+        if (finalQuantity !== originalAlt.quantity) {
+          updateData.quantity = finalQuantity;
+        }
+        
+        // Only update if there are changes
+        if (Object.keys(updateData).length > 0) {
+          updates.push(api.updateAlternativeInventory(altId, updateData));
+        }
       }
     }
 
@@ -330,12 +421,12 @@ const Inventory = () => {
 
   // Toggle expand/collapse all rows
   const handleToggleExpandAll = () => {
-    if (expandedRows.size === filteredInventory?.length) {
+    if (expandedRows.size === sortedInventory?.length) {
       // All expanded - collapse all
       setExpandedRows(new Set());
     } else {
       // Some or none expanded - expand all
-      const allIds = new Set(filteredInventory?.map(item => item.id));
+      const allIds = new Set(sortedInventory?.map(item => item.id));
       setExpandedRows(allIds);
     }
   };
@@ -418,6 +509,54 @@ const Inventory = () => {
               className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
+          
+          {/* Sorting Controls */}
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+              >
+                <option value="part_number">Part Number</option>
+                <option value="manufacturer_pn">MFG Part Number</option>
+                <option value="quantity">Quantity</option>
+                <option value="location">Location</option>
+                <option value="minimum_quantity">Min Quantity</option>
+                <option value="updated_at">Last Edited</option>
+              </select>
+            </div>
+            
+            {/* Sort Order Toggle */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Order:</label>
+              <div className="flex-1 flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
+                <button
+                  onClick={() => setSortOrder('asc')}
+                  className={`flex-1 py-1 text-xs rounded transition-colors ${
+                    sortOrder === 'asc'
+                      ? 'bg-primary-600 text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                  }`}
+                  title="Ascending"
+                >
+                  ↑ Asc
+                </button>
+                <button
+                  onClick={() => setSortOrder('desc')}
+                  className={`flex-1 py-1 text-xs rounded transition-colors ${
+                    sortOrder === 'desc'
+                      ? 'bg-primary-600 text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#3a3a3a]'
+                  }`}
+                  title="Descending"
+                >
+                  ↓ Desc
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Barcode Scanner */}
@@ -474,7 +613,7 @@ const Inventory = () => {
       <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden flex flex-col">
         <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Inventory Items ({filteredInventory?.length || 0})
+            Inventory Items ({sortedInventory?.length || 0})
           </h3>
           {/* Edit Mode Controls */}
           <div className="flex items-center gap-2">
@@ -501,7 +640,7 @@ const Inventory = () => {
                   onClick={handleToggleExpandAll}
                   className="btn-secondary flex items-center gap-2 text-sm"
                 >
-                  {expandedRows.size === filteredInventory?.length ? (
+                  {expandedRows.size === sortedInventory?.length ? (
                     <>
                       <ChevronRight className="w-4 h-4" />
                       Collapse All
@@ -540,7 +679,7 @@ const Inventory = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredInventory?.map((item) => {
+              {sortedInventory?.map((item) => {
                 const editedItem = editedItems[item.id] || { location: item.location || '', quantity: item.quantity, consumeQty: 0 };
                 const isLowStock = item.quantity <= item.minimum_quantity && item.minimum_quantity > 0;
                 const isExpanded = expandedRows.has(item.id);
@@ -759,14 +898,6 @@ const Inventory = () => {
                                   className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                                 />
                               </div>
-                              {isEditingThis && (
-                                <button
-                                  onClick={() => saveAlternativeChanges(alt)}
-                                  className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs self-start"
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                              )}
                             </div>
                           ) : (
                             <span className="text-gray-900 dark:text-gray-100">{alt.quantity || 0}</span>
