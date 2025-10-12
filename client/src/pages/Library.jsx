@@ -231,12 +231,13 @@ const Library = () => {
         manufacturer_id: selectedComponent.manufacturer_id,
         manufacturer_name: selectedComponent.manufacturer_name,
         manufacturer_pn: selectedComponent.manufacturer_pn || selectedComponent.manufacturer_part_number,
-        notes: 'Primary component',
-        distributors: componentDetails?.distributor_info || []
+        distributors: componentDetails?.distributors || [] // Fixed: use distributors not distributor_info
       };
       
       // Combine primary with alternatives from components_alternative table
       const allAlternatives = [primaryAlternative, ...(alternativesData || [])];
+      console.log('DEBUG: alternativesData from API:', alternativesData);
+      console.log('DEBUG: allAlternatives array:', allAlternatives);
       setAlternatives(allAlternatives);
       setSelectedAlternative(primaryAlternative); // Always default to primary
       
@@ -248,7 +249,6 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            notes: alt.notes || '',
             distributors: alt.distributors || []
           }))
         }));
@@ -377,13 +377,21 @@ const Library = () => {
       }
     }
     
-    // Map all fields properly for editing
+    // Map all fields properly for editing, including alternatives
     setEditData({
       ...componentDetails,
       manufacturer_id: componentDetails?.manufacturer_id || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
       specifications: editSpecifications,
       distributors: editDistributors,
+      alternatives: alternativesData && alternativesData.length > 0 
+        ? alternativesData.map(alt => ({
+            id: alt.id,
+            manufacturer_id: alt.manufacturer_id,
+            manufacturer_pn: alt.manufacturer_pn,
+            distributors: alt.distributors || []
+          }))
+        : []
     });
   };
 
@@ -469,7 +477,6 @@ const Library = () => {
               await api.updateComponentAlternative(selectedComponent.id, alt.id, {
                 manufacturer_id: alt.manufacturer_id,
                 manufacturer_pn: alt.manufacturer_pn,
-                notes: alt.notes || '',
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
                   sku: d.sku || '',
@@ -481,7 +488,6 @@ const Library = () => {
               await api.createComponentAlternative(selectedComponent.id, {
                 manufacturer_id: alt.manufacturer_id,
                 manufacturer_pn: alt.manufacturer_pn,
-                notes: alt.notes || '',
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
                   sku: d.sku || '',
@@ -785,7 +791,6 @@ const Library = () => {
             await api.createComponentAlternative(newComponentId, {
               manufacturer_id: alt.manufacturer_id,
               manufacturer_pn: alt.manufacturer_pn,
-              notes: alt.notes || '',
               distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                 distributor_id: d.distributor_id,
                 sku: d.sku || '',
@@ -844,7 +849,6 @@ const Library = () => {
         {
           manufacturer_id: '',
           manufacturer_pn: '',
-          notes: '',
           distributors: defaultDistributors
         }
       ]
@@ -1281,34 +1285,20 @@ const Library = () => {
                               </div>
                             </div>
 
-                            {/* Notes */}
-                            <div className="mb-2">
-                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                Notes
-                              </label>
-                              <input
-                                type="text"
-                                value={alt.notes || ''}
-                                onChange={(e) => handleUpdateAlternative(altIndex, 'notes', e.target.value)}
-                                placeholder="Optional notes about this alternative"
-                                className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                              />
-                            </div>
-
-                            {/* Distributors section - 4 predefined rows */}
+                            {/* Distributors section - 4 predefined rows, one row per distributor */}
                             <div className="border-t border-gray-200 dark:border-[#444444] pt-2 mt-2">
                               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
                                 Distributors (optional)
                               </label>
-                              <div className="space-y-2">
+                              <div className="space-y-1">
                                 {(alt.distributors || []).slice(0, 4).map((dist, distIndex) => {
                                   const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
                                   return (
-                                    <div key={distIndex} className="grid grid-cols-2 gap-2">
+                                    <div key={distIndex} className="grid grid-cols-[1fr_2fr_2fr] gap-2 items-center">
+                                      <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
+                                        {distributorName}
+                                      </div>
                                       <div>
-                                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                          {distributorName}
-                                        </label>
                                         <input
                                           type="text"
                                           value={dist.sku || ''}
@@ -1318,14 +1308,11 @@ const Library = () => {
                                         />
                                       </div>
                                       <div>
-                                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                          URL
-                                        </label>
                                         <input
                                           type="text"
                                           value={dist.url || ''}
                                           onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
-                                          placeholder="Product page URL"
+                                          placeholder="Product URL"
                                           className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
                                         />
                                       </div>
@@ -1673,176 +1660,147 @@ const Library = () => {
                 </>
               ) : selectedComponent && componentDetails ? (
                 <>
-                  {/* Row 1: Part Number, Part Type */}
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Part Number:</span>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.part_number}</p>
-                      <button
-                        onClick={() => handleCopyToClipboard(componentDetails.part_number, 'part_number')}
-                        className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
-                        title="Copy Part Number"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      {copiedText === 'part_number' && (
-                        <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600 dark:text-gray-400">Part Type:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {componentDetails.part_type || componentDetails.category_name || 'N/A'}
-                    </p>
-                  </div>
-
-                  {/* Alternative Parts Selection */}
-                  {alternatives && alternatives.length > 0 && (
-                    <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
-                      <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
-                      <select
-                        value={selectedAlternative?.id || ''}
-                        onChange={(e) => {
-                          const alt = alternatives.find(a => a.id === e.target.value);
-                          setSelectedAlternative(alt);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      >
-                        {alternatives.map((alt) => (
-                          <option key={alt.id} value={alt.id}>
-                            {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
-                            {alt.is_primary ? ' (Primary)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Row 2: Manufacturer, MFG Part Number (from selected alternative) */}
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Manufacturer:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600 dark:text-gray-400">MFG Part Number:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                      {selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn || 'N/A'}
-                    </p>
-                  </div>
-
-                  {/* Distributor Info for selected alternative */}
-                  {selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 && (
-                    <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
-                      <span className="text-gray-600 dark:text-gray-400 block mb-2 font-semibold">Distributor Information:</span>
-                      <div className="space-y-2">
-                        {selectedAlternative.distributors.map((dist, index) => (
-                          <div key={index} className="bg-gray-50 dark:bg-[#252525] rounded-md p-3 text-sm">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-400 text-xs">Distributor:</span>
-                                <p className="font-medium text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-400 text-xs">SKU:</span>
-                                <p className="font-medium text-gray-900 dark:text-gray-100">{dist.sku || 'N/A'}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-400 text-xs">Stock:</span>
-                                <p className="font-medium text-gray-900 dark:text-gray-100">
-                                  {dist.in_stock ? `${dist.stock_quantity || 0} in stock` : 'Out of stock'}
-                                </p>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-400 text-xs">Price:</span>
-                                <p className="font-medium text-gray-900 dark:text-gray-100">
-                                  {dist.price ? `${dist.currency || 'USD'} ${dist.price}` : 'N/A'}
-                                </p>
-                              </div>
-                              {dist.url && (
-                                <div className="col-span-2">
-                                  <a 
-                                    href={dist.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-primary-600 dark:text-primary-400 hover:underline text-xs break-all"
-                                  >
-                                    View on {dist.distributor_name}
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                  {/* Helper component for copyable text */}
+                  {(() => {
+                    const CopyableField = ({ label, value }) => (
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">{label}:</span>
+                        <p 
+                          className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                          onClick={() => handleCopyToClipboard(value, label)}
+                          title="Click to copy"
+                        >
+                          {value || 'N/A'}
+                        </p>
                       </div>
-                    </div>
-                  )}
+                    );
 
-                  {/* Row 3: Value, Package */}
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">Value:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.value || 'N/A'}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600 dark:text-gray-400">Package:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.package_size || 'N/A'}</p>
-                  </div>
+                    return (
+                      <>
+                        {/* Row 1: Part Number, Part Type */}
+                        <CopyableField label="Part Number" value={componentDetails.part_number} />
+                        <div className="col-span-2">
+                          <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
+                        </div>
 
-                  {/* Row 4: Description */}
-                  {componentDetails.description && (
-                    <div className="col-span-3">
-                      <span className="text-gray-600 dark:text-gray-400">Description:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">{componentDetails.description}</p>
-                    </div>
-                  )}
+                        {/* Row 2: Value, Package */}
+                        <CopyableField label="Value" value={componentDetails.value} />
+                        <div className="col-span-2">
+                          <CopyableField label="Package" value={componentDetails.package_size} />
+                        </div>
 
-                  {/* Row 4: PCB Footprint */}
-                  <div className="col-span-3">
-                    <span className="text-gray-600 dark:text-gray-400">PCB Footprint:</span>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{componentDetails.pcb_footprint || 'N/A'}</p>
-                  </div>
+                        {/* Row 3: Alternative Parts Selection */}
+                        {alternatives && alternatives.length > 0 && (
+                          <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
+                            <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
+                            <select
+                              value={selectedAlternative?.id || ''}
+                              onChange={(e) => {
+                                const alt = alternatives.find(a => a.id === e.target.value);
+                                setSelectedAlternative(alt);
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                            >
+                              {alternatives.map((alt) => (
+                                <option key={alt.id} value={alt.id}>
+                                  {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
+                                  {alt.is_primary ? ' (Primary)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
 
-                  {/* Row 5: Schematic Symbol */}
-                  {componentDetails.schematic && (
-                    <div className="col-span-3">
-                      <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.schematic}</p>
-                    </div>
-                  )}
+                        {/* Row 4: Manufacturer, MFG Part Number (from selected alternative) */}
+                        <CopyableField 
+                          label="Manufacturer" 
+                          value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
+                        />
+                        <div className="col-span-2">
+                          <CopyableField 
+                            label="MFG Part Number" 
+                            value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
+                          />
+                        </div>
 
-                  {/* Row 6: STEP 3D Model */}
-                  {componentDetails.step_model && (
-                    <div className="col-span-3">
-                      <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.step_model}</p>
-                    </div>
-                  )}
+                        {/* Row 5: Description */}
+                        {componentDetails.description && (
+                          <div className="col-span-3">
+                            <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                            <p 
+                              className="font-medium text-gray-900 dark:text-gray-100 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors"
+                              onClick={() => handleCopyToClipboard(componentDetails.description, 'Description')}
+                              title="Click to copy"
+                            >
+                              {componentDetails.description}
+                            </p>
+                          </div>
+                        )}
 
-                  {/* Row 7: PSPICE Model */}
-                  {componentDetails.pspice && (
-                    <div className="col-span-3">
-                      <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all">{componentDetails.pspice}</p>
-                    </div>
-                  )}
+                        {/* Row 6: PCB Footprint */}
+                        <div className="col-span-3">
+                          <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
+                        </div>
 
-                  {/* Row 8: Datasheet URL */}
-                  {componentDetails.datasheet_url && (
-                    <div className="col-span-3">
-                      <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
-                      <a 
-                        href={componentDetails.datasheet_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-xs break-all block"
-                      >
-                        {componentDetails.datasheet_url}
-                      </a>
-                    </div>
-                  )}
+                        {/* Row 7: Schematic Symbol */}
+                        {componentDetails.schematic && (
+                          <div className="col-span-3">
+                            <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
+                            <p 
+                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                              onClick={() => handleCopyToClipboard(componentDetails.schematic, 'Schematic')}
+                              title="Click to copy"
+                            >
+                              {componentDetails.schematic}
+                            </p>
+                          </div>
+                        )}
 
+                        {/* Row 8: STEP 3D Model */}
+                        {componentDetails.step_model && (
+                          <div className="col-span-3">
+                            <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
+                            <p 
+                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                              onClick={() => handleCopyToClipboard(componentDetails.step_model, 'STEP Model')}
+                              title="Click to copy"
+                            >
+                              {componentDetails.step_model}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Row 9: PSPICE Model */}
+                        {componentDetails.pspice && (
+                          <div className="col-span-3">
+                            <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
+                            <p 
+                              className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
+                              onClick={() => handleCopyToClipboard(componentDetails.pspice, 'PSPICE Model')}
+                              title="Click to copy"
+                            >
+                              {componentDetails.pspice}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Row 10: Datasheet URL */}
+                        {componentDetails.datasheet_url && (
+                          <div className="col-span-3">
+                            <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
+                            <a 
+                              href={componentDetails.datasheet_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-xs break-all block"
+                            >
+                              {componentDetails.datasheet_url}
+                            </a>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
@@ -1853,14 +1811,12 @@ const Library = () => {
             </div>
           </div>
 
-          {/* Distributor Info - Always shown */}
+          {/* Distributor Info - Shows distributors for selected alternative or primary component */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
-            {selectedComponent && componentDetails && !isAddMode && componentDetails.distributors?.length > 0 ? (
+            {selectedComponent && !isAddMode && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
               <div className="space-y-4">
-                {componentDetails.distributors
-                  .filter(dist => ['Digikey', 'Mouser', 'Newark', 'Arrow'].includes(dist.distributor_name))
-                  .map((dist, index) => (
+                {selectedAlternative.distributors.map((dist, index) => (
                   <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-4 last:border-0">
                     <div className="flex items-center gap-2 mb-2">
                       <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>

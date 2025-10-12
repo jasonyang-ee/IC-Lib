@@ -154,7 +154,6 @@ CREATE TABLE IF NOT EXISTS components_alternative (
     part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
-    notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(part_number, manufacturer_id, manufacturer_pn)

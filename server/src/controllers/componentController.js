@@ -640,8 +640,6 @@ export const createAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      is_primary = false,
-      notes = '',
       distributors = [] // Array of distributor info objects
     } = req.body;
     
@@ -657,14 +655,14 @@ export const createAlternative = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
-    // Create the alternative (no is_primary field)
+    // Create the alternative (no notes field)
     const result = await pool.query(`
       INSERT INTO components_alternative (
-        part_number, manufacturer_id, manufacturer_pn, notes
+        part_number, manufacturer_id, manufacturer_pn
       )
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1, $2, $3)
       RETURNING *
-    `, [partNumber, manufacturer_id, manufacturer_pn, notes]);
+    `, [partNumber, manufacturer_id, manufacturer_pn]);
     
     const alternativeId = result.rows[0].id;
     
@@ -717,7 +715,6 @@ export const updateAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      notes,
       distributors = []
     } = req.body;
     
@@ -738,11 +735,10 @@ export const updateAlternative = async (req, res, next) => {
       SET 
         manufacturer_id = COALESCE($1, manufacturer_id),
         manufacturer_pn = COALESCE($2, manufacturer_pn),
-        notes = COALESCE($3, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4 AND part_number = $5
+      WHERE id = $3 AND part_number = $4
       RETURNING *
-    `, [manufacturer_id, manufacturer_pn, notes, altId, partNumber]);
+    `, [manufacturer_id, manufacturer_pn, altId, partNumber]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
