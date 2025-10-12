@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check, QrCode, Save, X } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const Inventory = () => {
@@ -13,6 +13,9 @@ const Inventory = () => {
   const [editedItems, setEditedItems] = useState({});
   const [copiedLabel, setCopiedLabel] = useState('');
   const [qrCodeModal, setQrCodeModal] = useState(null);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [alternativesData, setAlternativesData] = useState({});
+  const [editingAlternative, setEditingAlternative] = useState(null);
   const barcodeRef = useRef(null);
 
   // Fetch categories
@@ -210,6 +213,98 @@ const Inventory = () => {
     setQrCodeModal({ item, qrData });
   };
 
+  // Toggle row expansion to show/hide alternatives
+  const toggleRowExpansion = async (item) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(item.id)) {
+      newExpanded.delete(item.id);
+      setExpandedRows(newExpanded);
+    } else {
+      newExpanded.add(item.id);
+      setExpandedRows(newExpanded);
+      
+      // Fetch alternatives if not already loaded
+      if (!alternativesData[item.component_id]) {
+        try {
+          const response = await api.getInventoryAlternatives(item.component_id);
+          setAlternativesData(prev => ({
+            ...prev,
+            [item.component_id]: response.data
+          }));
+        } catch (error) {
+          console.error('Error fetching alternatives:', error);
+        }
+      }
+    }
+  };
+
+  // Update alternative inventory
+  const updateAlternativeMutation = useMutation({
+    mutationFn: async ({ altId, data }) => {
+      await api.updateAlternativeInventory(altId, data);
+    },
+    onSuccess: (_, variables) => {
+      // Refresh alternatives data
+      const componentId = Object.keys(alternativesData).find(key => 
+        alternativesData[key].some(alt => alt.id === variables.altId)
+      );
+      if (componentId) {
+        api.getInventoryAlternatives(componentId).then(response => {
+          setAlternativesData(prev => ({
+            ...prev,
+            [componentId]: response.data
+          }));
+        });
+      }
+      setEditingAlternative(null);
+    },
+  });
+
+  const handleAlternativeEdit = (altId, field, value) => {
+    setEditingAlternative(prev => ({
+      ...prev,
+      [altId]: {
+        ...(prev?.[altId] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const saveAlternativeChanges = (alt) => {
+    if (editingAlternative && editingAlternative[alt.id]) {
+      updateAlternativeMutation.mutate({
+        altId: alt.id,
+        data: editingAlternative[alt.id]
+      });
+    }
+  };
+
+  const generateAlternativeLabelString = (alt) => {
+    const mfgPn = alt.manufacturer_pn || 'N/A';
+    const mfgName = alt.manufacturer_name || 'Unknown';
+    return `${mfgName}\n${mfgPn}`;
+  };
+
+  const copyAlternativeLabelToClipboard = (alt) => {
+    const labelText = generateAlternativeLabelString(alt);
+    navigator.clipboard.writeText(labelText).then(() => {
+      setCopiedLabel(`alt-${alt.id}`);
+      setTimeout(() => setCopiedLabel(''), 2000);
+    });
+  };
+
+  const showAlternativeQRCode = (alt) => {
+    const qrData = generateAlternativeLabelString(alt);
+    setQrCodeModal({ 
+      item: {
+        part_number: `ALT-${alt.id}`,
+        manufacturer_pn: alt.manufacturer_pn,
+        description: alt.manufacturer_name
+      }, 
+      qrData 
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -354,6 +449,7 @@ const Inventory = () => {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
               <tr>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{width: '40px'}}></th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG Part Number</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Manufacturer</th>
@@ -367,32 +463,50 @@ const Inventory = () => {
               {filteredInventory?.map((item) => {
                 const editedItem = editedItems[item.id] || { location: item.location || '', quantity: item.quantity, consumeQty: 0 };
                 const isLowStock = item.quantity <= item.minimum_quantity && item.minimum_quantity > 0;
+                const isExpanded = expandedRows.has(item.id);
+                const alternatives = alternativesData[item.component_id] || [];
                 
                 return (
-                  <tr 
-                    key={item.id} 
-                    id={`inv-row-${item.id}`}
-                    className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
-                  >
-                    {/* Part Number */}
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {item.part_number}
-                    </td>
-                    
-                    {/* MFG Part Number */}
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {item.manufacturer_pn || 'N/A'}
-                    </td>
-                    
-                    {/* Manufacturer */}
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {item.manufacturer_name || 'N/A'}
-                    </td>
-                    
-                    {/* Description */}
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {item.description?.substring(0, 40) || 'N/A'}
-                    </td>
+                  <>
+                    <tr 
+                      key={item.id} 
+                      id={`inv-row-${item.id}`}
+                      className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
+                    >
+                      {/* Expand Button */}
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          onClick={() => toggleRowExpansion(item)}
+                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                          title="Show/hide alternative parts"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </button>
+                      </td>
+
+                      {/* Part Number */}
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {item.part_number}
+                      </td>
+                      
+                      {/* MFG Part Number */}
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        {item.manufacturer_pn || 'N/A'}
+                      </td>
+                      
+                      {/* Manufacturer */}
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        {item.manufacturer_name || 'N/A'}
+                      </td>
+                      
+                      {/* Description */}
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        {item.description?.substring(0, 40) || 'N/A'}
+                      </td>
                     
                     {/* Location */}
                     <td className="px-4 py-3 text-sm">
@@ -480,6 +594,126 @@ const Inventory = () => {
                       </div>
                     </td>
                   </tr>
+
+                  {/* Alternative Parts Rows */}
+                  {isExpanded && alternatives.length > 0 && alternatives.map((alt, altIndex) => {
+                    const editingAlt = editingAlternative?.[alt.id] || {};
+                    const isEditingThis = Object.keys(editingAlt).length > 0;
+
+                    return (
+                      <tr 
+                        key={`alt-${alt.id}`}
+                        className="bg-blue-50 dark:bg-blue-900/10 border-b border-gray-100 dark:border-[#3a3a3a]"
+                      >
+                        {/* Empty cell for alignment */}
+                        <td className="px-4 py-2"></td>
+                        
+                        {/* Part Number - show as "Alt 1", "Alt 2", etc */}
+                        <td className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400">
+                          Alternative {altIndex + 1}
+                        </td>
+                        
+                        {/* MFG Part Number */}
+                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                          {alt.manufacturer_pn}
+                        </td>
+                        
+                        {/* Manufacturer */}
+                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                          {alt.manufacturer_name || 'N/A'}
+                        </td>
+                        
+                        {/* Description - empty for alternatives */}
+                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
+                          (alternative part)
+                        </td>
+                        
+                        {/* Location */}
+                        <td className="px-4 py-2 text-sm">
+                          {editMode ? (
+                            <input
+                              type="text"
+                              value={isEditingThis ? editingAlt.location : (alt.location || '')}
+                              onChange={(e) => handleAlternativeEdit(alt.id, 'location', e.target.value)}
+                              placeholder="Enter location..."
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                            />
+                          ) : (
+                            <span className="text-gray-900 dark:text-gray-100">{alt.location || 'Not set'}</span>
+                          )}
+                        </td>
+                        
+                        {/* Quantity */}
+                        <td className="px-4 py-2 text-sm" style={{minWidth: '200px'}}>
+                          {editMode ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={isEditingThis ? editingAlt.quantity : (alt.quantity || 0)}
+                                onChange={(e) => handleAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
+                                className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              />
+                              {isEditingThis && (
+                                <button
+                                  onClick={() => saveAlternativeChanges(alt)}
+                                  className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-900 dark:text-gray-100">{alt.quantity || 0}</span>
+                          )}
+                        </td>
+                        
+                        {/* Label Actions */}
+                        <td className="px-4 py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => showAlternativeQRCode(alt)}
+                              className="px-3 py-1.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
+                              title="Show QR code"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              <span>QR</span>
+                            </button>
+                            <button
+                              onClick={() => copyAlternativeLabelToClipboard(alt)}
+                              className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                                copiedLabel === `alt-${alt.id}`
+                                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                                  : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
+                              }`}
+                              title="Copy label text"
+                            >
+                              {copiedLabel === `alt-${alt.id}` ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* Show "No alternatives" message if expanded but no alternatives */}
+                  {isExpanded && alternatives.length === 0 && (
+                    <tr className="bg-gray-50 dark:bg-[#333333]/50">
+                      <td colSpan="8" className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic text-center">
+                        No alternative parts found
+                      </td>
+                    </tr>
+                  )}
+                </>
                 );
               })}
             </tbody>

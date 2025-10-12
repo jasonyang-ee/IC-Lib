@@ -85,6 +85,8 @@ export const api = {
   deleteInventory: (id) => apiClient.delete(`/inventory/${id}`),
   getLowStockItems: () => apiClient.get('/inventory/alerts/low-stock'),
   searchByBarcode: (barcode) => apiClient.post('/inventory/search/barcode', { barcode }),
+  getInventoryAlternatives: (componentId) => apiClient.get(`/inventory/${componentId}/alternatives`),
+  updateAlternativeInventory: (altId, data) => apiClient.put(`/inventory/alternatives/${altId}`, data),
 
   // Search
   searchDigikey: (partNumber) => apiClient.post('/search/digikey', { partNumber }),

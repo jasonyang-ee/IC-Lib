@@ -254,3 +254,85 @@ export const searchByBarcode = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get alternative parts inventory for a component
+export const getAlternativeInventory = async (req, res, next) => {
+  try {
+    const { id } = req.params; // component_id
+
+    // First get the component's part number
+    const componentResult = await pool.query(
+      'SELECT part_number FROM components WHERE id = $1',
+      [id]
+    );
+
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+
+    const partNumber = componentResult.rows[0].part_number;
+
+    // Get all alternatives with their inventory tracking
+    const result = await pool.query(`
+      SELECT 
+        ca.id,
+        ca.manufacturer_pn,
+        m.name as manufacturer_name,
+        ia.location,
+        ia.quantity,
+        ia.min_quantity,
+        ia.notes,
+        COALESCE(ia.id, NULL) as inventory_id
+      FROM components_alternative ca
+      LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
+      LEFT JOIN inventory_alternative ia ON ca.id = ia.alternative_id
+      WHERE ca.part_number = $1
+      ORDER BY ca.created_at ASC
+    `, [partNumber]);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update alternative inventory (location and quantity)
+export const updateAlternativeInventory = async (req, res, next) => {
+  try {
+    const { altId } = req.params;
+    const { location, quantity, min_quantity, notes } = req.body;
+
+    // Check if inventory record exists
+    const checkResult = await pool.query(
+      'SELECT id FROM inventory_alternative WHERE alternative_id = $1',
+      [altId]
+    );
+
+    let result;
+    if (checkResult.rows.length > 0) {
+      // Update existing record
+      result = await pool.query(`
+        UPDATE inventory_alternative 
+        SET 
+          location = COALESCE($1, location),
+          quantity = COALESCE($2, quantity),
+          min_quantity = COALESCE($3, min_quantity),
+          notes = COALESCE($4, notes),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE alternative_id = $5
+        RETURNING *
+      `, [location, quantity, min_quantity, notes, altId]);
+    } else {
+      // Insert new record
+      result = await pool.query(`
+        INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity, notes)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+      `, [altId, location || '', quantity || 0, min_quantity || 0, notes || '']);
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+};

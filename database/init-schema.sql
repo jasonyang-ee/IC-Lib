@@ -159,6 +159,21 @@ CREATE TABLE IF NOT EXISTS components_alternative (
     UNIQUE(part_number, manufacturer_id, manufacturer_pn)
 );
 
+-- Table: inventory_alternative
+-- Stores inventory tracking for alternative parts
+-- Each alternative part can have its own location and quantity
+CREATE TABLE IF NOT EXISTS inventory_alternative (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
+    location VARCHAR(200),
+    quantity INTEGER DEFAULT 0,
+    min_quantity INTEGER DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alternative_id)
+);
+
 -- Table: distributor_info
 -- Stores pricing and availability from different distributors
 -- Now links to components_alternative instead of components directly

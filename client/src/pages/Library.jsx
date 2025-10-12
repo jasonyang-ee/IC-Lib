@@ -236,8 +236,6 @@ const Library = () => {
       
       // Combine primary with alternatives from components_alternative table
       const allAlternatives = [primaryAlternative, ...(alternativesData || [])];
-      console.log('DEBUG: alternativesData from API:', alternativesData);
-      console.log('DEBUG: allAlternatives array:', allAlternatives);
       setAlternatives(allAlternatives);
       setSelectedAlternative(primaryAlternative); // Always default to primary
       
@@ -1062,16 +1060,17 @@ const Library = () => {
           </div>
         </div>
 
-        {/* Center - Component List */}
-        <div className="space-y-4 xl:min-w-[650px]">
-          {/* Component List */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Components ({components?.length || 0})
-                {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
-              </h3>
-            </div>
+        {/* Center - Component List (Hidden in Edit Mode) */}
+        {!isEditMode && (
+          <div className="space-y-4 xl:min-w-[650px]">
+            {/* Component List */}
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
+              <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Components ({components?.length || 0})
+                  {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
+                </h3>
+              </div>
             <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh - 300px)'}}>
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
@@ -1145,6 +1144,7 @@ const Library = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
         <div className="space-y-4 xl:min-w-[550px]">
@@ -1214,121 +1214,7 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* ROW 3: Alternative Parts Management */}
-                  <div className="col-span-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-gray-600 dark:text-gray-400">
-                        Alternative Parts
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleAddAlternative}
-                        className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-medium flex items-center gap-1"
-                      >
-                        <span>+ Add Alternative</span>
-                      </button>
-                    </div>
-                    
-                    {(!editData.alternatives || editData.alternatives.length === 0) ? (
-                      <div className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-500 text-sm italic text-center">
-                        No alternative parts. Click "+ Add Alternative" to add one.
-                      </div>
-                    ) : (
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {editData.alternatives.map((alt, altIndex) => (
-                          <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-3 bg-white dark:bg-[#2a2a2a]">
-                            {/* Alternative header with delete button only */}
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                Alternative #{altIndex + 1}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAlternative(altIndex)}
-                                className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                                title="Delete alternative"
-                              >
-                                Delete
-                              </button>
-                            </div>
-
-                            {/* Manufacturer and MFG Part Number */}
-                            <div className="grid grid-cols-2 gap-2 mb-2">
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                  Manufacturer <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                  value={alt.manufacturer_id || ''}
-                                  onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                >
-                                  <option value="">Select manufacturer</option>
-                                  {manufacturers?.map((mfr) => (
-                                    <option key={mfr.id} value={mfr.id}>
-                                      {mfr.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                  MFG Part Number <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={alt.manufacturer_pn || ''}
-                                  onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
-                                  placeholder="e.g., RC0805FR-0710KL"
-                                  className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Distributors section - 4 predefined rows, one row per distributor */}
-                            <div className="border-t border-gray-200 dark:border-[#444444] pt-2 mt-2">
-                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                                Distributors (optional)
-                              </label>
-                              <div className="space-y-1">
-                                {(alt.distributors || []).slice(0, 4).map((dist, distIndex) => {
-                                  const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
-                                  return (
-                                    <div key={distIndex} className="grid grid-cols-[1fr_2fr_2fr] gap-2 items-center">
-                                      <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
-                                        {distributorName}
-                                      </div>
-                                      <div>
-                                        <input
-                                          type="text"
-                                          value={dist.sku || ''}
-                                          onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
-                                          placeholder="SKU"
-                                          className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                        />
-                                      </div>
-                                      <div>
-                                        <input
-                                          type="text"
-                                          value={dist.url || ''}
-                                          onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
-                                          placeholder="Product URL"
-                                          className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                        />
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                  </div>
-
-                  {/* ROW 4: Manufacturer, MFG Part Number */}
+                  {/* ROW 3: Manufacturer, MFG Part Number (moved up from ROW 4) */}
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Manufacturer <span className="text-red-500">*</span>
@@ -1577,10 +1463,140 @@ const Library = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
+                </>
+              ) : (
+                // View Mode - existing view code
+                <>
+                  {/* ... existing view mode fields ... */}
+                </>
+              )}
+            </div>
+          </div>
 
+          {/* Alternative Parts Tile - Only in Edit Mode */}
+          {isEditMode && (
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Alternative Parts
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleAddAlternative}
+                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  <span>+ Add Alternative</span>
+                </button>
+              </div>
+              
+              {(!editData.alternatives || editData.alternatives.length === 0) ? (
+                <div className="px-4 py-8 border-2 border-dashed border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-400 text-sm text-center">
+                  No alternative parts added yet. Click "+ Add Alternative" to add one.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  {editData.alternatives.map((alt, altIndex) => (
+                    <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
+                      {/* Alternative header with delete button */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Alternative #{altIndex + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAlternative(altIndex)}
+                          className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          title="Delete alternative"
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      {/* Manufacturer and MFG Part Number */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            Manufacturer <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={alt.manufacturer_id || ''}
+                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_id', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                          >
+                            <option value="">Select manufacturer</option>
+                            {manufacturers?.map((mfr) => (
+                              <option key={mfr.id} value={mfr.id}>
+                                {mfr.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            MFG Part Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={alt.manufacturer_pn || ''}
+                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
+                            placeholder="e.g., RC0805FR-0710KL"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Distributors section */}
+                      <div className="border-t border-gray-200 dark:border-[#444444] pt-3">
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                          Distributors (optional)
+                        </label>
+                        <div className="space-y-2">
+                          {(alt.distributors || []).slice(0, 4).map((dist, distIndex) => {
+                            const distributorName = distributors?.find(d => d.id === dist.distributor_id)?.name || 'N/A';
+                            return (
+                              <div key={distIndex} className="grid grid-cols-[1fr_2fr_2fr] gap-2 items-center">
+                                <div className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                                  {distributorName}
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={dist.sku || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
+                                    placeholder="SKU"
+                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={dist.url || ''}
+                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
+                                    placeholder="Product URL"
+                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Specifications Panel */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              {(isEditMode || isAddMode) ? (
+                <>
                   {/* Specifications Section */}
-                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h4>
+                  <div className="col-span-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Technical Specifications</h4>
                     {(editData.specifications || []).length > 0 ? (
                       (editData.specifications || []).map((spec, index) => (
                         <div key={index} className="grid grid-cols-[2fr_2fr_1fr] gap-2 mb-2">

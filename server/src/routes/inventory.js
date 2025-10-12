@@ -27,4 +27,10 @@ router.get('/alerts/low-stock', inventoryController.getLowStockItems);
 // Search by barcode/SKU
 router.post('/search/barcode', inventoryController.searchByBarcode);
 
+// Get alternative parts inventory for a component
+router.get('/:id/alternatives', inventoryController.getAlternativeInventory);
+
+// Update alternative inventory (location and quantity)
+router.put('/alternatives/:altId', inventoryController.updateAlternativeInventory);
+
 export default router;
