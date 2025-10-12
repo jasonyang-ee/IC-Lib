@@ -35,11 +35,9 @@ const Sidebar = () => {
   return (
     <div className="w-[250px] bg-gray-900 text-white min-h-screen flex flex-col">
       {/* Logo/Title */}
-      <div className="p-6 border-b border-gray-700">
+      <div className="p-5 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="bg-primary-600 p-2 rounded-lg">
-            <img src="/logo.svg" alt="IC Lib Logo" className="w-6 h-6 text-white" style={{filter: 'brightness(0) invert(1)'}} />
-          </div>
+          <img src="/logo_bg.png" alt="IC Lib Logo" className="w-12 h-12"/>
           <div>
             <h1 className="text-xl font-bold">IC Lib</h1>
             <p className="text-sm text-gray-400">PCB Component Library</p>
