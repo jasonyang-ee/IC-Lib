@@ -450,26 +450,30 @@ const Inventory = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => showQRCode(item)}
-                          className="flex items-center gap-1 text-primary-600 hover:text-primary-700 dark:text-primary-400 transition-colors"
+                          className="px-3 py-1.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
                           title="Show QR code"
                         >
-                          <QrCode className="w-4 h-4" />
-                          <span className="text-xs">QR</span>
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>QR</span>
                         </button>
                         <button
                           onClick={() => copyLabelToClipboard(item)}
-                          className="flex items-center gap-1 text-primary-600 hover:text-primary-700 dark:text-primary-400 transition-colors"
+                          className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                            copiedLabel === item.id
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
+                          }`}
                           title="Copy label text"
                         >
                           {copiedLabel === item.id ? (
                             <>
-                              <Check className="w-4 h-4" />
-                              <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Copied!</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-4 h-4" />
-                              <span className="text-xs">Copy</span>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy</span>
                             </>
                           )}
                         </button>

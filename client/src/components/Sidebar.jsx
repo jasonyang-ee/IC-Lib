@@ -14,7 +14,7 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="w-[300px] bg-gray-900 text-white min-h-screen flex flex-col">
+    <div className="w-[250px] bg-gray-900 text-white min-h-screen flex flex-col">
       {/* Logo/Title */}
       <div className="p-6 border-b border-gray-700">
         <div className="flex items-center gap-3">
@@ -55,7 +55,7 @@ const Sidebar = () => {
       {/* Footer */}
       <div className="p-4 border-t border-gray-700">
         <p className="text-xs text-gray-500 text-center">
-          © 2025 IC Lib. AGPL-3.0 Licensed Application.
+          IC Lib © 2025 • AGPL-3.0 Licensed
         </p>
       </div>
     </div>

@@ -29,27 +29,41 @@ export async function searchPart(partNumber) {
 
     return {
       source: 'mouser',
-      results: data.Parts?.map(part => ({
-        partNumber: part.MouserPartNumber,
-        manufacturerPartNumber: part.ManufacturerPartNumber,
-        manufacturer: part.Manufacturer,
-        description: part.Description,
-        datasheet: part.DataSheetUrl,
-        pricing: part.PriceBreaks?.map(price => ({
-          quantity: price.Quantity,
-          price: parseFloat(price.Price.replace(/[^0-9.]/g, '')),
-          currency: price.Currency
-        })),
-        stock: part.Availability ? parseInt(part.Availability.split(' ')[0]) : 0,
-        productUrl: part.ProductDetailUrl,
-        leadTime: part.LeadTime,
-        lifecycle: part.LifecycleStatus,
-        rohs: part.ROHSStatus,
-        packageType: part.PackageType || 'N/A',
-        series: part.Series || '-',
-        category: part.Category || 'N/A',
-        minimumOrderQuantity: part.Min || 1
-      })) || []
+      results: data.Parts?.map(part => {
+        // Extract specifications from Mouser ProductAttributes
+        const specifications = part.ProductAttributes?.reduce((acc, attr) => {
+          if (attr.AttributeName && attr.AttributeValue) {
+            acc[attr.AttributeName] = {
+              value: attr.AttributeValue,
+              unit: ''
+            };
+          }
+          return acc;
+        }, {}) || {};
+
+        return {
+          partNumber: part.MouserPartNumber,
+          manufacturerPartNumber: part.ManufacturerPartNumber,
+          manufacturer: part.Manufacturer,
+          description: part.Description,
+          datasheet: part.DataSheetUrl,
+          pricing: part.PriceBreaks?.map(price => ({
+            quantity: price.Quantity,
+            price: parseFloat(price.Price.replace(/[^0-9.]/g, '')),
+            currency: price.Currency
+          })),
+          stock: part.Availability ? parseInt(part.Availability.split(' ')[0]) : 0,
+          productUrl: part.ProductDetailUrl,
+          leadTime: part.LeadTime,
+          lifecycle: part.LifecycleStatus,
+          rohs: part.ROHSStatus,
+          packageType: part.PackageType || 'N/A',
+          series: part.Series || '-',
+          category: part.Category || 'N/A',
+          minimumOrderQuantity: part.Min || 1,
+          specifications: specifications
+        };
+      }) || []
     };
   } catch (error) {
     console.error('Mouser search error:', error.message);

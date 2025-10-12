@@ -519,3 +519,29 @@ export const updateDistributorInfo = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get unique sub-category values for a specific category
+export const getSubCategorySuggestions = async (req, res, next) => {
+  try {
+    const { categoryId, level } = req.query;
+    
+    if (!categoryId || !level || !['1', '2', '3'].includes(level)) {
+      return res.status(400).json({ error: 'categoryId and level (1, 2, or 3) are required' });
+    }
+
+    const columnName = `sub_category${level}`;
+    
+    const result = await pool.query(`
+      SELECT DISTINCT ${columnName} as value
+      FROM components
+      WHERE category_id = $1 
+        AND ${columnName} IS NOT NULL 
+        AND ${columnName} != ''
+      ORDER BY ${columnName}
+    `, [categoryId]);
+
+    res.json(result.rows.map(row => row.value));
+  } catch (error) {
+    next(error);
+  }
+};

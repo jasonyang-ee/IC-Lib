@@ -54,6 +54,7 @@ export const api = {
   updateComponentSpecifications: (id, data) => apiClient.put(`/components/${id}/specifications`, data),
   getComponentDistributors: (id) => apiClient.get(`/components/${id}/distributors`),
   updateComponentDistributors: (id, data) => apiClient.put(`/components/${id}/distributors`, data),
+  getSubCategorySuggestions: (categoryId, level) => apiClient.get('/components/subcategories/suggestions', { params: { categoryId, level } }),
 
   // Categories
   getCategories: () => apiClient.get('/categories'),

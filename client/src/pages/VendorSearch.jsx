@@ -9,6 +9,7 @@ const VendorSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedPart, setSelectedPart] = useState(null);
+  const [currentPage, setCurrentPage] = useState('dashboard');
 
   const searchMutation = useMutation({
     mutationFn: (partNumber) => api.searchAllVendors(partNumber),

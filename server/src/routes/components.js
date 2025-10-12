@@ -6,6 +6,9 @@ const router = express.Router();
 // Get all components with optional filtering
 router.get('/', componentController.getAllComponents);
 
+// Get sub-category suggestions
+router.get('/subcategories/suggestions', componentController.getSubCategorySuggestions);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 

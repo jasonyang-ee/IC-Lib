@@ -19,6 +19,11 @@ const Library = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [copiedText, setCopiedText] = useState('');
+  
+  // Sub-category suggestions
+  const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
+  const [subCat2Suggestions, setSubCat2Suggestions] = useState([]);
+  const [subCat3Suggestions, setSubCat3Suggestions] = useState([]);
 
   // Copy to clipboard handler
   const handleCopyToClipboard = (text, label) => {
@@ -457,6 +462,23 @@ const Library = () => {
   // Update part number when category changes in add mode
   const handleCategoryChange = async (categoryId) => {
     handleFieldChange('category_id', categoryId);
+    
+    // Load sub-category suggestions for this category
+    if (categoryId) {
+      try {
+        const [sub1, sub2, sub3] = await Promise.all([
+          api.getSubCategorySuggestions(categoryId, 1),
+          api.getSubCategorySuggestions(categoryId, 2),
+          api.getSubCategorySuggestions(categoryId, 3)
+        ]);
+        setSubCat1Suggestions(sub1.data || []);
+        setSubCat2Suggestions(sub2.data || []);
+        setSubCat3Suggestions(sub3.data || []);
+      } catch (error) {
+        console.error('Error loading sub-category suggestions:', error);
+      }
+    }
+    
     if (isAddMode) {
       const nextPartNumber = generateNextPartNumber(categoryId);
       handleFieldChange('part_number', nextPartNumber);
@@ -916,31 +938,49 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 1</label>
                     <input
                       type="text"
+                      list="subcat1-list"
                       value={editData.sub_category1 || ''}
                       onChange={(e) => handleFieldChange('sub_category1', e.target.value)}
-                      placeholder="e.g., Ceramic"
+                      placeholder="e.g., Ceramic (type or select)"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
+                    <datalist id="subcat1-list">
+                      {subCat1Suggestions.map((suggestion, idx) => (
+                        <option key={idx} value={suggestion} />
+                      ))}
+                    </datalist>
                   </div>
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 2</label>
                     <input
                       type="text"
+                      list="subcat2-list"
                       value={editData.sub_category2 || ''}
                       onChange={(e) => handleFieldChange('sub_category2', e.target.value)}
-                      placeholder="e.g., X7R"
+                      placeholder="e.g., X7R (type or select)"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
+                    <datalist id="subcat2-list">
+                      {subCat2Suggestions.map((suggestion, idx) => (
+                        <option key={idx} value={suggestion} />
+                      ))}
+                    </datalist>
                   </div>
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Sub-Category 3</label>
                     <input
                       type="text"
+                      list="subcat3-list"
                       value={editData.sub_category3 || ''}
                       onChange={(e) => handleFieldChange('sub_category3', e.target.value)}
-                      placeholder="e.g., 50V"
+                      placeholder="e.g., 50V (type or select)"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
+                    <datalist id="subcat3-list">
+                      {subCat3Suggestions.map((suggestion, idx) => (
+                        <option key={idx} value={suggestion} />
+                      ))}
+                    </datalist>
                   </div>
 
                   {/* Row 3.5: Description (after Value and Package) */}
