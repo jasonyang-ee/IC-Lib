@@ -940,11 +940,10 @@ const Library = () => {
             <div className="grid grid-cols-3 gap-4 text-sm">
               {(isEditMode || isAddMode) ? (
                 <>
-                  {/* Row 1: Part Number, Part Type (Category) */}
-                  <div>
+                  {/* ROW 1: Part Number, Part Type (Category), Value */}
+                  <div class="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Part Number <span className="text-red-500">*</span> {isAddMode && <span className="text-xs text-gray-500">(Auto-generated)</span>}
-                      {isEditMode && <span className="text-xs text-gray-500">(Locked)</span>}
+                      Part Number <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -955,14 +954,17 @@ const Library = () => {
                       placeholder={isAddMode ? "Select category first" : "e.g., RES-0001"}
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Part Type (Category) <span className="text-red-500">*</span></label>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Part Type <span className="text-red-500">*</span>
+                    </label>
                     <select
                       value={editData.category_id || ''}
                       onChange={(e) => isAddMode ? handleCategoryChange(e.target.value) : handleFieldChange('category_id', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+					  disabled={isEditMode}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
                     >
-                      <option value="">Select a category</option>
+                      <option value="">Select type</option>
                       {categories?.map((cat) => (
                         <option key={cat.id} value={cat.id}>
                           {cat.name}
@@ -970,8 +972,50 @@ const Library = () => {
                       ))}
                     </select>
                   </div>
+                  
 
-                  {/* Row 2: Manufacturer, MFG Part Number */}
+                  {/* ROW 2: Value (again), Package */}
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Value <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editData.value || ''}
+                      onChange={(e) => handleFieldChange('value', e.target.value)}
+                      placeholder="e.g., 10uF, 10kΩ, STM32F103"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Package</label>
+                    <input
+                      type="text"
+                      value={editData.package_size || ''}
+                      onChange={(e) => handleFieldChange('package_size', e.target.value)}
+                      placeholder="e.g., 0805"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+
+                  {/* ROW 3: Alternative Selection Box (placeholder for future implementation) */}
+                  <div className="col-span-3">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Alternative Parts
+                    </label>
+                    <div className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-500 text-sm italic flex items-center justify-between">
+                      <span>No alternative parts linked</span>
+                      <button
+                        type="button"
+                        className="text-primary-600 dark:text-primary-400 hover:text-primary-700 text-xs font-medium"
+                        disabled
+                      >
+                        + Add Alternative
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ROW 4: Manufacturer, MFG Part Number */}
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Manufacturer <span className="text-red-500">*</span>
@@ -998,40 +1042,18 @@ const Library = () => {
                       value={editData.manufacturer_pn || editData.manufacturer_part_number || ''}
                       onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      placeholder="e.g., CRCW0603"
+                      placeholder="e.g., CRCW0603, STM32F103C8T6"
                     />
                   </div>
 
-                  {/* Row 3: Value, Package */}
-                  <div>
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
-                      Value <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editData.value || ''}
-                      onChange={(e) => handleFieldChange('value', e.target.value)}
-                      placeholder="e.g., 10uF, 10kΩ"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Package</label>
-                    <input
-                      type="text"
-                      value={editData.package_size || ''}
-                      onChange={(e) => handleFieldChange('package_size', e.target.value)}
-                      placeholder="e.g., 0805"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-
-                  {/* Sub-categories with custom dropdowns */}
+                  {/* ROW 5: Sub-Category 1, Sub-Category 2, Sub-Category 3 */}
                   <div ref={subCat1Ref} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 1
-                      {!editData.category_id && <span className="text-xs text-gray-500 ml-2">(Select category first)</span>}
                     </label>
+                    {!editData.category_id && (
+                      <div className="text-xs text-gray-500 mb-1">(Select category first)</div>
+                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -1078,8 +1100,10 @@ const Library = () => {
                   <div ref={subCat2Ref} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 2
-                      {!editData.sub_category1 && <span className="text-xs text-gray-500 ml-2">(Select sub-cat 1 first)</span>}
                     </label>
+                    {!editData.sub_category1 && (
+                      <div className="text-xs text-gray-500 mb-1">(Select sub-cat 1 first)</div>
+                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -1126,8 +1150,10 @@ const Library = () => {
                   <div ref={subCat3Ref} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 3
-                      {!editData.sub_category2 && <span className="text-xs text-gray-500 ml-2">(Select sub-cat 2 first)</span>}
                     </label>
+                    {!editData.sub_category2 && (
+                      <div className="text-xs text-gray-500 mb-1">(Select sub-cat 2 first)</div>
+                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -1171,7 +1197,7 @@ const Library = () => {
                     )}
                   </div>
 
-                  {/* Row 3.5: Description (after Value and Package) */}
+                  {/* ROW 6: Description */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
                     <textarea
@@ -1179,11 +1205,11 @@ const Library = () => {
                       onChange={(e) => handleFieldChange('description', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                       rows="2"
-                      placeholder="Brief description"
+                      placeholder="Brief description of the component"
                     />
                   </div>
 
-                  {/* Row 4: PCB Footprint */}
+                  {/* ROW 7: PCB Footprint, Schematic Symbol */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
                     <input
@@ -1194,8 +1220,6 @@ const Library = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
-
-                  {/* Row 5: Schematic Symbol */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
                     <input
@@ -1207,7 +1231,7 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* Row 6: STEP 3D Model */}
+                  {/* ROW 8: STEP 3D Model, PSPICE Model */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP 3D Model</label>
                     <input
@@ -1218,20 +1242,18 @@ const Library = () => {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
-
-                  {/* Row 7: PSPICE Model */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
                     <input
                       type="text"
                       value={editData.pspice || ''}
                       onChange={(e) => handleFieldChange('pspice', e.target.value)}
-                      placeholder="Path to simulation"
+                      placeholder="Path to simulation model"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
 
-                  {/* Row 8: Datasheet URL */}
+                  {/* Datasheet URL */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
                     <input
