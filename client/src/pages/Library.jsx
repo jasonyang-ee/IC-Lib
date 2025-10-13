@@ -584,8 +584,31 @@ const Library = () => {
       }
 
       try {
+        let manufacturerId = editData.manufacturer_id;
+        
+        // Check if manufacturer needs to be created (starts with "NEW:")
+        if (typeof manufacturerId === 'string' && manufacturerId.startsWith('NEW:')) {
+          const newManufacturerName = manufacturerId.substring(4); // Remove "NEW:" prefix
+          try {
+            const response = await createManufacturerMutation.mutateAsync({ 
+              name: newManufacturerName 
+            });
+            manufacturerId = response.data.id;
+          } catch (error) {
+            console.error('Error creating manufacturer:', error);
+            setWarningModal({ 
+              show: true, 
+              message: `Failed to create manufacturer "${newManufacturerName}". Please try again.` 
+            });
+            return;
+          }
+        }
+        
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
+        
+        // Update component data with actual manufacturer ID
+        componentData.manufacturer_id = manufacturerId;
         
         // Update component basic data
         await updateMutation.mutateAsync({ id: selectedComponent.id, data: componentData });
@@ -643,10 +666,26 @@ const Library = () => {
               continue; // Skip invalid alternatives
             }
             
+            let altManufacturerId = alt.manufacturer_id;
+            
+            // Check if alternative manufacturer needs to be created
+            if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
+              const newManufacturerName = altManufacturerId.substring(4);
+              try {
+                const response = await createManufacturerMutation.mutateAsync({ 
+                  name: newManufacturerName 
+                });
+                altManufacturerId = response.data.id;
+              } catch (error) {
+                console.error('Error creating alternative manufacturer:', error);
+                continue; // Skip this alternative if manufacturer creation fails
+              }
+            }
+            
             if (alt.id && existingIds.has(alt.id)) {
               // Update existing alternative
               await api.updateComponentAlternative(selectedComponent.id, alt.id, {
-                manufacturer_id: alt.manufacturer_id,
+                manufacturer_id: altManufacturerId,
                 manufacturer_pn: alt.manufacturer_pn,
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
@@ -657,7 +696,7 @@ const Library = () => {
             } else {
               // Create new alternative
               await api.createComponentAlternative(selectedComponent.id, {
-                manufacturer_id: alt.manufacturer_id,
+                manufacturer_id: altManufacturerId,
                 manufacturer_pn: alt.manufacturer_pn,
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
@@ -917,8 +956,31 @@ const Library = () => {
 
     if (editData.category_id && editData.part_number) {
       try {
+        let manufacturerId = editData.manufacturer_id;
+        
+        // Check if manufacturer needs to be created (starts with "NEW:")
+        if (typeof manufacturerId === 'string' && manufacturerId.startsWith('NEW:')) {
+          const newManufacturerName = manufacturerId.substring(4); // Remove "NEW:" prefix
+          try {
+            const response = await createManufacturerMutation.mutateAsync({ 
+              name: newManufacturerName 
+            });
+            manufacturerId = response.data.id;
+          } catch (error) {
+            console.error('Error creating manufacturer:', error);
+            setWarningModal({ 
+              show: true, 
+              message: `Failed to create manufacturer "${newManufacturerName}". Please try again.` 
+            });
+            return;
+          }
+        }
+        
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
+        
+        // Update component data with actual manufacturer ID
+        componentData.manufacturer_id = manufacturerId;
         
         // Create component
         const response = await addMutation.mutateAsync(componentData);
@@ -963,8 +1025,24 @@ const Library = () => {
               continue; // Skip invalid alternatives
             }
             
+            let altManufacturerId = alt.manufacturer_id;
+            
+            // Check if alternative manufacturer needs to be created
+            if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
+              const newManufacturerName = altManufacturerId.substring(4);
+              try {
+                const response = await createManufacturerMutation.mutateAsync({ 
+                  name: newManufacturerName 
+                });
+                altManufacturerId = response.data.id;
+              } catch (error) {
+                console.error('Error creating alternative manufacturer:', error);
+                continue; // Skip this alternative if manufacturer creation fails
+              }
+            }
+            
             await api.createComponentAlternative(newComponentId, {
-              manufacturer_id: alt.manufacturer_id,
+              manufacturer_id: altManufacturerId,
               manufacturer_pn: alt.manufacturer_pn,
               distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                 distributor_id: d.distributor_id,
@@ -1540,26 +1618,15 @@ const Library = () => {
                             {showCreateOption && (
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  try {
-                                    const response = await createManufacturerMutation.mutateAsync({ 
-                                      name: manufacturerInput.trim() 
-                                    });
-                                    const newManufacturer = response.data;
-                                    handleFieldChange('manufacturer_id', newManufacturer.id);
-                                    setManufacturerOpen(false);
-                                  } catch (error) {
-                                    console.error('Error creating manufacturer:', error);
-                                    setWarningModal({ 
-                                      show: true, 
-                                      message: 'Failed to create manufacturer. Please try again.' 
-                                    });
-                                  }
+                                onClick={() => {
+                                  // Store new manufacturer name with special marker for later creation
+                                  handleFieldChange('manufacturer_id', `NEW:${manufacturerInput.trim()}`);
+                                  setManufacturerOpen(false);
                                 }}
                                 className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
                               >
                                 <Plus className="w-4 h-4" />
-                                Create: "{manufacturerInput.trim()}"
+                                Use new: "{manufacturerInput.trim()}" (will be added on save)
                               </button>
                             )}
                             {filtered.length > 0 ? (
@@ -2236,26 +2303,15 @@ const Library = () => {
                                   {showCreateOption && (
                                     <button
                                       type="button"
-                                      onClick={async () => {
-                                        try {
-                                          const response = await createManufacturerMutation.mutateAsync({ 
-                                            name: altManufacturerInputs[altIndex].trim() 
-                                          });
-                                          const newManufacturer = response.data;
-                                          handleUpdateAlternative(altIndex, 'manufacturer_id', newManufacturer.id);
-                                          setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
-                                        } catch (error) {
-                                          console.error('Error creating manufacturer:', error);
-                                          setWarningModal({ 
-                                            show: true, 
-                                            message: 'Failed to create manufacturer. Please try again.' 
-                                          });
-                                        }
+                                      onClick={() => {
+                                        // Store new manufacturer name with special marker for later creation
+                                        handleUpdateAlternative(altIndex, 'manufacturer_id', `NEW:${altManufacturerInputs[altIndex].trim()}`);
+                                        setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
                                       }}
                                       className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
                                     >
                                       <Plus className="w-4 h-4" />
-                                      Create: "{altManufacturerInputs[altIndex].trim()}"
+                                      Use new: "{altManufacturerInputs[altIndex].trim()}" (will be added on save)
                                     </button>
                                   )}
                                   {filtered.length > 0 ? (
