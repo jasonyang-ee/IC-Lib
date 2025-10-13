@@ -641,7 +641,7 @@ const Inventory = () => {
                   e.target.select();
                 }
               }}
-              placeholder="Part #, MFG P/N, description, UUID, SKU..."
+              placeholder="Full data search ..."
               className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
