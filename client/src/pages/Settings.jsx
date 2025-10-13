@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { api } from '../utils/api';
@@ -365,6 +365,8 @@ const Settings = () => {
   const [newNameSearchTerm, setNewNameSearchTerm] = useState('');
   const [manufacturerDropdownOpen, setManufacturerDropdownOpen] = useState(false);
   const [newNameDropdownOpen, setNewNameDropdownOpen] = useState(false);
+  const manufacturerDropdownRef = useRef(null);
+  const newNameDropdownRef = useRef(null);
 
   const { data: categoryConfigs, isLoading: loadingConfigs } = useQuery({
     queryKey: ['categoryConfigs'],
@@ -382,6 +384,20 @@ const Settings = () => {
       return response.data;
     },
   });
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (manufacturerDropdownRef.current && !manufacturerDropdownRef.current.contains(event.target)) {
+        setManufacturerDropdownOpen(false);
+      }
+      if (newNameDropdownRef.current && !newNameDropdownRef.current.contains(event.target)) {
+        setNewNameDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const updateCategoryMutation = useMutation({
     mutationFn: async ({ id, config }) => {
@@ -857,7 +873,7 @@ const Settings = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Manufacturer to Rename
             </label>
-            <div className="relative">
+            <div className="relative" ref={manufacturerDropdownRef}>
               <input
                 type="text"
                 value={selectedManufacturer ? manufacturers?.find(m => m.id === selectedManufacturer)?.name || '' : manufacturerSearchTerm}
@@ -867,6 +883,7 @@ const Settings = () => {
                   setManufacturerDropdownOpen(true);
                 }}
                 onFocus={() => setManufacturerDropdownOpen(true)}
+                onClick={() => setManufacturerDropdownOpen(true)}
                 placeholder="Search manufacturers..."
                 className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
               />
@@ -879,7 +896,7 @@ const Settings = () => {
               </button>
               
               {manufacturerDropdownOpen && manufacturers && manufacturers.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
                   {manufacturers
                     .filter(m => m.name.toLowerCase().includes(manufacturerSearchTerm.toLowerCase()))
                     .map((mfr) => (
@@ -906,7 +923,7 @@ const Settings = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               New Manufacturer Name
             </label>
-            <div className="relative">
+            <div className="relative" ref={newNameDropdownRef}>
               <input
                 type="text"
                 value={newManufacturerName}
@@ -916,6 +933,7 @@ const Settings = () => {
                   setNewNameDropdownOpen(true);
                 }}
                 onFocus={() => setNewNameDropdownOpen(true)}
+                onClick={() => setNewNameDropdownOpen(true)}
                 placeholder="Type new name or select existing..."
                 className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
               />
@@ -927,11 +945,11 @@ const Settings = () => {
                 <ChevronDown className={`h-4 w-4 transition-transform ${newNameDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
               
-              {newNameDropdownOpen && manufacturers && manufacturers.length > 0 && newNameSearchTerm && (
-                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+              {newNameDropdownOpen && manufacturers && manufacturers.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
                   {manufacturers
                     .filter(m => 
-                      m.name.toLowerCase().includes(newNameSearchTerm.toLowerCase()) &&
+                      m.name.toLowerCase().includes(newManufacturerName.toLowerCase()) &&
                       m.id !== selectedManufacturer
                     )
                     .map((mfr) => (

@@ -99,6 +99,12 @@ const VendorSearch = () => {
         return api.downloadSnapEDAFootprint({ partNumber });
       }
     },
+    onSuccess: (data) => {
+      console.log('Footprint download response:', data);
+    },
+    onError: (error) => {
+      console.error('Footprint download error:', error);
+    }
   });
 
   const handleSearch = (e) => {
@@ -439,19 +445,21 @@ const VendorSearch = () => {
             </button>
             <button
               onClick={() => handleDownloadFootprint('ultra-librarian')}
-              disabled={downloadFootprintMutation.isPending}
-              className="btn-secondary flex items-center gap-2"
+              disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from Ultra Librarian'}
             >
               <Download className="w-4 h-4" />
-              Ultra Librarian
+              {downloadFootprintMutation.isPending ? 'Downloading...' : 'Ultra Librarian'}
             </button>
             <button
               onClick={() => handleDownloadFootprint('snapeda')}
-              disabled={downloadFootprintMutation.isPending}
-              className="btn-secondary flex items-center gap-2"
+              disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from SnapEDA'}
             >
               <Download className="w-4 h-4" />
-              SnapEDA
+              {downloadFootprintMutation.isPending ? 'Downloading...' : 'SnapEDA'}
             </button>
           </div>
           {addToLibraryMutation.isSuccess && (
@@ -461,7 +469,14 @@ const VendorSearch = () => {
           )}
           {downloadFootprintMutation.isSuccess && (
             <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-              Footprint download initiated
+              Footprint download completed! Check the downloads folder.
+            </p>
+          )}
+          {downloadFootprintMutation.isError && (
+            <p className="mt-3 text-sm text-red-600 dark:text-red-400">
+              {downloadFootprintMutation.error?.response?.data?.message || 
+               downloadFootprintMutation.error?.response?.data?.error ||
+               'Failed to download footprint. The API may not be configured.'}
             </p>
           )}
         </div>
