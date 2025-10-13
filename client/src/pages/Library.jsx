@@ -2520,17 +2520,20 @@ const Library = () => {
                       {Object.entries(editData._vendorSearchData.specifications).map(([key, val], idx) => {
                         const displayValue = typeof val === 'object' ? val.value : val;
                         const displayUnit = typeof val === 'object' ? val.unit : '';
+                        // Filter out data type labels (String, UnitOfMeasure, etc.)
+                        const dataTypeLabels = ['String', 'UnitOfMeasure', 'Integer', 'Boolean', 'Decimal', 'Number', 'Double'];
+                        const shouldShowUnit = displayUnit && !dataTypeLabels.includes(displayUnit);
                         return (
                           <div 
                             key={idx}
-                            onClick={() => handleCopyToClipboard(`${displayValue}${displayUnit ? ' ' + displayUnit : ''}`, key)}
+                            onClick={() => handleCopyToClipboard(`${displayValue}${shouldShowUnit ? ' ' + displayUnit : ''}`, key)}
                             className="flex justify-between items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors"
                           >
                             <span className="text-blue-700 dark:text-blue-300 text-xs font-medium flex-shrink-0 mr-2" style={{maxWidth: '45%'}}>
                               {key}:
                             </span>
                             <span className="text-blue-900 dark:text-blue-100 text-xs text-right flex items-start gap-1 flex-1">
-                              <span className="flex-1 break-words">{displayValue} {displayUnit}</span>
+                              <span className="flex-1 break-words">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
                               <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
                             </span>
                           </div>
