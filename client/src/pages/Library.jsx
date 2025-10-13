@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,13 +51,6 @@ const Library = () => {
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
 
-  // Auto-focus search field on page load
-  useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, []);
-
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -89,6 +83,11 @@ const Library = () => {
       setCopiedText(label);
       setTimeout(() => setCopiedText(''), 2000);
     });
+  };
+
+  // Navigate to Inventory with component UUID pre-filled in search
+  const jumpToInventory = (componentId) => {
+    navigate('/inventory', { state: { searchUuid: componentId } });
   };
 
   // Fetch categories
@@ -129,6 +128,51 @@ const Library = () => {
       return response.data;
     },
   });
+
+  // Auto-focus search field on page load
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+      searchInputRef.current.select();
+    }
+  }, []);
+
+  // Handle incoming search term from Inventory page
+  useEffect(() => {
+    if (location.state?.searchUuid) {
+      const uuidToSearch = location.state.searchUuid;
+      setSearchTerm(uuidToSearch);
+      // Clear the state to prevent re-searching on subsequent renders
+      window.history.replaceState({}, document.title);
+      // Select text after setting search term
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.select();
+        }
+      }, 0);
+    } else if (location.state?.searchTerm) {
+      const termToSearch = location.state.searchTerm;
+      setSearchTerm(termToSearch);
+      // Clear the state to prevent re-searching on subsequent renders
+      window.history.replaceState({}, document.title);
+      // Select text after setting search term
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.select();
+        }
+      }, 0);
+    }
+  }, [location.state]);
+
+  // Auto-select component when searching from Inventory
+  useEffect(() => {
+    if ((location.state?.searchUuid || location.state?.searchTerm) && components && components.length > 0) {
+      // Select the first matching component
+      setSelectedComponent(components[0]);
+      setIsEditMode(false);
+      setIsAddMode(false);
+    }
+  }, [components, location.state]);
 
   // Handle incoming vendor data from vendor search
   useEffect(() => {
@@ -1114,6 +1158,7 @@ const Library = () => {
                 placeholder="Full data search ..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.target.select();
@@ -1381,9 +1426,21 @@ const Library = () => {
         <div className="space-y-4 xl:min-w-[550px]">
           {/* Component Details - Always Shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              {isAddMode ? 'Add New Component' : 'Component Details'}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {isAddMode ? 'Add New Component' : 'Component Details'}
+              </h3>
+              {!isEditMode && !isAddMode && selectedComponent && (
+                <button
+                  onClick={() => jumpToInventory(selectedComponent.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                  title="View in Inventory"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Inventory</span>
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
               {(isEditMode || isAddMode) ? (
                 <>

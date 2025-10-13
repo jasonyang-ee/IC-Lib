@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const Inventory = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -26,8 +29,25 @@ const Inventory = () => {
   useEffect(() => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
+      searchInputRef.current.select();
     }
   }, []);
+
+  // Handle incoming UUID from Library page
+  useEffect(() => {
+    if (location.state?.searchUuid) {
+      const uuidToSearch = location.state.searchUuid;
+      setSearchTerm(uuidToSearch);
+      // Clear the state to prevent re-searching on subsequent renders
+      window.history.replaceState({}, document.title);
+      // Select text after setting search term
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.select();
+        }
+      }, 0);
+    }
+  }, [location.state]);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -427,6 +447,16 @@ const Inventory = () => {
     setQrCodeModal({ item, qrData, qrMfgOnly, qrUuid });
   };
 
+  // Navigate to Library with component UUID or search term pre-filled
+  const jumpToLibrary = (searchValue, isUuid = true) => {
+    // Navigate to library with state containing the search value
+    if (isUuid) {
+      navigate('/library', { state: { searchUuid: searchValue } });
+    } else {
+      navigate('/library', { state: { searchTerm: searchValue } });
+    }
+  };
+
   // Toggle row expansion to show/hide alternatives
   const toggleRowExpansion = async (item) => {
     const newExpanded = new Set(expandedRows);
@@ -605,6 +635,7 @@ const Inventory = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.target.select();
@@ -747,6 +778,7 @@ const Inventory = () => {
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{minWidth: '200px'}}>Quantity</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Min Qty</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{width: '70px'}}>Library</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>
               </tr>
             </thead>
@@ -861,6 +893,17 @@ const Inventory = () => {
                       ) : (
                         <span className="text-gray-900 dark:text-gray-100">{item.minimum_quantity || 0}</span>
                       )}
+                    </td>
+                    
+                    {/* Library Jump Link */}
+                    <td className="px-4 py-3 text-sm" style={{width: '70px'}}>
+                      <button
+                        onClick={() => jumpToLibrary(item.component_id)}
+                        className="p-1.5 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                        title="View in Parts Library"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
                     </td>
                     
                     {/* Label Actions */}
@@ -992,6 +1035,17 @@ const Inventory = () => {
                           ) : (
                             <span className="text-gray-900 dark:text-gray-100">{alt.minimum_quantity || 0}</span>
                           )}
+                        </td>
+                        
+                        {/* Library Jump Link for Alternative */}
+                        <td className="px-4 py-2 text-sm">
+                          <button
+                            onClick={() => jumpToLibrary(alt.manufacturer_pn, false)}
+                            className="p-1.5 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                            title="View in Parts Library"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </button>
                         </td>
                         
                         {/* Label Actions */}
@@ -1169,7 +1223,7 @@ const Inventory = () => {
                       {qrCodeModal.item.part_number}
                     </button>
                     {copiedQRField === 'info-pn' && (
-                      <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                      <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -1182,7 +1236,7 @@ const Inventory = () => {
                       {qrCodeModal.item.manufacturer_pn || 'N/A'}
                     </button>
                     {copiedQRField === 'info-mfg' && (
-                      <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                      <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
                     )}
                   </div>
                 </div>
@@ -1196,7 +1250,7 @@ const Inventory = () => {
                     {qrCodeModal.item.description || 'N/A'}
                   </button>
                   {copiedQRField === 'info-desc' && (
-                    <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                    <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -1209,7 +1263,7 @@ const Inventory = () => {
                     {qrCodeModal.item.component_id || 'N/A'}
                   </button>
                   {copiedQRField === 'info-uuid' && (
-                    <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                    <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>
                   )}
                 </div>
               </div>
