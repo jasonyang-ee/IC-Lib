@@ -9,6 +9,9 @@ router.get('/', componentController.getAllComponents);
 // Get sub-category suggestions
 router.get('/subcategories/suggestions', componentController.getSubCategorySuggestions);
 
+// Get field suggestions (package, footprint, schematic)
+router.get('/field-suggestions', componentController.getFieldSuggestions);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 

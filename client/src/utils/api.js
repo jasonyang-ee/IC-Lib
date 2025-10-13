@@ -67,6 +67,10 @@ export const api = {
     if (filters.subCat2) params.subCat2 = filters.subCat2;
     return apiClient.get('/components/subcategories/suggestions', { params });
   },
+  
+  getFieldSuggestions: (categoryId, field) => {
+    return apiClient.get('/components/field-suggestions', { params: { categoryId, field } });
+  },
 
   // Categories
   getCategories: () => apiClient.get('/categories'),

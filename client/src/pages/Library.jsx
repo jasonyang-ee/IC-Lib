@@ -34,6 +34,25 @@ const Library = () => {
   const subCat2Ref = useRef(null);
   const subCat3Ref = useRef(null);
   
+  // Package, Footprint, Symbol suggestions and dropdown states
+  const [packageSuggestions, setPackageSuggestions] = useState([]);
+  const [footprintSuggestions, setFootprintSuggestions] = useState([]);
+  const [symbolSuggestions, setSymbolSuggestions] = useState([]);
+  const [packageOpen, setPackageOpen] = useState(false);
+  const [footprintOpen, setFootprintOpen] = useState(false);
+  const [symbolOpen, setSymbolOpen] = useState(false);
+  const packageRef = useRef(null);
+  const footprintRef = useRef(null);
+  const symbolRef = useRef(null);
+  
+  // STEP and PSPICE suggestions and dropdown states
+  const [stepModelSuggestions, setStepModelSuggestions] = useState([]);
+  const [pspiceSuggestions, setPspiceSuggestions] = useState([]);
+  const [stepModelOpen, setStepModelOpen] = useState(false);
+  const [pspiceOpen, setPspiceOpen] = useState(false);
+  const stepModelRef = useRef(null);
+  const pspiceRef = useRef(null);
+  
   // Manufacturer state
   const [manufacturerInput, setManufacturerInput] = useState('');
   const [manufacturerOpen, setManufacturerOpen] = useState(false);
@@ -62,6 +81,21 @@ const Library = () => {
       }
       if (subCat3Ref.current && !subCat3Ref.current.contains(event.target)) {
         setSubCat3Open(false);
+      }
+      if (packageRef.current && !packageRef.current.contains(event.target)) {
+        setPackageOpen(false);
+      }
+      if (footprintRef.current && !footprintRef.current.contains(event.target)) {
+        setFootprintOpen(false);
+      }
+      if (symbolRef.current && !symbolRef.current.contains(event.target)) {
+        setSymbolOpen(false);
+      }
+      if (stepModelRef.current && !stepModelRef.current.contains(event.target)) {
+        setStepModelOpen(false);
+      }
+      if (pspiceRef.current && !pspiceRef.current.contains(event.target)) {
+        setPspiceOpen(false);
       }
       if (manufacturerRef.current && !manufacturerRef.current.contains(event.target)) {
         setManufacturerOpen(false);
@@ -446,6 +480,20 @@ const Library = () => {
           });
           setSubCat3Suggestions(sub3.data || []);
         }
+        
+        // Load package, footprint, symbol, step, and pspice suggestions
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+          api.getFieldSuggestions(componentDetails.category_id, 'package_size'),
+          api.getFieldSuggestions(componentDetails.category_id, 'pcb_footprint'),
+          api.getFieldSuggestions(componentDetails.category_id, 'schematic'),
+          api.getFieldSuggestions(componentDetails.category_id, 'step_model'),
+          api.getFieldSuggestions(componentDetails.category_id, 'pspice')
+        ]);
+        setPackageSuggestions(packageResp.data || []);
+        setFootprintSuggestions(footprintResp.data || []);
+        setSymbolSuggestions(symbolResp.data || []);
+        setStepModelSuggestions(stepResp.data || []);
+        setPspiceSuggestions(pspiceResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -852,6 +900,20 @@ const Library = () => {
         handleFieldChange('sub_category1', '');
         handleFieldChange('sub_category2', '');
         handleFieldChange('sub_category3', '');
+        
+        // Load package, footprint, symbol, step, and pspice suggestions
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+          api.getFieldSuggestions(categoryId, 'package_size'),
+          api.getFieldSuggestions(categoryId, 'pcb_footprint'),
+          api.getFieldSuggestions(categoryId, 'schematic'),
+          api.getFieldSuggestions(categoryId, 'step_model'),
+          api.getFieldSuggestions(categoryId, 'pspice')
+        ]);
+        setPackageSuggestions(packageResp.data || []);
+        setFootprintSuggestions(footprintResp.data || []);
+        setSymbolSuggestions(symbolResp.data || []);
+        setStepModelSuggestions(stepResp.data || []);
+        setPspiceSuggestions(pspiceResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -1406,10 +1468,10 @@ const Library = () => {
                 <table className="w-full">
                   <colgroup>
                     {bulkDeleteMode && <col style={{width: '48px'}} />}
-                    <col style={{width: '150px'}} /> {/* Part Number*/}
-                    <col style={{width: '180px'}} /> {/* MFR Part # */}
-                    <col style={{width: '120px'}} /> {/* Value - new position */}
-                    <col style={{width: 'auto'}} />   {/* Description - takes remaining space */}
+                    <col style={{width: '150px'}} />
+                    <col style={{width: '180px'}} />
+                    <col style={{width: '120px'}} />
+                    <col style={{width: 'auto'}} />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
                     <tr>
@@ -1523,7 +1585,7 @@ const Library = () => {
               {(isEditMode || isAddMode) ? (
                 <>
                   {/* ROW 1: Part Number, Part Type (Category), Value */}
-                  <div class="col-span-2">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Part Number <span className="text-red-500">*</span>
                     </label>
@@ -1571,13 +1633,42 @@ const Library = () => {
                   </div>
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Package</label>
-                    <input
-                      type="text"
-                      value={editData.package_size || ''}
-                      onChange={(e) => handleFieldChange('package_size', e.target.value)}
-                      placeholder="e.g., 0805"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
+                    <div ref={packageRef} className="relative">
+                      <input
+                        type="text"
+                        value={editData.package_size || ''}
+                        onChange={(e) => handleFieldChange('package_size', e.target.value)}
+                        onFocus={() => setPackageOpen(true)}
+                        placeholder="e.g., 0805"
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPackageOpen(!packageOpen)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {packageOpen && editData.category_id && packageSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                          {packageSuggestions
+                            .filter(pkg => pkg.toLowerCase().includes((editData.package_size || '').toLowerCase()))
+                            .map((pkg, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('package_size', pkg);
+                                  setPackageOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {pkg}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* ROW 3: Manufacturer, MFG Part Number (moved up from ROW 4) */}
@@ -1851,45 +1942,175 @@ const Library = () => {
                   {/* ROW 7: PCB Footprint, Schematic Symbol */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
-                    <input
-                      type="text"
-                      value={editData.pcb_footprint || ''}
-                      onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
-                      placeholder="e.g., C_0805"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
+                    <div ref={footprintRef} className="relative">
+                      <input
+                        type="text"
+                        value={editData.pcb_footprint || ''}
+                        onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
+                        onFocus={() => setFootprintOpen(true)}
+                        placeholder="e.g., C_0805"
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFootprintOpen(!footprintOpen)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {footprintOpen && editData.category_id && footprintSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                          {footprintSuggestions
+                            .filter(fp => fp.toLowerCase().includes((editData.pcb_footprint || '').toLowerCase()))
+                            .map((fp, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('pcb_footprint', fp);
+                                  setFootprintOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {fp}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
-                    <input
-                      type="text"
-                      value={editData.schematic || ''}
-                      onChange={(e) => handleFieldChange('schematic', e.target.value)}
-                      placeholder="Path to symbol"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
+                    <div ref={symbolRef} className="relative">
+                      <input
+                        type="text"
+                        value={editData.schematic || ''}
+                        onChange={(e) => handleFieldChange('schematic', e.target.value)}
+                        onFocus={() => setSymbolOpen(true)}
+                        placeholder="Path to symbol"
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSymbolOpen(!symbolOpen)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      {symbolOpen && editData.category_id && symbolSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                          {symbolSuggestions
+                            .filter(sym => sym.toLowerCase().includes((editData.schematic || '').toLowerCase()))
+                            .map((sym, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('schematic', sym);
+                                  setSymbolOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {sym}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* ROW 8: STEP 3D Model, PSPICE Model */}
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP 3D Model</label>
-                    <input
-                      type="text"
-                      value={editData.step_model || ''}
-                      onChange={(e) => handleFieldChange('step_model', e.target.value)}
-                      placeholder="Path to 3D model"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
+                    <div className="relative" ref={stepModelRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={editData.step_model || ''}
+                          onChange={(e) => {
+                            handleFieldChange('step_model', e.target.value);
+                            setStepModelOpen(true);
+                          }}
+                          onFocus={() => setStepModelOpen(true)}
+                          placeholder="Path to 3D model"
+                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setStepModelOpen(!stepModelOpen)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${stepModelOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      {stepModelOpen && stepModelSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                          {stepModelSuggestions
+                            .filter(step => 
+                              step.toLowerCase().includes((editData.step_model || '').toLowerCase())
+                            )
+                            .map((step, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('step_model', step);
+                                  setStepModelOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {step}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-3">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
-                    <input
-                      type="text"
-                      value={editData.pspice || ''}
-                      onChange={(e) => handleFieldChange('pspice', e.target.value)}
-                      placeholder="Path to simulation model"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                    />
+                    <div className="relative" ref={pspiceRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={editData.pspice || ''}
+                          onChange={(e) => {
+                            handleFieldChange('pspice', e.target.value);
+                            setPspiceOpen(true);
+                          }}
+                          onFocus={() => setPspiceOpen(true)}
+                          placeholder="Path to simulation model"
+                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPspiceOpen(!pspiceOpen)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${pspiceOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      {pspiceOpen && pspiceSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                          {pspiceSuggestions
+                            .filter(psp => 
+                              psp.toLowerCase().includes((editData.pspice || '').toLowerCase())
+                            )
+                            .map((psp, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('pspice', psp);
+                                  setPspiceOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {psp}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Datasheet URL */}

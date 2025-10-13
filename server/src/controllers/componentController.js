@@ -595,6 +595,37 @@ export const getSubCategorySuggestions = async (req, res, next) => {
   }
 };
 
+export const getFieldSuggestions = async (req, res, next) => {
+  try {
+    const { categoryId, field } = req.query;
+    
+    // Validate field name to prevent SQL injection
+    const allowedFields = ['package_size', 'pcb_footprint', 'schematic', 'step_model', 'pspice'];
+    if (!field || !allowedFields.includes(field)) {
+      return res.status(400).json({ error: 'Invalid field parameter' });
+    }
+    
+    if (!categoryId) {
+      return res.status(400).json({ error: 'categoryId is required' });
+    }
+
+    const query = `
+      SELECT DISTINCT ${field} as value
+      FROM components
+      WHERE category_id = $1 
+        AND ${field} IS NOT NULL 
+        AND ${field} != ''
+      ORDER BY ${field}
+    `;
+    
+    const result = await pool.query(query, [categoryId]);
+
+    res.json(result.rows.map(row => row.value));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ============================================================================
 // ALTERNATIVE PARTS MANAGEMENT
 // ============================================================================
