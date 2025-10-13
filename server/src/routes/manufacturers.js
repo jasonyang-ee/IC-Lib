@@ -15,6 +15,9 @@ router.post('/', manufacturerController.createManufacturer);
 // Update manufacturer
 router.put('/:id', manufacturerController.updateManufacturer);
 
+// Rename/merge manufacturer
+router.put('/:id/rename', manufacturerController.renameManufacturer);
+
 // Delete manufacturer
 router.delete('/:id', manufacturerController.deleteManufacturer);
 

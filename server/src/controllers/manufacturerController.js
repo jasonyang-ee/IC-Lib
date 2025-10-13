@@ -114,3 +114,64 @@ export const deleteManufacturer = async (req, res, next) => {
     next(error);
   }
 };
+
+export const renameManufacturer = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { newName } = req.body;
+
+    if (!newName) {
+      return res.status(400).json({ error: 'New manufacturer name is required' });
+    }
+
+    // Check if old manufacturer exists
+    const oldManufacturer = await pool.query(
+      'SELECT * FROM manufacturers WHERE id = $1',
+      [id]
+    );
+
+    if (oldManufacturer.rows.length === 0) {
+      return res.status(404).json({ error: 'Manufacturer not found' });
+    }
+
+    // Check if a manufacturer with the new name already exists
+    const existingManufacturer = await pool.query(
+      'SELECT * FROM manufacturers WHERE name = $1',
+      [newName]
+    );
+
+    if (existingManufacturer.rows.length > 0) {
+      // Merge: Update all components to use the existing manufacturer
+      const targetManufacturerId = existingManufacturer.rows[0].id;
+      
+      await pool.query(`
+        UPDATE components 
+        SET manufacturer_id = $1 
+        WHERE manufacturer_id = $2
+      `, [targetManufacturerId, id]);
+
+      // Delete the old manufacturer
+      await pool.query('DELETE FROM manufacturers WHERE id = $1', [id]);
+
+      res.json({ 
+        message: `Successfully merged "${oldManufacturer.rows[0].name}" into "${newName}"`,
+        manufacturer: existingManufacturer.rows[0]
+      });
+    } else {
+      // Simple rename
+      const result = await pool.query(`
+        UPDATE manufacturers 
+        SET name = $1 
+        WHERE id = $2 
+        RETURNING *
+      `, [newName, id]);
+
+      res.json({ 
+        message: `Successfully renamed to "${newName}"`,
+        manufacturer: result.rows[0]
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};

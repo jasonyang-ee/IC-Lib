@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2 } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { api } from '../utils/api';
 
 // Category Specifications Manager Component
@@ -357,11 +357,28 @@ const Settings = () => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
+  
+  // Manufacturer rename states
+  const [selectedManufacturer, setSelectedManufacturer] = useState('');
+  const [newManufacturerName, setNewManufacturerName] = useState('');
+  const [manufacturerSearchTerm, setManufacturerSearchTerm] = useState('');
+  const [newNameSearchTerm, setNewNameSearchTerm] = useState('');
+  const [manufacturerDropdownOpen, setManufacturerDropdownOpen] = useState(false);
+  const [newNameDropdownOpen, setNewNameDropdownOpen] = useState(false);
 
   const { data: categoryConfigs, isLoading: loadingConfigs } = useQuery({
     queryKey: ['categoryConfigs'],
     queryFn: async () => {
       const response = await api.get('/settings/categories');
+      return response.data;
+    },
+  });
+
+  // Fetch manufacturers
+  const { data: manufacturers } = useQuery({
+    queryKey: ['manufacturers'],
+    queryFn: async () => {
+      const response = await api.getManufacturers();
       return response.data;
     },
   });
@@ -399,6 +416,29 @@ const Settings = () => {
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
       setDbOperationStatus({ show: true, type: 'error', message: `Error creating category: ${errorMsg}` });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+    },
+  });
+
+  // Rename manufacturer mutation
+  const renameManufacturerMutation = useMutation({
+    mutationFn: async ({ oldId, newName }) => {
+      const response = await api.renameManufacturer(oldId, newName);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['manufacturers']);
+      queryClient.invalidateQueries(['components']);
+      setSelectedManufacturer('');
+      setNewManufacturerName('');
+      setManufacturerSearchTerm('');
+      setNewNameSearchTerm('');
+      setDbOperationStatus({ show: true, type: 'success', message: 'Manufacturer renamed successfully!' });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message;
+      setDbOperationStatus({ show: true, type: 'error', message: `Error renaming manufacturer: ${errorMsg}` });
       setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
   });
@@ -520,9 +560,44 @@ const Settings = () => {
     });
   };
 
+  const handleRenameManufacturer = () => {
+    if (!selectedManufacturer || !newManufacturerName) {
+      setDbOperationStatus({ 
+        show: true, 
+        type: 'error', 
+        message: 'Please select a manufacturer and enter a new name' 
+      });
+      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      return;
+    }
+
+    const oldManufacturer = manufacturers?.find(m => m.id === selectedManufacturer);
+    const newManufacturer = manufacturers?.find(m => m.name === newManufacturerName);
+
+    if (newManufacturer && newManufacturer.id !== selectedManufacturer) {
+      // Merging with existing manufacturer
+      setConfirmDialog({
+        show: true,
+        action: 'merge',
+        title: 'Merge Manufacturers',
+        message: `This will merge "${oldManufacturer?.name}" into existing manufacturer "${newManufacturerName}". All components will be updated. Continue?`,
+        oldId: selectedManufacturer,
+        newName: newManufacturerName
+      });
+    } else {
+      // Simple rename
+      renameManufacturerMutation.mutate({ 
+        oldId: selectedManufacturer, 
+        newName: newManufacturerName 
+      });
+    }
+  };
+
   const executeConfirmedAction = () => {
     const action = confirmDialog.action;
-    setConfirmDialog({ show: false, action: '', title: '', message: '' });
+    const oldId = confirmDialog.oldId;
+    const newName = confirmDialog.newName;
+    setConfirmDialog({ show: false, action: '', title: '', message: '', oldId: '', newName: '' });
     
     if (action === 'init') {
       initDbMutation.mutate();
@@ -532,16 +607,19 @@ const Settings = () => {
       verifyDbMutation.mutate();
     } else if (action === 'reset') {
       resetDbMutation.mutate();
+    } else if (action === 'merge') {
+      renameManufacturerMutation.mutate({ oldId, newName });
     }
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h2>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">Configure application preferences and database settings</p>
       </div>
 
+      <div className="p-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
       {dbOperationStatus.show && (
         <div className={`mb-6 p-4 rounded-lg border ${
           dbOperationStatus.type === 'success' 
@@ -766,6 +844,125 @@ const Settings = () => {
       {/* Category Specifications Management */}
       <CategorySpecificationsManager />
 
+      {/* Manufacturer Rename Section */}
+      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename/Merge Manufacturers</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Select a manufacturer to rename or merge with another manufacturer. All components will be updated automatically.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Select Manufacturer to Rename */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Manufacturer to Rename
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={selectedManufacturer ? manufacturers?.find(m => m.id === selectedManufacturer)?.name || '' : manufacturerSearchTerm}
+                onChange={(e) => {
+                  setManufacturerSearchTerm(e.target.value);
+                  setSelectedManufacturer('');
+                  setManufacturerDropdownOpen(true);
+                }}
+                onFocus={() => setManufacturerDropdownOpen(true)}
+                placeholder="Search manufacturers..."
+                className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => setManufacturerDropdownOpen(!manufacturerDropdownOpen)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${manufacturerDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {manufacturerDropdownOpen && manufacturers && manufacturers.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                  {manufacturers
+                    .filter(m => m.name.toLowerCase().includes(manufacturerSearchTerm.toLowerCase()))
+                    .map((mfr) => (
+                      <button
+                        key={mfr.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedManufacturer(mfr.id);
+                          setManufacturerSearchTerm(mfr.name);
+                          setManufacturerDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                      >
+                        {mfr.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* New Manufacturer Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              New Manufacturer Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={newManufacturerName}
+                onChange={(e) => {
+                  setNewManufacturerName(e.target.value);
+                  setNewNameSearchTerm(e.target.value);
+                  setNewNameDropdownOpen(true);
+                }}
+                onFocus={() => setNewNameDropdownOpen(true)}
+                placeholder="Type new name or select existing..."
+                className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => setNewNameDropdownOpen(!newNameDropdownOpen)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${newNameDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {newNameDropdownOpen && manufacturers && manufacturers.length > 0 && newNameSearchTerm && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                  {manufacturers
+                    .filter(m => 
+                      m.name.toLowerCase().includes(newNameSearchTerm.toLowerCase()) &&
+                      m.id !== selectedManufacturer
+                    )
+                    .map((mfr) => (
+                      <button
+                        key={mfr.id}
+                        type="button"
+                        onClick={() => {
+                          setNewManufacturerName(mfr.name);
+                          setNewNameSearchTerm(mfr.name);
+                          setNewNameDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                      >
+                        {mfr.name} <span className="text-xs text-gray-500">(merge)</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={handleRenameManufacturer}
+          disabled={!selectedManufacturer || !newManufacturerName || renameManufacturerMutation.isPending}
+          className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+        >
+          {renameManufacturerMutation.isPending ? 'Processing...' : 'Rename/Merge Manufacturer'}
+        </button>
+      </div>
+
       <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h3>
         
@@ -927,6 +1124,7 @@ const Settings = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

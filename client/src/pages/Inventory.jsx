@@ -595,15 +595,15 @@ const Inventory = () => {
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-120px)]">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Inventory</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Track and manage stock</p>
+      </div>
+
+      <div className="flex gap-4 h-[calc(100vh-180px)]">
       {/* Left Sidebar - Controls */}
       <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto">
-        {/* Title */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track and manage stock</p>
-        </div>
-
         {/* Category Filter */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -899,10 +899,10 @@ const Inventory = () => {
                     <td className="px-4 py-3 text-sm" style={{width: '70px'}}>
                       <button
                         onClick={() => jumpToLibrary(item.component_id)}
-                        className="p-1.5 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                        className="p-2 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
                         title="View in Parts Library"
                       >
-                        <ExternalLink className="w-4 h-4" />
+                        <ExternalLink className="w-5 h-5" />
                       </button>
                     </td>
                     
@@ -954,7 +954,7 @@ const Inventory = () => {
                     return (
                       <tr 
                         key={`alt-${alt.id}`}
-                        className="bg-blue-50 dark:bg-blue-900/10 border-b border-gray-100 dark:border-[#3a3a3a]"
+                        className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#2a2a2a]"
                       >
                         {/* Empty cell for alignment */}
                         <td className="px-4 py-2"></td>
@@ -1041,10 +1041,10 @@ const Inventory = () => {
                         <td className="px-4 py-2 text-sm">
                           <button
                             onClick={() => jumpToLibrary(alt.manufacturer_pn, false)}
-                            className="p-1.5 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                            className="p-2 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
                             title="View in Parts Library"
                           >
-                            <ExternalLink className="w-4 h-4" />
+                            <ExternalLink className="w-5 h-5" />
                           </button>
                         </td>
                         
@@ -1271,6 +1271,7 @@ const Inventory = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

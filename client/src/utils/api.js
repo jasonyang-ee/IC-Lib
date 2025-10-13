@@ -120,6 +120,7 @@ export const api = {
   getManufacturerById: (id) => apiClient.get(`/manufacturers/${id}`),
   createManufacturer: (data) => apiClient.post('/manufacturers', data),
   updateManufacturer: (id, data) => apiClient.put(`/manufacturers/${id}`, data),
+  renameManufacturer: (id, newName) => apiClient.put(`/manufacturers/${id}/rename`, { newName }),
   deleteManufacturer: (id) => apiClient.delete(`/manufacturers/${id}`),
 
   // Settings
