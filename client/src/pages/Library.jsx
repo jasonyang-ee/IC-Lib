@@ -47,6 +47,16 @@ const Library = () => {
   const [selectedAlternative, setSelectedAlternative] = useState(null);
   const [alternatives, setAlternatives] = useState([]);
 
+  // Search input ref for auto-focus
+  const searchInputRef = useRef(null);
+
+  // Auto-focus search field on page load
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1099,10 +1109,16 @@ const Library = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Full data search ..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.target.select();
+                  }
+                }}
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
               />
             </div>
@@ -2002,13 +2018,12 @@ const Library = () => {
                     </div>
                     {dist.sku && (
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-xs text-gray-600 dark:text-gray-400">SKU: {dist.sku}</p>
                         <button
                           onClick={() => handleCopyToClipboard(dist.sku, `sku_${index}`)}
-                          className="text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
-                          title="Copy SKU"
+                          className="text-xs text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer underline decoration-dotted"
+                          title="Click to copy SKU"
                         >
-                          <Copy className="w-3 h-3" />
+                          SKU: {dist.sku}
                         </button>
                         {copiedText === `sku_${index}` && (
                           <span className="text-xs text-green-600 dark:text-green-400">Copied!</span>

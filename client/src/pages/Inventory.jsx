@@ -1,24 +1,33 @@
 import { useState, useRef, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Barcode, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const Inventory = () => {
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [barcodeInput, setBarcodeInput] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [editedItems, setEditedItems] = useState({});
   const [copiedLabel, setCopiedLabel] = useState('');
   const [qrCodeModal, setQrCodeModal] = useState(null);
+  const [copiedQRField, setCopiedQRField] = useState('');
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [alternativesData, setAlternativesData] = useState({});
   const [editingAlternative, setEditingAlternative] = useState(null);
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
-  const barcodeRef = useRef(null);
+
+  // Search input ref for auto-focus
+  const searchInputRef = useRef(null);
+
+  // Auto-focus search field on page load
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, []);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -64,7 +73,7 @@ const Inventory = () => {
     },
   });
 
-  // Barcode search mutation
+  // SKU/Barcode search mutation (used for auto-search)
   const barcodeMutation = useMutation({
     mutationFn: async (barcode) => {
       const response = await api.searchByBarcode(barcode);
@@ -83,22 +92,29 @@ const Inventory = () => {
           }, 2000);
         }
       }
-      setBarcodeInput('');
     },
     onError: (error) => {
-      alert(error.response?.data?.error || 'Component not found');
-      setBarcodeInput('');
+      // Silently fail for auto-searches
+      console.log('SKU search: ' + (error.response?.data?.error || 'No match found'));
     },
   });
 
   // Filter inventory
   const filteredInventory = inventory?.filter(item => {
     const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
+    
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm || 
-      item.part_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.manufacturer_pn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.manufacturer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      item.part_number?.toLowerCase().includes(searchLower) ||
+      item.manufacturer_pn?.toLowerCase().includes(searchLower) ||
+      item.manufacturer_name?.toLowerCase().includes(searchLower) ||
+      item.description?.toLowerCase().includes(searchLower) ||
+      item.component_id?.toLowerCase().includes(searchLower) ||
+      // Check if any alternative part matches the search
+      (alternativesData[item.component_id]?.some(alt => 
+        alt.manufacturer_pn?.toLowerCase().includes(searchLower) ||
+        alt.manufacturer_name?.toLowerCase().includes(searchLower)
+      ));
     return matchesCategory && matchesSearch;
   });
 
@@ -152,6 +168,18 @@ const Inventory = () => {
       });
     }
   }, [inventory]);
+
+  // Auto-search distributor SKU when no local matches found
+  useEffect(() => {
+    // Only trigger if search term exists, no local matches, and not already searching
+    if (searchTerm && searchTerm.trim().length >= 3 && filteredInventory?.length === 0 && !barcodeMutation.isPending) {
+      // Debounce to avoid excessive API calls
+      const timer = setTimeout(() => {
+        barcodeMutation.mutate(searchTerm.trim());
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [searchTerm, filteredInventory]);
 
   // Initialize edited items when entering edit mode
   const handleToggleEditMode = () => {
@@ -329,18 +357,6 @@ const Inventory = () => {
     setEditingAlternative({});
   };
 
-  const handleBarcodeSearch = () => {
-    if (barcodeInput.trim()) {
-      barcodeMutation.mutate(barcodeInput.trim());
-    }
-  };
-
-  const handleBarcodeKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleBarcodeSearch();
-    }
-  };
-
   // Generate label string with QR code data
   const generateLabelString = (item) => {
     const mfgPn = item.manufacturer_pn || 'N/A';
@@ -356,9 +372,59 @@ const Inventory = () => {
     });
   };
 
+  const copyQRFieldToClipboard = (text, fieldId) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedQRField(fieldId);
+      setTimeout(() => setCopiedQRField(''), 2000);
+    });
+  };
+
+  const copyQRImageToClipboard = async (qrValue, fieldId) => {
+    try {
+      // Find the SVG element
+      const svgElement = document.querySelector(`#qr-${fieldId} svg`);
+      if (!svgElement) return;
+
+      // Create a canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const img = new Image();
+      
+      img.onload = async () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        
+        // Convert canvas to blob and copy to clipboard
+        canvas.toBlob(async (blob) => {
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            setCopiedQRField(`img-${fieldId}`);
+            setTimeout(() => setCopiedQRField(''), 2000);
+          } catch (err) {
+            console.error('Failed to copy QR code image:', err);
+            alert('Failed to copy QR code image. Please try again.');
+          }
+        });
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    } catch (error) {
+      console.error('Error copying QR code:', error);
+      alert('Failed to copy QR code image. Please try again.');
+    }
+  };
+
   const showQRCode = (item) => {
     const qrData = generateLabelString(item);
-    setQrCodeModal({ item, qrData });
+    const qrMfgOnly = item.manufacturer_pn || 'N/A';
+    const qrUuid = item.component_id || 'N/A';
+    setQrCodeModal({ item, qrData, qrMfgOnly, qrUuid });
   };
 
   // Toggle row expansion to show/hide alternatives
@@ -459,29 +525,34 @@ const Inventory = () => {
     }
   };
 
-  const generateAlternativeLabelString = (alt) => {
+  const generateAlternativeLabelString = (alt, parentItem) => {
     const mfgPn = alt.manufacturer_pn || 'N/A';
-    const mfgName = alt.manufacturer_name || 'Unknown';
-    return `${mfgName}\n${mfgPn}`;
+    const desc = parentItem.description || 'N/A';
+    return `${mfgPn}\n${desc}`;
   };
 
-  const copyAlternativeLabelToClipboard = (alt) => {
-    const labelText = generateAlternativeLabelString(alt);
+  const copyAlternativeLabelToClipboard = (alt, parentItem) => {
+    const labelText = generateAlternativeLabelString(alt, parentItem);
     navigator.clipboard.writeText(labelText).then(() => {
       setCopiedLabel(`alt-${alt.id}`);
       setTimeout(() => setCopiedLabel(''), 2000);
     });
   };
 
-  const showAlternativeQRCode = (alt) => {
-    const qrData = generateAlternativeLabelString(alt);
+  const showAlternativeQRCode = (alt, parentItem) => {
+    const qrData = generateAlternativeLabelString(alt, parentItem);
+    const qrMfgOnly = alt.manufacturer_pn || 'N/A';
+    const qrUuid = parentItem.component_id || 'N/A';
     setQrCodeModal({ 
       item: {
-        part_number: `ALT-${alt.id}`,
+        part_number: parentItem.part_number,
         manufacturer_pn: alt.manufacturer_pn,
-        description: alt.manufacturer_name
+        description: parentItem.description,
+        component_id: parentItem.component_id
       }, 
-      qrData 
+      qrData,
+      qrMfgOnly,
+      qrUuid
     });
   };
 
@@ -530,13 +601,22 @@ const Inventory = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Part number, MFG P/N, description..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.target.select();
+                }
+              }}
+              placeholder="Part #, MFG P/N, description, UUID, SKU..."
               className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Searches all fields including distributor SKUs
+          </p>
           
           {/* Sorting Controls */}
           <div className="mt-3 space-y-2">
@@ -585,42 +665,6 @@ const Inventory = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Barcode Scanner */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            <Barcode className="w-4 h-4 inline mr-1" />
-            Scan Distributor Barcode
-          </label>
-          <div className="flex gap-2">
-            <input
-              ref={barcodeRef}
-              type="text"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              onKeyPress={handleBarcodeKeyPress}
-              placeholder="Enter SKU or scan barcode..."
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-            />
-            <button
-              onClick={handleBarcodeSearch}
-              disabled={barcodeMutation.isPending}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md transition-colors disabled:opacity-50 flex items-center gap-1 text-sm"
-            >
-              {barcodeMutation.isPending ? (
-                <>Searching...</>
-              ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  Find
-                </>
-              )}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-            Searches Digikey, Mouser, Arrow, Newark SKUs
-          </p>
         </div>
 
         {/* Low Stock Alert */}
@@ -873,7 +917,7 @@ const Inventory = () => {
                         <td className="px-4 py-2"></td>
                         
                         {/* Part Number - show as "Alt 1", "Alt 2", etc */}
-                        <td className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400">
+                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
                           Alternative {altIndex + 1}
                         </td>
                         
@@ -954,7 +998,7 @@ const Inventory = () => {
                         <td className="px-4 py-2 text-sm">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => showAlternativeQRCode(alt)}
+                              onClick={() => showAlternativeQRCode(alt, item)}
                               className="px-3 py-1.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
                               title="Show QR code"
                             >
@@ -962,7 +1006,7 @@ const Inventory = () => {
                               <span>QR</span>
                             </button>
                             <button
-                              onClick={() => copyAlternativeLabelToClipboard(alt)}
+                              onClick={() => copyAlternativeLabelToClipboard(alt, item)}
                               className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
                                 copiedLabel === `alt-${alt.id}`
                                   ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -997,50 +1041,176 @@ const Inventory = () => {
 
       {/* QR Code Modal */}
       {qrCodeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setQrCodeModal(null)}>
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">QR Code</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setQrCodeModal(null)}>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-8 max-w-6xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">QR Codes</h3>
               <button
                 onClick={() => setQrCodeModal(null)}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
             
-            <div className="space-y-4">
-              {/* QR Code Display */}
-              <div className="flex justify-center p-4 bg-white rounded-lg border-2 border-gray-200">
-                <div className="text-center">
-                  <div className="bg-white p-4 inline-block">
-                    <QRCodeSVG 
-                      value={qrCodeModal.qrData} 
-                      size={200}
-                      level="H"
-                      includeMargin={true}
-                    />
+            <div className="space-y-8">
+              {/* QR Codes Display - Three Columns */}
+              <div className="grid grid-cols-3 gap-8">
+                {/* Full Data QR Code */}
+                <div className="flex flex-col items-center">
+                  <h4 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Full Information</h4>
+                  <div 
+                    id="qr-full"
+                    onClick={() => copyQRImageToClipboard(qrCodeModal.qrData, 'full')}
+                    className="flex justify-center p-6 bg-white rounded-lg border-2 border-gray-200 shadow-sm cursor-pointer hover:border-primary-500 transition-colors"
+                    title="Click to copy QR code image"
+                  >
+                    <div className="bg-white p-4 inline-block">
+                      <QRCodeSVG 
+                        value={qrCodeModal.qrData} 
+                        size={220}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    </div>
                   </div>
+                  {copiedQRField === 'img-full' && (
+                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
+                  )}
+                  <button
+                    onClick={() => copyQRFieldToClipboard(qrCodeModal.qrData, 'full-text')}
+                    className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                    title="Click to copy text"
+                  >
+                    {qrCodeModal.qrData}
+                  </button>
+                  {copiedQRField === 'full-text' && (
+                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
+                  )}
+                </div>
+
+                {/* Manufacturer Part Number Only QR Code */}
+                <div className="flex flex-col items-center">
+                  <h4 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">MFG Part Number</h4>
+                  <div 
+                    id="qr-mfg"
+                    onClick={() => copyQRImageToClipboard(qrCodeModal.qrMfgOnly, 'mfg')}
+                    className="flex justify-center p-6 bg-white rounded-lg border-2 border-gray-200 shadow-sm cursor-pointer hover:border-primary-500 transition-colors"
+                    title="Click to copy QR code image"
+                  >
+                    <div className="bg-white p-4 inline-block">
+                      <QRCodeSVG 
+                        value={qrCodeModal.qrMfgOnly} 
+                        size={220}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    </div>
+                  </div>
+                  {copiedQRField === 'img-mfg' && (
+                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
+                  )}
+                  <button
+                    onClick={() => copyQRFieldToClipboard(qrCodeModal.qrMfgOnly, 'mfg-text')}
+                    className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                    title="Click to copy text"
+                  >
+                    {qrCodeModal.qrMfgOnly}
+                  </button>
+                  {copiedQRField === 'mfg-text' && (
+                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
+                  )}
+                </div>
+
+                {/* UUID QR Code */}
+                <div className="flex flex-col items-center">
+                  <h4 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Component UUID</h4>
+                  <div 
+                    id="qr-uuid"
+                    onClick={() => copyQRImageToClipboard(qrCodeModal.qrUuid || 'N/A', 'uuid')}
+                    className="flex justify-center p-6 bg-white rounded-lg border-2 border-gray-200 shadow-sm cursor-pointer hover:border-primary-500 transition-colors"
+                    title="Click to copy QR code image"
+                  >
+                    <div className="bg-white p-4 inline-block">
+                      <QRCodeSVG 
+                        value={qrCodeModal.qrUuid || 'N/A'} 
+                        size={220}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    </div>
+                  </div>
+                  {copiedQRField === 'img-uuid' && (
+                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
+                  )}
+                  <button
+                    onClick={() => copyQRFieldToClipboard(qrCodeModal.qrUuid || 'N/A', 'uuid-text')}
+                    className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                    title="Click to copy text"
+                  >
+                    {qrCodeModal.qrUuid || 'N/A'}
+                  </button>
+                  {copiedQRField === 'uuid-text' && (
+                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
+                  )}
                 </div>
               </div>
               
               {/* Item Info */}
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">Part Number:</span>
-                  <span className="ml-2 text-gray-900 dark:text-gray-100">{qrCodeModal.item.part_number}</span>
+              <div className="space-y-3 text-sm border-t border-gray-200 dark:border-gray-700 pt-6">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">Part Number:</span>
+                    <button
+                      onClick={() => copyQRFieldToClipboard(qrCodeModal.item.part_number, 'info-pn')}
+                      className="text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                      title="Click to copy"
+                    >
+                      {qrCodeModal.item.part_number}
+                    </button>
+                    {copiedQRField === 'info-pn' && (
+                      <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">MFG Part Number:</span>
+                    <button
+                      onClick={() => copyQRFieldToClipboard(qrCodeModal.item.manufacturer_pn || 'N/A', 'info-mfg')}
+                      className="text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                      title="Click to copy"
+                    >
+                      {qrCodeModal.item.manufacturer_pn || 'N/A'}
+                    </button>
+                    {copiedQRField === 'info-mfg' && (
+                      <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">MFG P/N:</span>
-                  <span className="ml-2 text-gray-900 dark:text-gray-100">{qrCodeModal.item.manufacturer_pn || 'N/A'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">Description:</span>
+                  <button
+                    onClick={() => copyQRFieldToClipboard(qrCodeModal.item.description || 'N/A', 'info-desc')}
+                    className="text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                    title="Click to copy"
+                  >
+                    {qrCodeModal.item.description || 'N/A'}
+                  </button>
+                  {copiedQRField === 'info-desc' && (
+                    <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                  )}
                 </div>
-                <div>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">Description:</span>
-                  <span className="ml-2 text-gray-900 dark:text-gray-100">{qrCodeModal.item.description || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">QR Data:</span>
-                  <span className="ml-2 text-gray-900 dark:text-gray-100 font-mono text-xs">{qrCodeModal.qrData}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">Component UUID:</span>
+                  <button
+                    onClick={() => copyQRFieldToClipboard(qrCodeModal.item.component_id || 'N/A', 'info-uuid')}
+                    className="text-gray-900 dark:text-gray-100 font-mono text-xs hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
+                    title="Click to copy"
+                  >
+                    {qrCodeModal.item.component_id || 'N/A'}
+                  </button>
+                  {copiedQRField === 'info-uuid' && (
+                    <span className="text-xs text-green-600 dark:text-green-400">✓</span>
+                  )}
                 </div>
               </div>
             </div>

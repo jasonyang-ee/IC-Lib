@@ -30,8 +30,9 @@ export const getAllComponents = async (req, res, next) => {
       const keywords = search.trim().split(/\s+/).filter(k => k.length > 0);
       
       if (keywords.length > 0) {
-        const searchConditions = keywords.map((_, index) => {
+        const searchConditions = keywords.map((keyword, index) => {
           const paramIndex = paramCount + index;
+          const exactParamIndex = paramCount + keywords.length + index; // For exact UUID matching
           return `(
             c.part_number ILIKE $${paramIndex} 
             OR c.description ILIKE $${paramIndex} 
@@ -42,12 +43,32 @@ export const getAllComponents = async (req, res, next) => {
             OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) ILIKE $${paramIndex}
             OR cat.name ILIKE $${paramIndex}
             OR m.name ILIKE $${paramIndex}
+            OR c.id::text = $${exactParamIndex}
+            OR EXISTS (
+              SELECT 1 FROM components_alternative ca
+              WHERE ca.part_number = c.part_number
+              AND (ca.manufacturer_pn ILIKE $${paramIndex} OR ca.id::text = $${exactParamIndex})
+            )
+            OR EXISTS (
+              SELECT 1 FROM distributor_info di
+              WHERE di.component_id = c.id
+              AND di.sku ILIKE $${paramIndex}
+            )
+            OR EXISTS (
+              SELECT 1 FROM distributor_info di
+              JOIN components_alternative ca ON di.alternative_id = ca.id
+              WHERE ca.part_number = c.part_number
+              AND di.sku ILIKE $${paramIndex}
+            )
           )`;
         }).join(' AND ');
         
         query += ` AND (${searchConditions})`;
+        // Add ILIKE pattern parameters
         keywords.forEach(keyword => params.push(`%${keyword}%`));
-        paramCount += keywords.length;
+        // Add exact match parameters for UUID
+        keywords.forEach(keyword => params.push(keyword));
+        paramCount += keywords.length * 2;
       }
     }
 
