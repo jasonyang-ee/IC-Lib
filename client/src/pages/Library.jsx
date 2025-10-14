@@ -1278,17 +1278,12 @@ const Library = () => {
 
   return (
     <div className="space-y-6">
-      {/* <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Component Library</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
-      </div> */}
-
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
       <div className={`grid grid-cols-1 gap-4 min-h-[600px] ${
         (isEditMode || isAddMode) 
-          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(580px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
-          : 'xl:grid-cols-[minmax(250px,250px)_minmax(580px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
+          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
+          : 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
         <div className="space-y-4 xl:w-[250px]">
@@ -1485,7 +1480,7 @@ const Library = () => {
 
         {/* Center - Component List (Hidden in Edit Mode and Add Mode) */}
         {!isEditMode && !isAddMode && (
-          <div className="space-y-4 xl:min-w-[450px]">
+          <div className="space-y-4 xl:min-w-[250px]">
             {/* Component List */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
               <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
@@ -1503,9 +1498,9 @@ const Library = () => {
                 <table className="w-full">
                   <colgroup>
                     {bulkDeleteMode && <col style={{width: '48px'}} />}
-                    <col style={{width: '150px'}} />
-                    <col style={{width: '180px'}} />
-                    <col style={{width: '120px'}} />
+                    <col style={{width: 'auto'}} />
+                    <col style={{width: 'auto'}} />
+                    <col style={{width: 'auto'}} />
                     <col style={{width: 'auto'}} />
                   </colgroup>
                   <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">

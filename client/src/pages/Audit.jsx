@@ -152,12 +152,7 @@ const Audit = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Audit Log</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Complete activity history for compliance and tracking
-          </p>
-        </div>
+        
         <button
           onClick={exportToCSV}
           className="btn-primary flex items-center gap-2"

@@ -679,19 +679,10 @@ const Inventory = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Inventory</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Track and manage stock</p>
-      </div>
-
       <div className="flex gap-4 h-[calc(100vh-180px)]">
+
       {/* Left Sidebar - Controls */}
       <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto">
-        {/* Title
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track and manage stock</p>
-        </div> */}
 
         {/* Category Filter */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">

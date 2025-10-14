@@ -630,10 +630,6 @@ const Settings = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Configure application preferences and database settings</p>
-      </div>
 
       <div className="p-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
       {dbOperationStatus.show && (

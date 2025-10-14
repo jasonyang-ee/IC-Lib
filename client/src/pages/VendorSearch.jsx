@@ -184,10 +184,6 @@ const VendorSearch = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Online Vendor Search</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Search Digikey and Mouser for component information</p>
-      </div>
 
       {/* Search Form */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
