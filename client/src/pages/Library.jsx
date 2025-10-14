@@ -113,10 +113,45 @@ const Library = () => {
 
   // Copy to clipboard handler
   const handleCopyToClipboard = (text, label) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedText(label);
-      setTimeout(() => setCopiedText(''), 2000);
-    });
+    // Check if clipboard API is available
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedText(label);
+        setTimeout(() => setCopiedText(''), 2000);
+      }).catch((err) => {
+        console.error('Failed to copy text:', err);
+        fallbackCopyToClipboard(text, label);
+      });
+    } else {
+      fallbackCopyToClipboard(text, label);
+    }
+  };
+
+  // Fallback clipboard method for when Clipboard API is not available
+  const fallbackCopyToClipboard = (text, label) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        setCopiedText(label);
+        setTimeout(() => setCopiedText(''), 2000);
+      } else {
+        alert('Failed to copy to clipboard. Please copy manually.');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      alert('Failed to copy to clipboard. Please copy manually.');
+    }
   };
 
   // Navigate to Inventory with component UUID pre-filled in search
@@ -1243,17 +1278,17 @@ const Library = () => {
 
   return (
     <div className="space-y-6">
-      <div>
+      {/* <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Component Library</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">Browse and manage your component library</p>
-      </div>
+      </div> */}
 
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
       <div className={`grid grid-cols-1 gap-4 min-h-[600px] ${
         (isEditMode || isAddMode) 
-          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(400px,1.5fr)_minmax(350px,1.2fr)]'
-          : 'xl:grid-cols-[minmax(250px,250px)_minmax(650px,2.5fr)_minmax(550px,2fr)_minmax(350px,1.2fr)]'
+          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(580px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
+          : 'xl:grid-cols-[minmax(250px,250px)_minmax(580px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
         <div className="space-y-4 xl:w-[250px]">
@@ -1450,7 +1485,7 @@ const Library = () => {
 
         {/* Center - Component List (Hidden in Edit Mode and Add Mode) */}
         {!isEditMode && !isAddMode && (
-          <div className="space-y-4 xl:min-w-[650px]">
+          <div className="space-y-4 xl:min-w-[450px]">
             {/* Component List */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
               <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
@@ -1459,7 +1494,7 @@ const Library = () => {
                   {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
                 </h3>
               </div>
-            <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh - 300px)'}}>
+            <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh)'}}>
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -1563,7 +1598,7 @@ const Library = () => {
         )}
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
-        <div className="space-y-4 xl:min-w-[550px]">
+        <div className="space-y-4 xl:min-w-[400px]">
           {/* Component Details - Always Shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center justify-between mb-4">
@@ -1595,7 +1630,7 @@ const Library = () => {
                       onChange={(e) => handleFieldChange('part_number', e.target.value)}
                       disabled={isAddMode || isEditMode}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
-                      placeholder={isAddMode ? "Select category first" : "e.g., RES-0001"}
+                      placeholder="Select category to generate"
                     />
                   </div>
                   <div>
@@ -1685,7 +1720,7 @@ const Library = () => {
                           setManufacturerOpen(true);
                         }}
                         onFocus={() => setManufacturerOpen(true)}
-                        placeholder="Type or select manufacturer..."
+                        placeholder="Type or select"
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                       />
                       <button
@@ -1758,7 +1793,6 @@ const Library = () => {
                       value={editData.manufacturer_pn || editData.manufacturer_part_number || ''}
                       onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      placeholder="e.g., CRCW0603, STM32F103C8T6"
                     />
                   </div>
 
@@ -1788,7 +1822,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.category_id && setSubCat1Open(true)}
                         disabled={!editData.category_id}
-                        placeholder={editData.category_id ? "Type or select..." : "Select category first"}
+                        placeholder={editData.category_id ? "Type or select..." : ""}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.category_id && (
@@ -1826,7 +1860,7 @@ const Library = () => {
                       Sub-Category 2
                     </label>
                     {!editData.sub_category1 && (
-                      <div className="text-xs text-gray-500 mb-1">(Select sub-cat 1 first)</div>
+                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 1 first)</div>
                     )}
                     <div className="relative">
                       <input
@@ -1844,7 +1878,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.sub_category1 && setSubCat2Open(true)}
                         disabled={!editData.sub_category1}
-                        placeholder={editData.sub_category1 ? "Type or select..." : "Select sub-category 1 first"}
+                        placeholder={editData.sub_category1 ? "Type or select..." : ""}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.sub_category1 && (
@@ -1882,7 +1916,7 @@ const Library = () => {
                       Sub-Category 3
                     </label>
                     {!editData.sub_category2 && (
-                      <div className="text-xs text-gray-500 mb-1">(Select sub-cat 2 first)</div>
+                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 2 first)</div>
                     )}
                     <div className="relative">
                       <input
@@ -1894,7 +1928,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.sub_category2 && setSubCat3Open(true)}
                         disabled={!editData.sub_category2}
-                        placeholder={editData.sub_category2 ? "Type or select..." : "Select sub-category 2 first"}
+                        placeholder={editData.sub_category2 ? "Type or select..." : ""}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.sub_category2 && (
@@ -1987,7 +2021,7 @@ const Library = () => {
                         value={editData.schematic || ''}
                         onChange={(e) => handleFieldChange('schematic', e.target.value)}
                         onFocus={() => setSymbolOpen(true)}
-                        placeholder="Path to symbol"
+                        placeholder="Symbol name"
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                       />
                       <button
@@ -2032,7 +2066,7 @@ const Library = () => {
                             setStepModelOpen(true);
                           }}
                           onFocus={() => setStepModelOpen(true)}
-                          placeholder="Path to 3D model"
+                          placeholder="STEP model name"
                           className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                         />
                         <button
@@ -2078,7 +2112,7 @@ const Library = () => {
                             setPspiceOpen(true);
                           }}
                           onFocus={() => setPspiceOpen(true)}
-                          placeholder="Path to simulation model"
+                          placeholder="Pspice model name"
                           className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                         />
                         <button
@@ -2428,7 +2462,6 @@ const Library = () => {
                           newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
                           handleFieldChange('specifications', newSpecs);
                         }}
-                        placeholder={`Enter ${spec.spec_name.toLowerCase()}`}
                         className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
                       />
                       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
@@ -2500,7 +2533,7 @@ const Library = () => {
                                 setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }));
                               }}
                               onFocus={() => setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }))}
-                              placeholder="Type or select manufacturer..."
+                              placeholder="Type or select"
                               className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
                             />
                             <button
@@ -2572,7 +2605,7 @@ const Library = () => {
                             type="text"
                             value={alt.manufacturer_pn || ''}
                             onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
-                            placeholder="e.g., RC0805FR-0710KL"
+                            placeholder="e.g., RC0805FR"
                             className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
                           />
                         </div>

@@ -386,24 +386,103 @@ const Inventory = () => {
 
   const copyLabelToClipboard = (item) => {
     const labelText = generateLabelString(item);
-    navigator.clipboard.writeText(labelText).then(() => {
-      setCopiedLabel(item.id);
-      setTimeout(() => setCopiedLabel(''), 2000);
-    });
+    
+    // Check if clipboard API is available
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(labelText).then(() => {
+        setCopiedLabel(item.id);
+        setTimeout(() => setCopiedLabel(''), 2000);
+      }).catch((err) => {
+        console.error('Failed to copy text:', err);
+        fallbackCopyToClipboard(labelText, item.id);
+      });
+    } else {
+      fallbackCopyToClipboard(labelText, item.id);
+    }
   };
 
   const copyQRFieldToClipboard = (text, fieldId) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedQRField(fieldId);
-      setTimeout(() => setCopiedQRField(''), 2000);
-    });
+    // Check if clipboard API is available
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedQRField(fieldId);
+        setTimeout(() => setCopiedQRField(''), 2000);
+      }).catch((err) => {
+        console.error('Failed to copy text:', err);
+        fallbackCopyQRField(text, fieldId);
+      });
+    } else {
+      fallbackCopyQRField(text, fieldId);
+    }
+  };
+
+  // Fallback clipboard methods
+  const fallbackCopyToClipboard = (text, itemId) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        setCopiedLabel(itemId);
+        setTimeout(() => setCopiedLabel(''), 2000);
+      } else {
+        alert('Failed to copy to clipboard. Please copy manually.');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      alert('Failed to copy to clipboard. Please copy manually.');
+    }
+  };
+
+  const fallbackCopyQRField = (text, fieldId) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        setCopiedQRField(fieldId);
+        setTimeout(() => setCopiedQRField(''), 2000);
+      } else {
+        alert('Failed to copy to clipboard. Please copy manually.');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      alert('Failed to copy to clipboard. Please copy manually.');
+    }
   };
 
   const copyQRImageToClipboard = async (qrValue, fieldId) => {
     try {
+      // Check if clipboard API is available for images
+      if (!navigator.clipboard || !navigator.clipboard.write) {
+        alert('Image copying is not supported in your browser or context. Please use right-click > Save Image or screenshot the QR code.');
+        return;
+      }
+
       // Find the SVG element
       const svgElement = document.querySelector(`#qr-${fieldId} svg`);
-      if (!svgElement) return;
+      if (!svgElement) {
+        alert('QR code not found. Please try again.');
+        return;
+      }
 
       // Create a canvas
       const canvas = document.createElement('canvas');
@@ -428,15 +507,19 @@ const Inventory = () => {
             setTimeout(() => setCopiedQRField(''), 2000);
           } catch (err) {
             console.error('Failed to copy QR code image:', err);
-            alert('Failed to copy QR code image. Please try again.');
+            alert('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
           }
         });
+      };
+      
+      img.onerror = () => {
+        alert('Failed to load QR code image. Please try again.');
       };
       
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     } catch (error) {
       console.error('Error copying QR code:', error);
-      alert('Failed to copy QR code image. Please try again.');
+      alert('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
     }
   };
 
@@ -598,11 +681,11 @@ const Inventory = () => {
     <div className="flex gap-4 h-[calc(100vh-120px)]">
       {/* Left Sidebar - Controls */}
       <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto">
-        {/* Title */}
+        {/* Title
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track and manage stock</p>
-        </div>
+        </div> */}
 
         {/* Category Filter */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
@@ -713,7 +796,7 @@ const Inventory = () => {
       </div>
 
       {/* Right Side - Inventory Table */}
-      <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden flex flex-col">
+      <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden flex flex-col min-h-250">
         <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Inventory Items ({sortedInventory?.length || 0})
@@ -766,7 +849,7 @@ const Inventory = () => {
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
               <tr>
@@ -776,9 +859,9 @@ const Inventory = () => {
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Manufacturer</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{minWidth: '200px'}}>Quantity</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Min Qty</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300" style={{width: '70px'}}>Library</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Library</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>
               </tr>
             </thead>
@@ -846,7 +929,7 @@ const Inventory = () => {
                     </td>
                     
                     {/* Quantity */}
-                    <td className="px-4 py-3 text-sm" style={{minWidth: '200px'}}>
+                    <td className="px-4 py-3 text-sm">
                       {editMode ? (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
@@ -995,7 +1078,7 @@ const Inventory = () => {
                         </td>
                         
                         {/* Quantity */}
-                        <td className="px-4 py-2 text-sm" style={{minWidth: '200px'}}>
+                        <td className="px-4 py-2 text-sm">
                           {editMode ? (
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-2">
