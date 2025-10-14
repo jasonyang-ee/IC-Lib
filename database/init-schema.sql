@@ -397,8 +397,20 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 CREATE OR REPLACE VIEW components_with_part_type AS
 SELECT 
     c.*,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type,
+	m.name AS manufacturer_name
+	LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+	cat.name AS category_name
+	LEFT JOIN component_categories cat ON c.category_id = cat.id
 FROM components c;
+
+-- Create a view that includes the alternative parts with manufacturer name
+CREATE OR REPLACE VIEW components_alternative_with_mfg_name AS
+SELECT 
+    ca.*,
+	m.name AS manufacturer_name
+	LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
+FROM components_alternative ca;
 
 -- ============================================================================
 -- Schema version tracking
