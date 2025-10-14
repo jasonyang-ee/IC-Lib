@@ -350,7 +350,7 @@
 
   <DbTableCfg indx="1">
     <NewPartDB>0</NewPartDB>
-    <TableName>components_alternative</TableName>
+    <TableName>components_alternative_with_mfg_name</TableName>
     <TableUsed>0</TableUsed>
     <DbFieldDef indx="0">
       <FieldName></FieldName>
@@ -388,7 +388,6 @@
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
-  </DbTableCfg>
     <DbFieldDef indx="2">
       <FieldName></FieldName>
       <DBFieldName>manufacturer_pn</DBFieldName>

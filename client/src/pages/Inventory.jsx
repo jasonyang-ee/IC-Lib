@@ -11,6 +11,8 @@ const Inventory = () => {
   const location = useLocation();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [vendorBarcode, setVendorBarcode] = useState('');
+  const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editedItems, setEditedItems] = useState({});
   const [copiedLabel, setCopiedLabel] = useState('');
@@ -24,6 +26,7 @@ const Inventory = () => {
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
+  const vendorBarcodeInputRef = useRef(null);
 
   // Auto-focus search field on page load
   useEffect(() => {
@@ -200,6 +203,89 @@ const Inventory = () => {
       return () => clearTimeout(timer);
     }
   }, [searchTerm, filteredInventory]);
+
+  // Digikey and Mouser barcode decoder
+  const decodeVendorBarcode = (barcode) => {
+    // Reset result
+    setBarcodeDecodeResult(null);
+
+    if (!barcode || barcode.trim() === '') {
+      return;
+    }
+
+    // Digikey 2D barcode format (Data Matrix)
+    // Format: [)>06\x1d1PMPN\x1dK#####\x1dQ##\x1d...
+    // 1P = Manufacturer Part Number
+    // K = Quantity
+    // Q = Quantity (alternative)
+    if (barcode.includes('[)>') || barcode.includes('1P') || barcode.includes('\x1d1P')) {
+      const partNumberMatch = barcode.match(/1P([^\x1d]+)/);
+      const quantityMatch = barcode.match(/Q(\d+)/);
+      const digikeyPNMatch = barcode.match(/K([^\x1d]+)/);
+      
+      if (partNumberMatch) {
+        const result = {
+          vendor: 'Digikey',
+          manufacturerPN: partNumberMatch[1],
+          quantity: quantityMatch ? parseInt(quantityMatch[1]) : null,
+          digikeySKU: digikeyPNMatch ? digikeyPNMatch[1] : null
+        };
+        setBarcodeDecodeResult(result);
+        // Search for the part
+        setSearchTerm(result.manufacturerPN);
+        return;
+      }
+    }
+
+    // Mouser barcode format (typically Code 128)
+    // Format can vary, but commonly:
+    // >K##### (Mouser part number)
+    // >1P##### (Manufacturer part number)
+    // >Q## (Quantity)
+    if (barcode.includes('>')) {
+      const parts = barcode.split('>').filter(p => p.length > 0);
+      let manufacturerPN = null;
+      let mouserPN = null;
+      let quantity = null;
+
+      parts.forEach(part => {
+        if (part.startsWith('1P')) {
+          manufacturerPN = part.substring(2);
+        } else if (part.startsWith('K')) {
+          mouserPN = part.substring(1);
+        } else if (part.startsWith('Q')) {
+          quantity = parseInt(part.substring(1));
+        }
+      });
+
+      if (manufacturerPN || mouserPN) {
+        const result = {
+          vendor: 'Mouser',
+          manufacturerPN: manufacturerPN,
+          mouserSKU: mouserPN,
+          quantity: quantity
+        };
+        setBarcodeDecodeResult(result);
+        // Search for the part
+        setSearchTerm(manufacturerPN || mouserPN);
+        return;
+      }
+    }
+
+    // If no pattern matched
+    setBarcodeDecodeResult({
+      error: 'Unrecognized barcode format. Please check if this is a Digikey or Mouser barcode.'
+    });
+  };
+
+  const handleVendorBarcodeScan = () => {
+    decodeVendorBarcode(vendorBarcode);
+  };
+
+  const handleClearVendorBarcode = () => {
+    setVendorBarcode('');
+    setBarcodeDecodeResult(null);
+  };
 
   // Initialize edited items when entering edit mode
   const handleToggleEditMode = () => {
@@ -776,6 +862,76 @@ const Inventory = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Vendor Barcode Scanner */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <QrCode className="w-4 h-4 inline mr-1" />
+            Scan Vendor Barcode
+          </label>
+          <div className="space-y-2">
+            <input
+              ref={vendorBarcodeInputRef}
+              type="text"
+              value={vendorBarcode}
+              onChange={(e) => setVendorBarcode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleVendorBarcodeScan();
+                }
+              }}
+              placeholder="Scan Digikey or Mouser barcode..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleVendorBarcodeScan}
+                disabled={!vendorBarcode.trim()}
+                className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+              >
+                Decode
+              </button>
+              <button
+                onClick={handleClearVendorBarcode}
+                className="bg-gray-500 hover:bg-gray-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            
+            {barcodeDecodeResult && (
+              <div className={`mt-2 p-3 rounded-md text-sm ${
+                barcodeDecodeResult.error
+                  ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-800 dark:text-red-200'
+                  : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50 text-green-800 dark:text-green-200'
+              }`}>
+                {barcodeDecodeResult.error ? (
+                  <p>{barcodeDecodeResult.error}</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="font-semibold">{barcodeDecodeResult.vendor} Barcode Decoded:</p>
+                    {barcodeDecodeResult.manufacturerPN && (
+                      <p>MFG P/N: <span className="font-mono">{barcodeDecodeResult.manufacturerPN}</span></p>
+                    )}
+                    {barcodeDecodeResult.digikeySKU && (
+                      <p>Digikey SKU: <span className="font-mono">{barcodeDecodeResult.digikeySKU}</span></p>
+                    )}
+                    {barcodeDecodeResult.mouserSKU && (
+                      <p>Mouser SKU: <span className="font-mono">{barcodeDecodeResult.mouserSKU}</span></p>
+                    )}
+                    {barcodeDecodeResult.quantity && (
+                      <p>Quantity: {barcodeDecodeResult.quantity}</p>
+                    )}
+                    <p className="text-xs mt-2 opacity-75">Searching for this part...</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
+          </p>
         </div>
 
         {/* Low Stock Alert */}
