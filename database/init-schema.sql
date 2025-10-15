@@ -189,7 +189,6 @@ CREATE TABLE IF NOT EXISTS distributor_info (
     distributor_id UUID REFERENCES distributors(id) ON DELETE CASCADE,
     sku VARCHAR(100),
     url VARCHAR(500),
-    price DECIMAL(10, 2),
     currency VARCHAR(10) DEFAULT 'USD',
     in_stock BOOLEAN DEFAULT false,
     stock_quantity INTEGER,

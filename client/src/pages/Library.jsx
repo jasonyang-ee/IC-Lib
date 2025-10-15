@@ -333,7 +333,6 @@ const Library = () => {
           distributor_name: dist.source === 'digikey' ? 'Digikey' : 'Mouser',
           sku: dist.sku || '',
           url: dist.url || '',
-          price: dist.pricing?.[0]?.price || '',
           in_stock: (dist.stock || 0) > 0,
           stock_quantity: dist.stock || 0,
           minimum_order_quantity: dist.minimumOrderQuantity || 1,
@@ -346,7 +345,6 @@ const Library = () => {
           distributor_name: vendorData.distributor.source === 'digikey' ? 'Digikey' : 'Mouser',
           sku: vendorData.distributor.sku || '',
           url: vendorData.distributor.url || '',
-          price: vendorData.distributor.pricing?.[0]?.price || '',
           in_stock: (vendorData.distributor.stock || 0) > 0,
           stock_quantity: vendorData.distributor.stock || 0,
           minimum_order_quantity: vendorData.distributor.minimumOrderQuantity || 1,
@@ -618,9 +616,9 @@ const Library = () => {
         distributor_name: name,
         sku: existing?.sku || '',
         url: existing?.url || '',
-        price: existing?.price || null,
         in_stock: existing?.in_stock || false,
-        stock_quantity: existing?.stock_quantity || 0
+        stock_quantity: existing?.stock_quantity || 0,
+        price_breaks: existing?.price_breaks || []
       };
     });
     
@@ -782,9 +780,9 @@ const Library = () => {
           distributor_id: dist.distributor_id,
           sku: dist.sku || '',
           url: dist.url || '',
-          price: dist.price || null,
           in_stock: dist.in_stock || false,
-          stock_quantity: dist.stock_quantity || 0
+          stock_quantity: dist.stock_quantity || 0,
+          price_breaks: dist.price_breaks || []
         })) || [];
         
         if (validDistributors.length > 0) {
@@ -1217,7 +1215,6 @@ const Library = () => {
           distributor_id: dist.distributor_id,
           sku: dist.sku || '',
           url: dist.url || '',
-          price: dist.price || null,
           in_stock: dist.in_stock || false,
           stock_quantity: dist.stock_quantity || 0,
           minimum_order_quantity: dist.minimum_order_quantity || 1,
@@ -2499,21 +2496,17 @@ const Library = () => {
                         )}
                       </div>
                     )}
-                    {dist.price ? (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Price: ${Number(dist.price).toFixed(2)} {dist.currency || 'USD'}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Price: </p>
-                    )}
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Stock: {dist.stock_quantity || 'N/A'}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Stock: {dist.stock_quantity || 'N/A'}</p>
                     {dist.price_breaks && dist.price_breaks.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {dist.price_breaks.slice(0, 3).map((price, idx) => (
-                          <p key={idx} className="text-xs text-gray-600 dark:text-gray-400">
-                            {price.quantity}+: ${price.price}
-                          </p>
-                        ))}
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Price Breaks:</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          {dist.price_breaks.map((priceBreak, idx) => (
+                            <span key={idx} className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                              {priceBreak.quantity}+: ${Number(priceBreak.price).toFixed(4)}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

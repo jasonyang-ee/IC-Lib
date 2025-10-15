@@ -1,4 +1,6 @@
 import pool from '../config/database.js';
+import * as digikeyService from '../services/digikeyService.js';
+import * as mouserService from '../services/mouserService.js';
 
 export const getAllComponents = async (req, res, next) => {
   try {
@@ -463,25 +465,60 @@ export const updateDistributorInfo = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid distributors data' });
     }
 
+    // Auto-fetch pricing from vendor APIs (Issue #2)
+    const distributorsWithPricing = await Promise.all(distributors.map(async (dist) => {
+      // Only fetch if SKU is provided
+      if (!dist.sku || !dist.distributor_name) {
+        return dist;
+      }
+
+      try {
+        let vendorData = null;
+        
+        // Fetch from appropriate vendor
+        if (dist.distributor_name.toLowerCase() === 'digikey') {
+          const result = await digikeyService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        } else if (dist.distributor_name.toLowerCase() === 'mouser') {
+          const result = await mouserService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        }
+
+        // Update pricing if found
+        if (vendorData && vendorData.pricing) {
+          return {
+            ...dist,
+            price_breaks: vendorData.pricing,
+            stock_quantity: vendorData.stock || dist.stock_quantity,
+            in_stock: (vendorData.stock || 0) > 0,
+            url: vendorData.productUrl || dist.url
+          };
+        }
+      } catch (error) {
+        console.error(`Error fetching pricing for SKU ${dist.sku}:`, error.message);
+        // Continue with original data if fetch fails
+      }
+
+      return dist;
+    }));
+
     // Handle both INSERT (new records) and UPDATE (existing records)
-    const updates = distributors.map(async (dist) => {
+    const updates = distributorsWithPricing.map(async (dist) => {
       if (dist.id) {
         // Update existing distributor_info record
         await pool.query(`
           UPDATE distributor_info 
           SET sku = $1,
               url = $2,
-              price = $3,
-              in_stock = $4,
-              stock_quantity = $5,
-              minimum_order_quantity = $6,
-              price_breaks = $7,
+              in_stock = $3,
+              stock_quantity = $4,
+              minimum_order_quantity = $5,
+              price_breaks = $6,
               last_updated = CURRENT_TIMESTAMP
-          WHERE component_id = $8 AND id = $9
+          WHERE component_id = $7 AND id = $8
         `, [
           dist.sku || dist.distributor_part_number || null, 
           dist.url || null,
-          dist.price || null,
           dist.in_stock || false,
           dist.stock_quantity || 0,
           dist.minimum_order_quantity || 1,
@@ -497,15 +534,13 @@ export const updateDistributorInfo = async (req, res, next) => {
             distributor_id,
             sku,
             url,
-            price,
             in_stock,
             stock_quantity,
             minimum_order_quantity,
             price_breaks
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           ON CONFLICT (component_id, distributor_id, sku) DO UPDATE
           SET url = EXCLUDED.url,
-              price = EXCLUDED.price,
               in_stock = EXCLUDED.in_stock,
               stock_quantity = EXCLUDED.stock_quantity,
               minimum_order_quantity = EXCLUDED.minimum_order_quantity,
@@ -516,7 +551,6 @@ export const updateDistributorInfo = async (req, res, next) => {
           dist.distributor_id,
           dist.sku,
           dist.url || null,
-          dist.price || null,
           dist.in_stock || false,
           dist.stock_quantity || 0,
           dist.minimum_order_quantity || 1,
@@ -660,7 +694,6 @@ export const getAlternatives = async (req, res, next) => {
               'distributor_name', d.name,
               'sku', di.sku,
               'url', di.url,
-              'price', di.price,
               'currency', di.currency,
               'in_stock', di.in_stock,
               'stock_quantity', di.stock_quantity,
@@ -723,13 +756,12 @@ export const createAlternative = async (req, res, next) => {
       for (const dist of distributors) {
         await pool.query(`
           INSERT INTO distributor_info (
-            alternative_id, distributor_id, sku, url, price, currency,
+            alternative_id, distributor_id, sku, url, currency,
             in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
           SET url = EXCLUDED.url,
-              price = EXCLUDED.price,
               in_stock = EXCLUDED.in_stock,
               stock_quantity = EXCLUDED.stock_quantity,
               minimum_order_quantity = EXCLUDED.minimum_order_quantity,
@@ -741,7 +773,6 @@ export const createAlternative = async (req, res, next) => {
           dist.distributor_id,
           dist.sku || '',
           dist.url || '',
-          dist.price || null,
           dist.currency || 'USD',
           dist.in_stock || false,
           dist.stock_quantity || 0,
@@ -806,13 +837,12 @@ export const updateAlternative = async (req, res, next) => {
         if (dist.distributor_id && (dist.sku || dist.url)) {
           await pool.query(`
             INSERT INTO distributor_info (
-              alternative_id, distributor_id, sku, url, price, currency,
+              alternative_id, distributor_id, sku, url, currency,
               in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
             SET url = EXCLUDED.url,
-                price = EXCLUDED.price,
                 in_stock = EXCLUDED.in_stock,
                 stock_quantity = EXCLUDED.stock_quantity,
                 minimum_order_quantity = EXCLUDED.minimum_order_quantity,
@@ -824,7 +854,6 @@ export const updateAlternative = async (req, res, next) => {
             dist.distributor_id,
             dist.sku || '',
             dist.url || '',
-            dist.price || null,
             dist.currency || 'USD',
             dist.in_stock || false,
             dist.stock_quantity || 0,
