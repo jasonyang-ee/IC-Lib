@@ -38,7 +38,8 @@ INSERT INTO component_categories (id, name, description, prefix, leading_zeros) 
     (11, 'MCU', 'Microcontroller', 'IC', 5),
 	(12, 'Mechanical', 'Mechanical Parts', 'MECH', 5),
 	(13, 'Misc', 'Miscellaneous Parts', 'MISC', 5),
-	(14, 'Relays', 'Relays', 'RELAY', 5)
+	(14, 'Relays', 'Relays', 'RELAY', 5),
+	(15, 'Transformers', 'Transformers', 'TRNS', 5)
 ON CONFLICT (id) DO NOTHING;
 
 -- Reset sequence to continue from 12
@@ -126,6 +127,7 @@ CREATE TABLE IF NOT EXISTS category_specifications (
     category_id INTEGER REFERENCES component_categories(id) ON DELETE CASCADE,
     spec_name VARCHAR(100) NOT NULL,
     unit VARCHAR(50),
+	mapping_spec_name VARCHAR(100),
     display_order INTEGER DEFAULT 0,
     is_required BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -434,23 +436,22 @@ ON CONFLICT (version) DO NOTHING;
 -- ============================================================================
 
 -- Capacitors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (1, 'Capacitance', 'F', 1, true),
-    (1, 'Voltage Rating', 'V', 2, true),
-    (1, 'Tolerance', '%', 3, false),
-    (1, 'Dielectric Type', '', 4, false),
-    (1, 'Temperature Coefficient', 'ppm/°C', 5, false),
-    (1, 'ESR', 'Ω', 6, false),
-    (1, 'Operating Temperature', '°C', 7, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
+    (1, 'Capacitance', 'F', 'Capacitance', 1, false),
+    (1, 'Voltage Rating', 'V', 'Voltage - Rated', 2, true),
+    (1, 'Tolerance', '%', 'Tolerance', 3, false),
+    (1, 'Temperature Coefficient', '', 'Temperature Coefficient', 4, false),
+    (1, 'ESR', 'Ohms', 'ESR', 5, false),
+    (1, 'Operating Temperature', '', 'Operating Temperature', 6, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Resistors specifications
 INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (2, 'Resistance', 'Ω', 1, true),
-    (2, 'Power Rating', 'W', 2, true),
-    (2, 'Tolerance', '%', 3, false),
-    (2, 'Temperature Coefficient', 'ppm/°C', 4, false),
-    (2, 'Operating Temperature', '°C', 5, false)
+    (2, 'Resistance', 'Ohms', 'Resistance', 1, false),
+    (2, 'Power', 'W', 'Power', 2, false),
+    (2, 'Tolerance', '%', 'Tolerance', 3, false),
+    (2, 'Temperature Coefficient', '', 'ppm/°C', 4, false),
+    (2, 'Operating Temperature', '', 'Operating Temperature', 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Inductors specifications

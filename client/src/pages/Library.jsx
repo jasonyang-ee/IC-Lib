@@ -127,6 +127,62 @@ const Library = () => {
     }
   };
 
+  // Sanitize specification value by removing unit characters if they match
+  const sanitizeSpecValue = (specValue, unit) => {
+    if (!specValue || !unit) return specValue;
+    
+    // Convert to strings and trim
+    const value = String(specValue).trim();
+    const unitStr = String(unit).trim();
+    
+    if (!unitStr) return value;
+    
+    // Check if the value ends with the unit
+    if (value.endsWith(unitStr)) {
+      // Remove the unit from the end
+      return value.substring(0, value.length - unitStr.length).trim();
+    }
+    
+    return value;
+  };
+
+  // Map vendor specifications to component specifications using mapping_spec_name
+  const mapVendorSpecifications = (vendorSpecs, categorySpecs) => {
+    if (!vendorSpecs || !categorySpecs || categorySpecs.length === 0) {
+      return categorySpecs;
+    }
+    
+    // Create a map of vendor spec name to value
+    const vendorSpecMap = {};
+    Object.entries(vendorSpecs).forEach(([key, value]) => {
+      // Handle both object format {value: "x"} and direct string values
+      const specValue = typeof value === 'object' && value !== null ? value.value : value;
+      if (specValue) {
+        vendorSpecMap[key.toLowerCase().trim()] = String(specValue);
+      }
+    });
+    
+    // Map category specs with vendor values where mapping exists
+    return categorySpecs.map(spec => {
+      let mappedValue = spec.spec_value || '';
+      
+      // Check if there's a mapping for this spec
+      if (spec.mapping_spec_name) {
+        const mappingKey = spec.mapping_spec_name.toLowerCase().trim();
+        if (vendorSpecMap[mappingKey]) {
+          mappedValue = vendorSpecMap[mappingKey];
+          // Sanitize the value by removing unit if present
+          mappedValue = sanitizeSpecValue(mappedValue, spec.unit);
+        }
+      }
+      
+      return {
+        ...spec,
+        spec_value: mappedValue
+      };
+    });
+  };
+
   // Fallback clipboard method for when Clipboard API is not available
   const fallbackCopyToClipboard = (text, label) => {
     try {
@@ -306,7 +362,6 @@ const Library = () => {
         description: vendorData.description || '',
         package_size: packageFromSpecs || vendorData.packageType || '',
         datasheet_url: vendorData.datasheet || '',
-        status: 'Active',
         notes: vendorData.series ? `Series: ${vendorData.series}` : '',
         // Distributor info - now supports multiple distributors
         distributors: distributorsList,
@@ -965,14 +1020,20 @@ const Library = () => {
         
         // Convert category specs to editable format with empty values
         // Store category_spec_id to link back to the master spec definition
-        const autoSpecs = categorySpecs.map(spec => ({
+        let autoSpecs = categorySpecs.map(spec => ({
           category_spec_id: spec.id,
           spec_name: spec.spec_name,
           spec_value: '',
           unit: spec.unit || '',
+          mapping_spec_name: spec.mapping_spec_name || '',
           is_required: spec.is_required,
           display_order: spec.display_order
         }));
+        
+        // If we have vendor specifications, map them to category specs
+        if (editData.vendorSpecifications && Object.keys(editData.vendorSpecifications).length > 0) {
+          autoSpecs = mapVendorSpecifications(editData.vendorSpecifications, autoSpecs);
+        }
         
         handleFieldChange('specifications', autoSpecs);
       } catch (error) {
@@ -1232,21 +1293,6 @@ const Library = () => {
     });
   };
 
-  const handleAddAlternativeDistributor = (altIndex) => {
-    setEditData((prev) => {
-      const updatedAlternatives = [...(prev.alternatives || [])];
-      updatedAlternatives[altIndex].distributors = [
-        ...(updatedAlternatives[altIndex].distributors || []),
-        {
-          distributor_id: '',
-          sku: '',
-          url: ''
-        }
-      ];
-      return { ...prev, alternatives: updatedAlternatives };
-    });
-  };
-
   const handleUpdateAlternativeDistributor = (altIndex, distIndex, field, value) => {
     setEditData((prev) => {
       const updatedAlternatives = [...(prev.alternatives || [])];
@@ -1256,14 +1302,6 @@ const Library = () => {
         [field]: value
       };
       updatedAlternatives[altIndex].distributors = updatedDistributors;
-      return { ...prev, alternatives: updatedAlternatives };
-    });
-  };
-
-  const handleDeleteAlternativeDistributor = (altIndex, distIndex) => {
-    setEditData((prev) => {
-      const updatedAlternatives = [...(prev.alternatives || [])];
-      updatedAlternatives[altIndex].distributors = updatedAlternatives[altIndex].distributors.filter((_, i) => i !== distIndex);
       return { ...prev, alternatives: updatedAlternatives };
     });
   };

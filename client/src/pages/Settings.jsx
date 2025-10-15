@@ -9,7 +9,7 @@ const CategorySpecificationsManager = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isAddingSpec, setIsAddingSpec] = useState(false);
   const [editingSpec, setEditingSpec] = useState(null);
-  const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', is_required: false });
+  const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', mapping_spec_name: '', is_required: false });
   const [tempSpec, setTempSpec] = useState({});
 
   // Fetch categories
@@ -39,7 +39,7 @@ const CategorySpecificationsManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
       setIsAddingSpec(false);
-      setNewSpec({ spec_name: '', unit: '', is_required: false });
+      setNewSpec({ spec_name: '', unit: '', mapping_spec_name: '', is_required: false });
     },
   });
 
@@ -141,7 +141,7 @@ const CategorySpecificationsManager = () => {
 
           {isAddingSpec && (
             <div className="mb-4 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                     Specification Name *
@@ -163,6 +163,18 @@ const CategorySpecificationsManager = () => {
                     value={newSpec.unit}
                     onChange={(e) => setNewSpec({ ...newSpec, unit: e.target.value })}
                     placeholder="e.g., F, V, Ω"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                    Vendor Mapping
+                  </label>
+                  <input
+                    type="text"
+                    value={newSpec.mapping_spec_name}
+                    onChange={(e) => setNewSpec({ ...newSpec, mapping_spec_name: e.target.value })}
+                    placeholder="e.g., Capacitance"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                   />
                 </div>
@@ -217,6 +229,9 @@ const CategorySpecificationsManager = () => {
                       Unit
                     </th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
+                      Vendor Mapping
+                    </th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
                       Required
                     </th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
@@ -256,6 +271,20 @@ const CategorySpecificationsManager = () => {
                         ) : (
                           <span className="text-gray-600 dark:text-gray-400 text-sm">
                             {spec.unit || '-'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {editingSpec === spec.id ? (
+                          <input
+                            type="text"
+                            value={tempSpec.mapping_spec_name || ''}
+                            onChange={(e) => setTempSpec({ ...tempSpec, mapping_spec_name: e.target.value })}
+                            className="w-32 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          />
+                        ) : (
+                          <span className="text-gray-600 dark:text-gray-400 text-sm">
+                            {spec.mapping_spec_name || '-'}
                           </span>
                         )}
                       </td>

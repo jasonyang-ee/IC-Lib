@@ -6,9 +6,7 @@ import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save,
 import { QRCodeSVG } from 'qrcode.react';
 
 // [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
-// [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}]
-
-
+// [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}
 
 const Inventory = () => {
   const queryClient = useQueryClient();
@@ -1005,7 +1003,22 @@ const Inventory = () => {
                     {barcodeDecodeResult.quantity && (
                       <p>Quantity: {barcodeDecodeResult.quantity}</p>
                     )}
-                    <p className="text-xs mt-2 opacity-75">Searching for this part...</p>
+                    {/* Show button to search vendor if no results in inventory */}
+                    {searchTerm && filteredInventory && filteredInventory.length === 0 && barcodeDecodeResult.manufacturerPN && (
+                      <div className="mt-3 pt-3 border-t border-green-300 dark:border-green-800">
+                        <p className="text-xs mb-2 opacity-75">Part not found in inventory.</p>
+                        <button
+                          onClick={() => navigate('/vendor-search', { state: { searchFromInventory: barcodeDecodeResult.manufacturerPN } })}
+                          className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-3 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+                        >
+                          <Search className="w-3 h-3" />
+                          Search Vendor for "{barcodeDecodeResult.manufacturerPN}"
+                        </button>
+                      </div>
+                    )}
+                    {(!searchTerm || (filteredInventory && filteredInventory.length > 0)) && (
+                      <p className="text-xs mt-2 opacity-75">Searching for this part...</p>
+                    )}
                   </div>
                 )}
               </div>

@@ -470,6 +470,7 @@ export const getCategorySpecifications = async (req, res) => {
         category_id,
         spec_name,
         unit,
+        mapping_spec_name,
         display_order,
         is_required,
         created_at,
@@ -496,7 +497,7 @@ export const getCategorySpecifications = async (req, res) => {
 export const createCategorySpecification = async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const { spec_name, unit, display_order, is_required } = req.body;
+    const { spec_name, unit, mapping_spec_name, display_order, is_required } = req.body;
     
     if (!spec_name || spec_name.trim() === '') {
       return res.status(400).json({ error: 'spec_name is required' });
@@ -504,13 +505,14 @@ export const createCategorySpecification = async (req, res) => {
     
     const result = await pool.query(`
       INSERT INTO category_specifications 
-        (category_id, spec_name, unit, display_order, is_required)
-      VALUES ($1, $2, $3, $4, $5)
+        (category_id, spec_name, unit, mapping_spec_name, display_order, is_required)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `, [
       categoryId, 
       spec_name.trim(), 
       unit || null, 
+      mapping_spec_name || null,
       display_order || 0, 
       is_required || false
     ]);
@@ -540,19 +542,20 @@ export const createCategorySpecification = async (req, res) => {
 export const updateCategorySpecification = async (req, res) => {
   try {
     const { id } = req.params;
-    const { spec_name, unit, display_order, is_required } = req.body;
+    const { spec_name, unit, mapping_spec_name, display_order, is_required } = req.body;
     
     const result = await pool.query(`
       UPDATE category_specifications
       SET 
         spec_name = COALESCE($1, spec_name),
         unit = COALESCE($2, unit),
-        display_order = COALESCE($3, display_order),
-        is_required = COALESCE($4, is_required),
+        mapping_spec_name = COALESCE($3, mapping_spec_name),
+        display_order = COALESCE($4, display_order),
+        is_required = COALESCE($5, is_required),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
+      WHERE id = $6
       RETURNING *
-    `, [spec_name, unit, display_order, is_required, id]);
+    `, [spec_name, unit, mapping_spec_name, display_order, is_required, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Specification not found' });
