@@ -944,22 +944,30 @@ const Library = () => {
     const category = categories.find(cat => cat.id === parseInt(categoryId));
     if (!category) return '';
     
-    // Get category prefix (e.g., "Resistors" -> "RES")
-    const prefix = category.name.substring(0, 3).toUpperCase();
-    
     // Filter components by category
     const categoryComponents = components.filter(
       comp => comp.category_id === parseInt(categoryId) || comp.category_name === category.name
     );
-    
-    if (categoryComponents.length === 0) {
-      return `${prefix}-0001`;
-    }
+
+    const defaultDigits = 5;
+	  let digits = defaultDigits;
+	  // Try to find leading_zeros value from component_category and set digits accordingly
+	  if (category.leading_zeros && Number.isInteger(category.leading_zeros) && category.leading_zeros > 0) {
+        digits = category.leading_zeros;
+	  }
+
+	if (categoryComponents.length === 0) {
+	  // Find the number of leading zeros in existing part numbers for this category
+	  // If none exist, default to 4 digits
+
+	  const paddedNumber = String(1).padStart(digits, '0');
+	  return `${category.prefix}-${paddedNumber}`;
+	}
     
     // Extract numbers from part numbers with this prefix
     const numbers = categoryComponents
       .map(comp => {
-        const match = comp.part_number?.match(new RegExp(`^${prefix}-(\\d+)`));
+        const match = comp.part_number?.match(new RegExp(`^${category.prefix}-(\\d+)`));
         return match ? parseInt(match[1], 10) : 0;
       })
       .filter(num => !isNaN(num) && num > 0);
@@ -968,10 +976,10 @@ const Library = () => {
     const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
     const nextNumber = maxNumber + 1;
     
-    // Format with leading zeros (4 digits)
-    const paddedNumber = String(nextNumber).padStart(4, '0');
+    // Format with leading zeros (digits)
+    const paddedNumber = String(nextNumber).padStart(digits, '0');
     
-    return `${prefix}-${paddedNumber}`;
+    return `${category.prefix}-${paddedNumber}`;
   };
 
   // Update part number when category changes in add mode
@@ -1098,14 +1106,14 @@ const Library = () => {
       return;
     }
     
-    if (!editData.manufacturer_id || !editData.manufacturer_part_number || !editData.value) {
+    if (!editData.manufacturer_id || !editData.manufacturer_pn || !editData.value) {
       setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
       return;
     }
 
     // Validate required specifications
     const requiredSpecs = editData.specifications?.filter(spec => spec.is_required) || [];
-    const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value || spec.spec_value.trim() === '');
+    const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value);
     
     if (missingRequiredSpecs.length > 0) {
       setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });

@@ -446,11 +446,11 @@ INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Resistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
     (2, 'Resistance', 'Ohms', 'Resistance', 1, false),
-    (2, 'Power', 'W', 'Power', 2, false),
+    (2, 'Power', 'W', 'Power (Watts)', 2, false),
     (2, 'Tolerance', '%', 'Tolerance', 3, false),
-    (2, 'Temperature Coefficient', '', 'ppm/°C', 4, false),
+    (2, 'Temperature Coefficient', 'ppm/°C', 'Temperature Coefficient', 4, false),
     (2, 'Operating Temperature', '', 'Operating Temperature', 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
