@@ -35,8 +35,8 @@ const Inventory = () => {
   // Auto-focus search field on page load
   useEffect(() => {
     if (searchInputRef.current) {
-      searchInputRef.current.focus();
-      searchInputRef.current.select();
+      vendorBarcodeInputRef.current.focus();
+      vendorBarcodeInputRef.current.select();
     }
   }, []);
 
@@ -330,12 +330,12 @@ const Inventory = () => {
     });
   }, []);
 
-  // Auto-decode barcode with debounce (wait 1 second after typing stops)
+  // Auto-decode barcode with debounce (wait 1.5 second after typing stops)
   useEffect(() => {
     if (vendorBarcode && vendorBarcode.length > 10) {
       const timer = setTimeout(() => {
         decodeVendorBarcode(vendorBarcode);
-      }, 1000); // Wait 1 second after last keystroke
+      }, 1500); // Wait 1.5 second after last keystroke
       
       return () => clearTimeout(timer);
     }
