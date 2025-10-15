@@ -26,16 +26,19 @@ CREATE TABLE IF NOT EXISTS component_categories (
 
 -- Insert default categories
 INSERT INTO component_categories (id, name, description, prefix, leading_zeros) VALUES
-    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 4),
-    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 4),
-    (3, 'Inductors', 'Inductors and coils', 'IND', 4),
-    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 4),
-    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 4),
-    (6, 'ICs', 'Integrated circuits', 'IC', 4),
-    (7, 'Connectors', 'Connectors and headers', 'CONN', 4),
-    (8, 'Switches', 'Switches and buttons', 'SW', 4),
-    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 4),
-    (11, 'MCU', 'Microcontroller', 'IC', 4)
+    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5),
+    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 5),
+    (3, 'Inductors', 'Inductors and coils', 'IND', 5),
+    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5),
+    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5),
+    (6, 'ICs', 'Integrated circuits', 'IC', 5),
+    (7, 'Connectors', 'Connectors and headers', 'CONN', 5),
+    (8, 'Switches', 'Switches and buttons', 'SW', 5),
+    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5),
+    (11, 'MCU', 'Microcontroller', 'IC', 5),
+	(12, 'Mechanical', 'Mechanical Parts', 'MECH', 5),
+	(13, 'Misc', 'Miscellaneous Parts', 'MISC', 5),
+	(14, 'Relays', 'Relays', 'RELAY', 5)
 ON CONFLICT (id) DO NOTHING;
 
 -- Reset sequence to continue from 12

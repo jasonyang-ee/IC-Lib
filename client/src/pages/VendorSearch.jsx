@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Download, Plus, ExternalLink, X } from 'lucide-react';
+import { Search, Download, Plus, ExternalLink, X, QrCode } from 'lucide-react';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
+  const [qrCodeInput, setQrCodeInput] = useState('');
+  const [decodedInfo, setDecodedInfo] = useState(null);
+  const qrInputRef = useRef(null);
 
   // Load cached search results from sessionStorage on mount
   useEffect(() => {
@@ -52,6 +55,112 @@ const VendorSearch = () => {
   // Check if part is selected
   const isPartSelected = (partNumber) => {
     return selectedParts.some(p => p.partNumber === partNumber);
+  };
+
+  // Parse Digikey QR code
+  const parseDigikeyQR = (qrString) => {
+    // Digikey format: [)>{RS}06{GS}P<sku>{GS}1P<mfg_pn>{GS}...{GS}Q<qty>{GS}...{RS}{EOT}
+    // {RS} = \x1e (Record Separator)
+    // {GS} = \x1d (Group Separator)  
+    // {EOT} = \x04 (End of Transmission)
+    
+    const RS = String.fromCharCode(30);
+    const GS = String.fromCharCode(29);
+    const EOT = String.fromCharCode(4);
+    
+    if (!qrString.includes(EOT)) {
+      return null; // Not complete yet
+    }
+    
+    // Remove header [)>{RS}06{GS} and trailer {RS}{EOT}
+    let data = qrString.replace(/^\[\)>.*?06/, '').replace(new RegExp(RS + EOT + '$'), '');
+    
+    // Split by GS to get fields
+    const fields = data.split(GS);
+    
+    // Debug: Log fields to console
+    console.log('QR Code Fields:', fields);
+    
+    let mfgPartNumber = null;
+    let digikeySkus = [];
+    let quantity = null;
+    
+    fields.forEach((field, index) => {
+      console.log(`Field ${index}: "${field}"`);
+      
+      if (field.startsWith('30P')) {
+        // DigiKey SKU field (30P prefix)
+        const sku = field.substring(3);
+        digikeySkus.push(sku);
+        console.log(`  -> Found DigiKey SKU: ${sku}`);
+      } else if (field.startsWith('P') && !field.startsWith('30P')) {
+        // Also check for P prefix (without 30)
+        const sku = field.substring(1);
+        if (sku && !digikeySkus.includes(sku)) {
+          digikeySkus.push(sku);
+          console.log(`  -> Found SKU: ${sku}`);
+        }
+      } else if (field.startsWith('Q')) {
+        // Quantity
+        quantity = parseInt(field.substring(1), 10);
+        console.log(`  -> Found Quantity: ${quantity}`);
+      } else if (field && !field.match(/^[0-9]+[A-Z]/) && !mfgPartNumber) {
+        // If this is a plain field (no prefix) and we haven't found MFG P/N yet, this is it
+        mfgPartNumber = field;
+        console.log(`  -> Found MFG P/N: ${mfgPartNumber}`);
+      }
+    });
+    
+    console.log('Decoded:', { mfgPartNumber, digikeySkus, quantity });
+    
+    return {
+      manufacturerPartNumber: mfgPartNumber,
+      digikeySkus: digikeySkus,
+      primarySku: digikeySkus[0], // First SKU is usually primary
+      quantity: quantity
+    };
+  };
+
+  // Use useEffect to watch for EOT character instead of processing on every keystroke
+  useEffect(() => {
+    const EOT = String.fromCharCode(4);
+    
+    if (qrCodeInput.includes(EOT)) {
+      const decoded = parseDigikeyQR(qrCodeInput);
+      
+      if (decoded && decoded.manufacturerPartNumber) {
+        setDecodedInfo(decoded);
+        setSearchTerm(decoded.manufacturerPartNumber);
+        
+        // Trigger search
+        searchMutation.mutate(decoded.manufacturerPartNumber);
+        
+        // Clear and select the QR input field for next scan
+        setTimeout(() => {
+          setQrCodeInput('');
+          if (qrInputRef.current) {
+            qrInputRef.current.focus();
+            qrInputRef.current.select();
+          }
+        }, 100);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrCodeInput]); // Only run when qrCodeInput changes
+
+  // Handle QR code input change - just update state, don't parse
+  const handleQrCodeInput = (e) => {
+    setQrCodeInput(e.target.value);
+  };
+
+  // Clear QR decode info
+  const handleClearQrDecode = () => {
+    setQrCodeInput('');
+    setDecodedInfo(null);
+    if (qrInputRef.current) {
+      qrInputRef.current.focus();
+      qrInputRef.current.select();
+    }
   };
 
   const searchMutation = useMutation({
@@ -184,6 +293,66 @@ const VendorSearch = () => {
 
   return (
     <div className="space-y-6">
+
+      {/* QR Code Scanner Section */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <div className="flex items-center gap-3 mb-4">
+          <QrCode className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Vendor QR Code Scanner</h2>
+        </div>
+        
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              ref={qrInputRef}
+              type="text"
+              placeholder="Scan vendor QR code here..."
+              value={qrCodeInput}
+              onChange={handleQrCodeInput}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 font-mono text-sm"
+            />
+            {qrCodeInput && (
+              <button
+                type="button"
+                onClick={handleClearQrDecode}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Clear"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          
+          {/* Decoded Info Display */}
+          {decodedInfo && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Decoded Information:</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <span className="font-medium">MFG P/N:</span> {decodedInfo.manufacturerPartNumber}
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <span className="font-medium">Digikey SKU:</span> {decodedInfo.primarySku}
+                  </p>
+                  {decodedInfo.quantity && (
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <span className="font-medium">Quantity:</span> {decodedInfo.quantity}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={handleClearQrDecode}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  title="Clear decode"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Search Form */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

@@ -31,7 +31,8 @@ docker-compose.override.yml
 
 # Downloads
 download/
-footprint/
+import/
+scripts/
 
 # Temporary files
 tmp/

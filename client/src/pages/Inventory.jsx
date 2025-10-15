@@ -1,9 +1,14 @@
-import { useState, useRef, useEffect, Fragment } from 'react';
+import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+
+// [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
+// [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}]
+
+
 
 const Inventory = () => {
   const queryClient = useQueryClient();
@@ -23,6 +28,7 @@ const Inventory = () => {
   const [editingAlternative, setEditingAlternative] = useState(null);
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [receiveQtyFromQr, setReceiveQtyFromQr] = useState(null);
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -59,15 +65,21 @@ const Inventory = () => {
       const response = await api.getCategories();
       return response.data;
     },
+    staleTime: 1000 * 60 * 30, // Cache for 30 minutes
+    gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour
   });
 
-  // Fetch inventory
-  const { data: inventory, isLoading } = useQuery({
+  // Fetch inventory with aggressive caching
+  const { data: inventory, isLoading, refetch: refetchInventory } = useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
       const response = await api.getInventory();
       return response.data;
     },
+    staleTime: 1000 * 60 * 15, // Data is fresh for 15 minutes
+    gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch on component mount if data exists
   });
 
   const { data: lowStock } = useQuery({
@@ -76,6 +88,9 @@ const Inventory = () => {
       const response = await api.getLowStockItems();
       return response.data;
     },
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    refetchOnWindowFocus: false,
   });
 
   // Update quantity mutation
@@ -93,32 +108,6 @@ const Inventory = () => {
       setNewQty('');
       setEditingLocation(null);
       setNewLocation('');
-    },
-  });
-
-  // SKU/Barcode search mutation (used for auto-search)
-  const barcodeMutation = useMutation({
-    mutationFn: async (barcode) => {
-      const response = await api.searchByBarcode(barcode);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      if (data && data.length > 0) {
-        // Highlight the found item in the table
-        const firstItem = data[0];
-        const element = document.getElementById(`inv-row-${firstItem.id}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('bg-yellow-100', 'dark:bg-yellow-900/30');
-          setTimeout(() => {
-            element.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/30');
-          }, 2000);
-        }
-      }
-    },
-    onError: (error) => {
-      // Silently fail for auto-searches
-      console.log('SKU search: ' + (error.response?.data?.error || 'No match found'));
     },
   });
 
@@ -169,43 +158,49 @@ const Inventory = () => {
   });
 
 
-  // Expand all rows by default and fetch alternatives when inventory loads
+  // Don't auto-expand rows - let users expand only what they need
+  // This prevents fetching alternatives for all items on page load
   useEffect(() => {
-    if (inventory && inventory.length > 0) {
+    // Only expand rows if we have a specific filter (e.g., low stock)
+    if (inventory && inventory.length > 0 && inventory.length <= 10) {
+      // Auto-expand only if there are 10 or fewer items (e.g., filtered view)
       const allIds = new Set(inventory.map(item => item.id));
       setExpandedRows(allIds);
-      
-      // Fetch alternatives for all components
-      inventory.forEach(async (item) => {
-        if (!alternativesData[item.component_id]) {
-          try {
-            const response = await api.getInventoryAlternatives(item.component_id);
-            setAlternativesData(prev => ({
-              ...prev,
-              [item.component_id]: response.data
-            }));
-          } catch (error) {
-            console.error('Error fetching alternatives:', error);
-          }
-        }
-      });
+    } else {
+      // Start with all rows collapsed for better performance
+      setExpandedRows(new Set());
     }
   }, [inventory]);
 
-  // Auto-search distributor SKU when no local matches found
-  useEffect(() => {
-    // Only trigger if search term exists, no local matches, and not already searching
-    if (searchTerm && searchTerm.trim().length >= 3 && filteredInventory?.length === 0 && !barcodeMutation.isPending) {
-      // Debounce to avoid excessive API calls
-      const timer = setTimeout(() => {
-        barcodeMutation.mutate(searchTerm.trim());
-      }, 800);
-      return () => clearTimeout(timer);
+  // Lazy load alternatives only when a row is expanded
+  const fetchAlternativesForItem = useCallback(async (componentId) => {
+    if (!alternativesData[componentId]) {
+      try {
+        const response = await api.getInventoryAlternatives(componentId);
+        setAlternativesData(prev => ({
+          ...prev,
+          [componentId]: response.data
+        }));
+      } catch (error) {
+        console.error('Error fetching alternatives:', error);
+      }
     }
-  }, [searchTerm, filteredInventory]);
+  }, [alternativesData]);
 
-  // Digikey and Mouser barcode decoder
-  const decodeVendorBarcode = (barcode) => {
+  // Fetch alternatives when rows are expanded
+  useEffect(() => {
+    if (inventory && expandedRows.size > 0) {
+      // Only fetch for currently expanded rows
+      inventory.forEach((item) => {
+        if (expandedRows.has(item.id)) {
+          fetchAlternativesForItem(item.component_id);
+        }
+      });
+    }
+  }, [expandedRows, inventory, fetchAlternativesForItem]);
+
+  // Digikey barcode decoder
+  const decodeVendorBarcode = useCallback((barcode) => {
     // Reset result
     setBarcodeDecodeResult(null);
 
@@ -213,78 +208,157 @@ const Inventory = () => {
       return;
     }
 
-    // Digikey 2D barcode format (Data Matrix)
-    // Format: [)>06\x1d1PMPN\x1dK#####\x1dQ##\x1d...
-    // 1P = Manufacturer Part Number
-    // K = Quantity
-    // Q = Quantity (alternative)
-    if (barcode.includes('[)>') || barcode.includes('1P') || barcode.includes('\x1d1P')) {
-      const partNumberMatch = barcode.match(/1P([^\x1d]+)/);
-      const quantityMatch = barcode.match(/Q(\d+)/);
-      const digikeyPNMatch = barcode.match(/K([^\x1d]+)/);
+    console.log('Raw barcode input:', barcode);
+    console.log('Barcode length:', barcode.length);
+    console.log('First 50 chars:', barcode.substring(0, 50));
+
+    // Define control characters
+    const GS = String.fromCharCode(29); // Group Separator
+    const RS = String.fromCharCode(30); // Record Separator
+    const EOT = String.fromCharCode(4); // End of Transmission
+    
+    // Replace literal text representations with actual control characters
+    // Some barcode readers send the literal text {GS} instead of the control character
+    let cleanBarcode = barcode
+      .replace(/\{GS\}/g, GS)
+      .replace(/\{RS\}/g, RS)
+      .replace(/\{EOT\}/g, EOT);
+    
+    // Also handle escaped representations
+    cleanBarcode = cleanBarcode
+      .replace(/\\x1d/g, GS)
+      .replace(/\\x1e/g, RS)
+      .replace(/\\x04/g, EOT);
+    
+    console.log('Cleaned barcode (first 50):', cleanBarcode.substring(0, 50));
+    
+    // Split by GS (Group Separator) to get fields
+    const fields = cleanBarcode.split(GS);
+    
+    console.log('Number of fields:', fields.length);
+    console.log('All fields:', fields);
+    
+    // DigiKey format after header: [)>RS06GS <field1> GS <field2> GS ...
+    // The first field after the header is the manufacturer part number
+    let mfgPartNumber = null;
+    let digikeySkus = [];
+    let quantity = null;
+    
+    // Parse fields
+    fields.forEach((field, index) => {
+      // Remove any leading/trailing control characters and whitespace
+      field = field.trim();
       
-      if (partNumberMatch) {
-        const result = {
-          vendor: 'Digikey',
-          manufacturerPN: partNumberMatch[1],
-          quantity: quantityMatch ? parseInt(quantityMatch[1]) : null,
-          digikeySKU: digikeyPNMatch ? digikeyPNMatch[1] : null
-        };
-        setBarcodeDecodeResult(result);
-        // Search for the part
-        setSearchTerm(result.manufacturerPN);
-        return;
+      // Remove header if present in first field
+      if (index === 0) {
+        field = field.replace(/^\[\)>[\x1e]*06/, '');
+        field = field.replace(/^[\x1e\x1d]+/, '');
       }
-    }
-
-    // Mouser barcode format (typically Code 128)
-    // Format can vary, but commonly:
-    // >K##### (Mouser part number)
-    // >1P##### (Manufacturer part number)
-    // >Q## (Quantity)
-    if (barcode.includes('>')) {
-      const parts = barcode.split('>').filter(p => p.length > 0);
-      let manufacturerPN = null;
-      let mouserPN = null;
-      let quantity = null;
-
-      parts.forEach(part => {
-        if (part.startsWith('1P')) {
-          manufacturerPN = part.substring(2);
-        } else if (part.startsWith('K')) {
-          mouserPN = part.substring(1);
-        } else if (part.startsWith('Q')) {
-          quantity = parseInt(part.substring(1));
+      
+      // Remove trailing control characters
+      field = field.replace(/[\x1e\x04]+$/, '');
+      
+      console.log(`Field ${index}: "${field}" (length: ${field.length})`);
+      
+      if (!field) return;
+      
+      // Check for manufacturer part number (1P prefix)
+      if (field.startsWith('1P')) {
+        mfgPartNumber = field.substring(2);
+        console.log(`  -> Found MFG P/N: ${mfgPartNumber}`);
+      }
+      // Check for DigiKey SKU (30P prefix)
+      else if (field.startsWith('30P')) {
+        const sku = field.substring(3);
+        digikeySkus.push(sku);
+        console.log(`  -> Found DigiKey SKU (30P): ${sku}`);
+      }
+      // Check for alternative SKU format (P prefix without 30)
+      else if (field.startsWith('P') && field.length > 1) {
+        const sku = field.substring(1);
+        if (!digikeySkus.includes(sku)) {
+          digikeySkus.push(sku);
+          console.log(`  -> Found SKU (P): ${sku}`);
         }
-      });
-
-      if (manufacturerPN || mouserPN) {
-        const result = {
-          vendor: 'Mouser',
-          manufacturerPN: manufacturerPN,
-          mouserSKU: mouserPN,
-          quantity: quantity
-        };
-        setBarcodeDecodeResult(result);
-        // Search for the part
-        setSearchTerm(manufacturerPN || mouserPN);
-        return;
       }
+      // Check for quantity (Q prefix)
+      else if (field.startsWith('Q') && field.length > 1) {
+        const qtyStr = field.substring(1).match(/\d+/);
+        if (qtyStr) {
+          quantity = parseInt(qtyStr[0], 10);
+          console.log(`  -> Found Quantity: ${quantity}`);
+        }
+      }
+      // If no prefix and we haven't found MFG P/N yet, and it looks like a valid part number
+      else if (!mfgPartNumber && field.match(/^[A-Z0-9][A-Z0-9\-+_.]+$/i)) {
+        mfgPartNumber = field;
+        console.log(`  -> Found MFG P/N (no prefix): ${mfgPartNumber}`);
+      }
+    });
+
+    console.log('Final parsed data:', { mfgPartNumber, digikeySkus, quantity });
+
+    // If we successfully parsed the barcode
+    if (mfgPartNumber) {
+      const result = {
+        vendor: 'Digikey',
+        manufacturerPN: mfgPartNumber,
+        quantity: quantity,
+        digikeySKU: digikeySkus[0] || null
+      };
+      
+      console.log('Setting decode result:', result);
+      setBarcodeDecodeResult(result);
+      
+      // Search for the part using ONLY the manufacturer part number
+      console.log('Setting search term to:', mfgPartNumber);
+      setSearchTerm(mfgPartNumber);
+      
+      // Auto-focus and select the input field for next scan
+      setTimeout(() => {
+        if (vendorBarcodeInputRef.current) {
+          vendorBarcodeInputRef.current.focus();
+          vendorBarcodeInputRef.current.select();
+        }
+      }, 100);
+      
+      return;
     }
 
     // If no pattern matched
+    console.log('Failed to parse barcode');
     setBarcodeDecodeResult({
-      error: 'Unrecognized barcode format. Please check if this is a Digikey or Mouser barcode.'
+      error: 'Could not parse manufacturer part number from barcode. Please check the format.'
     });
-  };
+  }, []);
+
+  // Auto-decode barcode with debounce (wait 1 second after typing stops)
+  useEffect(() => {
+    if (vendorBarcode && vendorBarcode.length > 10) {
+      const timer = setTimeout(() => {
+        decodeVendorBarcode(vendorBarcode);
+      }, 1000); // Wait 1 second after last keystroke
+      
+      return () => clearTimeout(timer);
+    }
+  }, [vendorBarcode, decodeVendorBarcode]);
 
   const handleVendorBarcodeScan = () => {
     decodeVendorBarcode(vendorBarcode);
+    vendorBarcodeInputRef.current.focus();
+    vendorBarcodeInputRef.current.select();
   };
 
   const handleClearVendorBarcode = () => {
     setVendorBarcode('');
     setBarcodeDecodeResult(null);
+    // Auto-focus the scan input field for next scan
+    setTimeout(() => {
+      if (vendorBarcodeInputRef.current) {
+        vendorBarcodeInputRef.current.focus();
+        vendorBarcodeInputRef.current.select();
+      }
+    }, 0);
   };
 
   // Initialize edited items when entering edit mode
@@ -297,7 +371,8 @@ const Inventory = () => {
           location: item.location || '',
           quantity: item.quantity,
           minimum_quantity: item.minimum_quantity || 0,
-          consumeQty: 0
+          consumeQty: 0,
+          receiveQty: 0
         };
       });
       setEditedItems(initialEdits);
@@ -312,7 +387,8 @@ const Inventory = () => {
               location: alt.location || '',
               quantity: alt.quantity || 0,
               minimum_quantity: alt.minimum_quantity || 0,
-              consumeQty: 0
+              consumeQty: 0,
+              receiveQty: 0
             };
           });
         }
@@ -356,10 +432,13 @@ const Inventory = () => {
         updateData.minimum_quantity = changes.minimum_quantity;
       }
       
-      // Check if quantity changed (either set or consume)
+      // Check if quantity changed (either set, consume, or receive)
       let finalQuantity = changes.quantity;
       if (changes.consumeQty && changes.consumeQty > 0) {
         finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
+      }
+      if (changes.receiveQty && changes.receiveQty > 0) {
+        finalQuantity = changes.quantity + parseInt(changes.receiveQty);
       }
       
       if (finalQuantity !== originalItem.quantity) {
@@ -397,10 +476,13 @@ const Inventory = () => {
           updateData.min_quantity = changes.minimum_quantity;
         }
         
-        // Check if quantity changed (either set or consume)
+        // Check if quantity changed (either set, consume, or receive)
         let finalQuantity = changes.quantity;
         if (changes.consumeQty && changes.consumeQty > 0) {
           finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
+        }
+        if (changes.receiveQty && changes.receiveQty > 0) {
+          finalQuantity = changes.quantity + parseInt(changes.receiveQty);
         }
         
         if (finalQuantity !== originalAlt.quantity) {
@@ -976,6 +1058,14 @@ const Inventory = () => {
             ) : (
               <>
                 <button
+                  onClick={() => refetchInventory()}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                  title="Refresh inventory data"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refresh
+                </button>
+                <button
                   onClick={handleToggleExpandAll}
                   className="btn-secondary flex items-center gap-2 text-sm"
                 >
@@ -1011,7 +1101,7 @@ const Inventory = () => {
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG Part Number</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Manufacturer</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Location</th>
+                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 min-w-40 ">Location</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Min Qty</th>
                 <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Library</th>
@@ -1100,6 +1190,16 @@ const Inventory = () => {
                               type="number"
                               value={editedItem.consumeQty || ''}
                               onChange={(e) => handleEditChange(item.id, 'consumeQty', parseInt(e.target.value) || 0)}
+                              placeholder="0"
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Receive:</span>
+                            <input
+                              type="number"
+                              value={editedItem.receiveQty || ''}
+                              onChange={(e) => handleEditChange(item.id, 'receiveQty', parseInt(e.target.value) || 0)}
                               placeholder="0"
                               className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             />
@@ -1249,6 +1349,16 @@ const Inventory = () => {
                                   type="number"
                                   value={editingAlt.consumeQty || ''}
                                   onChange={(e) => handleAlternativeEdit(alt.id, 'consumeQty', parseInt(e.target.value) || 0)}
+                                  placeholder="0"
+                                  className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Receive:</span>
+                                <input
+                                  type="number"
+                                  value={editingAlt.receiveQty || ''}
+                                  onChange={(e) => handleAlternativeEdit(alt.id, 'receiveQty', parseInt(e.target.value) || 0)}
                                   placeholder="0"
                                   className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                                 />

@@ -25,7 +25,14 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    // Don't log 404 errors for barcode search - it's expected when no match is found
+    const isBarcodeSearch = error.config?.url?.includes('/inventory/search/barcode');
+    const is404 = error.response?.status === 404;
+    
+    if (!(isBarcodeSearch && is404)) {
+      console.error('API Error:', error.response?.data || error.message);
+    }
+    
     return Promise.reject(error);
   }
 );
