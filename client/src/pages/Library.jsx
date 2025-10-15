@@ -363,6 +363,8 @@ const Library = () => {
         package_size: packageFromSpecs || vendorData.packageType || '',
         datasheet_url: vendorData.datasheet || '',
         notes: vendorData.series ? `Series: ${vendorData.series}` : '',
+        // Value field - will be set based on category after category selection
+        value: vendorData.manufacturerPartNumber || '', // Default to manufacturer part number
         // Distributor info - now supports multiple distributors
         distributors: distributorsList,
         // Specifications from vendor
@@ -1021,6 +1023,37 @@ const Library = () => {
       const nextPartNumber = generateNextPartNumber(categoryId);
       handleFieldChange('part_number', nextPartNumber);
       
+      // Auto-fill value field based on category and vendor specifications
+      if (editData.vendorSpecifications && Object.keys(editData.vendorSpecifications).length > 0) {
+        const category = categories?.find(cat => cat.id === parseInt(categoryId));
+        let valueToSet = editData.manufacturer_pn || ''; // Default to manufacturer part number
+        
+        if (category) {
+          // Special handling for Resistor, Capacitor, and Inductor
+          if (category.name.toLowerCase().includes('resistor')) {
+            // Look for Resistance in vendor specs
+            const resistance = editData.vendorSpecifications['Resistance'] || editData.vendorSpecifications['resistance'];
+            if (resistance) {
+              valueToSet = typeof resistance === 'object' ? resistance.value : resistance;
+            }
+          } else if (category.name.toLowerCase().includes('capacitor')) {
+            // Look for Capacitance in vendor specs
+            const capacitance = editData.vendorSpecifications['Capacitance'] || editData.vendorSpecifications['capacitance'];
+            if (capacitance) {
+              valueToSet = typeof capacitance === 'object' ? capacitance.value : capacitance;
+            }
+          } else if (category.name.toLowerCase().includes('inductor')) {
+            // Look for Inductance in vendor specs
+            const inductance = editData.vendorSpecifications['Inductance'] || editData.vendorSpecifications['inductance'];
+            if (inductance) {
+              valueToSet = typeof inductance === 'object' ? inductance.value : inductance;
+            }
+          }
+        }
+        
+        handleFieldChange('value', valueToSet);
+      }
+      
       // Load category specifications (from new schema)
       try {
         const response = await api.getCategorySpecifications(categoryId);
@@ -1649,7 +1682,7 @@ const Library = () => {
               {!isEditMode && !isAddMode && selectedComponent && (
                 <button
                   onClick={() => jumpToInventory(selectedComponent.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
                   title="View in Inventory"
                 >
                   <Package className="w-3.5 h-3.5" />

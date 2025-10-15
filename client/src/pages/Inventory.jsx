@@ -696,6 +696,83 @@ const Inventory = () => {
     setQrCodeModal({ item, qrData, qrMfgOnly, qrUuid });
   };
 
+  // Copy QR code image directly with manufacturer part number only
+  const copyQRCodeMfgOnly = async (item) => {
+    try {
+      const mfgPn = item.manufacturer_pn || 'N/A';
+      
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
+      
+      // Render QR code
+      const root = ReactDOM.createRoot(container);
+      await new Promise((resolve) => {
+        root.render(<QRCodeSVG value={mfgPn} size={256} level="H" />);
+        setTimeout(resolve, 100);
+      });
+      
+      // Get SVG element
+      const svg = container.querySelector('svg');
+      if (!svg) {
+        throw new Error('QR code SVG not generated');
+      }
+      
+      // Serialize SVG to string
+      const svgData = new XMLSerializer().serializeToString(svg);
+      
+      // Clean up
+      root.unmount();
+      document.body.removeChild(container);
+      
+      // Create an image from SVG
+      const img = new Image();
+      
+      img.onload = async () => {
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 256, 256);
+        
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Convert canvas to blob
+        canvas.toBlob(async (blob) => {
+          try {
+            // Copy to clipboard
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            
+            // Show success feedback with unique item ID
+            setCopiedQRField(`mfg-quick-${item.id}`);
+            setTimeout(() => setCopiedQRField(''), 2000);
+          } catch (err) {
+            console.error('Clipboard write error:', err);
+            alert('Failed to copy QR code image to clipboard.');
+          }
+        }, 'image/png');
+      };
+      
+      img.onerror = () => {
+        alert('Failed to load QR code image. Please try again.');
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    } catch (error) {
+      console.error('Error copying QR code:', error);
+      alert('Failed to copy QR code image.');
+    }
+  };
+
   // Navigate to Library with component UUID or search term pre-filled
   const jumpToLibrary = (searchValue, isUuid = true) => {
     // Navigate to library with state containing the search value
@@ -1132,13 +1209,13 @@ const Inventory = () => {
                   <Fragment key={item.id}>
                     <tr 
                       id={`inv-row-${item.id}`}
-                      className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
+                      className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors cursor-pointer"
+                      onClick={() => toggleRowExpansion(item)}
                     >
                       {/* Expand Button */}
                       <td className="px-4 py-3 text-sm">
                         <button
-                          onClick={() => toggleRowExpansion(item)}
-                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors pointer-events-none"
                           title="Show/hide alternative parts"
                         >
                           {isExpanded ? (
@@ -1170,7 +1247,7 @@ const Inventory = () => {
                       </td>
                     
                     {/* Location */}
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                       {editMode ? (
                         <input
                           type="text"
@@ -1185,7 +1262,7 @@ const Inventory = () => {
                     </td>
                     
                     {/* Quantity */}
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                       {editMode ? (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
@@ -1231,7 +1308,7 @@ const Inventory = () => {
                     </td>
                     
                     {/* Min Qty */}
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                       {editMode ? (
                         <input
                           type="number"
@@ -1245,7 +1322,7 @@ const Inventory = () => {
                     </td>
                     
                     {/* Library Jump Link */}
-                    <td className="px-4 py-3 text-sm" style={{width: '70px'}}>
+                    <td className="px-4 py-3 text-sm" style={{width: '70px'}} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => jumpToLibrary(item.component_id)}
                         className="p-2 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
@@ -1256,36 +1333,39 @@ const Inventory = () => {
                     </td>
                     
                     {/* Label Actions */}
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
+                        {/* All button - shows full QR modal */}
                         <button
                           onClick={() => showQRCode(item)}
-                          className="px-3 py-1.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
-                          title="Show QR code"
+                          className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
+                          title="Show all QR options"
                         >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>QR</span>
+                          All
                         </button>
+                        {/* QR button - directly copies QR image with MFG P/N */}
+                        <button
+                          onClick={() => copyQRCodeMfgOnly(item)}
+                          className={`px-3 py-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                            copiedQRField === `mfg-quick-${item.id}`
+                              ? 'bg-green-600 hover:bg-green-700 text-white'
+                              : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
+                          }`}
+                          title="Copy QR code with manufacturer part number"
+                        >
+                          {copiedQRField === `mfg-quick-${item.id}` ? 'Copied!' : 'QR'}
+                        </button>
+                        {/* Copy button - copies label text */}
                         <button
                           onClick={() => copyLabelToClipboard(item)}
-                          className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                          className={`px-3 py-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
                             copiedLabel === item.id
                               ? 'bg-green-600 hover:bg-green-700 text-white'
                               : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
                           }`}
                           title="Copy label text"
                         >
-                          {copiedLabel === item.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy</span>
-                            </>
-                          )}
+                          {copiedLabel === item.id ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
                     </td>

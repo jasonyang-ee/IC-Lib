@@ -43,6 +43,12 @@ const VendorSearch = () => {
     if (location.state?.searchFromInventory) {
       const partNumber = location.state.searchFromInventory;
       setSearchTerm(partNumber);
+      // Clear any existing selections
+      setSelectedParts([]);
+      setSearchResults(null);
+      sessionStorage.removeItem('vendorSearchResults');
+      sessionStorage.removeItem('vendorSearchTerm');
+      sessionStorage.removeItem('vendorSelectedParts');
       // Automatically trigger search
       searchMutation.mutate(partNumber);
       // Clear the state to prevent re-searching on subsequent renders
