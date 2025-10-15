@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, Fragment } from 'react';
+import ReactDOM from 'react-dom/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
@@ -547,23 +548,37 @@ const Inventory = () => {
   const generateLabelString = (item) => {
     const mfgPn = item.manufacturer_pn || 'N/A';
     const desc = item.description || 'N/A';
+    // For rich text copy, we'll use HTML format with bold MFG P/N (Issue #5)
     return `${mfgPn}\n${desc}`;
   };
 
   const copyLabelToClipboard = (item) => {
-    const labelText = generateLabelString(item);
+    const mfgPn = item.manufacturer_pn || 'N/A';
+    const desc = item.description || 'N/A';
+    const plainText = `${mfgPn}\n${desc}`;
+    const htmlText = `<strong>${mfgPn}</strong><br>${desc}`;
     
     // Check if clipboard API is available
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(labelText).then(() => {
+    if (navigator.clipboard && navigator.clipboard.write) {
+      // Try to copy both HTML and plain text formats
+      const htmlBlob = new Blob([htmlText], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+      
+      navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob
+        })
+      ]).then(() => {
         setCopiedLabel(item.id);
         setTimeout(() => setCopiedLabel(''), 2000);
       }).catch((err) => {
-        console.error('Failed to copy text:', err);
-        fallbackCopyToClipboard(labelText, item.id);
+        console.error('Failed to copy rich text:', err);
+        // Fallback to plain text only
+        fallbackCopyToClipboard(plainText, item.id);
       });
     } else {
-      fallbackCopyToClipboard(labelText, item.id);
+      fallbackCopyToClipboard(plainText, item.id);
     }
   };
 
@@ -1353,7 +1368,7 @@ const Inventory = () => {
                           }`}
                           title="Copy QR code with manufacturer part number"
                         >
-                          {copiedQRField === `mfg-quick-${item.id}` ? 'Copied!' : 'QR'}
+                          {copiedQRField === `mfg-quick-${item.id}` ? 'Ok' : 'QR'}
                         </button>
                         {/* Copy button - copies label text */}
                         <button
@@ -1365,7 +1380,7 @@ const Inventory = () => {
                           }`}
                           title="Copy label text"
                         >
-                          {copiedLabel === item.id ? 'Copied!' : 'Copy'}
+                          {copiedLabel === item.id ? 'Ok' : 'Copy'}
                         </button>
                       </div>
                     </td>

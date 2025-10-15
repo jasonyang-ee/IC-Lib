@@ -387,6 +387,11 @@ const Library = () => {
       
       setEditData(preparedData);
       
+      // Update manufacturer input field to show the manufacturer name (Issue #2)
+      if (vendorData.manufacturerName) {
+        setManufacturerInput(vendorData.manufacturerName);
+      }
+      
       // Clear location state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
@@ -1048,6 +1053,13 @@ const Library = () => {
             if (inductance) {
               valueToSet = typeof inductance === 'object' ? inductance.value : inductance;
             }
+          }
+          
+          // For R/C/L components: strip spaces and convert µ to u (Issue #4)
+          if (category.name.toLowerCase().includes('resistor') || 
+              category.name.toLowerCase().includes('capacitor') || 
+              category.name.toLowerCase().includes('inductor')) {
+            valueToSet = valueToSet.toString().replace(/\s+/g, '').replace(/µ/g, 'u');
           }
         }
         
@@ -1865,7 +1877,11 @@ const Library = () => {
                     <input
                       type="text"
                       value={editData.manufacturer_pn || editData.manufacturer_part_number || ''}
-                      onChange={(e) => handleFieldChange('manufacturer_part_number', e.target.value)}
+                      onChange={(e) => {
+                        // Update both fields to ensure consistency (Issue #3)
+                        handleFieldChange('manufacturer_pn', e.target.value);
+                        handleFieldChange('manufacturer_part_number', e.target.value);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     />
                   </div>
