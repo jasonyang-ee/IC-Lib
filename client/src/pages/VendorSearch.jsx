@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
+import { useNotification } from '../contexts/NotificationContext';
 import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showSuccess, showError } = useNotification();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
@@ -24,8 +26,6 @@ const VendorSearch = () => {
   const [appendMode, setAppendMode] = useState(''); // 'distributor' or 'alternative'
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allLibraryParts, setAllLibraryParts] = useState([]);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
   const [partSortBy, setPartSortBy] = useState('part_number'); // Sort field for parts list
 
   // Fetch distributors and manufacturers for appending
@@ -436,9 +436,29 @@ const VendorSearch = () => {
       } else {
         // No exact match - load ALL library parts for user to search and select
         const allPartsResponse = await api.getComponents({});
-        setAllLibraryParts(allPartsResponse.data);
-        setLibraryPartsForAppend(allPartsResponse.data);
-        setPartSearchTerm('');
+        const allParts = allPartsResponse.data;
+        setAllLibraryParts(allParts);
+        
+        // Check if there's a cached part number from Library page
+        const cachedPartNumber = sessionStorage.getItem('libraryPartNumberForAlternative');
+        let initialSearchTerm = '';
+        let filteredParts = allParts;
+        
+        if (cachedPartNumber) {
+          initialSearchTerm = cachedPartNumber;
+          // Filter parts based on cached part number
+          filteredParts = allParts.filter(part => 
+            part.part_number?.toLowerCase().includes(cachedPartNumber.toLowerCase()) ||
+            part.manufacturer_pn?.toLowerCase().includes(cachedPartNumber.toLowerCase()) ||
+            part.description?.toLowerCase().includes(cachedPartNumber.toLowerCase()) ||
+            part.manufacturer_name?.toLowerCase().includes(cachedPartNumber.toLowerCase())
+          );
+          // Clear the cache after using it
+          sessionStorage.removeItem('libraryPartNumberForAlternative');
+        }
+        
+        setPartSearchTerm(initialSearchTerm);
+        setLibraryPartsForAppend(filteredParts);
         setAppendMode('alternative');
         setShowPartSelectionModal(true);
       }
@@ -495,10 +515,8 @@ const VendorSearch = () => {
       // Update distributors - wrap in object as backend expects { distributors: [...] }
       await api.updateComponentDistributors(component.id, { distributors: mergedDistributors });
 
-      // Show success toast
-      setSuccessMessage(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
-      setShowSuccessToast(true);
-      setTimeout(() => setShowSuccessToast(false), 5000);
+      // Show success notification
+      showSuccess(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
       
       // Clear selection
       setSelectedParts([]);
@@ -551,10 +569,8 @@ const VendorSearch = () => {
 
       await api.createComponentAlternative(component.id, alternativeData);
 
-      // Show success toast
-      setSuccessMessage(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);
-      setShowSuccessToast(true);
-      setTimeout(() => setShowSuccessToast(false), 5000);
+      // Show success notification
+      showSuccess(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);
       
       // Clear selection
       setSelectedParts([]);
@@ -1222,20 +1238,6 @@ const VendorSearch = () => {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Success Toast Notification */}
-      {showSuccessToast && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
-          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 min-w-[350px]">
-            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <div className="flex-1">
-              <p className="font-medium text-sm">{successMessage}</p>
-            </div>
           </div>
         </div>
       )}

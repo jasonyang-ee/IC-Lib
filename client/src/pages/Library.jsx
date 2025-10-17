@@ -1499,8 +1499,17 @@ const Library = () => {
                     e.target.select();
                   }
                 }}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Sorting Controls */}
@@ -2428,7 +2437,22 @@ const Library = () => {
                             {/* Row 3: Alternative Parts Selection */}
                             {alternatives && alternatives.length > 0 && (
                               <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
-                                <span className="text-gray-600 dark:text-gray-400 block mb-2">Alternative Parts:</span>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-gray-600 dark:text-gray-400">Alternative Parts:</span>
+                                  <button
+                                    onClick={() => {
+                                      // Cache the part number in sessionStorage
+                                      sessionStorage.setItem('libraryPartNumberForAlternative', selectedComponent.part_number);
+                                      // Navigate to vendor search
+                                      navigate('/vendor-search');
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                    title="Search for alternative parts"
+                                  >
+                                    <Search className="w-3 h-3" />
+                                    <span>Search Alternative</span>
+                                  </button>
+                                </div>
                                 <select
                                   value={selectedAlternative?.id || ''}
                                   onChange={(e) => {
@@ -2552,7 +2576,7 @@ const Library = () => {
           {/* Distributor Info - Shows distributors for selected alternative or primary component - View Mode Only */}
           {!isEditMode && !isAddMode && (
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Information</h3>
               {selectedComponent && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
               <div className="space-y-4">
                 {(() => {
