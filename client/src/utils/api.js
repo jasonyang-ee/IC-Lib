@@ -118,6 +118,7 @@ export const api = {
 
   // Audit Log
   getAuditLog: () => apiClient.get('/dashboard/activities/all'),
+  clearAuditLogs: () => apiClient.delete('/dashboard/activities/all'),
 
   // Distributors
   getDistributors: () => apiClient.get('/distributors'),

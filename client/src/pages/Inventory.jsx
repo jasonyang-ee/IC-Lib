@@ -1801,9 +1801,9 @@ const Inventory = () => {
                       />
                     </div>
                   </div>
-                  {copiedQRField === 'img-full' && (
-                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
-                  )}
+                  <span className={`mt-2 text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'img-full' ? 'visible' : 'invisible'}`}>
+                    QR Code Copied!
+                  </span>
                   <button
                     onClick={() => copyQRFieldToClipboard(qrCodeModal.qrData, 'full-text')}
                     className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
@@ -1811,9 +1811,9 @@ const Inventory = () => {
                   >
                     {qrCodeModal.qrData}
                   </button>
-                  {copiedQRField === 'full-text' && (
-                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
-                  )}
+                  <span className={`text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'full-text' ? 'visible' : 'invisible'}`}>
+                    Text Copied!
+                  </span>
                 </div>
 
                 {/* Manufacturer Part Number Only QR Code */}
@@ -1834,9 +1834,9 @@ const Inventory = () => {
                       />
                     </div>
                   </div>
-                  {copiedQRField === 'img-mfg' && (
-                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
-                  )}
+                  <span className={`mt-2 text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'img-mfg' ? 'visible' : 'invisible'}`}>
+                    QR Code Copied!
+                  </span>
                   <button
                     onClick={() => copyQRFieldToClipboard(qrCodeModal.qrMfgOnly, 'mfg-text')}
                     className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
@@ -1844,9 +1844,9 @@ const Inventory = () => {
                   >
                     {qrCodeModal.qrMfgOnly}
                   </button>
-                  {copiedQRField === 'mfg-text' && (
-                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
-                  )}
+                  <span className={`text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'mfg-text' ? 'visible' : 'invisible'}`}>
+                    Text Copied!
+                  </span>
                 </div>
 
                 {/* UUID QR Code */}
@@ -1867,9 +1867,9 @@ const Inventory = () => {
                       />
                     </div>
                   </div>
-                  {copiedQRField === 'img-uuid' && (
-                    <span className="mt-2 text-xs text-green-600 dark:text-green-400 font-semibold">QR Code Copied!</span>
-                  )}
+                  <span className={`mt-2 text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'img-uuid' ? 'visible' : 'invisible'}`}>
+                    QR Code Copied!
+                  </span>
                   <button
                     onClick={() => copyQRFieldToClipboard(qrCodeModal.qrUuid || 'N/A', 'uuid-text')}
                     className="mt-3 text-xs text-gray-500 dark:text-gray-400 text-center font-mono break-all px-2 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer underline decoration-dotted"
@@ -1877,9 +1877,9 @@ const Inventory = () => {
                   >
                     {qrCodeModal.qrUuid || 'N/A'}
                   </button>
-                  {copiedQRField === 'uuid-text' && (
-                    <span className="text-xs text-green-600 dark:text-green-400 font-semibold">Text Copied!</span>
-                  )}
+                  <span className={`text-xs text-green-600 dark:text-green-400 font-semibold h-4 ${copiedQRField === 'uuid-text' ? 'visible' : 'invisible'}`}>
+                    Text Copied!
+                  </span>
                 </div>
               </div>
               

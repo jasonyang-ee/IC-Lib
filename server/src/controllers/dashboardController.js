@@ -94,6 +94,19 @@ export const getAllActivities = async (req, res, next) => {
   }
 };
 
+export const clearAllActivities = async (req, res, next) => {
+  try {
+    const result = await pool.query('DELETE FROM activity_log');
+    
+    res.json({ 
+      success: true, 
+      message: `Cleared ${result.rowCount} audit log entries` 
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getCategoryBreakdown = async (req, res, next) => {
   try {
     const result = await pool.query(`

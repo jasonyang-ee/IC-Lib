@@ -242,7 +242,7 @@ const Reports = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {reports.find((r) => r.id === activeReport)?.name}
               </h3>
-              <button className="btn-secondary flex items-center gap-2 text-sm">
+              <button className="btn-primary flex items-center gap-2">
                 <Download className="w-4 h-4" />
                 Export CSV
               </button>

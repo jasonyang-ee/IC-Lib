@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { FolderKanban, Plus, Edit, Trash2, Save, X, Search, CheckCircle, Archive, Play, FileText } from 'lucide-react';
+import { useNotification } from '../contexts/NotificationContext';
+import { FolderKanban, Plus, Edit, Trash2, Save, X, Search, CheckCircle, Archive, Play, FileText, AlertTriangle, Download } from 'lucide-react';
 
 const Projects = () => {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotification();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -14,6 +16,9 @@ const Projects = () => {
   const [bulkImportMode, setBulkImportMode] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
   const [bulkImportResults, setBulkImportResults] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showQuantityInput, setShowQuantityInput] = useState(null);
+  const [quantityValue, setQuantityValue] = useState('1');
 
   // Fetch all projects
   const { data: projects, isLoading } = useQuery({
@@ -122,16 +127,16 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
       queryClient.invalidateQueries(['inventory']);
-      alert('All project components consumed successfully!');
+      showSuccess('All project components consumed successfully!');
     },
     onError: (error) => {
-      alert('Error consuming components: ' + (error.response?.data?.error || error.message));
+      showError('Error consuming components: ' + (error.response?.data?.error || error.message));
     }
   });
 
   const handleCreateProject = () => {
     if (!newProject.name.trim()) {
-      alert('Please enter a project name');
+      showError('Please enter a project name');
       return;
     }
     createProjectMutation.mutate(newProject);
@@ -146,8 +151,13 @@ const Projects = () => {
   };
 
   const handleDeleteProject = (project) => {
-    if (confirm(`Are you sure you want to delete project "${project.name}"? This will remove all component associations.`)) {
-      deleteProjectMutation.mutate(project.id);
+    setShowDeleteConfirm(project);
+  };
+
+  const confirmDelete = () => {
+    if (showDeleteConfirm) {
+      deleteProjectMutation.mutate(showDeleteConfirm.id);
+      setShowDeleteConfirm(null);
     }
   };
 
@@ -157,13 +167,23 @@ const Projects = () => {
 
   const handleAddComponent = (component) => {
     if (!selectedProject) return;
-    const quantity = prompt('Enter quantity needed:', '1');
-    if (quantity && parseInt(quantity) > 0) {
+    setShowQuantityInput(component);
+    setQuantityValue('1');
+  };
+
+  const confirmAddComponent = () => {
+    if (!showQuantityInput || !selectedProject) return;
+    const qty = parseInt(quantityValue);
+    if (qty && qty > 0) {
       addComponentMutation.mutate({
         projectId: selectedProject.id,
-        component_id: component.id,
-        quantity: parseInt(quantity)
+        component_id: showQuantityInput.id,
+        quantity: qty
       });
+      setShowQuantityInput(null);
+      setQuantityValue('1');
+    } else {
+      showError('Please enter a valid quantity');
     }
   };
 
@@ -177,7 +197,7 @@ const Projects = () => {
       .filter(line => line.length > 0);
     
     if (partNumbers.length === 0) {
-      alert('Please enter at least one part number');
+      showError('Please enter at least one part number');
       return;
     }
     
@@ -211,7 +231,7 @@ const Projects = () => {
       const results = await Promise.all(promises);
       setBulkImportResults(results);
     } catch (error) {
-      alert('Error searching for components: ' + error.message);
+      showError('Error searching for components: ' + error.message);
     }
   };
 
@@ -219,7 +239,7 @@ const Projects = () => {
     const toAdd = bulkImportResults.filter(r => r.found && r.quantity > 0);
     
     if (toAdd.length === 0) {
-      alert('No valid components to add');
+      showError('No valid components to add');
       return;
     }
     
@@ -259,16 +279,138 @@ const Projects = () => {
       setBulkImportResults([]);
       
       // Show results
-      let message = `Successfully added ${successCount} component(s) to project`;
-      if (duplicateCount > 0) {
-        message += `\n${duplicateCount} component(s) were already in the project (skipped)`;
+      if (successCount > 0) {
+        showSuccess(`Successfully added ${successCount} component(s) to project${duplicateCount > 0 ? ` (${duplicateCount} skipped as duplicates)` : ''}`);
       }
       if (errors.length > 0) {
-        message += `\n\nErrors:\n${errors.join('\n')}`;
+        showError(`Errors: ${errors.join(', ')}`);
       }
-      alert(message);
     } catch (error) {
       alert('Error adding components: ' + error.message);
+    }
+  };
+
+  // Export project to CSV with all details
+  const handleExportProject = async () => {
+    if (!selectedProject || !projectDetails) return;
+
+    try {
+      // Fetch detailed information for each component including alternatives and distributors
+      const detailedComponents = await Promise.all(
+        projectDetails.components.map(async (pc) => {
+          try {
+            // Fetch component alternatives and distributors
+            const componentId = pc.component_id || pc.alternative_id;
+            const alternativesRes = await api.getComponentAlternatives(componentId);
+            const alternatives = alternativesRes.data || [];
+
+            // Get distributor info for primary component
+            let distributors = [];
+            if (pc.component_id) {
+              try {
+                const compRes = await api.getComponentById(pc.component_id);
+                distributors = compRes.data.distributors || [];
+              } catch (err) {
+                console.error('Error fetching distributors:', err);
+              }
+            }
+
+            return {
+              part_number: pc.part_number,
+              manufacturer: pc.manufacturer_name || pc.alt_manufacturer_name,
+              manufacturer_pn: pc.manufacturer_pn || pc.alt_manufacturer_pn,
+              description: pc.description,
+              category: pc.category_name,
+              quantity_needed: pc.quantity,
+              available_quantity: pc.available_quantity || 0,
+              location: pc.location || '',
+              value: pc.value || '',
+              alternatives: alternatives,
+              distributors: distributors
+            };
+          } catch (error) {
+            console.error('Error fetching component details:', error);
+            return {
+              part_number: pc.part_number,
+              manufacturer: pc.manufacturer_name || pc.alt_manufacturer_name,
+              manufacturer_pn: pc.manufacturer_pn || pc.alt_manufacturer_pn,
+              description: pc.description,
+              category: pc.category_name,
+              quantity_needed: pc.quantity,
+              available_quantity: pc.available_quantity || 0,
+              location: pc.location || '',
+              value: pc.value || '',
+              alternatives: [],
+              distributors: []
+            };
+          }
+        })
+      );
+
+      // Build CSV content
+      const headers = [
+        'Part Number',
+        'Manufacturer',
+        'Manufacturer P/N',
+        'Description',
+        'Category',
+        'Value',
+        'Quantity Needed',
+        'Available',
+        'Location',
+        'Distributors',
+        'Alternative Parts'
+      ];
+
+      const rows = detailedComponents.map(comp => {
+        const distInfo = comp.distributors
+          .map(d => `${d.distributor_name}: ${d.distributor_pn} ($${d.price || 'N/A'})`)
+          .join('; ');
+
+        const altInfo = comp.alternatives
+          .map(a => `${a.manufacturer_name} ${a.manufacturer_pn}`)
+          .join('; ');
+
+        return [
+          comp.part_number,
+          comp.manufacturer,
+          comp.manufacturer_pn,
+          `"${(comp.description || '').replace(/"/g, '""')}"`,
+          comp.category,
+          comp.value,
+          comp.quantity_needed,
+          comp.available_quantity,
+          comp.location,
+          `"${distInfo.replace(/"/g, '""')}"`,
+          `"${altInfo.replace(/"/g, '""')}"`
+        ];
+      });
+
+      const csvContent = [
+        `Project: ${selectedProject.name}`,
+        `Status: ${selectedProject.status}`,
+        `Description: ${selectedProject.description || 'N/A'}`,
+        `Exported: ${new Date().toLocaleString()}`,
+        '',
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+
+      // Download CSV
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${selectedProject.name.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showSuccess('Project exported successfully!');
+    } catch (error) {
+      console.error('Error exporting project:', error);
+      showError('Failed to export project: ' + error.message);
     }
   };
 
@@ -408,6 +550,14 @@ const Projects = () => {
                   >
                     <Edit className="w-4 h-4" />
                     Edit
+                  </button>
+                  <button
+                    onClick={handleExportProject}
+                    disabled={!projectDetails?.components?.length}
+                    className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
                   </button>
                   <button
                     onClick={handleConsumeAll}
@@ -644,7 +794,18 @@ const Projects = () => {
 
       {/* Add Component Modal */}
       {showAddComponentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAddComponentModal(false);
+              setBulkImportMode(false);
+              setBulkImportText('');
+              setBulkImportResults([]);
+              setComponentSearchTerm('');
+            }
+          }}
+        >
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -799,20 +960,8 @@ const Projects = () => {
               </>
             )}
 
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => {
-                  setShowAddComponentModal(false);
-                  setBulkImportMode(false);
-                  setBulkImportText('');
-                  setBulkImportResults([]);
-                  setComponentSearchTerm('');
-                }}
-                className="btn-secondary"
-              >
-                Close
-              </button>
-              {bulkImportMode && bulkImportResults.length > 0 && (
+            {bulkImportMode && bulkImportResults.length > 0 && (
+              <div className="flex justify-end gap-2 mt-4">
                 <button
                   onClick={handleBulkImportAdd}
                   disabled={!bulkImportResults.some(r => r.found && r.quantity > 0)}
@@ -820,7 +969,104 @@ const Projects = () => {
                 >
                   Add {bulkImportResults.filter(r => r.found && r.quantity > 0).length} Components
                 </button>
-              )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Delete Project
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              Are you sure you want to delete project "<strong>{showDeleteConfirm.name}</strong>"? 
+              This will remove all component associations.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quantity Input Modal */}
+      {showQuantityInput && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowQuantityInput(null);
+              setQuantityValue('1');
+            }
+          }}
+        >
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Add Component to Project
+            </h3>
+            <div className="mb-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                <strong>{showQuantityInput.part_number}</strong>
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                {showQuantityInput.manufacturer_name} - {showQuantityInput.manufacturer_pn}
+              </p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Quantity Needed:
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={quantityValue}
+                onChange={(e) => setQuantityValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    confirmAddComponent();
+                  } else if (e.key === 'Escape') {
+                    setShowQuantityInput(null);
+                    setQuantityValue('1');
+                  }
+                }}
+                autoFocus
+                className="w-full px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowQuantityInput(null);
+                  setQuantityValue('1');
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAddComponent}
+                className="btn-primary"
+              >
+                Add to Project
+              </button>
             </div>
           </div>
         </div>

@@ -12,6 +12,9 @@ router.get('/recent-activities', dashboardController.getRecentActivities);
 // Get all activities (for audit page)
 router.get('/activities/all', dashboardController.getAllActivities);
 
+// Clear all audit logs
+router.delete('/activities/all', dashboardController.clearAllActivities);
+
 // Get category breakdown
 router.get('/category-breakdown', dashboardController.getCategoryBreakdown);
 

@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText } from 'lucide-react';
 import { api } from '../utils/api';
+import { useNotification } from '../contexts/NotificationContext';
 
 // Category Specifications Manager Component
 const CategorySpecificationsManager = () => {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotification();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isAddingSpec, setIsAddingSpec] = useState(false);
   const [editingSpec, setEditingSpec] = useState(null);
   const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', mapping_spec_name: '', is_required: false });
   const [tempSpec, setTempSpec] = useState({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -88,17 +91,22 @@ const CategorySpecificationsManager = () => {
     }
   };
 
-  const handleDeleteSpec = (id) => {
-    if (window.confirm('Delete this specification? This will also remove all component values for this specification.')) {
-      deleteSpecMutation.mutate(id);
+  const handleDeleteSpec = (spec) => {
+    setShowDeleteConfirm(spec);
+  };
+
+  const confirmDeleteSpec = () => {
+    if (showDeleteConfirm) {
+      deleteSpecMutation.mutate(showDeleteConfirm.id);
+      setShowDeleteConfirm(null);
     }
   };
 
   return (
-    <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
         Category Specifications
-      </h3>
+      </h2>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
         Manage specification fields for each category. All components in a category will use these specifications.
       </p>
@@ -350,7 +358,7 @@ const CategorySpecificationsManager = () => {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteSpec(spec.id)}
+                              onClick={() => handleDeleteSpec(spec)}
                               disabled={deleteSpecMutation.isPending}
                               className="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded transition-colors disabled:opacity-50 text-sm"
                             >
@@ -372,6 +380,40 @@ const CategorySpecificationsManager = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Delete Specification
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              Delete specification "<strong>{showDeleteConfirm.spec_name}</strong>"? 
+              This will also remove all component values for this specification.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteSpec}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -379,13 +421,14 @@ const CategorySpecificationsManager = () => {
 // Settings Page - Updated with Advanced Operations
 const Settings = () => {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotification();
   const [editingCategory, setEditingCategory] = useState(null);
   const [tempConfig, setTempConfig] = useState({ prefix: '', leading_zeros: 5, enabled: true });
-  const [dbOperationStatus, setDbOperationStatus] = useState({ show: false, type: '', message: '' });
   const [confirmDialog, setConfirmDialog] = useState({ show: false, action: '', title: '', message: '' });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
+  const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
   
   // Manufacturer rename states
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
@@ -436,13 +479,11 @@ const Settings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['categoryConfigs']);
       setEditingCategory(null);
-      setDbOperationStatus({ show: true, type: 'success', message: 'Category updated successfully!' });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      showSuccess('Category updated successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Error updating category: ${errorMsg}` });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error updating category: ${errorMsg}`);
     },
   });
 
@@ -455,13 +496,11 @@ const Settings = () => {
       queryClient.invalidateQueries(['categoryConfigs']);
       setIsAddingCategory(false);
       setNewCategory({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
-      setDbOperationStatus({ show: true, type: 'success', message: 'Category created successfully!' });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      showSuccess('Category created successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Error creating category: ${errorMsg}` });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error creating category: ${errorMsg}`);
     },
   });
 
@@ -478,13 +517,11 @@ const Settings = () => {
       setNewManufacturerName('');
       setManufacturerSearchTerm('');
       setNewNameSearchTerm('');
-      setDbOperationStatus({ show: true, type: 'success', message: 'Manufacturer renamed successfully!' });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      showSuccess('Manufacturer renamed successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: `Error renaming manufacturer: ${errorMsg}` });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error renaming manufacturer: ${errorMsg}`);
     },
   });
 
@@ -494,14 +531,12 @@ const Settings = () => {
       return response;
     },
     onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Database initialized successfully!' });
+      showSuccess('Database initialized successfully!');
       queryClient.invalidateQueries(['categoryConfigs']);
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error initializing database: ${errorMsg}`);
     },
   });
 
@@ -511,13 +546,11 @@ const Settings = () => {
       return response;
     },
     onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Sample data loaded successfully!' });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showSuccess('Sample data loaded successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error loading sample data: ${errorMsg}`);
     },
   });
 
@@ -530,17 +563,32 @@ const Settings = () => {
       const message = data.data.valid 
         ? 'Database schema verified successfully!' 
         : `Schema verification failed: ${data.data.issues?.join(', ')}`;
-      setDbOperationStatus({ 
-        show: true, 
-        type: data.data.valid ? 'success' : 'error', 
-        message 
-      });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      if (data.data.valid) {
+        showSuccess(message);
+      } else {
+        showError(message);
+      }
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(errorMsg);
+    },
+  });
+
+  // Clear audit logs mutation
+  const clearAuditLogsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.clearAuditLogs();
+      return response;
+    },
+    onSuccess: (data) => {
+      showSuccess(data.data.message || 'Audit logs cleared successfully!');
+      queryClient.invalidateQueries(['auditLog']);
+      setShowClearAuditConfirm(false);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error clearing audit logs: ${errorMsg}`);
     },
   });
 
@@ -550,14 +598,12 @@ const Settings = () => {
       return response;
     },
     onSuccess: () => {
-      setDbOperationStatus({ show: true, type: 'success', message: 'Database reset completed! All tables dropped and schema reinitialized.' });
+      showSuccess('Database reset completed! All tables dropped and schema reinitialized.');
       queryClient.invalidateQueries(['categoryConfigs']);
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      setDbOperationStatus({ show: true, type: 'error', message: errorMsg });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 5000);
+      showError(`Error resetting database: ${errorMsg}`);
     },
   });
 
@@ -581,8 +627,7 @@ const Settings = () => {
 
   const handleCreateCategory = () => {
     if (!newCategory.name || !newCategory.prefix) {
-      setDbOperationStatus({ show: true, type: 'error', message: 'Name and prefix are required!' });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      showError('Name and prefix are required!');
       return;
     }
     createCategoryMutation.mutate(newCategory);
@@ -607,12 +652,7 @@ const Settings = () => {
 
   const handleRenameManufacturer = () => {
     if (!selectedManufacturer || !newManufacturerName) {
-      setDbOperationStatus({ 
-        show: true, 
-        type: 'error', 
-        message: 'Please select a manufacturer and enter a new name' 
-      });
-      setTimeout(() => setDbOperationStatus({ show: false, type: '', message: '' }), 3000);
+      showError('Please select a manufacturer and enter a new name');
       return;
     }
 
@@ -659,34 +699,10 @@ const Settings = () => {
 
   return (
     <div className="space-y-6">
-
-      <div className="p-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-      {dbOperationStatus.show && (
-        <div className={`mb-6 p-4 rounded-lg border ${
-          dbOperationStatus.type === 'success' 
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-        }`}>
-          <div className="flex items-center gap-2">
-            {dbOperationStatus.type === 'success' ? (
-              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-            ) : (
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            )}
-            <p className={
-              dbOperationStatus.type === 'success'
-                ? 'text-green-800 dark:text-green-200'
-                : 'text-red-800 dark:text-red-200'
-            }>
-              {dbOperationStatus.message}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Category Configuration</h3>
+      {/* Category Configuration Section */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Category Configuration</h2>
           <button
             onClick={() => setIsAddingCategory(!isAddingCategory)}
             className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
@@ -886,8 +902,8 @@ const Settings = () => {
       <CategorySpecificationsManager />
 
       {/* Manufacturer Rename Section */}
-      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Rename/Merge Manufacturers</h3>
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Rename/Merge Manufacturers</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Select a manufacturer to rename or merge with another manufacturer. All components will be updated automatically.
         </p>
@@ -1006,8 +1022,9 @@ const Settings = () => {
         </button>
       </div>
 
-      <div className="mt-6 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h3>
+      {/* Database Operations Section */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h2>
         
         {/* Standard Operations */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -1122,6 +1139,66 @@ const Settings = () => {
         </div>
       </div>
 
+      {/* Audit Logs Management */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <div className="flex items-center gap-2 mb-4">
+          <FileText className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Audit Logs Management</h2>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Clear all audit log entries. This will permanently delete the activity history from the database.
+        </p>
+        <button
+          onClick={() => setShowClearAuditConfirm(true)}
+          disabled={clearAuditLogsMutation.isPending}
+          className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {clearAuditLogsMutation.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Clearing...
+            </>
+          ) : (
+            <>
+              <Trash2 className="w-4 h-4" />
+              Clear All Audit Logs
+            </>
+          )}
+        </button>
+      </div>
+
+      {showClearAuditConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Clear Audit Logs
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              Are you sure you want to clear all audit logs? This will permanently delete all activity history from the database. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowClearAuditConfirm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => clearAuditLogsMutation.mutate()}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                Clear Logs
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDialog.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className={`bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl p-6 max-w-md w-full mx-4 ${
@@ -1167,7 +1244,6 @@ const Settings = () => {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 };
