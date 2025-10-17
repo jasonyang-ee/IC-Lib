@@ -3,10 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { FolderKanban, Plus, Edit, Trash2, Save, X, Search, CheckCircle, Archive, Play, FileText, AlertTriangle, Download } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const Projects = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
+  const { canWrite } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -462,13 +464,15 @@ const Projects = () => {
           <FolderKanban className="w-8 h-8" />
           Projects
         </h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          New Project
-        </button>
+        {canWrite() && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            New Project
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -510,15 +514,17 @@ const Projects = () => {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteProject(project);
-                    }}
-                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteProject(project);
+                      }}
+                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -544,13 +550,15 @@ const Projects = () => {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowEditModal(true)}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={() => setShowEditModal(true)}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Edit
+                    </button>
+                  )}
                   <button
                     onClick={handleExportProject}
                     disabled={!projectDetails?.components?.length}
@@ -559,14 +567,16 @@ const Projects = () => {
                     <Download className="w-4 h-4" />
                     Export CSV
                   </button>
-                  <button
-                    onClick={handleConsumeAll}
-                    disabled={!projectDetails?.components?.length}
-                    className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
-                  >
-                    <Play className="w-4 h-4" />
-                    Consume All
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={handleConsumeAll}
+                      disabled={!projectDetails?.components?.length}
+                      className="btn-primary flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      <Play className="w-4 h-4" />
+                      Consume All
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -576,13 +586,15 @@ const Projects = () => {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     Components ({projectDetails?.components?.length || 0})
                   </h3>
-                  <button
-                    onClick={() => setShowAddComponentModal(true)}
-                    className="btn-secondary flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Component
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={() => setShowAddComponentModal(true)}
+                      className="btn-secondary flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Component
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2 max-h-[calc(100vh-450px)] overflow-y-auto custom-scrollbar">
@@ -625,22 +637,24 @@ const Projects = () => {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdateQuantity(pc)}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                            title="Update quantity"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleRemoveComponent(pc)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                            title="Remove component"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        {canWrite() && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateQuantity(pc)}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Update quantity"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRemoveComponent(pc)}
+                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                              title="Remove component"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

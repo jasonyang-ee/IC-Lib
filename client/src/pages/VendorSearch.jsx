@@ -5,11 +5,13 @@ import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { useAuth } from '../contexts/AuthContext';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showSuccess, showError } = useNotification();
+  const { canWrite } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
@@ -1106,23 +1108,27 @@ const VendorSearch = () => {
           </div>
 
           <div className="flex gap-3 flex-wrap">
-            <button 
-              onClick={handleAddToLibrary}
-              disabled={addToLibraryMutation.isPending}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              {addToLibraryMutation.isPending ? 'Adding...' : `Add to Library (${selectedParts.length})`}
-            </button>
-            <button 
-              onClick={handleAppendToExisting}
-              disabled={selectedParts.length === 0}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-              title="Append distributor info to existing library part with same MFG P/N"
-            >
-              <Plus className="w-4 h-4" />
-              Append to Existing Parts
-            </button>
+            {canWrite() && (
+              <>
+                <button 
+                  onClick={handleAddToLibrary}
+                  disabled={addToLibraryMutation.isPending}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  {addToLibraryMutation.isPending ? 'Adding...' : `Add to Library (${selectedParts.length})`}
+                </button>
+                <button 
+                  onClick={handleAppendToExisting}
+                  disabled={selectedParts.length === 0}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                  title="Append distributor info to existing library part with same MFG P/N"
+                >
+                  <Plus className="w-4 h-4" />
+                  Append to Existing Parts
+                </button>
+              </>
+            )}
             <button
               onClick={() => handleDownloadFootprint('ultra-librarian')}
               disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}

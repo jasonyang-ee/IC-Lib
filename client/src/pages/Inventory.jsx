@@ -6,6 +6,7 @@ import { api } from '../utils/api';
 import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { useAuth } from '../contexts/AuthContext';
 
 // [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
 // [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}
@@ -14,6 +15,7 @@ const Inventory = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const { canWrite } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [vendorBarcode, setVendorBarcode] = useState('');
@@ -1402,13 +1404,15 @@ const Inventory = () => {
                     </>
                   )}
                 </button>
-                <button
-                  onClick={handleToggleEditMode}
-                  className="btn-primary flex items-center gap-2 text-sm"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit All
-                </button>
+                {canWrite() && (
+                  <button
+                    onClick={handleToggleEditMode}
+                    className="btn-primary flex items-center gap-2 text-sm"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit All
+                  </button>
+                )}
               </>
             )}
           </div>

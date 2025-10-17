@@ -11,6 +11,7 @@ import VendorSearch from './pages/VendorSearch'
 import Reports from './pages/Reports'
 import Audit from './pages/Audit'
 import Settings from './pages/Settings'
+import UserSettings from './pages/UserSettings'
 
 function App() {
   return (
@@ -36,15 +37,21 @@ function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="audit" element={<Audit />} />
           
-          {/* Admin-only route */}
+          {/* User Settings - available to all authenticated users */}
+          <Route path="user-settings" element={<UserSettings />} />
+          
+          {/* Admin Settings - admin only */}
           <Route 
-            path="settings" 
+            path="admin-settings" 
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <Settings />
               </ProtectedRoute>
             } 
           />
+          
+          {/* Legacy route redirect */}
+          <Route path="settings" element={<Navigate to="/admin-settings" replace />} />
         </Route>
 
         {/* Catch all - redirect to dashboard */}

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -40,9 +40,12 @@ const Sidebar = () => {
     { path: '/audit', icon: ClipboardList, label: 'Audit Log' },
   ];
 
-  // Only show Settings for admin users
+  // User Settings available to all users
+  menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
+
+  // Only show Admin Settings for admin users
   if (isAdmin()) {
-    menuItems.push({ path: '/settings', icon: Settings, label: 'Settings' });
+    menuItems.push({ path: '/admin-settings', icon: Shield, label: 'Admin Settings' });
   }
 
   return (
@@ -122,10 +125,10 @@ const Sidebar = () => {
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-white"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-gray-300 hover:text-white"
         >
-          <LogOut className="w-5 h-5" />
-          <span className="font-medium">Logout</span>
+          <LogOut className="w-4 h-4" />
+          <span className="text-sm">Logout</span>
         </button>
       </div>
 

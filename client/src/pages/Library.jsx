@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { canWrite } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -1629,14 +1631,16 @@ const Library = () => {
                 </>
               ) : (
                 <>
-                  <button 
-                    onClick={handleAddNew}
-                    className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Component
-                  </button>
-                  {selectedComponent && (
+                  {canWrite() && (
+                    <button 
+                      onClick={handleAddNew}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Component
+                    </button>
+                  )}
+                  {selectedComponent && canWrite() && (
                     <button
                       onClick={handleEdit}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -1645,13 +1649,15 @@ const Library = () => {
                       Edit Component
                     </button>
                   )}
-                  <button
-                    onClick={toggleBulkDeleteMode}
-                    className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Components
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={toggleBulkDeleteMode}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Components
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1804,14 +1810,16 @@ const Library = () => {
                     <Search className="w-3.5 h-3.5" />
                     <span>Search Vendor</span>
                   </button>
-                  <button
-                    onClick={() => setShowAddToProjectModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                    title="Add to Project"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add to Project</span>
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={() => setShowAddToProjectModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                      title="Add to Project"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add to Project</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2446,19 +2454,21 @@ const Library = () => {
                               <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-gray-600 dark:text-gray-400">Alternative Parts:</span>
-                                  <button
-                                    onClick={() => {
-                                      // Cache the part number in sessionStorage
-                                      sessionStorage.setItem('libraryPartNumberForAlternative', selectedComponent.part_number);
-                                      // Navigate to vendor search
-                                      navigate('/vendor-search');
-                                    }}
-                                    className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                    title="Search for alternative parts"
-                                  >
-                                    <Search className="w-3 h-3" />
-                                    <span>Search Alternative</span>
-                                  </button>
+                                  {canWrite() && (
+                                    <button
+                                      onClick={() => {
+                                        // Cache the part number in sessionStorage
+                                        sessionStorage.setItem('libraryPartNumberForAlternative', selectedComponent.part_number);
+                                        // Navigate to vendor search
+                                        navigate('/vendor-search');
+                                      }}
+                                      className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                      title="Search for alternative parts"
+                                    >
+                                      <Search className="w-3 h-3" />
+                                      <span>Search Alternative</span>
+                                    </button>
+                                  )}
                                 </div>
                                 <select
                                   value={selectedAlternative?.id || ''}

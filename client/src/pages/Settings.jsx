@@ -1090,7 +1090,16 @@ const Settings = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Admin Settings</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          System configuration and user management (Administrator access only)
+        </p>
+      </div>
+
+      <div className="space-y-6">
       {/* Category Configuration Section */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center justify-between mb-6">
@@ -1639,6 +1648,7 @@ const Settings = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
