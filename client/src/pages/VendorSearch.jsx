@@ -800,7 +800,11 @@ const VendorSearch = () => {
                     <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
+                          {part.manufacturer && ' - '}
+                          <span>MFG P/N: {part.manufacturerPartNumber}</span>
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
@@ -879,7 +883,11 @@ const VendorSearch = () => {
                     <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">MFG P/N: {part.manufacturerPartNumber}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
+                          {part.manufacturer && ' - '}
+                          <span>MFG P/N: {part.manufacturerPartNumber}</span>
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
@@ -1220,21 +1228,14 @@ const VendorSearch = () => {
 
       {/* Success Toast Notification */}
       {showSuccessToast && (
-        <div className="fixed top-4 right-4 z-50 animate-fade-in">
-          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 min-w-[300px] max-w-md">
-            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 min-w-[350px]">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             <div className="flex-1">
-              <p className="font-semibold">Success!</p>
-              <p className="text-sm opacity-90">{successMessage}</p>
+              <p className="font-medium text-sm">{successMessage}</p>
             </div>
-            <button
-              onClick={() => setShowSuccessToast(false)}
-              className="text-white hover:text-gray-200 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         </div>
       )}
