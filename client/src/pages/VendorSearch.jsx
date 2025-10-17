@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -20,7 +20,27 @@ const VendorSearch = () => {
   const vendorBarcodeInputRef = useRef(null);
   const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
   const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
-  const [appendingAsAlternative, setAppendingAsAlternative] = useState(false);
+  const [selectedLibraryPart, setSelectedLibraryPart] = useState(null);
+  const [appendMode, setAppendMode] = useState(''); // 'distributor' or 'alternative'
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [allLibraryParts, setAllLibraryParts] = useState([]);
+
+  // Fetch distributors and manufacturers for appending
+  const { data: distributors } = useQuery({
+    queryKey: ['distributors'],
+    queryFn: async () => {
+      const response = await api.getDistributors();
+      return response.data;
+    },
+  });
+
+  const { data: manufacturers } = useQuery({
+    queryKey: ['manufacturers'],
+    queryFn: async () => {
+      const response = await api.getManufacturers();
+      return response.data;
+    },
+  });
 
   // Load cached search results from sessionStorage on mount
   useEffect(() => {
@@ -387,35 +407,23 @@ const VendorSearch = () => {
         c.manufacturer_pn?.toLowerCase() === mfgPN.toLowerCase()
       );
 
-      if (exactMatches.length > 0) {
-        // Found existing part(s) - navigate to library in edit mode
-        const component = exactMatches[0]; // Use first match
-        
-        // Collect distributor data from selected parts
-        const distributorData = selectedParts.map(part => {
-          const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
-          return {
-            source: isDigikey ? 'digikey' : 'mouser',
-            sku: part.partNumber,
-            pricing: part.pricing,
-            stock: part.stock,
-            productUrl: part.productUrl,
-            minimumOrderQuantity: part.minimumOrderQuantity
-          };
-        });
-
-        // Navigate to library with edit mode and vendor data
-        navigate('/library', {
-          state: {
-            editComponentId: component.id,
-            appendDistributors: distributorData,
-            showVendorDataTile: true
-          }
-        });
+      if (exactMatches.length === 1) {
+        // Exact match found - append distributors directly
+        setSelectedLibraryPart(exactMatches[0]);
+        setAppendMode('distributor');
+        await appendDistributorsToComponent(exactMatches[0]);
+      } else if (exactMatches.length > 1) {
+        // Multiple exact matches - show selection modal
+        setLibraryPartsForAppend(exactMatches);
+        setAppendMode('distributor');
+        setShowPartSelectionModal(true);
       } else {
-        // No exact match - show modal to select which library part to append to as alternative
-        setLibraryPartsForAppend(components);
-        setAppendingAsAlternative(true);
+        // No exact match - load ALL library parts for user to search and select
+        const allPartsResponse = await api.getComponents({});
+        setAllLibraryParts(allPartsResponse.data);
+        setLibraryPartsForAppend(allPartsResponse.data);
+        setPartSearchTerm('');
+        setAppendMode('alternative');
         setShowPartSelectionModal(true);
       }
     } catch (error) {
@@ -424,35 +432,122 @@ const VendorSearch = () => {
     }
   };
 
-  const handleSelectPartForAlternative = (selectedComponent) => {
-    // Collect distributor data from selected parts
-    const distributorData = selectedParts.map(part => {
-      const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
-      return {
-        source: isDigikey ? 'digikey' : 'mouser',
-        sku: part.partNumber,
-        pricing: part.pricing,
-        stock: part.stock,
-        productUrl: part.productUrl,
-        minimumOrderQuantity: part.minimumOrderQuantity
+  const appendDistributorsToComponent = async (component) => {
+    try {
+      // Get existing distributors
+      const existingDist = await api.getComponentDistributors(component.id);
+      const existingDistributors = existingDist.data || [];
+
+      // Collect new distributor data from selected parts
+      const newDistributors = selectedParts.map(part => {
+        const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+        const source = isDigikey ? 'digikey' : 'mouser';
+        const distributorName = isDigikey ? 'Digikey' : 'Mouser';
+        
+        // Find distributor ID from the list
+        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
+        
+        return {
+          distributor_id: distId || '',
+          distributor_name: distributorName,
+          sku: part.partNumber,
+          url: part.productUrl || '',
+          in_stock: (part.stock || 0) > 0,
+          stock_quantity: part.stock || 0,
+          minimum_order_quantity: part.minimumOrderQuantity || 1,
+          price_breaks: part.pricing || []
+        };
+      });
+
+      // Merge with existing distributors (avoid duplicates by SKU)
+      const mergedDistributors = [...existingDistributors];
+      newDistributors.forEach(newDist => {
+        const existingIndex = mergedDistributors.findIndex(d => d.sku === newDist.sku);
+        if (existingIndex >= 0) {
+          // Update existing - keep the id if it exists
+          mergedDistributors[existingIndex] = { 
+            ...mergedDistributors[existingIndex], 
+            ...newDist,
+            id: mergedDistributors[existingIndex].id // Preserve existing ID
+          };
+        } else {
+          // Add new
+          mergedDistributors.push(newDist);
+        }
+      });
+
+      // Update distributors - wrap in object as backend expects { distributors: [...] }
+      await api.updateComponentDistributors(component.id, { distributors: mergedDistributors });
+
+      alert(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
+      
+      // Clear selection
+      setSelectedParts([]);
+      sessionStorage.removeItem('vendorSelectedParts');
+    } catch (error) {
+      console.error('Error appending distributors:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Merged distributors data:', mergedDistributors);
+      alert('Error appending distributors: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const appendAsAlternative = async (component) => {
+    try {
+      const primaryPart = selectedParts[0];
+      
+      // Collect distributor data
+      const distributorData = selectedParts.map(part => {
+        const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+        const source = isDigikey ? 'digikey' : 'mouser';
+        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
+        
+        return {
+          distributor_id: distId || '',
+          sku: part.partNumber,
+          url: part.productUrl || '',
+          in_stock: (part.stock || 0) > 0,
+          stock_quantity: part.stock || 0,
+          minimum_order_quantity: part.minimumOrderQuantity || 1,
+          price_breaks: part.pricing || []
+        };
+      });
+
+      // Find manufacturer ID
+      const mfgId = manufacturers?.find(m => 
+        m.name.toLowerCase() === primaryPart.manufacturer.toLowerCase()
+      )?.id;
+
+      // Create alternative part
+      const alternativeData = {
+        manufacturer_id: mfgId || '',
+        manufacturer_pn: primaryPart.manufacturerPartNumber,
+        datasheet_url: primaryPart.datasheet || '',
+        notes: `Added from vendor search`,
+        distributors: distributorData
       };
-    });
 
-    // Get MFG data from vendor search
-    const primaryPart = selectedParts[0];
+      await api.createComponentAlternative(component.id, alternativeData);
 
-    // Navigate to library to add as alternative
-    navigate('/library', {
-      state: {
-        editComponentId: selectedComponent.id,
-        addAlternativeData: {
-          manufacturerPartNumber: primaryPart.manufacturerPartNumber,
-          manufacturer: primaryPart.manufacturer,
-          distributors: distributorData
-        },
-        showVendorDataTile: true
-      }
-    });
+      alert(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);
+      
+      // Clear selection
+      setSelectedParts([]);
+      sessionStorage.removeItem('vendorSelectedParts');
+    } catch (error) {
+      console.error('Error adding alternative:', error);
+      alert('Error adding alternative: ' + error.message);
+    }
+  };
+
+  const handleSelectPartForAppend = async (component) => {
+    setShowPartSelectionModal(false);
+    
+    if (appendMode === 'distributor') {
+      await appendDistributorsToComponent(component);
+    } else if (appendMode === 'alternative') {
+      await appendAsAlternative(component);
+    }
   };
 
   const handleAddToLibrary = () => {
@@ -962,19 +1057,21 @@ const VendorSearch = () => {
         </div>
       )}
 
-      {/* Part Selection Modal for Alternative */}
-      {showPartSelectionModal && appendingAsAlternative && (
+      {/* Part Selection Modal */}
+      {showPartSelectionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Select Part to Add Alternative
+                {appendMode === 'distributor' ? 'Select Part to Update Distributors' : 'Select Part to Add Alternative'}
               </h3>
               <button
                 onClick={() => {
                   setShowPartSelectionModal(false);
                   setLibraryPartsForAppend([]);
-                  setAppendingAsAlternative(false);
+                  setAllLibraryParts([]);
+                  setPartSearchTerm('');
+                  setAppendMode('');
                 }}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
@@ -982,20 +1079,53 @@ const VendorSearch = () => {
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              No exact match found for MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
-              Select a library part to add this as an alternative part with distributor information.
-            </p>
+            {appendMode === 'distributor' ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Multiple parts found with MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
+                Select which part to append distributor information to.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  No exact match found for MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
+                  Select a library part to add this as an alternative part with distributor information.
+                </p>
+                
+                {/* Search Input for Alternative Mode */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Search by part number, manufacturer P/N, or description..."
+                    value={partSearchTerm}
+                    onChange={(e) => {
+                      const term = e.target.value;
+                      setPartSearchTerm(term);
+                      
+                      // Filter parts based on search term
+                      if (term.trim() === '') {
+                        setLibraryPartsForAppend(allLibraryParts);
+                      } else {
+                        const filtered = allLibraryParts.filter(part => 
+                          part.part_number?.toLowerCase().includes(term.toLowerCase()) ||
+                          part.manufacturer_pn?.toLowerCase().includes(term.toLowerCase()) ||
+                          part.description?.toLowerCase().includes(term.toLowerCase()) ||
+                          part.manufacturer_name?.toLowerCase().includes(term.toLowerCase())
+                        );
+                        setLibraryPartsForAppend(filtered);
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </>
+            )}
 
             {libraryPartsForAppend.length > 0 ? (
               <div className="space-y-2">
                 {libraryPartsForAppend.map((component) => (
                   <div
                     key={component.id}
-                    onClick={() => {
-                      handleSelectPartForAlternative(component);
-                      setShowPartSelectionModal(false);
-                    }}
+                    onClick={() => handleSelectPartForAppend(component)}
                     className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
                   >
                     <div className="flex justify-between items-start">
@@ -1017,12 +1147,18 @@ const VendorSearch = () => {
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-600 dark:text-gray-400">
-                  No similar parts found in library. Please use "Add to Library" instead.
+                  {appendMode === 'alternative' && partSearchTerm.trim() !== '' 
+                    ? `No parts found matching "${partSearchTerm}". Try a different search term.`
+                    : 'No parts found in library. Please use "Add to Library" instead.'
+                  }
                 </p>
                 <button
                   onClick={() => {
                     setShowPartSelectionModal(false);
-                    setAppendingAsAlternative(false);
+                    setLibraryPartsForAppend([]);
+                    setAllLibraryParts([]);
+                    setPartSearchTerm('');
+                    setAppendMode('');
                     handleAddToLibrary();
                   }}
                   className="mt-4 btn-primary"
