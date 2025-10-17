@@ -18,6 +18,9 @@ const VendorSearch = () => {
   const [selectedCamera, setSelectedCamera] = useState('');
   const scannerRef = useRef(null);
   const vendorBarcodeInputRef = useRef(null);
+  const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
+  const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
+  const [appendingAsAlternative, setAppendingAsAlternative] = useState(false);
 
   // Load cached search results from sessionStorage on mount
   useEffect(() => {
@@ -175,6 +178,9 @@ const VendorSearch = () => {
       
       // Set the search term to the manufacturer part number
       setSearchTerm(mfgPartNumber);
+      
+      // Auto-trigger search
+      searchMutation.mutate(mfgPartNumber);
       
       // Auto-focus the input field for next scan
       setTimeout(() => {
@@ -361,6 +367,94 @@ const VendorSearch = () => {
     }
   };
 
+  const handleAppendToExisting = async () => {
+    if (selectedParts.length === 0) {
+      alert('Please select at least one part from the search results.');
+      return;
+    }
+
+    // Get the manufacturer part number from the first selected part
+    const primaryPart = selectedParts[0];
+    const mfgPN = primaryPart.manufacturerPartNumber;
+
+    try {
+      // Search library for parts with same MFG part number
+      const response = await api.getComponents({ search: mfgPN });
+      const components = response.data;
+
+      // Filter to exact match on manufacturer_pn
+      const exactMatches = components.filter(c => 
+        c.manufacturer_pn?.toLowerCase() === mfgPN.toLowerCase()
+      );
+
+      if (exactMatches.length > 0) {
+        // Found existing part(s) - navigate to library in edit mode
+        const component = exactMatches[0]; // Use first match
+        
+        // Collect distributor data from selected parts
+        const distributorData = selectedParts.map(part => {
+          const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+          return {
+            source: isDigikey ? 'digikey' : 'mouser',
+            sku: part.partNumber,
+            pricing: part.pricing,
+            stock: part.stock,
+            productUrl: part.productUrl,
+            minimumOrderQuantity: part.minimumOrderQuantity
+          };
+        });
+
+        // Navigate to library with edit mode and vendor data
+        navigate('/library', {
+          state: {
+            editComponentId: component.id,
+            appendDistributors: distributorData,
+            showVendorDataTile: true
+          }
+        });
+      } else {
+        // No exact match - show modal to select which library part to append to as alternative
+        setLibraryPartsForAppend(components);
+        setAppendingAsAlternative(true);
+        setShowPartSelectionModal(true);
+      }
+    } catch (error) {
+      console.error('Error searching library:', error);
+      alert('Error searching library: ' + error.message);
+    }
+  };
+
+  const handleSelectPartForAlternative = (selectedComponent) => {
+    // Collect distributor data from selected parts
+    const distributorData = selectedParts.map(part => {
+      const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+      return {
+        source: isDigikey ? 'digikey' : 'mouser',
+        sku: part.partNumber,
+        pricing: part.pricing,
+        stock: part.stock,
+        productUrl: part.productUrl,
+        minimumOrderQuantity: part.minimumOrderQuantity
+      };
+    });
+
+    // Get MFG data from vendor search
+    const primaryPart = selectedParts[0];
+
+    // Navigate to library to add as alternative
+    navigate('/library', {
+      state: {
+        editComponentId: selectedComponent.id,
+        addAlternativeData: {
+          manufacturerPartNumber: primaryPart.manufacturerPartNumber,
+          manufacturer: primaryPart.manufacturer,
+          distributors: distributorData
+        },
+        showVendorDataTile: true
+      }
+    });
+  };
+
   const handleAddToLibrary = () => {
     if (selectedParts.length === 0) {
       alert('Please select at least one part from the search results.');
@@ -473,37 +567,37 @@ const VendorSearch = () => {
           Scan Vendor Barcode
         </label>
         <div className="space-y-2">
-          <input
-            ref={vendorBarcodeInputRef}
-            type="text"
-            value={vendorBarcode}
-            onChange={(e) => setVendorBarcode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleVendorBarcodeScan();
-              }
-            }}
-            placeholder="Scan Digikey or Mouser barcode..."
-            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-          />
           <div className="flex gap-2">
+            <input
+              ref={vendorBarcodeInputRef}
+              type="text"
+              value={vendorBarcode}
+              onChange={(e) => setVendorBarcode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleVendorBarcodeScan();
+                }
+              }}
+              placeholder="Scan Digikey or Mouser barcode..."
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+            />
             <button
               onClick={handleVendorBarcodeScan}
               disabled={!vendorBarcode.trim()}
-              className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+              className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
             >
               Decode
             </button>
             <button
               onClick={handleClearVendorBarcode}
-              className="bg-gray-500 hover:bg-gray-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+              className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
             >
               Clear
             </button>
             <button
               onClick={startCameraScanner}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
               title="Scan with camera"
             >
               <Camera className="w-4 h-4" />
@@ -756,7 +850,7 @@ const VendorSearch = () => {
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button 
               onClick={handleAddToLibrary}
               disabled={addToLibraryMutation.isPending}
@@ -764,6 +858,15 @@ const VendorSearch = () => {
             >
               <Plus className="w-4 h-4" />
               {addToLibraryMutation.isPending ? 'Adding...' : `Add to Library (${selectedParts.length})`}
+            </button>
+            <button 
+              onClick={handleAppendToExisting}
+              disabled={selectedParts.length === 0}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+              title="Append distributor info to existing library part with same MFG P/N"
+            >
+              <Plus className="w-4 h-4" />
+              Append to Existing Parts
             </button>
             <button
               onClick={() => handleDownloadFootprint('ultra-librarian')}
@@ -855,6 +958,79 @@ const VendorSearch = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 text-center">
               Hold QR code in front of camera - scanning continuously
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Part Selection Modal for Alternative */}
+      {showPartSelectionModal && appendingAsAlternative && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Select Part to Add Alternative
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPartSelectionModal(false);
+                  setLibraryPartsForAppend([]);
+                  setAppendingAsAlternative(false);
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              No exact match found for MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
+              Select a library part to add this as an alternative part with distributor information.
+            </p>
+
+            {libraryPartsForAppend.length > 0 ? (
+              <div className="space-y-2">
+                {libraryPartsForAppend.map((component) => (
+                  <div
+                    key={component.id}
+                    onClick={() => {
+                      handleSelectPartForAlternative(component);
+                      setShowPartSelectionModal(false);
+                    }}
+                    className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {component.part_number}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {component.manufacturer_name} - {component.manufacturer_pn}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          {component.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400">
+                  No similar parts found in library. Please use "Add to Library" instead.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowPartSelectionModal(false);
+                    setAppendingAsAlternative(false);
+                    handleAddToLibrary();
+                  }}
+                  className="mt-4 btn-primary"
+                >
+                  Add as New Part
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

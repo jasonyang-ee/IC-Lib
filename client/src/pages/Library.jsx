@@ -457,6 +457,33 @@ const Library = () => {
     }
   }, [location.state, distributors, manufacturers]);
 
+  // Handle append to existing part or add alternative
+  useEffect(() => {
+    if (location.state?.editComponentId && components) {
+      const componentToEdit = components.find(c => c.id === location.state.editComponentId);
+      
+      if (componentToEdit) {
+        setSelectedComponent(componentToEdit);
+        setIsEditMode(true);
+        setIsAddMode(false);
+        
+        // If appending distributors to existing part
+        if (location.state.appendDistributors) {
+          // Wait for component details to load, then we'll handle in another useEffect
+        }
+        
+        // If adding as alternative part
+        if (location.state.addAlternativeData) {
+          // Store the alternative data for later use
+          // This will be handled after the component details are loaded
+        }
+      }
+      
+      // Clear location state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, components]);
+
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
     queryKey: ['componentDetails', selectedComponent?.id],
