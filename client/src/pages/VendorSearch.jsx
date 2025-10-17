@@ -26,6 +26,7 @@ const VendorSearch = () => {
   const [allLibraryParts, setAllLibraryParts] = useState([]);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [partSortBy, setPartSortBy] = useState('part_number'); // Sort field for parts list
 
   // Fetch distributors and manufacturers for appending
   const { data: distributors } = useQuery({
@@ -71,10 +72,23 @@ const VendorSearch = () => {
     }
   }, []);
 
-  // Handle incoming search term from Inventory page
+  // Handle incoming search term from Inventory page or Library page
   useEffect(() => {
     if (location.state?.searchFromInventory) {
       const partNumber = location.state.searchFromInventory;
+      setSearchTerm(partNumber);
+      // Clear any existing selections
+      setSelectedParts([]);
+      setSearchResults(null);
+      sessionStorage.removeItem('vendorSearchResults');
+      sessionStorage.removeItem('vendorSearchTerm');
+      sessionStorage.removeItem('vendorSelectedParts');
+      // Automatically trigger search
+      searchMutation.mutate(partNumber);
+      // Clear the state to prevent re-searching on subsequent renders
+      window.history.replaceState({}, document.title);
+    } else if (location.state?.searchFromLibrary) {
+      const partNumber = location.state.searchFromLibrary;
       setSearchTerm(partNumber);
       // Clear any existing selections
       setSelectedParts([]);
@@ -481,11 +495,17 @@ const VendorSearch = () => {
       // Update distributors - wrap in object as backend expects { distributors: [...] }
       await api.updateComponentDistributors(component.id, { distributors: mergedDistributors });
 
-      alert(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
+      // Show success toast
+      setSuccessMessage(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 5000);
       
       // Clear selection
       setSelectedParts([]);
       sessionStorage.removeItem('vendorSelectedParts');
+      
+      // Navigate to Library page with the component's part number
+      navigate('/library', { state: { searchTerm: component.part_number, refreshDistributors: true } });
     } catch (error) {
       console.error('Error appending distributors:', error);
       console.error('Error details:', error.response?.data);
@@ -541,7 +561,7 @@ const VendorSearch = () => {
       sessionStorage.removeItem('vendorSelectedParts');
       
       // Navigate to Library page with the component's part number
-      navigate('/library', { state: { searchTerm: component.part_number } });
+      navigate('/library', { state: { searchTerm: component.part_number, refreshAlternatives: true } });
     } catch (error) {
       console.error('Error adding alternative:', error);
       alert('Error adding alternative: ' + error.message);
@@ -1079,6 +1099,7 @@ const VendorSearch = () => {
                   setLibraryPartsForAppend([]);
                   setAllLibraryParts([]);
                   setPartSearchTerm('');
+                  setPartSortBy('part_number');
                   setAppendMode('');
                 }}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -1099,8 +1120,8 @@ const VendorSearch = () => {
                   Select a library part to add this as an alternative part with distributor information.
                 </p>
                 
-                {/* Search Input for Alternative Mode */}
-                <div className="mb-4">
+                {/* Search and Sort Controls for Alternative Mode */}
+                <div className="mb-4 flex gap-2">
                   <input
                     type="text"
                     placeholder="Search by part number, manufacturer P/N, or description..."
@@ -1122,15 +1143,32 @@ const VendorSearch = () => {
                         setLibraryPartsForAppend(filtered);
                       }
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
+                  <select
+                    value={partSortBy}
+                    onChange={(e) => setPartSortBy(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="part_number">Sort by Part #</option>
+                    <option value="manufacturer_pn">Sort by MFG P/N</option>
+                    <option value="category_name">Sort by Category</option>
+                    <option value="manufacturer_name">Sort by Manufacturer</option>
+                  </select>
                 </div>
               </>
             )}
 
             {libraryPartsForAppend.length > 0 ? (
               <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2">
-                {libraryPartsForAppend.map((component) => (
+                {libraryPartsForAppend
+                  .sort((a, b) => {
+                    // Sort the parts list
+                    const aVal = a[partSortBy] || '';
+                    const bVal = b[partSortBy] || '';
+                    return aVal.toString().localeCompare(bVal.toString());
+                  })
+                  .map((component) => (
                   <div
                     key={component.id}
                     onClick={() => handleSelectPartForAppend(component)}
@@ -1166,6 +1204,7 @@ const VendorSearch = () => {
                     setLibraryPartsForAppend([]);
                     setAllLibraryParts([]);
                     setPartSearchTerm('');
+                    setPartSortBy('part_number');
                     setAppendMode('');
                     handleAddToLibrary();
                   }}

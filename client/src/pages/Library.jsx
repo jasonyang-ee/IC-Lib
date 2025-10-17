@@ -361,6 +361,21 @@ const Library = () => {
     }
   }, [components, location.state]);
 
+  // Handle refresh requests from vendor search (after appending distributors or alternatives)
+  useEffect(() => {
+    if (selectedComponent && (location.state?.refreshDistributors || location.state?.refreshAlternatives)) {
+      // Invalidate queries to force refetch
+      if (location.state.refreshDistributors) {
+        queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+      }
+      if (location.state.refreshAlternatives) {
+        queryClient.invalidateQueries(['componentAlternatives', selectedComponent.id]);
+      }
+      // Clear the state to prevent re-fetching on subsequent renders
+      window.history.replaceState({}, document.title);
+    }
+  }, [selectedComponent, location.state, queryClient]);
+
   // Handle incoming vendor data from vendor search
   useEffect(() => {
     if (location.state?.vendorData && distributors && manufacturers) {
@@ -1759,6 +1774,19 @@ const Library = () => {
                   >
                     <Package className="w-3.5 h-3.5" />
                     <span>Inventory</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Navigate to Vendor Search with manufacturer part number
+                      navigate('/vendor-search', { 
+                        state: { searchFromLibrary: selectedComponent.manufacturer_pn } 
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                    title="Search Vendor"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Search Vendor</span>
                   </button>
                   <button
                     onClick={() => setShowAddToProjectModal(true)}
