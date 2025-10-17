@@ -29,6 +29,9 @@ import adminRoutes from './routes/admin.js';
 import specificationTemplateRoutes from './routes/specificationTemplates.js';
 import projectRoutes from './routes/projects.js';
 
+// Import initialization service
+import { initializeAuthentication, getAuthenticationStatus } from './services/initializationService.js';
+
 const app = express();
 const PORT = process.env.PORT || 3500;
 
@@ -51,8 +54,21 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req, res) => {
+  try {
+    const authStatus = await getAuthenticationStatus();
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      authentication: authStatus
+    });
+  } catch (error) {
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      authentication: { error: error.message }
+    });
+  }
 });
 
 // API Routes
@@ -86,11 +102,25 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔗 API: http://localhost:${PORT}/api`);
-});
+// Initialize authentication and start server
+async function startServer() {
+  try {
+    // Initialize authentication (check/create users table)
+    await initializeAuthentication();
+    
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+      console.log(`🔗 API: http://localhost:${PORT}/api`);
+      console.log('');
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 export default app;

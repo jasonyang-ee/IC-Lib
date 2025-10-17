@@ -11,6 +11,7 @@ services:
       # Node Environment and API Port
       - NODE_ENV=production
       - PORT=3500
+      - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server

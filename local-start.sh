@@ -41,6 +41,19 @@ if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASS
     exit 1
 fi
 
+# Validate JWT_SECRET for authentication
+if [ -z "$JWT_SECRET" ]; then
+    echo -e "${YELLOW}WARNING: JWT_SECRET not set in .env${NC}"
+    echo -e "${YELLOW}Authentication will not work properly!${NC}"
+    echo ""
+    echo "Generate a secure secret:"
+    echo "  node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    echo ""
+    echo "Add it to your .env file:"
+    echo "  JWT_SECRET=<generated-secret>"
+    echo ""
+fi
+
 echo -e "${GREEN}✓${NC} Environment variables loaded"
 echo ""
 
@@ -48,6 +61,7 @@ echo "Configuration:"
 echo "  Database: ${DB_HOST}:${DB_PORT}"
 echo "  Database Name: ${DB_NAME}"
 echo "  Backend Port: ${PORT:-3500}"
+echo "  JWT Secret: ${JWT_SECRET:+Configured}"
 echo "  Frontend Port: 5173 (Vite dev server)"
 echo "  Environment: ${NODE_ENV:-development}"
 echo ""
