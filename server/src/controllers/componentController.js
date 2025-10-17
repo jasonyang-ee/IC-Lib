@@ -561,6 +561,34 @@ export const updateDistributorInfo = async (req, res, next) => {
 
     await Promise.all(updates);
 
+    // Get component info for audit log
+    const componentResult = await pool.query(
+      'SELECT part_number, description FROM components WHERE id = $1',
+      [id]
+    );
+    
+    const component = componentResult.rows[0];
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      id,
+      component?.part_number || '',
+      component?.description || 'Distributor info updated',
+      null,
+      'distributor_updated',
+      JSON.stringify({
+        distributor_count: distributorsWithPricing.length,
+        distributors: distributorsWithPricing.map(d => ({
+          distributor_id: d.distributor_id,
+          sku: d.sku,
+          in_stock: d.in_stock
+        }))
+      })
+    ]);
+
     // Return updated distributor info
     const result = await pool.query(`
       SELECT di.*, d.name as distributor_name
@@ -783,6 +811,23 @@ export const createAlternative = async (req, res, next) => {
       }
     }
     
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      id,
+      partNumber,
+      `Alternative part added: ${manufacturer_pn}`,
+      null,
+      'alternative_added',
+      JSON.stringify({
+        alternative_id: alternativeId,
+        manufacturer_pn: manufacturer_pn,
+        distributor_count: distributors?.length || 0
+      })
+    ]);
+    
     res.status(201).json(result.rows[0]);
   } catch (error) {
     if (error.code === '23505') { // Unique constraint violation
@@ -865,6 +910,23 @@ export const updateAlternative = async (req, res, next) => {
       }
     }
     
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      id,
+      partNumber,
+      `Alternative part updated: ${manufacturer_pn || result.rows[0].manufacturer_pn}`,
+      null,
+      'alternative_updated',
+      JSON.stringify({
+        alternative_id: altId,
+        manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
+        distributor_count: distributors?.length || 0
+      })
+    ]);
+    
     res.json(result.rows[0]);
   } catch (error) {
     next(error);
@@ -887,6 +949,14 @@ export const deleteAlternative = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
+    // Get alternative info before deleting
+    const altResult = await pool.query(
+      'SELECT manufacturer_pn FROM components_alternative WHERE id = $1',
+      [altId]
+    );
+    
+    const alternativePn = altResult.rows[0]?.manufacturer_pn;
+    
     // Delete the alternative (distributor_info will be cascade deleted)
     const result = await pool.query(
       'DELETE FROM components_alternative WHERE id = $1 AND part_number = $2 RETURNING *',
@@ -896,6 +966,22 @@ export const deleteAlternative = async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
     }
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      id,
+      partNumber,
+      `Alternative part deleted: ${alternativePn}`,
+      null,
+      'alternative_deleted',
+      JSON.stringify({
+        alternative_id: altId,
+        manufacturer_pn: alternativePn
+      })
+    ]);
     
     res.json({ message: 'Alternative deleted successfully' });
   } catch (error) {

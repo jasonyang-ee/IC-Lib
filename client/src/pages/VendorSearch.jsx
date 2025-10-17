@@ -423,14 +423,48 @@ const VendorSearch = () => {
         c.manufacturer_pn?.toLowerCase() === mfgPN.toLowerCase()
       );
 
-      if (exactMatches.length === 1) {
-        // Exact match found - append distributors directly
+      // Also search for alternatives with matching manufacturer_pn
+      let alternativeMatches = [];
+      for (const component of components) {
+        try {
+          const altResponse = await api.getComponentAlternatives(component.id);
+          const alternatives = altResponse.data || [];
+          
+          // Find alternatives with matching manufacturer_pn
+          const matchingAlts = alternatives.filter(alt => 
+            alt.manufacturer_pn?.toLowerCase() === mfgPN.toLowerCase()
+          );
+          
+          // Store alternative with its parent component info
+          matchingAlts.forEach(alt => {
+            alternativeMatches.push({
+              ...alt,
+              parent_component_id: component.id,
+              parent_part_number: component.part_number,
+              is_alternative: true
+            });
+          });
+        } catch (error) {
+          // Ignore errors from individual alternative fetches
+          console.log(`No alternatives for ${component.part_number}`);
+        }
+      }
+
+      if (exactMatches.length === 1 && alternativeMatches.length === 0) {
+        // Exact match found on primary component - append distributors directly
         setSelectedLibraryPart(exactMatches[0]);
         setAppendMode('distributor');
         await appendDistributorsToComponent(exactMatches[0]);
-      } else if (exactMatches.length > 1) {
-        // Multiple exact matches - show selection modal
-        setLibraryPartsForAppend(exactMatches);
+      } else if (exactMatches.length === 0 && alternativeMatches.length === 1) {
+        // Exact match found on alternative only - append to alternative
+        await appendDistributorsToAlternative(alternativeMatches[0]);
+      } else if (exactMatches.length > 0 || alternativeMatches.length > 0) {
+        // Multiple matches (could be mix of primary and alternative) - show selection modal
+        const combinedMatches = [
+          ...exactMatches.map(c => ({ ...c, is_alternative: false })),
+          ...alternativeMatches
+        ];
+        setLibraryPartsForAppend(combinedMatches);
         setAppendMode('distributor');
         setShowPartSelectionModal(true);
       } else {
@@ -465,6 +499,75 @@ const VendorSearch = () => {
     } catch (error) {
       console.error('Error searching library:', error);
       alert('Error searching library: ' + error.message);
+    }
+  };
+
+  const appendDistributorsToAlternative = async (alternative) => {
+    try {
+      // Get existing distributors for this alternative
+      const existingDist = await api.getComponentAlternatives(alternative.parent_component_id);
+      const allAlternatives = existingDist.data || [];
+      const thisAlt = allAlternatives.find(a => a.id === alternative.id);
+      const existingDistributors = thisAlt?.distributors || [];
+
+      // Collect new distributor data from selected parts
+      const newDistributors = selectedParts.map(part => {
+        const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
+        const source = isDigikey ? 'digikey' : 'mouser';
+        const distributorName = isDigikey ? 'Digikey' : 'Mouser';
+        
+        // Find distributor ID from the list
+        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
+        
+        return {
+          distributor_id: distId || '',
+          distributor_name: distributorName,
+          sku: part.partNumber,
+          url: part.productUrl || '',
+          in_stock: (part.stock || 0) > 0,
+          stock_quantity: part.stock || 0,
+          minimum_order_quantity: part.minimumOrderQuantity || 1,
+          price_breaks: part.pricing || []
+        };
+      });
+
+      // Merge with existing distributors (avoid duplicates by SKU)
+      const mergedDistributors = [...existingDistributors];
+      newDistributors.forEach(newDist => {
+        const existingIndex = mergedDistributors.findIndex(d => d.sku === newDist.sku);
+        if (existingIndex >= 0) {
+          // Update existing
+          mergedDistributors[existingIndex] = { 
+            ...mergedDistributors[existingIndex], 
+            ...newDist,
+            id: mergedDistributors[existingIndex].id // Preserve existing ID
+          };
+        } else {
+          // Add new
+          mergedDistributors.push(newDist);
+        }
+      });
+
+      // Update alternative with new distributors
+      await api.updateComponentAlternative(alternative.parent_component_id, alternative.id, {
+        manufacturer_id: alternative.manufacturer_id,
+        manufacturer_pn: alternative.manufacturer_pn,
+        distributors: mergedDistributors
+      });
+
+      // Show success notification
+      showSuccess(`Successfully appended ${newDistributors.length} distributor(s) to alternative ${alternative.manufacturer_pn} of ${alternative.parent_part_number}`);
+      
+      // Clear selection
+      setSelectedParts([]);
+      sessionStorage.removeItem('vendorSelectedParts');
+      
+      // Navigate to Library page with the parent component's part number
+      navigate('/library', { state: { searchTerm: alternative.parent_part_number, refreshAlternatives: true } });
+    } catch (error) {
+      console.error('Error appending distributors to alternative:', error);
+      console.error('Error details:', error.response?.data);
+      alert('Error appending distributors to alternative: ' + (error.response?.data?.error || error.message));
     }
   };
 
@@ -588,7 +691,12 @@ const VendorSearch = () => {
     setShowPartSelectionModal(false);
     
     if (appendMode === 'distributor') {
-      await appendDistributorsToComponent(component);
+      // Check if it's an alternative part or a regular component
+      if (component.is_alternative) {
+        await appendDistributorsToAlternative(component);
+      } else {
+        await appendDistributorsToComponent(component);
+      }
     } else if (appendMode === 'alternative') {
       await appendAsAlternative(component);
     }
@@ -1194,18 +1302,30 @@ const VendorSearch = () => {
                   })
                   .map((component) => (
                   <div
-                    key={component.id}
+                    key={component.is_alternative ? `alt-${component.id}` : component.id}
                     onClick={() => handleSelectPartForAppend(component)}
                     className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
                   >
                     <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
-                          {component.part_number}
-                        </p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {component.is_alternative ? component.parent_part_number : component.part_number}
+                          </p>
+                          {component.is_alternative && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                              Alternative Part
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                           {component.manufacturer_name} - {component.manufacturer_pn}
                         </p>
+                        {component.is_alternative && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            Alternative to: {component.parent_part_number}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           {component.description}
                         </p>

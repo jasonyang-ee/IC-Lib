@@ -1503,7 +1503,13 @@ const Library = () => {
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => {
+                    setSearchTerm('');
+                    // Auto-focus the search input after clearing
+                    if (searchInputRef.current) {
+                      searchInputRef.current.focus();
+                    }
+                  }}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   title="Clear search"
                 >
@@ -1786,9 +1792,10 @@ const Library = () => {
                   </button>
                   <button
                     onClick={() => {
-                      // Navigate to Vendor Search with manufacturer part number
+                      // Navigate to Vendor Search with manufacturer part number from selected alternative
+                      const manufacturerPN = selectedAlternative?.manufacturer_pn || selectedComponent.manufacturer_pn;
                       navigate('/vendor-search', { 
-                        state: { searchFromLibrary: selectedComponent.manufacturer_pn } 
+                        state: { searchFromLibrary: manufacturerPN } 
                       });
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"

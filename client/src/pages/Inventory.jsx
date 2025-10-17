@@ -883,6 +883,83 @@ const Inventory = () => {
     }
   };
 
+  // Copy QR code for alternative part (manufacturer P/N only)
+  const copyAlternativeQRCodeMfgOnly = async (alt, primaryItem) => {
+    try {
+      const mfgPn = alt.manufacturer_pn || 'N/A';
+      
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
+      
+      // Render QR code
+      const root = ReactDOM.createRoot(container);
+      await new Promise((resolve) => {
+        root.render(<QRCodeSVG value={mfgPn} size={256} level="H" includeMargin={true} />);
+        setTimeout(resolve, 100);
+      });
+      
+      // Get SVG element
+      const svg = container.querySelector('svg');
+      if (!svg) {
+        throw new Error('QR code SVG not generated');
+      }
+      
+      // Serialize SVG to string
+      const svgData = new XMLSerializer().serializeToString(svg);
+      
+      // Clean up
+      root.unmount();
+      document.body.removeChild(container);
+      
+      // Create an image from SVG
+      const img = new Image();
+      
+      img.onload = async () => {
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 256, 256);
+        
+        // Draw image on canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Convert canvas to blob
+        canvas.toBlob(async (blob) => {
+          try {
+            // Copy to clipboard
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            
+            // Show success feedback with unique alt ID
+            setCopiedQRField(`alt-mfg-quick-${alt.id}`);
+            setTimeout(() => setCopiedQRField(''), 2000);
+          } catch (err) {
+            console.error('Clipboard write error:', err);
+            alert('Failed to copy QR code image to clipboard.');
+          }
+        }, 'image/png');
+      };
+      
+      img.onerror = () => {
+        alert('Failed to load QR code image. Please try again.');
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    } catch (error) {
+      console.error('Error copying QR code:', error);
+      alert('Failed to copy QR code image.');
+    }
+  };
+
   // Navigate to Library with component UUID or search term pre-filled
   const jumpToLibrary = (searchValue, isUuid = true) => {
     // Navigate to library with state containing the search value
@@ -998,11 +1075,33 @@ const Inventory = () => {
   };
 
   const copyAlternativeLabelToClipboard = (alt, parentItem) => {
-    const labelText = generateAlternativeLabelString(alt, parentItem);
-    navigator.clipboard.writeText(labelText).then(() => {
-      setCopiedLabel(`alt-${alt.id}`);
-      setTimeout(() => setCopiedLabel(''), 2000);
-    });
+    const mfgPn = alt.manufacturer_pn || 'N/A';
+    const desc = parentItem.description || 'N/A';
+    const plainText = `${mfgPn}\n${desc}`;
+    const htmlText = `<strong>${mfgPn}</strong><br>${desc}`;
+    
+    // Check if clipboard API is available
+    if (navigator.clipboard && navigator.clipboard.write) {
+      // Try to copy both HTML and plain text formats
+      const htmlBlob = new Blob([htmlText], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+      
+      navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob
+        })
+      ]).then(() => {
+        setCopiedLabel(`alt-${alt.id}`);
+        setTimeout(() => setCopiedLabel(''), 2000);
+      }).catch((err) => {
+        console.error('Failed to copy rich text:', err);
+        // Fallback to plain text only
+        fallbackCopyToClipboard(plainText, `alt-${alt.id}`);
+      });
+    } else {
+      fallbackCopyToClipboard(plainText, `alt-${alt.id}`);
+    }
   };
 
   const showAlternativeQRCode = (alt, parentItem) => {
@@ -1079,7 +1178,13 @@ const Inventory = () => {
             />
             {searchTerm && (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchTerm('');
+                  // Auto-focus the search input after clearing
+                  if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                  }
+                }}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 title="Clear search"
               >
@@ -1616,34 +1721,37 @@ const Inventory = () => {
                         {/* Label Actions */}
                         <td className="px-4 py-2 text-sm">
                           <div className="flex items-center gap-2">
+                            {/* All button - shows full QR modal */}
                             <button
                               onClick={() => showAlternativeQRCode(alt, item)}
-                              className="px-3 py-1.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
-                              title="Show QR code"
+                              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-md transition-colors text-xs font-medium shadow-sm"
+                              title="Show all QR options"
                             >
-                              <QrCode className="w-3.5 h-3.5" />
-                              <span>QR</span>
+                              All
                             </button>
+                            {/* QR button - directly copies QR image with MFG P/N */}
+                            <button
+                              onClick={() => copyAlternativeQRCodeMfgOnly(alt, item)}
+                              className={`px-3 py-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                                copiedQRField === `alt-mfg-quick-${alt.id}`
+                                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                                  : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
+                              }`}
+                              title="Copy QR code with manufacturer part number"
+                            >
+                              {copiedQRField === `alt-mfg-quick-${alt.id}` ? 'Ok' : 'QR'}
+                            </button>
+                            {/* Copy button - copies label text */}
                             <button
                               onClick={() => copyAlternativeLabelToClipboard(alt, item)}
-                              className={`px-3 py-1.5 flex items-center gap-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
+                              className={`px-3 py-1.5 rounded-md transition-colors text-xs font-medium shadow-sm ${
                                 copiedLabel === `alt-${alt.id}`
                                   ? 'bg-green-600 hover:bg-green-700 text-white'
                                   : 'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white'
                               }`}
                               title="Copy label text"
                             >
-                              {copiedLabel === `alt-${alt.id}` ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Copied!</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Copy</span>
-                                </>
-                              )}
+                              {copiedLabel === `alt-${alt.id}` ? 'Ok' : 'Copy'}
                             </button>
                           </div>
                         </td>

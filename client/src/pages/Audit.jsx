@@ -46,6 +46,14 @@ const Audit = () => {
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         matchesDate = itemDate >= monthAgo;
+      } else if (dateFilter === 'sixmonths') {
+        const sixMonthsAgo = new Date(today);
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        matchesDate = itemDate >= sixMonthsAgo;
+      } else if (dateFilter === 'year') {
+        const yearAgo = new Date(today);
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+        matchesDate = itemDate >= yearAgo;
       }
     }
 
@@ -145,6 +153,66 @@ const Audit = () => {
       bgColor: 'bg-purple-100 dark:bg-purple-900',
       textColor: 'text-purple-800 dark:text-purple-200',
       label: 'Location Updated'
+    },
+    alternative_added: {
+      icon: Package,
+      bgColor: 'bg-cyan-100 dark:bg-cyan-900',
+      textColor: 'text-cyan-800 dark:text-cyan-200',
+      label: 'Alternative Added'
+    },
+    alternative_updated: {
+      icon: Edit,
+      bgColor: 'bg-cyan-100 dark:bg-cyan-900',
+      textColor: 'text-cyan-800 dark:text-cyan-200',
+      label: 'Alternative Updated'
+    },
+    alternative_deleted: {
+      icon: Trash2,
+      bgColor: 'bg-red-100 dark:bg-red-900',
+      textColor: 'text-red-800 dark:text-red-200',
+      label: 'Alternative Deleted'
+    },
+    distributor_updated: {
+      icon: Package,
+      bgColor: 'bg-indigo-100 dark:bg-indigo-900',
+      textColor: 'text-indigo-800 dark:text-indigo-200',
+      label: 'Distributor Info Updated'
+    },
+    project_created: {
+      icon: Package,
+      bgColor: 'bg-teal-100 dark:bg-teal-900',
+      textColor: 'text-teal-800 dark:text-teal-200',
+      label: 'Project Created'
+    },
+    project_updated: {
+      icon: Edit,
+      bgColor: 'bg-teal-100 dark:bg-teal-900',
+      textColor: 'text-teal-800 dark:text-teal-200',
+      label: 'Project Updated'
+    },
+    project_deleted: {
+      icon: Trash2,
+      bgColor: 'bg-red-100 dark:bg-red-900',
+      textColor: 'text-red-800 dark:text-red-200',
+      label: 'Project Deleted'
+    },
+    component_added_to_project: {
+      icon: Package,
+      bgColor: 'bg-lime-100 dark:bg-lime-900',
+      textColor: 'text-lime-800 dark:text-lime-200',
+      label: 'Component Added to Project'
+    },
+    project_component_updated: {
+      icon: Edit,
+      bgColor: 'bg-lime-100 dark:bg-lime-900',
+      textColor: 'text-lime-800 dark:text-lime-200',
+      label: 'Project Component Updated'
+    },
+    component_removed_from_project: {
+      icon: Trash2,
+      bgColor: 'bg-red-100 dark:bg-red-900',
+      textColor: 'text-red-800 dark:text-red-200',
+      label: 'Component Removed from Project'
     }
   };
 
@@ -226,6 +294,8 @@ const Audit = () => {
               <option value="today">Today</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
+              <option value="sixmonths">Last 6 Months</option>
+              <option value="year">Last 1 Year</option>
             </select>
           </div>
         </div>

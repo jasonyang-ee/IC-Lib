@@ -100,7 +100,26 @@ export const createProject = async (req, res) => {
       [name, description || null, status || 'active']
     );
     
-    res.status(201).json(result.rows[0]);
+    const project = result.rows[0];
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      null,
+      '',
+      `Project created: ${name}`,
+      null,
+      'project_created',
+      JSON.stringify({
+        project_id: project.id,
+        project_name: name,
+        status: project.status
+      })
+    ]);
+    
+    res.status(201).json(project);
   } catch (error) {
     console.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
@@ -127,7 +146,26 @@ export const updateProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
     
-    res.json(result.rows[0]);
+    const project = result.rows[0];
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      null,
+      '',
+      `Project updated: ${project.name}`,
+      null,
+      'project_updated',
+      JSON.stringify({
+        project_id: id,
+        project_name: project.name,
+        status: project.status
+      })
+    ]);
+    
+    res.json(project);
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
@@ -139,6 +177,14 @@ export const deleteProject = async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Get project name before deleting
+    const projectResult = await pool.query(
+      'SELECT name FROM projects WHERE id = $1',
+      [id]
+    );
+    
+    const projectName = projectResult.rows[0]?.name;
+    
     const result = await pool.query(
       'DELETE FROM projects WHERE id = $1 RETURNING *',
       [id]
@@ -147,6 +193,22 @@ export const deleteProject = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      null,
+      '',
+      `Project deleted: ${projectName}`,
+      null,
+      'project_deleted',
+      JSON.stringify({
+        project_id: id,
+        project_name: projectName
+      })
+    ]);
     
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
@@ -189,7 +251,45 @@ export const addComponentToProject = async (req, res) => {
       [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null]
     );
     
-    res.status(201).json(result.rows[0]);
+    const projectComponent = result.rows[0];
+    
+    // Get project and component info for audit log
+    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    
+    let componentInfo;
+    if (component_id) {
+      componentInfo = await pool.query(
+        'SELECT part_number, description FROM components WHERE id = $1',
+        [component_id]
+      );
+    } else if (alternative_id) {
+      componentInfo = await pool.query(
+        'SELECT ca.manufacturer_pn as part_number, c.description FROM components_alternative ca JOIN components c ON ca.part_number = c.part_number WHERE ca.id = $1',
+        [alternative_id]
+      );
+    }
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      component_id || null,
+      componentInfo?.rows[0]?.part_number || '',
+      `Component added to project: ${projectInfo.rows[0]?.name || 'Unknown'}`,
+      null,
+      'component_added_to_project',
+      JSON.stringify({
+        project_id: projectId,
+        project_name: projectInfo.rows[0]?.name,
+        component_id: component_id,
+        alternative_id: alternative_id,
+        quantity: quantity || 1,
+        part_number: componentInfo?.rows[0]?.part_number
+      })
+    ]);
+    
+    res.status(201).json(projectComponent);
   } catch (error) {
     console.error('Error adding component to project:', error);
     res.status(500).json({ error: 'Failed to add component to project' });
@@ -215,7 +315,31 @@ export const updateProjectComponent = async (req, res) => {
       return res.status(404).json({ error: 'Project component not found' });
     }
     
-    res.json(result.rows[0]);
+    const projectComponent = result.rows[0];
+    
+    // Get project info for audit log
+    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      projectComponent.component_id || null,
+      '',
+      `Project component updated in: ${projectInfo.rows[0]?.name || 'Unknown'}`,
+      null,
+      'project_component_updated',
+      JSON.stringify({
+        project_id: projectId,
+        project_name: projectInfo.rows[0]?.name,
+        component_id: projectComponent.component_id,
+        alternative_id: projectComponent.alternative_id,
+        quantity: projectComponent.quantity
+      })
+    ]);
+    
+    res.json(projectComponent);
   } catch (error) {
     console.error('Error updating project component:', error);
     res.status(500).json({ error: 'Failed to update project component' });
@@ -227,6 +351,14 @@ export const removeComponentFromProject = async (req, res) => {
   try {
     const { projectId, componentId } = req.params;
     
+    // Get info before deleting
+    const componentResult = await pool.query(
+      'SELECT component_id, alternative_id FROM project_components WHERE project_id = $1 AND id = $2',
+      [projectId, componentId]
+    );
+    
+    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    
     const result = await pool.query(
       'DELETE FROM project_components WHERE project_id = $1 AND id = $2 RETURNING *',
       [projectId, componentId]
@@ -235,6 +367,24 @@ export const removeComponentFromProject = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Project component not found' });
     }
+    
+    // Log activity
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      componentResult.rows[0]?.component_id || null,
+      '',
+      `Component removed from project: ${projectInfo.rows[0]?.name || 'Unknown'}`,
+      null,
+      'component_removed_from_project',
+      JSON.stringify({
+        project_id: projectId,
+        project_name: projectInfo.rows[0]?.name,
+        component_id: componentResult.rows[0]?.component_id,
+        alternative_id: componentResult.rows[0]?.alternative_id
+      })
+    ]);
     
     res.json({ message: 'Component removed from project successfully' });
   } catch (error) {
