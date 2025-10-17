@@ -52,13 +52,24 @@ async function initializePartsDatabase() {
     
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
     
-    // Execute the SQL
-    await client.query(sql);
+    // Execute the SQL - wrap in try-catch to handle duplicate trigger/constraint errors
+    try {
+      await client.query(sql);
+      console.log('✅ Parts database schema initialized successfully');
+      console.log('   Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
+    } catch (initError) {
+      // If error is about existing triggers/constraints, that's actually OK - database is already initialized
+      const errorMsg = initError.message || '';
+      if (errorMsg.includes('already exists') || errorMsg.includes('duplicate')) {
+        console.log('ℹ️  Parts database schema already exists (some objects were already created)');
+        console.log('   This is normal for an existing database - skipping duplicate creation');
+      } else {
+        // For other errors, rethrow
+        throw initError;
+      }
+    }
     
-    console.log('✅ Parts database schema initialized successfully');
-    console.log('   Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
     console.log('');
-    
     return true;
   } catch (error) {
     console.error('❌ Failed to initialize parts database:', error.message);

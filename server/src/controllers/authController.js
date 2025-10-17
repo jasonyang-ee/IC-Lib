@@ -55,7 +55,7 @@ export const login = async (req, res) => {
     // Log activity
     try {
       await pool.query(
-        `INSERT INTO activity_log (type_name, description, user_id)
+        `INSERT INTO user_activity_log (type_name, description, user_id)
          VALUES ('user_login', $1, $2)`,
         [`User ${username} logged in`, user.id]
       );
@@ -123,7 +123,7 @@ export const logout = async (req, res) => {
     if (req.user) {
       try {
         await pool.query(
-          `INSERT INTO activity_log (type_name, description, user_id)
+          `INSERT INTO user_activity_log (type_name, description, user_id)
            VALUES ('user_logout', $1, $2)`,
           [`User ${req.user.username} logged out`, req.user.userId]
         );
@@ -225,7 +225,7 @@ export const createUser = async (req, res) => {
     // Log activity
     try {
       await pool.query(
-        `INSERT INTO activity_log (type_name, description, user_id)
+        `INSERT INTO user_activity_log (type_name, description, user_id)
          VALUES ('user_created', $1, $2)`,
         [`Created user: ${username} with role: ${role}`, req.user.userId]
       );
@@ -321,7 +321,7 @@ export const updateUser = async (req, res) => {
     // Log activity
     try {
       await pool.query(
-        `INSERT INTO activity_log (type_name, description, user_id)
+        `INSERT INTO user_activity_log (type_name, description, user_id)
          VALUES ('user_updated', $1, $2)`,
         [`Updated user: ${result.rows[0].username}`, req.user.userId]
       );
@@ -368,7 +368,7 @@ export const deleteUser = async (req, res) => {
     // Log activity
     try {
       await pool.query(
-        `INSERT INTO activity_log (type_name, description, user_id)
+        `INSERT INTO user_activity_log (type_name, description, user_id)
          VALUES ('user_deleted', $1, $2)`,
         [`Deleted user: ${username}`, req.user.userId]
       );

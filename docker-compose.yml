@@ -8,9 +8,7 @@ services:
     ports:
       - "80:80"          # All traffic (frontend + API via nginx proxy)
     environment:
-      # Node Environment and API Port
-      - NODE_ENV=production
-      - PORT=3500
+      # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       
       # Database Connection (External PostgreSQL)

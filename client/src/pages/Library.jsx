@@ -1222,48 +1222,67 @@ const Library = () => {
   };
 
   const handleConfirmAdd = async () => {
-    // Validate required fields
-    if (!editData.category_id || !editData.part_number) {
-      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
-      return;
-    }
-    
-    if (!editData.manufacturer_id || !editData.manufacturer_pn || !editData.value) {
-      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
-      return;
-    }
-
-    // Validate required specifications
-    const requiredSpecs = editData.specifications?.filter(spec => spec.is_required) || [];
-    const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value);
-    
-    if (missingRequiredSpecs.length > 0) {
-      setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
-      return;
-    }
-
-    if (editData.category_id && editData.part_number) {
-      try {
-        let manufacturerId = editData.manufacturer_id;
-        
-        // Check if manufacturer needs to be created (starts with "NEW:")
-        if (typeof manufacturerId === 'string' && manufacturerId.startsWith('NEW:')) {
-          const newManufacturerName = manufacturerId.substring(4); // Remove "NEW:" prefix
-          try {
-            const response = await createManufacturerMutation.mutateAsync({ 
-              name: newManufacturerName 
-            });
-            manufacturerId = response.data.id;
-          } catch (error) {
-            console.error('Error creating manufacturer:', error);
-            setWarningModal({ 
-              show: true, 
-              message: `Failed to create manufacturer "${newManufacturerName}". Please try again.` 
-            });
-            return;
-          }
+    try {
+      // First, handle manufacturer creation if needed (before validation)
+      let manufacturerId = editData.manufacturer_id;
+      
+      // Check if user typed a new manufacturer name
+      if (manufacturerInput && !manufacturerId) {
+        // User typed a new manufacturer name - create it first
+        try {
+          const response = await createManufacturerMutation.mutateAsync({ 
+            name: manufacturerInput.trim() 
+          });
+          manufacturerId = response.data.id;
+          // Update editData with the new manufacturer ID
+          setEditData(prev => ({ ...prev, manufacturer_id: manufacturerId }));
+        } catch (error) {
+          console.error('Error creating manufacturer:', error);
+          setWarningModal({ 
+            show: true, 
+            message: `Failed to create manufacturer "${manufacturerInput}". Please try again.` 
+          });
+          return;
         }
-        
+      } else if (typeof manufacturerId === 'string' && manufacturerId.startsWith('NEW:')) {
+        // Handle "NEW:" prefix if it exists
+        const newManufacturerName = manufacturerId.substring(4);
+        try {
+          const response = await createManufacturerMutation.mutateAsync({ 
+            name: newManufacturerName 
+          });
+          manufacturerId = response.data.id;
+        } catch (error) {
+          console.error('Error creating manufacturer:', error);
+          setWarningModal({ 
+            show: true, 
+            message: `Failed to create manufacturer "${newManufacturerName}". Please try again.` 
+          });
+          return;
+        }
+      }
+
+      // Validate required fields
+      if (!editData.category_id || !editData.part_number) {
+        setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
+        return;
+      }
+      
+      if (!manufacturerId || !editData.manufacturer_pn || !editData.value) {
+        setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
+        return;
+      }
+
+      // Validate required specifications
+      const requiredSpecs = editData.specifications?.filter(spec => spec.is_required) || [];
+      const missingRequiredSpecs = requiredSpecs.filter(spec => !spec.spec_value);
+      
+      if (missingRequiredSpecs.length > 0) {
+        setWarningModal({ show: true, message: 'Please fill in all required fields marked with * symbol' });
+        return;
+      }
+
+      if (editData.category_id && editData.part_number) {
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
         
@@ -1341,10 +1360,10 @@ const Library = () => {
         }
         
         // Cleanup will be handled by mutation's onSuccess
-      } catch (error) {
-        console.error('Error adding component:', error);
-        setWarningModal({ show: true, message: 'Failed to add component. Please try again.' });
       }
+    } catch (error) {
+      console.error('Error adding component:', error);
+      setWarningModal({ show: true, message: 'Failed to add component. Please try again.' });
     }
   };
 
