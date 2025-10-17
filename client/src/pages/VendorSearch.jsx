@@ -24,6 +24,8 @@ const VendorSearch = () => {
   const [appendMode, setAppendMode] = useState(''); // 'distributor' or 'alternative'
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allLibraryParts, setAllLibraryParts] = useState([]);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Fetch distributors and manufacturers for appending
   const { data: distributors } = useQuery({
@@ -529,11 +531,17 @@ const VendorSearch = () => {
 
       await api.createComponentAlternative(component.id, alternativeData);
 
-      alert(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);
+      // Show success toast
+      setSuccessMessage(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 5000);
       
       // Clear selection
       setSelectedParts([]);
       sessionStorage.removeItem('vendorSelectedParts');
+      
+      // Navigate to Library page with the component's part number
+      navigate('/library', { state: { searchTerm: component.part_number } });
     } catch (error) {
       console.error('Error adding alternative:', error);
       alert('Error adding alternative: ' + error.message);
@@ -1060,7 +1068,7 @@ const VendorSearch = () => {
       {/* Part Selection Modal */}
       {showPartSelectionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 {appendMode === 'distributor' ? 'Select Part to Update Distributors' : 'Select Part to Add Alternative'}
@@ -1121,7 +1129,7 @@ const VendorSearch = () => {
             )}
 
             {libraryPartsForAppend.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2">
                 {libraryPartsForAppend.map((component) => (
                   <div
                     key={component.id}
@@ -1167,6 +1175,27 @@ const VendorSearch = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast Notification */}
+      {showSuccessToast && (
+        <div className="fixed top-4 right-4 z-50 animate-fade-in">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3 min-w-[300px] max-w-md">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-semibold">Success!</p>
+              <p className="text-sm opacity-90">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessToast(false)}
+              className="text-white hover:text-gray-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
