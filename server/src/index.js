@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,6 +15,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Import routes
+import authRoutes from './routes/auth.js';
 import componentRoutes from './routes/components.js';
 import categoryRoutes from './routes/categories.js';
 import distributorRoutes from './routes/distributors.js';
@@ -46,6 +48,7 @@ app.use(compression());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -53,6 +56,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/components', componentRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/distributors', distributorRoutes);

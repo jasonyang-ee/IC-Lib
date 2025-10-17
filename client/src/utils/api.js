@@ -11,9 +11,13 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor
+// Request interceptor - Add JWT token to requests
 apiClient.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -21,10 +25,20 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor - Handle auth errors
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle 401 Unauthorized - token expired or invalid
+    if (error.response?.status === 401) {
+      // Only redirect to login if not already on login page
+      const isLoginPage = window.location.pathname === '/login';
+      if (!isLoginPage) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    }
+    
     // Don't log 404 errors for barcode search - it's expected when no match is found
     const isBarcodeSearch = error.config?.url?.includes('/inventory/search/barcode');
     const is404 = error.response?.status === 404;
@@ -44,6 +58,19 @@ export const api = {
   post: (url, data, config) => apiClient.post(url, data, config),
   put: (url, data, config) => apiClient.put(url, data, config),
   delete: (url, config) => apiClient.delete(url, config),
+
+  // Authentication
+  login: (credentials) => apiClient.post('/auth/login', credentials),
+  logout: () => apiClient.post('/auth/logout'),
+  verifyAuth: () => apiClient.get('/auth/verify'),
+  changePassword: (data) => apiClient.post('/auth/change-password', data),
+  
+  // User Management (Admin only)
+  getAllUsers: () => apiClient.get('/auth/users'),
+  createUser: (userData) => apiClient.post('/auth/users', userData),
+  updateUser: (id, userData) => apiClient.put(`/auth/users/${id}`, userData),
+  deleteUser: (id) => apiClient.delete(`/auth/users/${id}`),
+
   patch: (url, data, config) => apiClient.patch(url, data, config),
 
   // Dashboard

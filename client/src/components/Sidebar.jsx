@@ -1,9 +1,12 @@
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
+  const { user, logout, isAdmin } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Initialize dark mode from localStorage
@@ -22,6 +25,11 @@ const Sidebar = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/library', icon: BookOpen, label: 'Parts Library' },
@@ -30,8 +38,12 @@ const Sidebar = () => {
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit', icon: ClipboardList, label: 'Audit Log' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
+
+  // Only show Settings for admin users
+  if (isAdmin()) {
+    menuItems.push({ path: '/settings', icon: Settings, label: 'Settings' });
+  }
 
   return (
     <div className="w-[210px] bg-gray-900 text-white min-h-screen flex flex-col">
@@ -91,6 +103,29 @@ const Sidebar = () => {
               }`}
             />
           </div>
+        </button>
+      </div>
+
+      {/* User Info and Logout */}
+      <div className="p-4 border-t border-gray-700 space-y-2">
+        {/* User Info */}
+        <div className="flex items-center gap-3 px-3 py-2 bg-gray-800 rounded-lg">
+          <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+            <User className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user?.username}</p>
+            <p className="text-xs text-gray-400 capitalize">{user?.role?.replace('-', ' ')}</p>
+          </div>
+        </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-white"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="font-medium">Logout</span>
         </button>
       </div>
 
