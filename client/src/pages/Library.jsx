@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban } from 'lucide-react';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -66,6 +66,11 @@ const Library = () => {
   // Alternative parts state
   const [selectedAlternative, setSelectedAlternative] = useState(null);
   const [alternatives, setAlternatives] = useState([]);
+  
+  // Add to Project modal state
+  const [showAddToProjectModal, setShowAddToProjectModal] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectQuantity, setProjectQuantity] = useState(1);
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -215,6 +220,54 @@ const Library = () => {
     navigate('/inventory', { state: { searchUuid: componentId } });
   };
 
+  // Handle adding component to project
+  const handleAddToProject = async () => {
+    if (!selectedProjectId || !selectedComponent) {
+      setWarningModal({ show: true, message: 'Please select a project' });
+      return;
+    }
+    
+    if (!projectQuantity || projectQuantity <= 0) {
+      setWarningModal({ show: true, message: 'Please enter a valid quantity' });
+      return;
+    }
+    
+    try {
+      await api.addComponentToProject(selectedProjectId, {
+        component_id: selectedComponent.id,
+        quantity: parseInt(projectQuantity)
+      });
+      
+      // Close modal and reset state
+      setShowAddToProjectModal(false);
+      setSelectedProjectId('');
+      setProjectQuantity(1);
+      
+      // Navigate back to component view (close detail view)
+      setSelectedComponent(null);
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || error.message;
+      
+      // Check if it's a duplicate error
+      if (error.response?.status === 409 || errorMessage.toLowerCase().includes('duplicate') || errorMessage.toLowerCase().includes('already exists')) {
+        setWarningModal({ 
+          show: true, 
+          message: `This component is already in the selected project. Please update the quantity from the Projects page instead.` 
+        });
+      } else if (errorMessage.toLowerCase().includes('unique constraint') || errorMessage.toLowerCase().includes('violates')) {
+        setWarningModal({ 
+          show: true, 
+          message: `This component is already in the selected project. Please update the quantity from the Projects page instead.` 
+        });
+      } else {
+        setWarningModal({ 
+          show: true, 
+          message: `Error adding to project: ${errorMessage}` 
+        });
+      }
+    }
+  };
+
   // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -241,6 +294,15 @@ const Library = () => {
     queryKey: ['manufacturers'],
     queryFn: async () => {
       const response = await api.getManufacturers();
+      return response.data;
+    },
+  });
+
+  // Fetch projects for "Add to Project" modal
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const response = await api.getProjects();
       return response.data;
     },
   });
@@ -1689,14 +1751,24 @@ const Library = () => {
                 {isAddMode ? 'Add New Component' : 'Component Details'}
               </h3>
               {!isEditMode && !isAddMode && selectedComponent && (
-                <button
-                  onClick={() => jumpToInventory(selectedComponent.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
-                  title="View in Inventory"
-                >
-                  <Package className="w-3.5 h-3.5" />
-                  <span>Inventory</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => jumpToInventory(selectedComponent.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                    title="View in Inventory"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    <span>Inventory</span>
+                  </button>
+                  <button
+                    onClick={() => setShowAddToProjectModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                    title="Add to Project"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add to Project</span>
+                  </button>
+                </div>
               )}
             </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
@@ -3060,6 +3132,95 @@ const Library = () => {
             >
               OK
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add to Project Modal */}
+      {showAddToProjectModal && selectedComponent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <FolderKanban className="w-5 h-5" />
+                Add to Project
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddToProjectModal(false);
+                  setSelectedProjectId('');
+                  setProjectQuantity(1);
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Component Info */}
+              <div className="p-3 bg-gray-50 dark:bg-[#333333] rounded-lg">
+                <p className="font-semibold text-gray-900 dark:text-gray-100">
+                  {selectedComponent.part_number}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  {selectedComponent.manufacturer_name} - {selectedComponent.manufacturer_pn}
+                </p>
+              </div>
+
+              {/* Project Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Project *
+                </label>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                >
+                  <option value="">-- Select a Project --</option>
+                  {projects?.filter(p => p.status === 'active').map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quantity */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Quantity *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={projectQuantity}
+                  onChange={(e) => setProjectQuantity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddToProjectModal(false);
+                  setSelectedProjectId('');
+                  setProjectQuantity(1);
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddToProject}
+                disabled={!selectedProjectId || projectQuantity <= 0}
+                className="btn-primary disabled:bg-gray-400"
+              >
+                Add to Project
+              </button>
+            </div>
           </div>
         </div>
       )}

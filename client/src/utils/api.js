@@ -159,6 +159,17 @@ export const api = {
   // Legacy Admin endpoints (if still needed)
   getDatabaseStats: () => apiClient.get('/admin/stats'),
   verifyCISCompliance: () => apiClient.get('/admin/verify-cis'),
+  
+  // Projects
+  getProjects: () => apiClient.get('/projects'),
+  getProjectById: (id) => apiClient.get(`/projects/${id}`),
+  createProject: (data) => apiClient.post('/projects', data),
+  updateProject: (id, data) => apiClient.put(`/projects/${id}`, data),
+  deleteProject: (id) => apiClient.delete(`/projects/${id}`),
+  addComponentToProject: (projectId, data) => apiClient.post(`/projects/${projectId}/components`, data),
+  updateProjectComponent: (projectId, componentId, data) => apiClient.put(`/projects/${projectId}/components/${componentId}`, data),
+  removeComponentFromProject: (projectId, componentId) => apiClient.delete(`/projects/${projectId}/components/${componentId}`),
+  consumeProjectComponents: (projectId) => apiClient.post(`/projects/${projectId}/consume`),
 };
 
 export default apiClient;

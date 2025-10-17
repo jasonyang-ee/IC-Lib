@@ -25,6 +25,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import settingsRoutes from './routes/settings.js';
 import adminRoutes from './routes/admin.js';
 import specificationTemplateRoutes from './routes/specificationTemplates.js';
+import projectRoutes from './routes/projects.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -63,6 +64,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/specification-templates', specificationTemplateRoutes);
+app.use('/api/projects', projectRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

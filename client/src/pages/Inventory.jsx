@@ -3,8 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
+import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 // [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
 // [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}
@@ -28,6 +29,10 @@ const Inventory = () => {
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
   const [receiveQtyFromQr, setReceiveQtyFromQr] = useState(null);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+  const scannerRef = useRef(null);
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -359,6 +364,96 @@ const Inventory = () => {
       }
     }, 0);
   };
+
+  // Camera QR Scanner functions
+  const startCameraScanner = async () => {
+    try {
+      // Get available cameras
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        setCameraDevices(devices);
+        // Select rear camera by default if available
+        const rearCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear')
+        );
+        setSelectedCamera(rearCamera ? rearCamera.id : devices[0].id);
+        setShowCameraScanner(true);
+      } else {
+        alert('No cameras found on your device.');
+      }
+    } catch (error) {
+      console.error('Error getting cameras:', error);
+      alert('Failed to access camera. Please check permissions.');
+    }
+  };
+
+  const stopCameraScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current = null;
+        setShowCameraScanner(false);
+      }).catch(err => {
+        console.error('Error stopping scanner:', err);
+        setShowCameraScanner(false);
+      });
+    } else {
+      setShowCameraScanner(false);
+    }
+  };
+
+  const handleCameraScan = (decodedText) => {
+    // Stop the scanner
+    stopCameraScanner();
+    
+    // Set the decoded text to search field
+    setSearchTerm(decodedText);
+    
+    // Try to decode it if it looks like a vendor barcode
+    if (decodedText.length > 20 && (decodedText.includes(String.fromCharCode(29)) || decodedText.includes('[)>'))) {
+      decodeVendorBarcode(decodedText);
+    }
+    
+    // Focus search input
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      }
+    }, 100);
+  };
+
+  // Start camera when modal opens
+  useEffect(() => {
+    if (showCameraScanner && selectedCamera && !scannerRef.current) {
+      const scanner = new Html5Qrcode('qr-reader');
+      scannerRef.current = scanner;
+      
+      scanner.start(
+        selectedCamera,
+        {
+          fps: 20,
+          qrbox: {width: 300, height: 300},
+          aspectRatio: 1, // 16:9 aspect ratio for wider scan area
+          formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX ]
+        },
+        handleCameraScan,
+        (errorMessage) => {
+          // Ignore errors, they're just "no QR code found" messages
+        }
+      ).catch(err => {
+        console.error('Error starting scanner:', err);
+        alert('Failed to start camera scanner.');
+        setShowCameraScanner(false);
+      });
+    }
+    
+    return () => {
+      if (scannerRef.current && showCameraScanner) {
+        scannerRef.current.stop().catch(err => console.error('Cleanup error:', err));
+      }
+    };
+  }, [showCameraScanner, selectedCamera]);
 
   // Initialize edited items when entering edit mode
   const handleToggleEditMode = () => {
@@ -725,7 +820,7 @@ const Inventory = () => {
       // Render QR code
       const root = ReactDOM.createRoot(container);
       await new Promise((resolve) => {
-        root.render(<QRCodeSVG value={mfgPn} size={256} level="H" />);
+        root.render(<QRCodeSVG value={mfgPn} size={256} level="H" includeMargin={true} />);
         setTimeout(resolve, 100);
       });
       
@@ -1069,6 +1164,13 @@ const Inventory = () => {
                 className="bg-gray-500 hover:bg-gray-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
               >
                 Clear
+              </button>
+              <button
+                onClick={startCameraScanner}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+                title="Scan with camera"
+              >
+                <Camera className="w-4 h-4" />
               </button>
             </div>
             
@@ -1722,6 +1824,61 @@ const Inventory = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camera QR Scanner Modal */}
+      {showCameraScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={stopCameraScanner}>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Scan QR Code with Camera</h3>
+              <button
+                onClick={stopCameraScanner}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {/* Camera Selection */}
+            {cameraDevices.length > 1 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Camera
+                </label>
+                <select
+                  value={selectedCamera}
+                  onChange={(e) => {
+                    if (scannerRef.current) {
+                      scannerRef.current.stop().then(() => {
+                        scannerRef.current = null;
+                        setSelectedCamera(e.target.value);
+                      });
+                    } else {
+                      setSelectedCamera(e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                >
+                  {cameraDevices.map(device => (
+                    <option key={device.id} value={device.id}>
+                      {device.label || `Camera ${device.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {/* Scanner Container */}
+            <div className="relative">
+              <div id="qr-reader" className="w-full rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600"></div>
+            </div>
+            
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 text-center">
+              Hold QR code in front of camera - scanning continuously
+            </p>
           </div>
         </div>
       )}

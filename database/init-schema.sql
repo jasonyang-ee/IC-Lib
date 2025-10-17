@@ -511,7 +511,67 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_a
 CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
 
 -- ============================================================================
--- PART 6: TRIGGERS FOR AUTO-SYNC
+-- PART 6: PROJECTS
+-- ============================================================================
+
+-- Table: projects
+-- Stores project information
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    status VARCHAR(50) DEFAULT 'active', -- 'active', 'completed', 'archived'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: project_components
+-- Links components to projects with quantity used
+CREATE TABLE IF NOT EXISTS project_components (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    component_id UUID REFERENCES components(id) ON DELETE CASCADE,
+    alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Ensure only one of component_id or alternative_id is set
+    CHECK (
+        (component_id IS NOT NULL AND alternative_id IS NULL) OR
+        (component_id IS NULL AND alternative_id IS NOT NULL)
+    )
+);
+
+-- Indexes for faster queries
+CREATE INDEX IF NOT EXISTS idx_project_components_project ON project_components(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_components_component ON project_components(component_id);
+CREATE INDEX IF NOT EXISTS idx_project_components_alternative ON project_components(alternative_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+
+-- Trigger to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_project_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_project_timestamp ON projects;
+CREATE TRIGGER trigger_update_project_timestamp
+    BEFORE UPDATE ON projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_project_timestamp();
+
+DROP TRIGGER IF EXISTS trigger_update_project_component_timestamp ON project_components;
+CREATE TRIGGER trigger_update_project_component_timestamp
+    BEFORE UPDATE ON project_components
+    FOR EACH ROW
+    EXECUTE FUNCTION update_project_timestamp();
+
+-- ============================================================================
+-- PART 7: TRIGGERS FOR AUTO-SYNC
 -- ============================================================================
 
 -- Function: Auto-create inventory entry when component is added
