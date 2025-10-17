@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Download, Plus, ExternalLink, X } from 'lucide-react';
+import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
@@ -10,6 +11,13 @@ const VendorSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
+  const [vendorBarcode, setVendorBarcode] = useState('');
+  const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState('');
+  const scannerRef = useRef(null);
+  const vendorBarcodeInputRef = useRef(null);
 
   // Load cached search results from sessionStorage on mount
   useEffect(() => {
@@ -72,6 +80,225 @@ const VendorSearch = () => {
   const isPartSelected = (partNumber) => {
     return selectedParts.some(p => p.partNumber === partNumber);
   };
+
+  // Digikey barcode decoder
+  const decodeVendorBarcode = (barcode) => {
+    // Reset result
+    setBarcodeDecodeResult(null);
+
+    if (!barcode || barcode.trim() === '') {
+      return;
+    }
+
+    console.log('Raw barcode input:', barcode);
+
+    // Define control characters
+    const GS = String.fromCharCode(29); // Group Separator
+    const RS = String.fromCharCode(30); // Record Separator
+    const EOT = String.fromCharCode(4); // End of Transmission
+    
+    // Replace literal text representations with actual control characters
+    let cleanBarcode = barcode
+      .replace(/\{GS\}/g, GS)
+      .replace(/\{RS\}/g, RS)
+      .replace(/\{EOT\}/g, EOT);
+    
+    // Also handle escaped representations
+    cleanBarcode = cleanBarcode
+      .replace(/\\x1d/g, GS)
+      .replace(/\\x1e/g, RS)
+      .replace(/\\x04/g, EOT);
+    
+    // Split by GS (Group Separator) to get fields
+    const fields = cleanBarcode.split(GS);
+    
+    // DigiKey format after header: [)>RS06GS <field1> GS <field2> GS ...
+    let mfgPartNumber = null;
+    let digikeySkus = [];
+    let quantity = null;
+    
+    // Parse fields
+    fields.forEach((field, index) => {
+      // Remove any leading/trailing control characters and whitespace
+      field = field.trim();
+      
+      // Remove header if present in first field
+      if (index === 0) {
+        field = field.replace(/^\[\)>[\x1e]*06/, '');
+        field = field.replace(/^[\x1e\x1d]+/, '');
+      }
+      
+      // Remove trailing control characters
+      field = field.replace(/[\x1e\x04]+$/, '');
+      
+      if (!field) return;
+      
+      // Check for manufacturer part number (1P prefix)
+      if (field.startsWith('1P')) {
+        mfgPartNumber = field.substring(2);
+      }
+      // Check for DigiKey SKU (30P prefix)
+      else if (field.startsWith('30P')) {
+        const sku = field.substring(3);
+        digikeySkus.push(sku);
+      }
+      // Check for alternative SKU format (P prefix without 30)
+      else if (field.startsWith('P') && field.length > 1) {
+        const sku = field.substring(1);
+        if (!digikeySkus.includes(sku)) {
+          digikeySkus.push(sku);
+        }
+      }
+      // Check for quantity (Q prefix)
+      else if (field.startsWith('Q') && field.length > 1) {
+        const qtyStr = field.substring(1).match(/\d+/);
+        if (qtyStr) {
+          quantity = parseInt(qtyStr[0], 10);
+        }
+      }
+      // If no prefix and we haven't found MFG P/N yet, and it looks like a valid part number
+      else if (!mfgPartNumber && field.match(/^[A-Z0-9][A-Z0-9\-+_.]+$/i)) {
+        mfgPartNumber = field;
+      }
+    });
+
+    // If we successfully parsed the barcode
+    if (mfgPartNumber) {
+      const result = {
+        vendor: 'Digikey',
+        manufacturerPN: mfgPartNumber,
+        quantity: quantity,
+        digikeySKU: digikeySkus[0] || null
+      };
+      
+      setBarcodeDecodeResult(result);
+      
+      // Set the search term to the manufacturer part number
+      setSearchTerm(mfgPartNumber);
+      
+      // Auto-focus the input field for next scan
+      setTimeout(() => {
+        if (vendorBarcodeInputRef.current) {
+          vendorBarcodeInputRef.current.focus();
+          vendorBarcodeInputRef.current.select();
+        }
+      }, 100);
+      
+      return;
+    }
+
+    // If no pattern matched
+    setBarcodeDecodeResult({
+      error: 'Could not parse manufacturer part number from barcode. Please check the format.'
+    });
+  };
+
+  // Auto-decode barcode with debounce
+  useEffect(() => {
+    if (vendorBarcode && vendorBarcode.length > 10) {
+      const timer = setTimeout(() => {
+        decodeVendorBarcode(vendorBarcode);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [vendorBarcode]);
+
+  const handleVendorBarcodeScan = () => {
+    decodeVendorBarcode(vendorBarcode);
+    if (vendorBarcodeInputRef.current) {
+      vendorBarcodeInputRef.current.focus();
+      vendorBarcodeInputRef.current.select();
+    }
+  };
+
+  const handleClearVendorBarcode = () => {
+    setVendorBarcode('');
+    setBarcodeDecodeResult(null);
+    setTimeout(() => {
+      if (vendorBarcodeInputRef.current) {
+        vendorBarcodeInputRef.current.focus();
+        vendorBarcodeInputRef.current.select();
+      }
+    }, 0);
+  };
+
+  // Camera QR Scanner functions
+  const startCameraScanner = async () => {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        setCameraDevices(devices);
+        const rearCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear')
+        );
+        setSelectedCamera(rearCamera ? rearCamera.id : devices[0].id);
+        setShowCameraScanner(true);
+      } else {
+        alert('No cameras found on your device.');
+      }
+    } catch (error) {
+      console.error('Error getting cameras:', error);
+      alert('Failed to access camera. Please check permissions.');
+    }
+  };
+
+  const stopCameraScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current = null;
+        setShowCameraScanner(false);
+      }).catch(err => {
+        console.error('Error stopping scanner:', err);
+        setShowCameraScanner(false);
+      });
+    } else {
+      setShowCameraScanner(false);
+    }
+  };
+
+  const handleCameraScan = (decodedText) => {
+    stopCameraScanner();
+    setSearchTerm(decodedText);
+    
+    // Try to decode it if it looks like a vendor barcode
+    if (decodedText.length > 20 && (decodedText.includes(String.fromCharCode(29)) || decodedText.includes('[)>'))) {
+      decodeVendorBarcode(decodedText);
+    }
+  };
+
+  // Start camera when modal opens
+  useEffect(() => {
+    if (showCameraScanner && selectedCamera && !scannerRef.current) {
+      const scanner = new Html5Qrcode('vendor-qr-reader');
+      scannerRef.current = scanner;
+      
+      scanner.start(
+        selectedCamera,
+        {
+          fps: 30,
+          qrbox: {width: 300, height: 300},
+          aspectRatio: 1,
+          formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX ]
+        },
+        handleCameraScan,
+        (errorMessage) => {
+          // Ignore errors, they're just "no QR code found" messages
+        }
+      ).catch(err => {
+        console.error('Error starting scanner:', err);
+        alert('Failed to start camera scanner.');
+        setShowCameraScanner(false);
+      });
+    }
+    
+    return () => {
+      if (scannerRef.current && showCameraScanner) {
+        scannerRef.current.stop().catch(err => console.error('Cleanup error:', err));
+      }
+    };
+  }, [showCameraScanner, selectedCamera]);
 
   const searchMutation = useMutation({
     mutationFn: (partNumber) => api.searchAllVendors(partNumber),
@@ -237,6 +464,84 @@ const VendorSearch = () => {
             {searchMutation.isPending ? 'Searching...' : 'Search'}
           </button>
         </form>
+      </div>
+
+      {/* Vendor Barcode Scanner */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          <QrCode className="w-4 h-4 inline mr-1" />
+          Scan Vendor Barcode
+        </label>
+        <div className="space-y-2">
+          <input
+            ref={vendorBarcodeInputRef}
+            type="text"
+            value={vendorBarcode}
+            onChange={(e) => setVendorBarcode(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleVendorBarcodeScan();
+              }
+            }}
+            placeholder="Scan Digikey or Mouser barcode..."
+            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleVendorBarcodeScan}
+              disabled={!vendorBarcode.trim()}
+              className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+            >
+              Decode
+            </button>
+            <button
+              onClick={handleClearVendorBarcode}
+              className="bg-gray-500 hover:bg-gray-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              onClick={startCameraScanner}
+              className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
+              title="Scan with camera"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+          </div>
+          
+          {barcodeDecodeResult && (
+            <div className={`mt-2 p-3 rounded-md text-sm ${
+              barcodeDecodeResult.error
+                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-800 dark:text-red-200'
+                : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50 text-green-800 dark:text-green-200'
+            }`}>
+              {barcodeDecodeResult.error ? (
+                <p>{barcodeDecodeResult.error}</p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-semibold">{barcodeDecodeResult.vendor} Barcode Decoded:</p>
+                  {barcodeDecodeResult.manufacturerPN && (
+                    <p>MFG P/N: <span className="font-mono">{barcodeDecodeResult.manufacturerPN}</span></p>
+                  )}
+                  {barcodeDecodeResult.digikeySKU && (
+                    <p>Digikey SKU: <span className="font-mono">{barcodeDecodeResult.digikeySKU}</span></p>
+                  )}
+                  {barcodeDecodeResult.mouserSKU && (
+                    <p>Mouser SKU: <span className="font-mono">{barcodeDecodeResult.mouserSKU}</span></p>
+                  )}
+                  {barcodeDecodeResult.quantity && (
+                    <p>Quantity: {barcodeDecodeResult.quantity}</p>
+                  )}
+                  <p className="text-xs mt-2 opacity-75">Search term updated with MFG P/N</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
+        </p>
       </div>
 
       {/* Search Results */}
@@ -496,6 +801,61 @@ const VendorSearch = () => {
                'Failed to download footprint. The API may not be configured.'}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Camera Scanner Modal */}
+      {showCameraScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={stopCameraScanner}>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Scan QR Code with Camera</h3>
+              <button
+                onClick={stopCameraScanner}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {/* Camera Selection */}
+            {cameraDevices.length > 1 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Camera
+                </label>
+                <select
+                  value={selectedCamera}
+                  onChange={(e) => {
+                    const newCamera = e.target.value;
+                    setSelectedCamera(newCamera);
+                    // Restart scanner with new camera
+                    if (scannerRef.current) {
+                      scannerRef.current.stop().then(() => {
+                        scannerRef.current = null;
+                      }).catch(err => console.error('Error switching camera:', err));
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                >
+                  {cameraDevices.map(device => (
+                    <option key={device.id} value={device.id}>
+                      {device.label || `Camera ${device.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            {/* Scanner View */}
+            <div className="relative">
+              <div id="vendor-qr-reader" className="w-full rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600"></div>
+            </div>
+            
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 text-center">
+              Hold QR code in front of camera - scanning continuously
+            </p>
+          </div>
         </div>
       )}
     </div>
