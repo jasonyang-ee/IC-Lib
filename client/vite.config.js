@@ -6,7 +6,9 @@ export default defineConfig({
 	plugins: [react()],
 	
 	// Use relative paths for assets - works with both subdomain and directory-style reverse proxy
-	base: process.env.BASE_URL || './',
+	// If BASE_URL env is set (e.g., BASE_URL=/mypath), use it for both assets and routing
+	// Otherwise default to './' for relative paths
+	base: process.env.BASE_URL && process.env.BASE_URL !== '/' ? process.env.BASE_URL : './',
 	
 	build: {
 		// Ensure assets use relative paths

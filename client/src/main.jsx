@@ -29,12 +29,13 @@ initializeDarkMode();
 // Detect base path for React Router
 // This allows the app to work with both subdomain and directory-style reverse proxy
 const getBasename = () => {
-  // 1. Check environment variable (if set during build)
+  // 1. Check environment variable BASE_URL (if set during build)
   // Note: Vite's BASE_URL might be './' for relative paths, which is invalid for React Router
   const envBase = import.meta.env.BASE_URL;
   if (envBase && envBase !== '/' && envBase.startsWith('/') && !envBase.startsWith('./')) {
     console.log('Using BASE_URL from environment:', envBase);
-    return envBase;
+    // Remove trailing slash if present (React Router doesn't like trailing slashes)
+    return envBase.replace(/\/$/, '');
   }
   
   // 2. Check if there's a base tag in the HTML
@@ -44,21 +45,26 @@ const getBasename = () => {
     // Only use if it's an absolute path (not relative like './')
     if (href.startsWith('/') && !href.startsWith('./')) {
       console.log('Using base tag:', href);
-      return href;
+      return href.replace(/\/$/, '');
     }
   }
   
   // 3. Auto-detect from pathname (for directory-style deployments)
-  // If the app is deployed to example.com/iclib/, pathname will be /iclib/
+  // Extract first path segment (e.g., /test from /test/dashboard)
   const pathname = window.location.pathname;
+  const match = pathname.match(/^\/([^\/]+)/);
   
-  // Common base paths to check (customize as needed)
-  const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
-  
-  for (const base of commonBases) {
-    if (pathname.startsWith(base + '/') || pathname === base) {
-      console.log('Auto-detected basename from pathname:', base);
-      return base;
+  if (match && match[1] !== '') {
+    const segment = match[1];
+    // List of known app routes (not base paths)
+    const knownRoutes = ['login', 'dashboard', 'library', 'inventory', 'projects', 
+                         'vendor-search', 'reports', 'audit', 'user-settings', 'admin-settings', 'settings'];
+    
+    // If the segment is not a known route, assume it's a base path
+    if (!knownRoutes.includes(segment)) {
+      const detectedBase = '/' + segment;
+      console.log('Auto-detected basename from pathname:', detectedBase);
+      return detectedBase;
     }
   }
   

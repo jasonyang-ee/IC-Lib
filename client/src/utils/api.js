@@ -2,15 +2,31 @@ import axios from 'axios';
 
 // Detect the base path to properly construct API URLs for reverse proxy deployments
 const getBasePath = () => {
-  const pathname = window.location.pathname;
-  const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
+  // 1. Check if BASE_URL environment variable is set (highest priority)
+  const envBaseUrl = import.meta.env.BASE_URL;
+  if (envBaseUrl && envBaseUrl !== '/' && envBaseUrl.startsWith('/') && !envBaseUrl.startsWith('./')) {
+    // Remove trailing slash if present
+    return envBaseUrl.replace(/\/$/, '');
+  }
   
-  for (const base of commonBases) {
-    if (pathname.startsWith(base + '/') || pathname === base) {
-      return base;
+  // 2. Try to detect from current pathname (fallback for runtime detection)
+  const pathname = window.location.pathname;
+  
+  // Extract first path segment (e.g., /test from /test/dashboard)
+  const match = pathname.match(/^\/([^\/]+)/);
+  if (match && match[1] !== '') {
+    // Check if it looks like a base path (not a route like 'login', 'dashboard', etc.)
+    const segment = match[1];
+    const knownRoutes = ['login', 'dashboard', 'library', 'inventory', 'projects', 
+                         'vendor-search', 'reports', 'audit', 'user-settings', 'admin-settings', 'settings'];
+    
+    // If the segment is not a known route, assume it's a base path
+    if (!knownRoutes.includes(segment)) {
+      return '/' + segment;
     }
   }
   
+  // 3. Default to empty string (root deployment)
   return '';
 };
 
@@ -56,20 +72,11 @@ apiClient.interceptors.response.use(
       if (!isLoginPage) {
         localStorage.removeItem('token');
         
-        // Detect basename from pathname to construct correct login URL
-        // This supports both subdomain (/) and directory-style (/test, /iclib) deployments
-        const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
-        let basename = '/';
-        
-        for (const base of commonBases) {
-          if (pathname.startsWith(base + '/') || pathname === base) {
-            basename = base;
-            break;
-          }
-        }
+        // Use the same base path detection logic
+        const basePath = getBasePath();
         
         // Redirect to login with proper base path
-        window.location.href = basename + (basename === '/' ? '' : '/') + 'login';
+        window.location.href = basePath + (basePath === '' ? '' : '/') + 'login';
       }
     }
     
