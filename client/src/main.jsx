@@ -30,8 +30,9 @@ initializeDarkMode();
 // This allows the app to work with both subdomain and directory-style reverse proxy
 const getBasename = () => {
   // 1. Check environment variable (if set during build)
+  // Note: Vite's BASE_URL might be './' for relative paths, which is invalid for React Router
   const envBase = import.meta.env.BASE_URL;
-  if (envBase && envBase !== '/') {
+  if (envBase && envBase !== '/' && envBase.startsWith('/') && !envBase.startsWith('./')) {
     console.log('Using BASE_URL from environment:', envBase);
     return envBase;
   }
@@ -40,8 +41,11 @@ const getBasename = () => {
   const baseTag = document.querySelector('base');
   if (baseTag && baseTag.getAttribute('href')) {
     const href = baseTag.getAttribute('href');
-    console.log('Using base tag:', href);
-    return href;
+    // Only use if it's an absolute path (not relative like './')
+    if (href.startsWith('/') && !href.startsWith('./')) {
+      console.log('Using base tag:', href);
+      return href;
+    }
   }
   
   // 3. Auto-detect from pathname (for directory-style deployments)
@@ -49,7 +53,7 @@ const getBasename = () => {
   const pathname = window.location.pathname;
   
   // Common base paths to check (customize as needed)
-  const commonBases = ['/iclib', '/ic-lib', '/components'];
+  const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
   
   for (const base of commonBases) {
     if (pathname.startsWith(base + '/') || pathname === base) {
