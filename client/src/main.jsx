@@ -26,6 +26,39 @@ const initializeDarkMode = () => {
 
 initializeDarkMode();
 
+// Detect base path for React Router
+// This allows the app to work with both subdomain and directory-style reverse proxy
+const getBasename = () => {
+  // Check if there's a base tag in the HTML
+  const baseTag = document.querySelector('base');
+  if (baseTag && baseTag.getAttribute('href')) {
+    return baseTag.getAttribute('href');
+  }
+  
+  // Auto-detect from pathname (for directory-style deployments)
+  // If the app is deployed to example.com/iclib/, pathname will be /iclib/
+  const pathname = window.location.pathname;
+  
+  // Common base paths to check (customize as needed)
+  const commonBases = ['/iclib', '/ic-lib', '/components'];
+  
+  for (const base of commonBases) {
+    if (pathname.startsWith(base + '/') || pathname === base) {
+      return base;
+    }
+  }
+  
+  // Default to root for subdomain-style deployments
+  return '/';
+};
+
+const basename = getBasename();
+
+// Log the detected basename for debugging (can be removed in production)
+if (basename !== '/') {
+  console.log('Detected basename:', basename);
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -40,7 +73,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <NotificationProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={basename}>
           <App />
         </BrowserRouter>
       </NotificationProvider>
