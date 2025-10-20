@@ -104,3 +104,14 @@ services:
   ```bash
   ./local-start.sh
   ```
+
+
+## Caddy Reverse Proxy with Subpath Support
+
+```
+iclib.domain.tld {
+	handle_path /anypath* {
+		reverse_proxy server.local:80
+	}
+}
+```
