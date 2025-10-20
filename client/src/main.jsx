@@ -29,13 +29,22 @@ initializeDarkMode();
 // Detect base path for React Router
 // This allows the app to work with both subdomain and directory-style reverse proxy
 const getBasename = () => {
-  // Check if there's a base tag in the HTML
-  const baseTag = document.querySelector('base');
-  if (baseTag && baseTag.getAttribute('href')) {
-    return baseTag.getAttribute('href');
+  // 1. Check environment variable (if set during build)
+  const envBase = import.meta.env.BASE_URL;
+  if (envBase && envBase !== '/') {
+    console.log('Using BASE_URL from environment:', envBase);
+    return envBase;
   }
   
-  // Auto-detect from pathname (for directory-style deployments)
+  // 2. Check if there's a base tag in the HTML
+  const baseTag = document.querySelector('base');
+  if (baseTag && baseTag.getAttribute('href')) {
+    const href = baseTag.getAttribute('href');
+    console.log('Using base tag:', href);
+    return href;
+  }
+  
+  // 3. Auto-detect from pathname (for directory-style deployments)
   // If the app is deployed to example.com/iclib/, pathname will be /iclib/
   const pathname = window.location.pathname;
   
@@ -44,20 +53,17 @@ const getBasename = () => {
   
   for (const base of commonBases) {
     if (pathname.startsWith(base + '/') || pathname === base) {
+      console.log('Auto-detected basename from pathname:', base);
       return base;
     }
   }
   
-  // Default to root for subdomain-style deployments
+  // 4. Default to root for subdomain-style deployments
+  console.log('Using default basename: /');
   return '/';
 };
 
 const basename = getBasename();
-
-// Log the detected basename for debugging (can be removed in production)
-if (basename !== '/') {
-  console.log('Detected basename:', basename);
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
