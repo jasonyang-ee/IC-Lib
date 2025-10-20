@@ -1,8 +1,26 @@
 import axios from 'axios';
 
+// Detect the base path to properly construct API URLs for reverse proxy deployments
+const getBasePath = () => {
+  const pathname = window.location.pathname;
+  const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
+  
+  for (const base of commonBases) {
+    if (pathname.startsWith(base + '/') || pathname === base) {
+      return base;
+    }
+  }
+  
+  return '';
+};
+
 // Use relative path for API in production (proxied by nginx)
 // In development, use localhost:3500 directly
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// For reverse proxy deployments, prepend the base path
+const basePath = getBasePath();
+const API_BASE_URL = import.meta.env.VITE_API_URL || (basePath + '/api');
+
+console.log('API Base URL:', API_BASE_URL);
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -31,11 +49,27 @@ apiClient.interceptors.response.use(
   (error) => {
     // Handle 401 Unauthorized - token expired or invalid
     if (error.response?.status === 401) {
-      // Only redirect to login if not already on login page
-      const isLoginPage = window.location.pathname === '/login';
+      // Get the basename from the current path to properly construct login URL
+      const pathname = window.location.pathname;
+      const isLoginPage = pathname.endsWith('/login');
+      
       if (!isLoginPage) {
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        
+        // Detect basename from pathname to construct correct login URL
+        // This supports both subdomain (/) and directory-style (/test, /iclib) deployments
+        const commonBases = ['/test', '/iclib', '/ic-lib', '/components'];
+        let basename = '/';
+        
+        for (const base of commonBases) {
+          if (pathname.startsWith(base + '/') || pathname === base) {
+            basename = base;
+            break;
+          }
+        }
+        
+        // Redirect to login with proper base path
+        window.location.href = basename + (basename === '/' ? '' : '/') + 'login';
       }
     }
     
