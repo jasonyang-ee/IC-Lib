@@ -44,3 +44,5 @@ temp/
 *.md
 !README.md
 !config/README.md
+
+build.sh

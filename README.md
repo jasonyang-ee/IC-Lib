@@ -106,11 +106,16 @@ services:
   ```
 
 
-## Caddy Reverse Proxy with Subpath Support
+## Caddy Reverse Proxy with Subdirectory Support
 
 ```
 iclib.domain.tld {
-	handle_path /anypath* {
+	@notrailing {
+        path /anypath
+    }
+    redir @notrailing /anypath/ permanent
+	
+	handle_path /anypath/* {
 		reverse_proxy server.local:80
 	}
 }

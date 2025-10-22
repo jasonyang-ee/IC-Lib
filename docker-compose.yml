@@ -2,7 +2,7 @@ services:
   iclib:
     build:
       context: .
-      dockerfile: Dockerfile
+    image: iclib:latest
     container_name: iclib
     restart: unless-stopped
     ports:
