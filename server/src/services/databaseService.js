@@ -134,11 +134,18 @@ export const resetDatabase = async () => {
     await client.query(schema);
     results.steps.push('Reinitialized database schema');
 
+    // Initialize users table
+    const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
+    const usersSql = readFileSync(usersPath, 'utf8');
+    
+    await client.query(usersSql);
+    results.steps.push('Initialized users table with default admin account');
+
     // Note: Sample data is NOT loaded during reset to keep database clean
     // Users can manually load sample data using the "Load Sample Data" button
     
     results.success = true;
-    results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized.';
+    results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized with default admin user.';
     
   } catch (error) {
     results.success = false;

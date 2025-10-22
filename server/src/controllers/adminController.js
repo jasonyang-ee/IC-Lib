@@ -12,33 +12,83 @@ const __dirname = path.dirname(__filename);
 const executeSQLFile = async (client, filePath, fileName) => {
   const sql = readFileSync(filePath, 'utf8');
   
-  // Remove comments and split by semicolons
-  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
-  const statements = withoutComments
-    .split(';')
-    .map(stmt => stmt.trim())
-    .filter(stmt => stmt.length > 0)
-    .map(stmt => stmt + ';');
+  // Better comment removal: preserve newlines, handle inline comments
+  let cleanedSQL = sql
+    .split('\n')
+    .map(line => {
+      // Remove everything after -- (single line comments)
+      const commentIndex = line.indexOf('--');
+      if (commentIndex !== -1) {
+        return line.substring(0, commentIndex);
+      }
+      return line;
+    })
+    .join('\n');
+  
+  // Split by semicolons, but be smarter about it
+  const statements = [];
+  let currentStatement = '';
+  let inString = false;
+  let stringChar = '';
+  
+  for (let i = 0; i < cleanedSQL.length; i++) {
+    const char = cleanedSQL[i];
+    const prevChar = i > 0 ? cleanedSQL[i - 1] : '';
+    
+    // Track if we're inside a string literal
+    if ((char === "'" || char === '"') && prevChar !== '\\') {
+      if (!inString) {
+        inString = true;
+        stringChar = char;
+      } else if (char === stringChar) {
+        inString = false;
+      }
+    }
+    
+    // Only split on semicolon if not in string
+    if (char === ';' && !inString) {
+      currentStatement += char;
+      const trimmed = currentStatement.trim();
+      if (trimmed.length > 0) {
+        statements.push(trimmed);
+      }
+      currentStatement = '';
+    } else {
+      currentStatement += char;
+    }
+  }
+  
+  // Add any remaining statement
+  const trimmed = currentStatement.trim();
+  if (trimmed.length > 0 && trimmed !== ';') {
+    statements.push(trimmed + ';');
+  }
   
   let executedCount = 0;
   const errors = [];
   
-  for (const statement of statements) {
-    if (statement.trim().length > 0 && !statement.trim().startsWith('--')) {
-      try {
-        await client.query(statement);
-        executedCount++;
-      } catch (error) {
-        console.error(`[${fileName}] Statement error:`, statement.substring(0, 100), error.message);
-        errors.push({
-          statement: statement.substring(0, 100) + '...',
-          error: error.message
-        });
-      }
+  for (let i = 0; i < statements.length; i++) {
+    const statement = statements[i];
+    try {
+      await client.query(statement);
+      executedCount++;
+    } catch (error) {
+      const preview = statement.trim().substring(0, 100).replace(/\s+/g, ' ');
+      console.error(`[${fileName}] Statement ${i + 1}/${statements.length} FAILED`);
+      console.error(`[${fileName}] SQL: ${preview}...`);
+      console.error(`[${fileName}] Error: ${error.message}`);
+      errors.push({
+        statementNumber: i + 1,
+        statement: preview + '...',
+        error: error.message,
+        code: error.code
+      });
     }
   }
   
-  return { executedCount, errors };
+  console.log(`[${fileName}] Summary: ${executedCount}/${statements.length} successful, ${errors.length} failed`);
+  
+  return { executedCount, errors, totalStatements: statements.length };
 };
 
 // Initialize database with full schema
@@ -109,6 +159,7 @@ export const resetDatabase = async (req, res, next) => {
   try {
     console.log('Starting database reset...');
     
+    // Don't use transaction for schema operations - they're DDL and auto-commit
     // Drop all tables
     await client.query('DROP SCHEMA public CASCADE');
     console.log('Dropped existing schema');
@@ -122,31 +173,64 @@ export const resetDatabase = async (req, res, next) => {
     // Execute init-schema.sql to recreate tables
     const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
     const schemaResult = await executeSQLFile(client, schemaPath, 'init-schema.sql');
-    console.log(`Schema recreated: ${schemaResult.executedCount} statements`);
+    console.log(`Schema recreated: ${schemaResult.executedCount}/${schemaResult.totalStatements} statements`);
+    if (schemaResult.errors.length > 0) {
+      console.error('Schema errors:', schemaResult.errors);
+    }
     
     // Initialize users table
     const usersPath = path.join(__dirname, '../../../database/init-users.sql');
     const usersResult = await executeSQLFile(client, usersPath, 'init-users.sql');
-    console.log(`Users initialized: ${usersResult.executedCount} statements`);
+    console.log(`Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
+    if (usersResult.errors.length > 0) {
+      console.error('Users initialization errors:', usersResult.errors);
+    }
+    
+    // Verify users table was created
+    try {
+      const usersCheck = await client.query("SELECT COUNT(*) FROM users");
+      console.log(`✓ Users table verified: ${usersCheck.rows[0].count} users`);
+    } catch (error) {
+      console.error('❌ Users table verification FAILED:', error.message);
+      throw new Error('Users table was not created successfully');
+    }
     
     // Load sample data
     const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
     const sampleResult = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
-    console.log(`Sample data loaded: ${sampleResult.executedCount} statements`);
+    console.log(`Sample data loaded: ${sampleResult.executedCount}/${sampleResult.totalStatements} statements`);
+    if (sampleResult.errors.length > 0) {
+      console.error('Sample data errors:', sampleResult.errors);
+    }
+    
+    // Check if users table was created successfully
+    const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0 || sampleResult.errors.length > 0;
+    
+    if (hasErrors) {
+      console.warn('⚠️  Database reset completed with errors:');
+      if (schemaResult.errors.length > 0) console.warn('  Schema errors:', schemaResult.errors.length);
+      if (usersResult.errors.length > 0) console.warn('  Users errors:', usersResult.errors.length);
+      if (sampleResult.errors.length > 0) console.warn('  Sample data errors:', sampleResult.errors.length);
+    }
     
     res.json({
-      success: true,
-      message: 'Database reset and reinitialized successfully',
+      success: !hasErrors,
+      message: hasErrors 
+        ? 'Database reset completed with errors - check console for details' 
+        : 'Database reset and reinitialized successfully',
       schema: {
         statementsExecuted: schemaResult.executedCount,
+        totalStatements: schemaResult.totalStatements,
         errors: schemaResult.errors
       },
       users: {
         statementsExecuted: usersResult.executedCount,
+        totalStatements: usersResult.totalStatements,
         errors: usersResult.errors
       },
       sampleData: {
         statementsExecuted: sampleResult.executedCount,
+        totalStatements: sampleResult.totalStatements,
         errors: sampleResult.errors
       }
     });
