@@ -239,6 +239,10 @@ export const api = {
   updateProjectComponent: (projectId, componentId, data) => apiClient.put(`/projects/${projectId}/components/${componentId}`, data),
   removeComponentFromProject: (projectId, componentId) => apiClient.delete(`/projects/${projectId}/components/${componentId}`),
   consumeProjectComponents: (projectId) => apiClient.post(`/projects/${projectId}/consume`),
+  
+  // Stock and Pricing Updates
+  updateComponentStock: (id) => apiClient.post(`/components/${id}/update-stock`, {}),
+  bulkUpdateStock: (limit) => apiClient.post('/components/bulk/update-stock', {}, { params: { limit } }),
 };
 
 export default apiClient;

@@ -12,6 +12,9 @@ router.get('/subcategories/suggestions', componentController.getSubCategorySugge
 // Get field suggestions (package, footprint, schematic)
 router.get('/field-suggestions', componentController.getFieldSuggestions);
 
+// Bulk update stock info for all components (MUST be before /:id routes)
+router.post('/bulk/update-stock', componentController.bulkUpdateStock);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 
@@ -47,5 +50,8 @@ router.put('/:id/alternatives/:altId', componentController.updateAlternative);
 
 // Delete alternative part
 router.delete('/:id/alternatives/:altId', componentController.deleteAlternative);
+
+// Update stock info for a single component (primary + alternatives)
+router.post('/:id/update-stock', componentController.updateComponentStock);
 
 export default router;

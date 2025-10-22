@@ -1009,3 +1009,200 @@ export const deleteAlternative = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Update stock and pricing info for a single component
+ * Fetches data from vendor APIs and updates database
+ */
+export const updateComponentStock = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    let updatedCount = 0;
+    const errors = [];
+
+    // Get all distributor info for this component (primary + alternatives)
+    const distributorsResult = await pool.query(`
+      SELECT 
+        di.id,
+        di.component_id,
+        di.alternative_id,
+        di.distributor_id,
+        di.sku,
+        d.name as distributor_name
+      FROM distributor_info di
+      JOIN distributors d ON di.distributor_id = d.id
+      WHERE (di.component_id = $1 OR di.alternative_id IN (
+        SELECT id FROM components_alternative WHERE part_number = (
+          SELECT part_number FROM components WHERE id = $1
+        )
+      ))
+      AND di.sku IS NOT NULL
+      AND di.sku != ''
+    `, [id]);
+
+    // Update each distributor entry
+    for (const dist of distributorsResult.rows) {
+      try {
+        let vendorData = null;
+
+        // Fetch from appropriate vendor
+        if (dist.distributor_name.toLowerCase() === 'digikey') {
+          const result = await digikeyService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        } else if (dist.distributor_name.toLowerCase() === 'mouser') {
+          const result = await mouserService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        }
+
+        // Update if data found
+        if (vendorData && vendorData.pricing) {
+          await pool.query(`
+            UPDATE distributor_info
+            SET 
+              price_breaks = $1,
+              stock_quantity = $2,
+              in_stock = $3,
+              url = COALESCE($4, url),
+              last_updated = CURRENT_TIMESTAMP
+            WHERE id = $5
+          `, [
+            JSON.stringify(vendorData.pricing),
+            vendorData.stock || 0,
+            (vendorData.stock || 0) > 0,
+            vendorData.productUrl || null,
+            dist.id
+          ]);
+          updatedCount++;
+        }
+      } catch (error) {
+        console.error(`Error updating stock for SKU ${dist.sku}:`, error.message);
+        errors.push({
+          sku: dist.sku,
+          distributor: dist.distributor_name,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Updated ${updatedCount} distributor entries`,
+      updatedCount,
+      totalChecked: distributorsResult.rows.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error updating component stock:', error);
+    next(error);
+  }
+};
+
+/**
+ * Bulk update stock and pricing info for ALL components
+ * Fetches data from vendor APIs and updates database
+ */
+export const bulkUpdateStock = async (req, res, next) => {
+  try {
+    const { limit } = req.query;
+    const maxLimit = limit ? parseInt(limit) : null;
+
+    // Get all distributor entries with SKUs
+    let query = `
+      SELECT 
+        di.id,
+        di.sku,
+        d.name as distributor_name,
+        c.part_number,
+        c.id as component_id
+      FROM distributor_info di
+      JOIN distributors d ON di.distributor_id = d.id
+      LEFT JOIN components c ON di.component_id = c.id
+      LEFT JOIN components_alternative ca ON di.alternative_id = ca.id
+      WHERE di.sku IS NOT NULL
+      AND di.sku != ''
+      ORDER BY di.last_updated ASC NULLS FIRST
+    `;
+
+    if (maxLimit) {
+      query += ` LIMIT ${maxLimit}`;
+    }
+
+    const distributorsResult = await pool.query(query);
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    console.log(`Starting bulk stock update for ${distributorsResult.rows.length} distributor entries...`);
+
+    // Update each distributor entry
+    for (const dist of distributorsResult.rows) {
+      try {
+        let vendorData = null;
+
+        // Fetch from appropriate vendor
+        if (dist.distributor_name.toLowerCase() === 'digikey') {
+          const result = await digikeyService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        } else if (dist.distributor_name.toLowerCase() === 'mouser') {
+          const result = await mouserService.searchPart(dist.sku);
+          vendorData = result.results?.[0];
+        }
+
+        // Update if data found
+        if (vendorData && vendorData.pricing) {
+          await pool.query(`
+            UPDATE distributor_info
+            SET 
+              price_breaks = $1,
+              stock_quantity = $2,
+              in_stock = $3,
+              url = COALESCE($4, url),
+              last_updated = CURRENT_TIMESTAMP
+            WHERE id = $5
+          `, [
+            JSON.stringify(vendorData.pricing),
+            vendorData.stock || 0,
+            (vendorData.stock || 0) > 0,
+            vendorData.productUrl || null,
+            dist.id
+          ]);
+          updatedCount++;
+          console.log(`✓ Updated ${dist.sku} (${dist.distributor_name})`);
+        } else {
+          skippedCount++;
+          console.log(`⊘ No data found for ${dist.sku} (${dist.distributor_name})`);
+        }
+
+        // Add a small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error) {
+        console.error(`✗ Error updating ${dist.sku}:`, error.message);
+        errors.push({
+          sku: dist.sku,
+          distributor: dist.distributor_name,
+          partNumber: dist.part_number,
+          error: error.message
+        });
+      }
+    }
+
+    console.log(`Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
+
+    res.json({
+      success: true,
+      message: `Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`,
+      updatedCount,
+      skippedCount,
+      totalChecked: distributorsResult.rows.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error in bulk stock update:', error);
+    next(error);
+  }
+};
