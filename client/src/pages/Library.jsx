@@ -2659,12 +2659,13 @@ const Library = () => {
                     <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Stock: {dist.stock_quantity || 'N/A'}</p>
                     {dist.price_breaks && dist.price_breaks.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Price Breaks:</p>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Price Breaks:</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                           {dist.price_breaks.map((priceBreak, idx) => (
-                            <span key={idx} className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                              {priceBreak.quantity}+: ${Number(priceBreak.price).toFixed(4)}
-                            </span>
+                            <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-[#333333] px-2 py-1 rounded">
+                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{priceBreak.quantity}+:</span>
+                              <span className="text-xs font-semibold text-green-600 dark:text-green-400">${Number(priceBreak.price).toFixed(4)}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -3074,7 +3075,7 @@ const Library = () => {
                         const displayValue = typeof val === 'object' ? val.value : val;
                         const displayUnit = typeof val === 'object' ? val.unit : '';
                         // Filter out data type labels (String, UnitOfMeasure, etc.)
-                        const dataTypeLabels = ['String', 'UnitOfMeasure', 'Integer', 'Boolean', 'Decimal', 'Number', 'Double'];
+                        const dataTypeLabels = ['String', 'UnitOfMeasure', 'CoupledUnitOfMeasure', 'Integer', 'Boolean', 'Decimal', 'Number', 'Double'];
                         const shouldShowUnit = displayUnit && !dataTypeLabels.includes(displayUnit);
                         return (
                           <div 
