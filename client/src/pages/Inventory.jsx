@@ -1132,11 +1132,11 @@ const Inventory = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 h-[calc(100vh-180px)]">
+    <div className="h-full flex flex-col">
+      <div className="flex gap-4 flex-1 overflow-hidden">
 
       {/* Left Sidebar - Controls */}
-      <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto">
+      <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
 
         {/* Category Filter */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
@@ -1354,8 +1354,8 @@ const Inventory = () => {
       </div>
 
       {/* Right Side - Inventory Table */}
-      <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden flex flex-col min-h-250">
-        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between">
+      <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Inventory Items ({sortedInventory?.length || 0})
           </h3>
@@ -1417,7 +1417,7 @@ const Inventory = () => {
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-auto custom-scrollbar">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
               <tr>

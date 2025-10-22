@@ -217,9 +217,9 @@ const Audit = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         
         <button
           onClick={exportToCSV}
@@ -232,7 +232,7 @@ const Audit = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 flex-shrink-0">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
           <div>
@@ -308,7 +308,7 @@ const Audit = () => {
       </div>
 
       {/* Audit Table */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] overflow-hidden">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -319,7 +319,7 @@ const Audit = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-[#333333]">
                   <tr>
@@ -378,7 +378,7 @@ const Audit = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-4 py-3 border-t border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between">
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between flex-shrink-0">
                 <div className="text-sm text-gray-700 dark:text-gray-300">
                   Page {currentPage} of {totalPages}
                 </div>

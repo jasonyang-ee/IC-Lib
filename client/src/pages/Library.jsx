@@ -1689,16 +1689,16 @@ const Library = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col">
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
-      <div className={`grid grid-cols-1 gap-4 min-h-[600px] ${
+      <div className={`grid grid-cols-1 gap-4 flex-1 overflow-hidden ${
         (isEditMode || isAddMode) 
           ? 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
           : 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:w-[250px]">
+        <div className="space-y-4 xl:w-[250px] overflow-y-auto custom-scrollbar">
           {/* Category Selector */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
@@ -1921,23 +1921,23 @@ const Library = () => {
 
         {/* Center - Component List (Hidden in Edit Mode and Add Mode) */}
         {!isEditMode && !isAddMode && (
-          <div className="space-y-4 xl:min-w-[250px]">
+          <div className="flex flex-col xl:min-w-[250px] overflow-hidden">
             {/* Stock Update Progress */}
             {stockUpdateProgress.show && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 flex-shrink-0">
                 <p className="text-sm text-blue-800 dark:text-blue-200">{stockUpdateProgress.message}</p>
               </div>
             )}
             
             {/* Component List */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] h-full">
-              <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a]">
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Components ({components?.length || 0})
                   {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
                 </h3>
               </div>
-            <div className="overflow-auto custom-scrollbar" style={{maxHeight: 'calc(100vh)'}}>
+            <div className="overflow-y-auto custom-scrollbar flex-1">
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -2041,7 +2041,7 @@ const Library = () => {
         )}
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
-        <div className="space-y-4 xl:min-w-[400px]">
+        <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar">
           {/* Component Details - Always Shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center justify-between mb-4">
@@ -2926,7 +2926,7 @@ const Library = () => {
 
         {/* Fourth Column - Specifications & Alternative Parts (Edit/Add Mode Only) */}
         {(isEditMode || isAddMode) && (
-          <div className="space-y-4 xl:min-w-[400px]">
+          <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar">
             {/* Specifications Panel - For inputting values */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
@@ -3175,7 +3175,7 @@ const Library = () => {
         )}
 
         {/* Fifth Column - Vendor API Data & Component Specifications */}
-        <div className="space-y-4 xl:min-w-[350px]">
+        <div className="space-y-4 xl:min-w-[350px] overflow-y-auto custom-scrollbar">
           {/* Vendor API Data - Shown in both Add Mode and Edit Mode when vendor data is available */}
           {(isAddMode || isEditMode) && editData._vendorSearchData && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
