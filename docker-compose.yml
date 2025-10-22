@@ -18,9 +18,6 @@ services:
       - DB_USER=iclib
       - DB_PASSWORD=123456
       - DB_NAME=iclib
-
-      # Subdirectory Reverse Proxy Deployment (if applicable)
-      # - BASE_PATH=/anypath
       
       # Optional: API Keys for vendor integrations
       # - DIGIKEY_CLIENT_ID=your_client_id

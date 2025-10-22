@@ -4,10 +4,6 @@
 # Stage 1: Build Frontend
 FROM node:22-alpine AS frontend-builder
 
-# Accept BASE_URL as build argument for custom deployment paths
-ARG BASE_URL=./
-ENV BASE_URL=${BASE_URL}
-
 # Copy all client source code
 WORKDIR /app/client
 COPY client/ .
@@ -15,8 +11,8 @@ COPY client/ .
 # Install dependencies (generates package-lock.json)
 RUN npm install --prefer-offline --no-audit
 
-# Build the React app with BASE_URL
-# Examples: BASE_URL=/ (root), BASE_URL=/test, BASE_URL=/iclib
+# Build the React app
+# Note: Base path is auto-detected at runtime, no build-time configuration needed
 RUN npm run build
 
 # Stage 2: Build Backend and Final Image
