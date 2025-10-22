@@ -21,6 +21,7 @@ const Library = () => {
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
+  const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
   const [copiedText, setCopiedText] = useState('');
@@ -631,6 +632,55 @@ const Library = () => {
     const manufacturerName = manufacturers?.find(m => m.id === componentDetails?.manufacturer_id)?.name || '';
     setManufacturerInput(manufacturerName);
     
+    // Store vendor data reference for later use
+    let vendorDataReference = null;
+    
+    // Auto-search Digikey SKU if available (for reference only, not auto-populate)
+    const digikeyDist = componentDetails?.distributors?.find(d => 
+      d.distributor_name?.toLowerCase() === 'digikey'
+    );
+    if (digikeyDist?.sku) {
+      try {
+        console.log('Auto-searching Digikey SKU for reference:', digikeyDist.sku);
+        const searchResponse = await api.searchAllVendors(digikeyDist.sku);
+        
+        // Process and store vendor data for DISPLAY ONLY (reference)
+        if (searchResponse.data) {
+          const searchResults = searchResponse.data;
+          
+          // Find the Digikey result
+          const digikeyResult = searchResults.digikey?.results?.[0];
+          
+          if (digikeyResult) {
+            // Prepare vendor data similar to VendorSearch
+            vendorDataReference = {
+              manufacturerPartNumber: digikeyResult.manufacturerPartNumber,
+              manufacturer: digikeyResult.manufacturer,
+              description: digikeyResult.description,
+              datasheet: digikeyResult.datasheet,
+              packageType: digikeyResult.packageType,
+              series: digikeyResult.series,
+              category: digikeyResult.category,
+              specifications: digikeyResult.specifications || {},
+              distributor: {
+                source: 'digikey',
+                sku: digikeyResult.partNumber,
+                pricing: digikeyResult.pricing,
+                stock: digikeyResult.stock,
+                productUrl: digikeyResult.productUrl,
+                minimumOrderQuantity: digikeyResult.minimumOrderQuantity
+              }
+            };
+            
+            console.log('✓ Auto-loaded vendor data for reference (display only)');
+          }
+        }
+      } catch (error) {
+        console.log('Could not auto-load vendor data:', error.message);
+        // Silent fail - this is just a convenience feature
+      }
+    }
+    
     // Load sub-category suggestions based on existing values
     if (componentDetails?.category_id) {
       try {
@@ -772,7 +822,9 @@ const Library = () => {
             manufacturer_pn: alt.manufacturer_pn,
             distributors: normalizeDistributors(alt.distributors)
           }))
-        : []
+        : [],
+      // Preserve vendor data reference if it was fetched
+      _vendorSearchData: vendorDataReference
     });
     
     // Initialize alternative manufacturer inputs
@@ -1439,6 +1491,88 @@ const Library = () => {
       updatedAlternatives.splice(index, 1);
       return { ...prev, alternatives: updatedAlternatives };
     });
+  };
+
+  const handlePromoteToPrimary = async (altIndex) => {
+    const alternative = editData.alternatives[altIndex];
+    
+    if (!alternative) {
+      console.error('Alternative not found at index:', altIndex);
+      return;
+    }
+    
+    // Get manufacturer names for confirmation dialog
+    const altManufacturerName = manufacturers?.find(m => m.id === alternative.manufacturer_id)?.name || 'Unknown';
+    const currentManufacturerName = manufacturers?.find(m => m.id === editData.manufacturer_id)?.name || 'Unknown';
+    
+    // Show confirmation dialog
+    setPromoteConfirmation({
+      show: true,
+      altIndex,
+      altData: {
+        manufacturer: altManufacturerName,
+        partNumber: alternative.manufacturer_pn
+      },
+      currentData: {
+        manufacturer: currentManufacturerName,
+        partNumber: editData.manufacturer_pn || 'N/A'
+      }
+    });
+  };
+  
+  const confirmPromoteToPrimary = () => {
+    const { altIndex } = promoteConfirmation;
+    const alternative = editData.alternatives[altIndex];
+    
+    try {
+      // Get current primary part data
+      const currentPrimary = {
+        manufacturer_id: editData.manufacturer_id,
+        manufacturer_pn: editData.manufacturer_pn,
+        distributors: editData.distributors || []
+      };
+      
+      // Update editData with alternative as primary
+      setEditData(prev => {
+        const newAlternatives = [...(prev.alternatives || [])];
+        
+        // Replace the alternative with current primary data
+        newAlternatives[altIndex] = {
+          manufacturer_id: currentPrimary.manufacturer_id,
+          manufacturer_pn: currentPrimary.manufacturer_pn,
+          distributors: currentPrimary.distributors
+        };
+        
+        return {
+          ...prev,
+          manufacturer_id: alternative.manufacturer_id,
+          manufacturer_pn: alternative.manufacturer_pn,
+          distributors: alternative.distributors || [],
+          alternatives: newAlternatives
+        };
+      });
+      
+      // Update manufacturer inputs
+      const promotedManufacturerName = manufacturers?.find(m => m.id === alternative.manufacturer_id)?.name || '';
+      setManufacturerInput(promotedManufacturerName);
+      
+      // Update alternative manufacturer input (for the demoted primary)
+      const demotedManufacturerName = manufacturers?.find(m => m.id === currentPrimary.manufacturer_id)?.name || '';
+      setAltManufacturerInputs(prevInputs => ({
+        ...prevInputs,
+        [altIndex]: demotedManufacturerName
+      }));
+      
+      console.log('✓ Promoted alternative to primary position');
+      
+      // Close confirmation dialog
+      setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null });
+      
+    } catch (error) {
+      console.error('Error promoting alternative:', error);
+      alert('Error promoting alternative: ' + error.message);
+      setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null });
+    }
   };
 
   const handleUpdateAlternativeDistributor = (altIndex, distIndex, field, value) => {
@@ -2744,19 +2878,29 @@ const Library = () => {
                 <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                   {editData.alternatives.map((alt, altIndex) => (
                     <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
-                      {/* Alternative header with delete button */}
+                      {/* Alternative header with promote and delete buttons */}
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                           Alternative #{altIndex + 1}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAlternative(altIndex)}
-                          className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          title="Delete alternative"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handlePromoteToPrimary(altIndex)}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-600 dark:border-blue-400"
+                            title="Promote this alternative to become the primary part"
+                          >
+                            ↑ Promote to Primary
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAlternative(altIndex)}
+                            className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                            title="Delete alternative"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
 
                       {/* Manufacturer and MFG Part Number */}
@@ -2923,15 +3067,18 @@ const Library = () => {
 
         {/* Fifth Column - Vendor API Data & Component Specifications */}
         <div className="space-y-4 xl:min-w-[350px]">
-          {/* Vendor API Data - Shown only in Add Mode when coming from Vendor Search */}
-          {isAddMode && editData._vendorSearchData && (
+          {/* Vendor API Data - Shown in both Add Mode and Edit Mode when vendor data is available */}
+          {(isAddMode || isEditMode) && editData._vendorSearchData && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
               <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
                 <span className="text-lg">📦</span>
                 Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
               </h3>
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                Click any value to copy to clipboard • All data from vendor API
+                {isEditMode 
+                  ? '📋 Reference Only: Click any value to copy to clipboard • This data is NOT auto-populated'
+                  : 'Click any value to copy to clipboard • All data from vendor API'
+                }
               </p>
               <div className="space-y-3 text-sm">
                 {/* Basic Info */}
@@ -3189,6 +3336,85 @@ const Library = () => {
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modern Promote to Primary Confirmation Modal */}
+      {promoteConfirmation.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
+              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+              </svg>
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
+              Promote to Primary Part
+            </h3>
+            
+            {/* Swap Preview */}
+            <div className="space-y-4 mb-6">
+              {/* Current Primary → Alternative */}
+              <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-4 border border-red-200 dark:border-red-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                  <p className="font-semibold text-red-900 dark:text-red-100 text-sm">Current Primary → Alternative</p>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 font-mono text-sm pl-7">
+                  {promoteConfirmation.currentData?.manufacturer} {promoteConfirmation.currentData?.partNumber}
+                </p>
+              </div>
+              
+              {/* Alternative → New Primary */}
+              <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                  <p className="font-semibold text-green-900 dark:text-green-100 text-sm">Alternative → New Primary</p>
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 font-mono text-sm pl-7">
+                  {promoteConfirmation.altData?.manufacturer} {promoteConfirmation.altData?.partNumber}
+                </p>
+              </div>
+            </div>
+            
+            {/* Info Message */}
+            <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 mb-6 border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                <strong>What will happen:</strong>
+              </p>
+              <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
+                <li>Manufacturer and part number will be swapped</li>
+                <li>Distributor information will be swapped</li>
+                <li>Both parts will retain their data (no data loss)</li>
+              </ul>
+            </div>
+            
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null })}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPromoteToPrimary}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                </svg>
+                Promote
               </button>
             </div>
           </div>

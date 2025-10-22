@@ -455,7 +455,7 @@ ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Inductors specifications
 INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (3, 'Inductance', 'H', 'Inductance' 1, false),
+    (3, 'Inductance', 'H', 'Inductance', 1, false),
     (3, 'Current Rating', 'A', 'Current Rating (Amps)', 2, false),
     (3, 'Tolerance', '%', 'Tolerance', 3, false),
     (3, 'DC Resistance', 'Ω', 'DC Resistance (DCR)', 4, false),
