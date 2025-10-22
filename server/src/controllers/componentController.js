@@ -502,6 +502,24 @@ export const updateDistributorInfo = async (req, res, next) => {
       return dist;
     }));
 
+    // Get list of distributor IDs that should be kept
+    const validDistributorIds = distributorsWithPricing
+      .filter(dist => dist.distributor_id && (dist.sku || dist.url))
+      .map(dist => dist.distributor_id);
+
+    // Delete distributor entries that are not in the provided list
+    // This handles the case where a distributor entry needs to be removed
+    if (validDistributorIds.length > 0) {
+      await pool.query(`
+        DELETE FROM distributor_info 
+        WHERE component_id = $1 
+        AND distributor_id NOT IN (${validDistributorIds.map((_, i) => `$${i + 2}`).join(',')})
+      `, [id, ...validDistributorIds]);
+    } else {
+      // If no valid distributors, delete all for this component
+      await pool.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
+    }
+
     // Handle both INSERT (new records) and UPDATE (existing records)
     // IMPORTANT: Each component can have only ONE entry per distributor
     // Using UPSERT with ON CONFLICT (component_id, distributor_id)
@@ -860,8 +878,25 @@ export const updateAlternative = async (req, res, next) => {
     }
     
     // Update distributors if provided
-    if (distributors && distributors.length > 0) {
-      // UPSERT distributor info (no need to delete first)
+    if (distributors) {
+      // Get list of distributor IDs that should be kept
+      const validDistributorIds = distributors
+        .filter(dist => dist.distributor_id && (dist.sku || dist.url))
+        .map(dist => dist.distributor_id);
+
+      // Delete distributor entries that are not in the provided list
+      if (validDistributorIds.length > 0) {
+        await pool.query(`
+          DELETE FROM distributor_info 
+          WHERE alternative_id = $1 
+          AND distributor_id NOT IN (${validDistributorIds.map((_, i) => `$${i + 2}`).join(',')})
+        `, [altId, ...validDistributorIds]);
+      } else {
+        // If no valid distributors, delete all for this alternative
+        await pool.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
+      }
+
+      // UPSERT distributor info
       // Each alternative can have only ONE entry per distributor
       for (const dist of distributors) {
         if (dist.distributor_id && (dist.sku || dist.url)) {

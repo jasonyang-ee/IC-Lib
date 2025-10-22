@@ -904,7 +904,9 @@ const Library = () => {
           await api.updateComponentSpecifications(selectedComponent.id, { specifications: [] });
         }
         
-        // Filter and update distributors (only with valid distributor_id and sku)
+        // Filter and update distributors (only with valid distributor_id and sku/url)
+        // IMPORTANT: We send all valid distributors to the backend
+        // The backend will delete entries not in this list
         const validDistributors = distributors?.filter(dist => 
           dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
         ).map(dist => ({
@@ -914,12 +916,11 @@ const Library = () => {
           url: dist.url || '',
           in_stock: dist.in_stock || false,
           stock_quantity: dist.stock_quantity || 0,
-          price_breaks: dist.price_breaks || []
+          price_breaks: Array.isArray(dist.price_breaks) ? dist.price_breaks : []
         })) || [];
         
-        if (validDistributors.length > 0) {
-          await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
-        }
+        // Always update distributors (even if empty) to handle deletions
+        await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         
         // Handle alternatives - create new, update existing, delete removed
         if (editData.alternatives && editData.alternatives.length > 0) {
@@ -965,7 +966,10 @@ const Library = () => {
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
                   sku: d.sku || '',
-                  url: d.url || ''
+                  url: d.url || '',
+                  in_stock: d.in_stock || false,
+                  stock_quantity: d.stock_quantity || 0,
+                  price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
                 })) || []
               });
             } else {
@@ -976,7 +980,10 @@ const Library = () => {
                 distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
                   distributor_id: d.distributor_id,
                   sku: d.sku || '',
-                  url: d.url || ''
+                  url: d.url || '',
+                  in_stock: d.in_stock || false,
+                  stock_quantity: d.stock_quantity || 0,
+                  price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
                 })) || []
               });
             }
@@ -1539,22 +1546,25 @@ const Library = () => {
           url: dist.url || '',
           in_stock: dist.in_stock || false,
           stock_quantity: dist.stock_quantity || 0,
-          price_breaks: dist.price_breaks || []
+          price_breaks: Array.isArray(dist.price_breaks) ? dist.price_breaks : []
           // NOTE: Explicitly NOT including 'id' field
         }))
       };
       
       // Get alternative distributor data (also without 'id' to prevent conflicts)
-      const alternativeDistributors = (alternative.distributors || []).map(dist => ({
-        distributor_id: dist.distributor_id,
-        distributor_name: dist.distributor_name,
-        sku: dist.sku || '',
-        url: dist.url || '',
-        in_stock: dist.in_stock || false,
-        stock_quantity: dist.stock_quantity || 0,
-        price_breaks: dist.price_breaks || []
-        // NOTE: Explicitly NOT including 'id' field
-      }));
+      // IMPORTANT: Only include distributors that have actual data (sku or url)
+      const alternativeDistributors = (alternative.distributors || [])
+        .filter(dist => dist.sku?.trim() || dist.url?.trim())
+        .map(dist => ({
+          distributor_id: dist.distributor_id,
+          distributor_name: dist.distributor_name,
+          sku: dist.sku || '',
+          url: dist.url || '',
+          in_stock: dist.in_stock || false,
+          stock_quantity: dist.stock_quantity || 0,
+          price_breaks: Array.isArray(dist.price_breaks) ? dist.price_breaks : []
+          // NOTE: Explicitly NOT including 'id' field
+        }));
       
       // Update editData with alternative as primary
       setEditData(prev => {
