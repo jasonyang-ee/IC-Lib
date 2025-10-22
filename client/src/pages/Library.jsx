@@ -654,6 +654,7 @@ const Library = () => {
           if (digikeyResult) {
             // Prepare vendor data similar to VendorSearch
             vendorDataReference = {
+              source: 'digikey', // Explicitly set source
               manufacturerPartNumber: digikeyResult.manufacturerPartNumber,
               manufacturer: digikeyResult.manufacturer,
               description: digikeyResult.description,
@@ -1528,7 +1529,7 @@ const Library = () => {
       // Get current primary part data
       const currentPrimary = {
         manufacturer_id: editData.manufacturer_id,
-        manufacturer_pn: editData.manufacturer_pn,
+        manufacturer_pn: editData.manufacturer_pn || editData.manufacturer_part_number,
         distributors: editData.distributors || []
       };
       
@@ -1537,7 +1538,9 @@ const Library = () => {
         const newAlternatives = [...(prev.alternatives || [])];
         
         // Replace the alternative with current primary data
+        // Preserve the alternative's ID so it updates correctly in database
         newAlternatives[altIndex] = {
+          id: alternative.id, // Keep the ID for database update
           manufacturer_id: currentPrimary.manufacturer_id,
           manufacturer_pn: currentPrimary.manufacturer_pn,
           distributors: currentPrimary.distributors
@@ -1547,6 +1550,7 @@ const Library = () => {
           ...prev,
           manufacturer_id: alternative.manufacturer_id,
           manufacturer_pn: alternative.manufacturer_pn,
+          manufacturer_part_number: alternative.manufacturer_pn, // Update both fields
           distributors: alternative.distributors || [],
           alternatives: newAlternatives
         };

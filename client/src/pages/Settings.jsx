@@ -1486,14 +1486,40 @@ const Settings = () => {
         <div className="border-t border-gray-200 dark:border-[#3a3a3a] pt-4">
           <button
             onClick={() => setShowAdvancedOps(!showAdvancedOps)}
-            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-2 mb-3"
+            className="w-full bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-600 rounded-lg p-4 transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            <AlertCircle className="w-4 h-4" />
-            {showAdvancedOps ? 'Hide' : 'Show'} Advanced Operations
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-100 dark:bg-orange-900/30 rounded-full p-2">
+                  <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="text-left">
+                  <h4 className="font-semibold text-orange-900 dark:text-orange-200 text-base">
+                    Advanced Operations
+                  </h4>
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-0.5">
+                    {showAdvancedOps ? 'Click to hide dangerous operations' : 'Click to show database management & dangerous operations'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+                  {showAdvancedOps ? 'Hide' : 'Show'}
+                </span>
+                <svg 
+                  className={`w-5 h-5 text-orange-600 dark:text-orange-400 transition-transform duration-200 ${showAdvancedOps ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </button>
           
           {showAdvancedOps && (
-            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4 mt-4 animate-fadeIn">
               <div className="flex items-start gap-3 mb-3">
                 <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                 <div>

@@ -124,6 +124,11 @@ export const resetDatabase = async (req, res, next) => {
     const schemaResult = await executeSQLFile(client, schemaPath, 'init-schema.sql');
     console.log(`Schema recreated: ${schemaResult.executedCount} statements`);
     
+    // Initialize users table
+    const usersPath = path.join(__dirname, '../../../database/init-users.sql');
+    const usersResult = await executeSQLFile(client, usersPath, 'init-users.sql');
+    console.log(`Users initialized: ${usersResult.executedCount} statements`);
+    
     // Load sample data
     const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
     const sampleResult = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
@@ -135,6 +140,10 @@ export const resetDatabase = async (req, res, next) => {
       schema: {
         statementsExecuted: schemaResult.executedCount,
         errors: schemaResult.errors
+      },
+      users: {
+        statementsExecuted: usersResult.executedCount,
+        errors: usersResult.errors
       },
       sampleData: {
         statementsExecuted: sampleResult.executedCount,
