@@ -200,8 +200,8 @@ CREATE TABLE IF NOT EXISTS distributor_info (
         (component_id IS NOT NULL AND alternative_id IS NULL) OR
         (component_id IS NULL AND alternative_id IS NOT NULL)
     ),
-    UNIQUE(component_id, distributor_id, sku),
-    UNIQUE(alternative_id, distributor_id, sku)
+    CONSTRAINT distributor_info_component_distributor_unique UNIQUE(component_id, distributor_id),
+    CONSTRAINT distributor_info_alternative_distributor_unique UNIQUE(alternative_id, distributor_id)
 );
 
 -- Table: inventory
@@ -254,6 +254,7 @@ CREATE INDEX IF NOT EXISTS idx_comp_spec_values_category_spec ON component_speci
 CREATE INDEX IF NOT EXISTS idx_distributor_info_component ON distributor_info(component_id);
 CREATE INDEX IF NOT EXISTS idx_distributor_info_alternative ON distributor_info(alternative_id);
 CREATE INDEX IF NOT EXISTS idx_distributor_info_distributor ON distributor_info(distributor_id);
+CREATE INDEX IF NOT EXISTS idx_distributor_info_sku ON distributor_info(sku);
 
 -- Components alternative indexes
 CREATE INDEX IF NOT EXISTS idx_components_alternative_part_number ON components_alternative(part_number);

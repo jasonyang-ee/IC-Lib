@@ -503,60 +503,45 @@ export const updateDistributorInfo = async (req, res, next) => {
     }));
 
     // Handle both INSERT (new records) and UPDATE (existing records)
+    // IMPORTANT: Each component can have only ONE entry per distributor
+    // Using UPSERT with ON CONFLICT (component_id, distributor_id)
     const updates = distributorsWithPricing.map(async (dist) => {
-      if (dist.id) {
-        // Update existing distributor_info record
-        await pool.query(`
-          UPDATE distributor_info 
-          SET sku = $1,
-              url = $2,
-              in_stock = $3,
-              stock_quantity = $4,
-              minimum_order_quantity = $5,
-              price_breaks = $6,
-              last_updated = CURRENT_TIMESTAMP
-          WHERE component_id = $7 AND id = $8
-        `, [
-          dist.sku || dist.distributor_part_number || null, 
-          dist.url || null,
-          dist.in_stock || false,
-          dist.stock_quantity || 0,
-          dist.minimum_order_quantity || 1,
-          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
-          id, 
-          dist.id
-        ]);
-      } else if (dist.distributor_id && dist.sku) {
-        // Insert new distributor_info record
-        await pool.query(`
-          INSERT INTO distributor_info (
-            component_id,
-            distributor_id,
-            sku,
-            url,
-            in_stock,
-            stock_quantity,
-            minimum_order_quantity,
-            price_breaks
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (component_id, distributor_id, sku) DO UPDATE
-          SET url = EXCLUDED.url,
-              in_stock = EXCLUDED.in_stock,
-              stock_quantity = EXCLUDED.stock_quantity,
-              minimum_order_quantity = EXCLUDED.minimum_order_quantity,
-              price_breaks = EXCLUDED.price_breaks,
-              last_updated = CURRENT_TIMESTAMP
-        `, [
-          id,
-          dist.distributor_id,
-          dist.sku,
-          dist.url || null,
-          dist.in_stock || false,
-          dist.stock_quantity || 0,
-          dist.minimum_order_quantity || 1,
-          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
-        ]);
+      // Skip if no distributor_id or no data to save
+      if (!dist.distributor_id || (!dist.sku && !dist.url)) {
+        return;
       }
+
+      // UPSERT: Insert or update based on (component_id, distributor_id) unique constraint
+      await pool.query(`
+        INSERT INTO distributor_info (
+          component_id,
+          distributor_id,
+          sku,
+          url,
+          in_stock,
+          stock_quantity,
+          minimum_order_quantity,
+          price_breaks
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (component_id, distributor_id) 
+        DO UPDATE SET
+          sku = EXCLUDED.sku,
+          url = EXCLUDED.url,
+          in_stock = EXCLUDED.in_stock,
+          stock_quantity = EXCLUDED.stock_quantity,
+          minimum_order_quantity = EXCLUDED.minimum_order_quantity,
+          price_breaks = EXCLUDED.price_breaks,
+          last_updated = CURRENT_TIMESTAMP
+      `, [
+        id,
+        dist.distributor_id,
+        dist.sku || null,
+        dist.url || null,
+        dist.in_stock || false,
+        dist.stock_quantity || 0,
+        dist.minimum_order_quantity || 1,
+        dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+      ]);
     });
 
     await Promise.all(updates);
@@ -780,6 +765,7 @@ export const createAlternative = async (req, res, next) => {
     const alternativeId = result.rows[0].id;
     
     // Add distributor info if provided
+    // IMPORTANT: Each alternative can have only ONE entry per distributor
     if (distributors && distributors.length > 0) {
       for (const dist of distributors) {
         await pool.query(`
@@ -788,8 +774,9 @@ export const createAlternative = async (req, res, next) => {
             in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
-          SET url = EXCLUDED.url,
+          ON CONFLICT (alternative_id, distributor_id) DO UPDATE
+          SET sku = EXCLUDED.sku,
+              url = EXCLUDED.url,
               in_stock = EXCLUDED.in_stock,
               stock_quantity = EXCLUDED.stock_quantity,
               minimum_order_quantity = EXCLUDED.minimum_order_quantity,
@@ -874,10 +861,8 @@ export const updateAlternative = async (req, res, next) => {
     
     // Update distributors if provided
     if (distributors && distributors.length > 0) {
-      // Delete existing distributors for this alternative
-      await pool.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
-      
-      // Insert new distributor info
+      // UPSERT distributor info (no need to delete first)
+      // Each alternative can have only ONE entry per distributor
       for (const dist of distributors) {
         if (dist.distributor_id && (dist.sku || dist.url)) {
           await pool.query(`
@@ -886,8 +871,9 @@ export const updateAlternative = async (req, res, next) => {
               in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            ON CONFLICT (alternative_id, distributor_id, sku) DO UPDATE
-            SET url = EXCLUDED.url,
+            ON CONFLICT (alternative_id, distributor_id) DO UPDATE
+            SET sku = EXCLUDED.sku,
+                url = EXCLUDED.url,
                 in_stock = EXCLUDED.in_stock,
                 stock_quantity = EXCLUDED.stock_quantity,
                 minimum_order_quantity = EXCLUDED.minimum_order_quantity,

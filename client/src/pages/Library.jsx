@@ -1527,11 +1527,34 @@ const Library = () => {
     
     try {
       // Get current primary part data
+      // CRITICAL: Remove 'id' field from distributors to prevent database corruption
+      // The 'id' field is the distributor_info table primary key and should NOT be swapped
       const currentPrimary = {
         manufacturer_id: editData.manufacturer_id,
         manufacturer_pn: editData.manufacturer_pn || editData.manufacturer_part_number,
-        distributors: editData.distributors || []
+        distributors: (editData.distributors || []).map(dist => ({
+          distributor_id: dist.distributor_id,
+          distributor_name: dist.distributor_name,
+          sku: dist.sku || '',
+          url: dist.url || '',
+          in_stock: dist.in_stock || false,
+          stock_quantity: dist.stock_quantity || 0,
+          price_breaks: dist.price_breaks || []
+          // NOTE: Explicitly NOT including 'id' field
+        }))
       };
+      
+      // Get alternative distributor data (also without 'id' to prevent conflicts)
+      const alternativeDistributors = (alternative.distributors || []).map(dist => ({
+        distributor_id: dist.distributor_id,
+        distributor_name: dist.distributor_name,
+        sku: dist.sku || '',
+        url: dist.url || '',
+        in_stock: dist.in_stock || false,
+        stock_quantity: dist.stock_quantity || 0,
+        price_breaks: dist.price_breaks || []
+        // NOTE: Explicitly NOT including 'id' field
+      }));
       
       // Update editData with alternative as primary
       setEditData(prev => {
@@ -1540,10 +1563,10 @@ const Library = () => {
         // Replace the alternative with current primary data
         // Preserve the alternative's ID so it updates correctly in database
         newAlternatives[altIndex] = {
-          id: alternative.id, // Keep the ID for database update
+          id: alternative.id, // Keep the alternative record ID for database update
           manufacturer_id: currentPrimary.manufacturer_id,
           manufacturer_pn: currentPrimary.manufacturer_pn,
-          distributors: currentPrimary.distributors
+          distributors: currentPrimary.distributors // Already cleaned above
         };
         
         return {
@@ -1551,7 +1574,7 @@ const Library = () => {
           manufacturer_id: alternative.manufacturer_id,
           manufacturer_pn: alternative.manufacturer_pn,
           manufacturer_part_number: alternative.manufacturer_pn, // Update both fields
-          distributors: alternative.distributors || [],
+          distributors: alternativeDistributors, // Use cleaned distributors
           alternatives: newAlternatives
         };
       });
@@ -1567,7 +1590,7 @@ const Library = () => {
         [altIndex]: demotedManufacturerName
       }));
       
-      console.log('✓ Promoted alternative to primary position');
+      console.log('✓ Promoted alternative to primary position (distributors cleaned)');
       
       // Close confirmation dialog
       setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null });
