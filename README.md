@@ -106,17 +106,51 @@ services:
   ```
 
 
-## Caddy Reverse Proxy with Subdirectory Support
+## Reverse Proxy with Subdirectory Support
+
+### Caddy
 
 ```
 iclib.domain.tld {
 	@notrailing {
-        path /anypath
-    }
-    redir @notrailing /anypath/ permanent
+		path /anypath
+	}
+	redir @notrailing /anypath/ permanent
 	
 	handle_path /anypath/* {
 		reverse_proxy server.local:80
+	}
+}
+```
+
+### Nginx
+
+```nginx
+server {
+	listen 80;
+	listen [::]:80;
+	server_name iclib.domain.tld;
+
+	# Redirect /anypath (no trailing slash) to /anypath/ (with trailing slash)
+	# This ensures the SPA base path is correctly detected
+	location = /anypath {
+		return 301 $scheme://$host/anypath/;
+	}
+
+	# Proxy all requests under /anypath/ to the IC-Lib container
+	location /anypath/ {
+		proxy_pass http://server.local:80/;
+		proxy_http_version 1.1;
+		proxy_set_header Upgrade $http_upgrade;
+		proxy_set_header Connection 'upgrade';
+		proxy_set_header Host $host;
+		proxy_set_header X-Real-IP $remote_addr;
+		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_cache_bypass $http_upgrade;
+		
+		# Handle large file uploads
+		client_max_body_size 100M;
 	}
 }
 ```

@@ -7,29 +7,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Split SQL content into individual statements
- * Handles multi-line statements and comments properly
+ * Execute SQL file statement by statement
  */
-const splitSQLStatements = (sql) => {
-  // Remove comments
-  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
+const executeSQLFile = async (client, filePath, fileName) => {
+  const sql = readFileSync(filePath, 'utf8');
   
-  // Split by semicolons but preserve them
+  // Remove comments and split by semicolons
+  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
   const statements = withoutComments
     .split(';')
     .map(stmt => stmt.trim())
     .filter(stmt => stmt.length > 0)
     .map(stmt => stmt + ';');
-  
-  return statements;
-};
-
-/**
- * Execute SQL file statement by statement
- */
-const executeSQLFile = async (client, filePath, fileName) => {
-  const sql = readFileSync(filePath, 'utf8');
-  const statements = splitSQLStatements(sql);
   
   let executedCount = 0;
   const errors = [];

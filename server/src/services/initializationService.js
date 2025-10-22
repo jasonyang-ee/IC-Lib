@@ -209,38 +209,6 @@ async function checkDefaultAdminExists() {
 }
 
 /**
- * Create or update default admin user password
- * Force creates/updates the admin user with the correct password
- */
-export async function resetDefaultAdminPassword() {
-  try {
-    console.log('🔧 Resetting default admin password...');
-    
-    const password = 'admin123';
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Upsert the admin user with the new password
-    await pool.query(`
-      INSERT INTO users (username, password_hash, role, is_active) 
-      VALUES ($1, $2, 'admin', true)
-      ON CONFLICT (username) 
-      DO UPDATE SET password_hash = EXCLUDED.password_hash, is_active = true;
-    `, ['admin', hashedPassword]);
-    
-    console.log('✅ Default admin password reset successfully');
-    console.log('   Username: admin');
-    console.log('   Password: admin123');
-    console.log('   ⚠️  Change this password immediately!');
-    console.log('');
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to reset default admin password:', error.message);
-    return false;
-  }
-}
-
-/**
  * Create default admin user if missing
  */
 async function createDefaultAdmin() {
