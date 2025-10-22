@@ -437,7 +437,7 @@ ON CONFLICT (version) DO NOTHING;
 -- Capacitors specifications
 INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
     (1, 'Capacitance', 'F', 'Capacitance', 1, false),
-    (1, 'Voltage Rating', 'V', 'Voltage - Rated', 2, true),
+    (1, 'Voltage Rating', 'V', 'Voltage - Rated', 2, false),
     (1, 'Tolerance', '%', 'Tolerance', 3, false),
     (1, 'Temperature Coefficient', '', 'Temperature Coefficient', 4, false),
     (1, 'ESR', 'Ohms', 'ESR', 5, false),
@@ -454,39 +454,36 @@ INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Inductors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (3, 'Inductance', 'H', 1, true),
-    (3, 'Current Rating', 'A', 2, true),
-    (3, 'Tolerance', '%', 3, false),
-    (3, 'DC Resistance', 'Ω', 4, false),
-    (3, 'Saturation Current', 'A', 5, false),
-    (3, 'Self-Resonant Frequency', 'Hz', 6, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
+    (3, 'Inductance', 'H', 'Inductance' 1, false),
+    (3, 'Current Rating', 'A', 'Current Rating (Amps)', 2, false),
+    (3, 'Tolerance', '%', 'Tolerance', 3, false),
+    (3, 'DC Resistance', 'Ω', 'DC Resistance (DCR)', 4, false),
+    (3, 'Saturation Current', 'A', 'Current - Saturation (Isat)', 5, false),
+    (3, 'Self-Resonant Frequency', 'Hz', 'Frequency - Self Resonant', 6, false),
+    (2, 'Operating Temperature', '', 'Operating Temperature', 7, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Diodes specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (4, 'Forward Voltage', 'V', 1, false),
-    (4, 'Current Rating', 'A', 2, true),
-    (4, 'Reverse Voltage', 'V', 3, false),
-    (4, 'Power Dissipation', 'W', 4, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
+    (4, 'Forward Voltage', '', 'Voltage - Forward (Vf) (Max) @ If', 1, false),
+    (4, 'Reverse Voltage', 'V', 'Voltage - DC Reverse (Vr) (Max)', 2, false),
+    (4, 'Current Rectified', 'A', 'Current - Average Rectified (Io)', 3, true),
+	(4, 'Reverse Leakage Current', '', 'Current - Reverse Leakage @ Vr', 4, false),
+	(4, 'Technology', '', 'Technology', 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Transistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (5, 'Transistor Type', '', 1, true),
-    (5, 'VDS/VCE Max', 'V', 2, true),
-    (5, 'ID/IC Max', 'A', 3, true),
-    (5, 'Power Dissipation', 'W', 4, false),
-    (5, 'Gate Threshold Voltage', 'V', 5, false),
-    (5, 'RDS(on)', 'Ω', 6, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
-
--- ICs specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, display_order, is_required) VALUES
-    (6, 'Supply Voltage', 'V', 1, true),
-    (6, 'Operating Current', 'A', 2, false),
-    (6, 'Operating Temperature', '°C', 3, false),
-    (6, 'Number of Channels', '', 4, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
+    (5, 'Transistor Type', '', 'Configuration', 1, false),
+    (5, 'Vdss', 'V', 'Drain to Source Voltage (Vdss)', 2, false),
+    (5, 'Id', 'A', 'Current - Continuous Drain (Id) @ 25°C', 3, false),
+    (5, 'Rds On', '', 'Rds On (Max) @ Id, Vgs', 4, false),
+    (5, 'Vgs(th)', '', 'Vgs(th) (Max) @ Id', 5, false),
+    (5, 'Gate Charge (Qg)', '', 'Gate Charge (Qg) (Max) @ Vgs', 6, false),
+	(5, 'Input Capacitance (Ciss)', '', 'nput Capacitance (Ciss) (Max) @ Vds', 7, false),
+	(5, 'Power', 'W', 'Power - Max', 8, false),
+	(5, 'Operating Temperature', '', 'Operating Temperature', 9, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- ============================================================================
