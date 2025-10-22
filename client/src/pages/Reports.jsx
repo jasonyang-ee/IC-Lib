@@ -209,11 +209,10 @@ const Reports = () => {
   };
 
   return (
-    <div className="space-y-6">
-
-      <div className="grid grid-cols-12 gap-6">
+    <div className="h-full flex flex-col">
+      <div className="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
         {/* Report Type Selector */}
-        <div className="col-span-3">
+        <div className="col-span-3 overflow-y-auto custom-scrollbar">
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Report Types</h3>
             <div className="space-y-2">
@@ -236,9 +235,9 @@ const Reports = () => {
         </div>
 
         {/* Report Content */}
-        <div className="col-span-9">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center">
+        <div className="col-span-9 flex flex-col overflow-hidden">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden h-full">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {reports.find((r) => r.id === activeReport)?.name}
               </h3>
@@ -247,7 +246,7 @@ const Reports = () => {
                 Export CSV
               </button>
             </div>
-            <div className="p-6">{renderReportContent()}</div>
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">{renderReportContent()}</div>
           </div>
         </div>
       </div>

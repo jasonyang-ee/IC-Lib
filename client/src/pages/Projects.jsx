@@ -458,8 +458,8 @@ const Projects = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6 flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
           <FolderKanban className="w-8 h-8" />
           Projects
@@ -475,13 +475,13 @@ const Projects = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
         {/* Projects List */}
-        <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-4 flex flex-col overflow-hidden">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex-shrink-0">
             All Projects ({projects?.length || 0})
           </h2>
-          <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto custom-scrollbar">
+          <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1">
             {projects?.map((project) => (
               <div
                 key={project.id}
@@ -537,10 +537,10 @@ const Projects = () => {
         </div>
 
         {/* Project Details */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6">
+        <div className="lg:col-span-2 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 flex flex-col overflow-hidden">
           {selectedProject ? (
             <>
-              <div className="flex justify-between items-start mb-6">
+              <div className="flex justify-between items-start mb-6 flex-shrink-0">
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     {projectDetails?.name || selectedProject.name}
@@ -581,8 +581,8 @@ const Projects = () => {
               </div>
 
               {/* Components List */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     Components ({projectDetails?.components?.length || 0})
                   </h3>
@@ -597,7 +597,7 @@ const Projects = () => {
                   )}
                 </div>
 
-                <div className="space-y-2 max-h-[calc(100vh-450px)] overflow-y-auto custom-scrollbar">
+                <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1">
                   {projectDetails?.components?.map((pc) => (
                     <div
                       key={pc.id}

@@ -8,7 +8,7 @@ const Audit = () => {
   const [activityFilter, setActivityFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const [itemsPerPage, setItemsPerPage] = useState(15); // Default to 15
 
   const { data: auditData, isLoading } = useQuery({
     queryKey: ['auditLog'],
@@ -233,7 +233,8 @@ const Audit = () => {
 
       {/* Filters */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 flex-shrink-0">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* All filters in one row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -248,7 +249,7 @@ const Audit = () => {
                 setCurrentPage(1);
               }}
               placeholder="Part number, description..."
-              className="input w-full"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
 
@@ -298,12 +299,27 @@ const Audit = () => {
               <option value="year">Last 1 Year</option>
             </select>
           </div>
-        </div>
 
-        {/* Results count */}
-        <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-          Showing {paginatedData.length} of {filteredData.length} records
-          {filteredData.length !== auditData?.length && ` (filtered from ${auditData?.length} total)`}
+          {/* Items per page */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Items per page
+            </label>
+            <input
+              type="number"
+              value={itemsPerPage}
+              onChange={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (value > 0 && value <= 1000) {
+                  setItemsPerPage(value);
+                  setCurrentPage(1);
+                }
+              }}
+              min="1"
+              max="1000"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+            />
+          </div>
         </div>
       </div>
 
@@ -379,8 +395,14 @@ const Audit = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="px-4 py-3 border-t border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between flex-shrink-0">
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  Page {currentPage} of {totalPages}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing {paginatedData.length} of {filteredData.length} records
+                    {filteredData.length !== auditData?.length && ` (filtered from ${auditData?.length} total)`}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
