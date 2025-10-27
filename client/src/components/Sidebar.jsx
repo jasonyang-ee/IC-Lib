@@ -8,6 +8,17 @@ const Sidebar = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
+  // Get the base path for assets
+  const getBasePath = () => {
+    // Use Vite's BASE_URL if available (set during build)
+    const base = import.meta.env.BASE_URL || '/';
+    // Ensure it ends with a slash for proper path joining
+    return base.endsWith('/') ? base : base + '/';
+  };
+
+  // Construct the logo path with base URL
+  const logoPath = getBasePath() + 'logo_bg.png';
+
   useEffect(() => {
     // Initialize dark mode from localStorage
     const savedMode = localStorage.getItem('darkMode') === 'true';
@@ -53,7 +64,7 @@ const Sidebar = () => {
       {/* Logo/Title */}
       <div className="p-5 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <img src="./logo_bg.png" alt="IC Lib Logo" className="w-12 h-12"/>
+          <img src={logoPath} alt="IC Lib Logo" className="w-12 h-12"/>
           <div>
             <h1 className="text-xl font-bold">IC Lib</h1>
             <p className="text-sm text-gray-400">PCB Parts Library</p>

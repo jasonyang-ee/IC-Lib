@@ -25,6 +25,7 @@ const Library = () => {
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
   const [copiedText, setCopiedText] = useState('');
+  const [autoFillToast, setAutoFillToast] = useState({ show: false, message: '', count: 0 });
   
   // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
@@ -165,7 +166,7 @@ const Library = () => {
       return categorySpecs;
     }
     
-    // Create a map of vendor spec name to value
+    // Create a map of vendor spec name to value (case-insensitive)
     const vendorSpecMap = {};
     Object.entries(vendorSpecs).forEach(([key, value]) => {
       // Handle both object format {value: "x"} and direct string values
@@ -175,18 +176,30 @@ const Library = () => {
       }
     });
     
-    // Map category specs with vendor values where mapping exists
+    console.log('Vendor Spec Map:', vendorSpecMap);
+    
+    // Map category specs with vendor values ONLY where mapping_spec_name exists
     return categorySpecs.map(spec => {
+      // Keep the original spec_value if no mapping exists
       let mappedValue = spec.spec_value || '';
       
-      // Check if there's a mapping for this spec
-      if (spec.mapping_spec_name) {
+      // Only update if mapping_spec_name is defined and not empty
+      if (spec.mapping_spec_name && spec.mapping_spec_name.trim() !== '') {
         const mappingKey = spec.mapping_spec_name.toLowerCase().trim();
+        console.log(`Checking spec: ${spec.spec_name}, mapping_spec_name: ${spec.mapping_spec_name}`);
+        
         if (vendorSpecMap[mappingKey]) {
-          mappedValue = vendorSpecMap[mappingKey];
+          const rawValue = vendorSpecMap[mappingKey];
+          console.log(`  -> Found match! Raw value: ${rawValue}`);
+          
           // Sanitize the value by removing unit if present
-          mappedValue = sanitizeSpecValue(mappedValue, spec.unit);
+          mappedValue = sanitizeSpecValue(rawValue, spec.unit);
+          console.log(`  -> After sanitize: ${mappedValue}`);
+        } else {
+          console.log(`  -> No matching vendor spec found for key: ${mappingKey}`);
         }
+      } else {
+        console.log(`Spec "${spec.spec_name}" has no mapping_spec_name - keeping original value`);
       }
       
       return {
@@ -780,6 +793,7 @@ const Library = () => {
             spec_name: catSpec.spec_name,
             spec_value: existing?.spec_value || '',
             unit: catSpec.unit || '',
+            mapping_spec_name: catSpec.mapping_spec_name || '',
             is_required: catSpec.is_required || false,
             display_order: catSpec.display_order || 0
           };
@@ -1506,6 +1520,95 @@ const Library = () => {
 
   const handleFieldChange = (field, value) => {
     setEditData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Auto Fill from Vendor API Data
+  const handleAutoFillFromVendorData = () => {
+    if (!editData._vendorSearchData) {
+      return;
+    }
+
+    const vendorData = editData._vendorSearchData;
+    const updates = {};
+    let updateCount = 0;
+
+    // Find manufacturer ID by name
+    if (vendorData.manufacturer) {
+      const manufacturer = manufacturers?.find(m => 
+        m.name.toLowerCase() === vendorData.manufacturer.toLowerCase()
+      );
+      if (manufacturer) {
+        updates.manufacturer_id = manufacturer.id;
+        updateCount++;
+      }
+    }
+
+    // Fill MFG Part Number - use BOTH fields to ensure compatibility
+    if (vendorData.manufacturerPartNumber) {
+      updates.manufacturer_pn = vendorData.manufacturerPartNumber;
+      updates.manufacturer_part_number = vendorData.manufacturerPartNumber;
+      updateCount++;
+    }
+
+    // Fill Package
+    if (vendorData.packageType && vendorData.packageType !== 'N/A') {
+      updates.package = vendorData.packageType;
+      updates.package_size = vendorData.packageType; // Some forms use package_size
+      updateCount++;
+    }
+
+    // Fill Value (if exists in specifications)
+    if (vendorData.specifications) {
+      // Common value field names in specifications
+      const valueKeys = ['Value', 'Capacitance', 'Resistance', 'Inductance', 'Voltage', 'Current'];
+      for (const key of valueKeys) {
+        if (vendorData.specifications[key]) {
+          const specValue = vendorData.specifications[key];
+          const displayValue = typeof specValue === 'object' ? specValue.value : specValue;
+          const displayUnit = typeof specValue === 'object' ? specValue.unit : '';
+          const dataTypeLabels = ['String', 'UnitOfMeasure', 'CoupledUnitOfMeasure', 'Integer', 'Boolean', 'Decimal', 'Number', 'Double'];
+          const shouldShowUnit = displayUnit && !dataTypeLabels.includes(displayUnit);
+          updates.value = `${displayValue}${shouldShowUnit ? ' ' + displayUnit : ''}`;
+          updateCount++;
+          break; // Use first matching value field
+        }
+      }
+    }
+
+    // Fill Datasheet URL
+    if (vendorData.datasheet) {
+      updates.datasheet_url = vendorData.datasheet;
+      updateCount++;
+    }
+
+    // Map vendor specifications to component specifications
+    // Use the same logic as "Add to Library" feature
+    if (vendorData.specifications && editData.specifications && editData.specifications.length > 0) {
+      console.log('=== Auto Fill Specifications Debug ===');
+      console.log('Current editData.specifications:', editData.specifications);
+      console.log('Vendor specifications:', vendorData.specifications);
+      
+      const mappedSpecs = mapVendorSpecifications(vendorData.specifications, editData.specifications);
+      console.log('Mapped specifications:', mappedSpecs);
+      
+      updates.specifications = mappedSpecs;
+      updateCount++; // Count specifications as one update
+    }
+
+    // Apply all updates
+    console.log('Auto Fill Updates:', updates);
+    setEditData((prev) => ({
+      ...prev,
+      ...updates
+    }));
+
+    // Show modern toast notification
+    if (updateCount > 0) {
+      setAutoFillToast({ show: true, message: 'Auto-filled successfully!', count: updateCount });
+      setTimeout(() => {
+        setAutoFillToast({ show: false, message: '', count: 0 });
+      }, 3000);
+    }
   };
 
   // Alternative Parts Management Handlers
@@ -3179,13 +3282,24 @@ const Library = () => {
           {/* Vendor API Data - Shown in both Add Mode and Edit Mode when vendor data is available */}
           {(isAddMode || isEditMode) && editData._vendorSearchData && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
-              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
-                <span className="text-lg">📦</span>
-                Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                  <span className="text-lg">📦</span>
+                  Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
+                </h3>
+                {isEditMode && (
+                  <button
+                    onClick={handleAutoFillFromVendorData}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors"
+                    title="Auto-fill Manufacturer, MFG P/N, Package, Value, Specifications, and Datasheet"
+                  >
+                    Auto Fill
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
                 {isEditMode 
-                  ? '📋 Reference Only: Click any value to copy to clipboard • This data is NOT auto-populated'
+                  ? '📋 Click any value to copy to clipboard • Use "Auto Fill" to populate basic fields • Specifications must be filled manually'
                   : 'Click any value to copy to clipboard • All data from vendor API'
                 }
               </p>
@@ -3691,6 +3805,31 @@ const Library = () => {
                 Add to Project
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto Fill Toast Notification */}
+      {autoFillToast.show && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-in">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 min-w-[300px]">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm">{autoFillToast.message}</p>
+              <p className="text-xs text-green-100 mt-1">
+                {autoFillToast.count} field{autoFillToast.count > 1 ? 's' : ''} updated from vendor data
+              </p>
+            </div>
+            <button
+              onClick={() => setAutoFillToast({ show: false, message: '', count: 0 })}
+              className="flex-shrink-0 text-white hover:text-green-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}

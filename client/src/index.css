@@ -130,6 +130,17 @@ body {
     }
   }
 
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(100px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
   .animate-fadeIn {
     animation: fadeIn 0.2s ease-out;
   }
@@ -140,5 +151,9 @@ body {
 
   .animate-slide-down {
     animation: slideDown 0.3s ease-out, fadeOut 0.3s ease-in 4.7s forwards;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
   }
 }
