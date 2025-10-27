@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Allegro Component Library - Unified Startup Script
+# IC Lib - Unified Startup Script
 # This script starts both nginx (frontend) and Express.js (backend) in a single container
 
 set -e
 
-echo "Allegro Component Library - Starting..."
+echo "IC Lib - Starting..."
 echo ""
 
 # Function to handle shutdown gracefully

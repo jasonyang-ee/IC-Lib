@@ -29,6 +29,7 @@ services:
       - ./iclib/download/footprint:/app/download/footprint
       - ./iclib/download/symbol:/app/download/symbol
       - ./iclib/download/pad:/app/download/pad
+      - ./iclib/download/pspice:/app/download/pspice
   
   iclib-db:
     image: postgres:18

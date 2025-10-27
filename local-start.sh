@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Allegro Component Library - Local Development Startup Script
+# IC Lib - Local Development Startup Script
 # This script loads environment variables from .env and starts services with hot reload
 
 set -e
