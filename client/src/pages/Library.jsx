@@ -75,11 +75,6 @@ const Library = () => {
   const [showAddToProjectModal, setShowAddToProjectModal] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectQuantity, setProjectQuantity] = useState(1);
-  
-  // Bulk stock update state
-  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
-  const [stockUpdateProgress, setStockUpdateProgress] = useState({ show: false, message: '' });
-  const [bulkUpdateConfirmation, setBulkUpdateConfirmation] = useState({ show: false });
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -1068,45 +1063,6 @@ const Library = () => {
   const cancelDelete = () => {
     setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
-  
-  const handleBulkUpdateStock = () => {
-    setBulkUpdateConfirmation({ show: true });
-  };
-  
-  const confirmBulkUpdateStock = async () => {
-    setBulkUpdateConfirmation({ show: false });
-    setIsUpdatingStock(true);
-    setStockUpdateProgress({ show: true, message: 'Starting bulk stock update...' });
-    
-    try {
-      const result = await api.bulkUpdateStock();
-      setStockUpdateProgress({ 
-        show: true, 
-        message: `✓ Update complete: ${result.data.updatedCount} updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors` 
-      });
-      
-      // Refresh component data
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['componentDetails']);
-      
-      // Hide progress message after 5 seconds
-      setTimeout(() => {
-        setStockUpdateProgress({ show: false, message: '' });
-      }, 5000);
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      setStockUpdateProgress({ show: true, message: '✗ Error updating stock. Please try again.' });
-      setTimeout(() => {
-        setStockUpdateProgress({ show: false, message: '' });
-      }, 5000);
-    } finally {
-      setIsUpdatingStock(false);
-    }
-  };
-  
-  const cancelBulkUpdateStock = () => {
-    setBulkUpdateConfirmation({ show: false });
-  };
 
   const handleAddNew = () => {
     setIsAddMode(true);
@@ -2006,16 +1962,6 @@ const Library = () => {
                       Delete Components
                     </button>
                   )}
-                  {canWrite() && (
-                    <button
-                      onClick={handleBulkUpdateStock}
-                      disabled={isUpdatingStock}
-                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Package className="w-4 h-4" />
-                      {isUpdatingStock ? 'Updating...' : 'Update Stock Info'}
-                    </button>
-                  )}
                 </>
               )}
             </div>
@@ -2025,13 +1971,6 @@ const Library = () => {
         {/* Center - Component List (Hidden in Edit Mode and Add Mode) */}
         {!isEditMode && !isAddMode && (
           <div className="flex flex-col xl:min-w-[250px] overflow-hidden">
-            {/* Stock Update Progress */}
-            {stockUpdateProgress.show && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 flex-shrink-0">
-                <p className="text-sm text-blue-800 dark:text-blue-200">{stockUpdateProgress.message}</p>
-              </div>
-            )}
-            
             {/* Component List */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
@@ -3638,52 +3577,6 @@ const Library = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
                 </svg>
                 Promote
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modern Bulk Update Stock Confirmation Modal */}
-      {bulkUpdateConfirmation.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/20">
-              <Package className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Update Stock Info
-            </h3>
-            
-            {/* Message */}
-            <div className="space-y-3 mb-6">
-              <p className="text-gray-600 dark:text-gray-400 text-center">
-                Update stock and pricing info for <strong>ALL components</strong> with distributor SKUs?
-              </p>
-              <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  <strong>Note:</strong> This process may take several minutes depending on the number of parts.
-                </p>
-              </div>
-            </div>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={cancelBulkUpdateStock}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmBulkUpdateStock}
-                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <Package className="w-4 h-4" />
-                Update
               </button>
             </div>
           </div>

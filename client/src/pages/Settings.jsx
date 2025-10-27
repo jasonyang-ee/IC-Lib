@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -822,6 +822,13 @@ const Settings = () => {
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
   const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
   
+  // Auto Data Update states
+  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
+  const [isUpdatingSpecs, setIsUpdatingSpecs] = useState(false);
+  const [updateToast, setUpdateToast] = useState({ show: false, message: '', type: 'success' });
+  const [bulkUpdateStockConfirm, setBulkUpdateStockConfirm] = useState(false);
+  const [bulkUpdateSpecsConfirm, setBulkUpdateSpecsConfirm] = useState(false);
+  
   // Manufacturer rename states
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
   const [newManufacturerName, setNewManufacturerName] = useState('');
@@ -983,6 +990,80 @@ const Settings = () => {
       showError(`Error clearing audit logs: ${errorMsg}`);
     },
   });
+
+  // Bulk update stock handler
+  const handleBulkUpdateStock = async () => {
+    setBulkUpdateStockConfirm(false);
+    setIsUpdatingStock(true);
+    setUpdateToast({ show: true, message: 'Starting bulk stock update...', type: 'info' });
+    
+    try {
+      const result = await api.bulkUpdateStock();
+      setUpdateToast({ 
+        show: true, 
+        message: `✓ Stock update complete: ${result.data.updatedCount} updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        type: 'success' 
+      });
+      
+      // Refresh component data
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['componentDetails']);
+      
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      setUpdateToast({ 
+        show: true, 
+        message: '✗ Error updating stock. Please try again.', 
+        type: 'error' 
+      });
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } finally {
+      setIsUpdatingStock(false);
+    }
+  };
+
+  // Bulk update specifications handler
+  const handleBulkUpdateSpecifications = async () => {
+    setBulkUpdateSpecsConfirm(false);
+    setIsUpdatingSpecs(true);
+    setUpdateToast({ show: true, message: 'Starting bulk specification update...', type: 'info' });
+    
+    try {
+      const result = await api.bulkUpdateSpecifications();
+      setUpdateToast({ 
+        show: true, 
+        message: `✓ Specification update complete: ${result.data.updatedCount} parts updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        type: 'success' 
+      });
+      
+      // Refresh component data
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['componentDetails']);
+      
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } catch (error) {
+      console.error('Error updating specifications:', error);
+      setUpdateToast({ 
+        show: true, 
+        message: '✗ Error updating specifications. Please try again.', 
+        type: 'error' 
+      });
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } finally {
+      setIsUpdatingSpecs(false);
+    }
+  };
 
   const resetDbMutation = useMutation({
     mutationFn: async () => {
@@ -1569,6 +1650,75 @@ const Settings = () => {
       {/* User Management Section */}
       <UserManagement />
 
+      {/* Auto Data Update Section */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <div className="flex items-center gap-2 mb-4">
+          <RefreshCw className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Auto Data Update</h2>
+        </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          Automatically update component data from distributor APIs. Only parts with valid distributor SKUs will be updated.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Update Stock Info */}
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-5 h-5 text-green-600 dark:text-green-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Stock Info</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Update stock quantities, pricing, and availability from distributor APIs for all parts with SKUs.
+            </p>
+            <button
+              onClick={() => setBulkUpdateStockConfirm(true)}
+              disabled={isUpdatingStock || isUpdatingSpecs}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isUpdatingStock ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Package className="w-4 h-4" />
+                  Update Stock Info
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Update Specifications */}
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Parts Specifications</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Auto-fill component specifications from distributor data using mapped specification names. Preserves existing values.
+            </p>
+            <button
+              onClick={() => setBulkUpdateSpecsConfirm(true)}
+              disabled={isUpdatingStock || isUpdatingSpecs}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isUpdatingSpecs ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4" />
+                  Update Specifications
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Audit Logs Management */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center gap-2 mb-4">
@@ -1624,6 +1774,100 @@ const Settings = () => {
               >
                 Clear Logs
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Update Stock Confirmation */}
+      {bulkUpdateStockConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                <Package className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Update Stock Info
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              This will update stock quantities, pricing, and availability from distributor APIs for all parts with SKUs. This may take several minutes depending on the number of parts.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkUpdateStockConfirm(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkUpdateStock}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                Start Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Update Specifications Confirmation */}
+      {bulkUpdateSpecsConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Update Parts Specifications
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              This will auto-fill component specifications from distributor data for all parts with SKUs. Only specifications with mapped names will be updated. Existing values will be preserved if no vendor data is found. This may take several minutes.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkUpdateSpecsConfirm(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkUpdateSpecifications}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Start Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {updateToast.show && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+          <div className={`rounded-lg shadow-lg p-4 max-w-md border ${
+            updateToast.type === 'success' 
+              ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' 
+              : updateToast.type === 'error'
+              ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+              : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
+          }`}>
+            <div className="flex items-center gap-3">
+              {updateToast.type === 'success' && <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />}
+              {updateToast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />}
+              {updateToast.type === 'info' && <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />}
+              <p className={`text-sm font-medium ${
+                updateToast.type === 'success' 
+                  ? 'text-green-800 dark:text-green-200' 
+                  : updateToast.type === 'error'
+                  ? 'text-red-800 dark:text-red-200'
+                  : 'text-blue-800 dark:text-blue-200'
+              }`}>
+                {updateToast.message}
+              </p>
             </div>
           </div>
         </div>

@@ -15,6 +15,9 @@ router.get('/field-suggestions', componentController.getFieldSuggestions);
 // Bulk update stock info for all components (MUST be before /:id routes)
 router.post('/bulk/update-stock', componentController.bulkUpdateStock);
 
+// Bulk update specifications for all components (MUST be before /:id routes)
+router.post('/bulk/update-specifications', componentController.bulkUpdateSpecifications);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 

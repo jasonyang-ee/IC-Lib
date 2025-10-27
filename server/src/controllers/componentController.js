@@ -1206,3 +1206,152 @@ export const bulkUpdateStock = async (req, res, next) => {
     next(error);
   }
 };
+
+// Bulk update specifications for all parts with distributor info
+export const bulkUpdateSpecifications = async (req, res, next) => {
+  try {
+    const { limit } = req.query;
+    const maxLimit = limit ? parseInt(limit) : null;
+
+    // Get all components that have distributor SKUs
+    let query = `
+      SELECT DISTINCT
+        c.id as component_id,
+        c.part_number,
+        c.category_id,
+        di.sku,
+        d.name as distributor_name
+      FROM components c
+      JOIN distributor_info di ON c.id = di.component_id
+      JOIN distributors d ON di.distributor_id = d.id
+      WHERE di.sku IS NOT NULL
+      AND di.sku != ''
+      AND c.category_id IS NOT NULL
+      ORDER BY c.part_number
+    `;
+
+    if (maxLimit) {
+      query += ` LIMIT ${maxLimit}`;
+    }
+
+    const componentsResult = await pool.query(query);
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    console.log(`Starting bulk specification update for ${componentsResult.rows.length} components...`);
+
+    // Update each component
+    for (const comp of componentsResult.rows) {
+      try {
+        let vendorData = null;
+
+        // Fetch from appropriate vendor
+        if (comp.distributor_name.toLowerCase() === 'digikey') {
+          const result = await digikeyService.searchPart(comp.sku);
+          vendorData = result.results?.[0];
+        } else if (comp.distributor_name.toLowerCase() === 'mouser') {
+          const result = await mouserService.searchPart(comp.sku);
+          vendorData = result.results?.[0];
+        }
+
+        // Update specifications if vendor data found
+        if (vendorData && vendorData.specifications) {
+          // Get category specifications with mapping_spec_name
+          const categorySpecsResult = await pool.query(`
+            SELECT 
+              id,
+              spec_name,
+              unit,
+              mapping_spec_name
+            FROM category_specifications
+            WHERE category_id = $1
+            ORDER BY display_order ASC
+          `, [comp.category_id]);
+
+          const categorySpecs = categorySpecsResult.rows;
+
+          // Create a map of vendor specs (case-insensitive)
+          const vendorSpecMap = {};
+          Object.entries(vendorData.specifications).forEach(([key, value]) => {
+            const specValue = typeof value === 'object' && value !== null ? value.value : value;
+            if (specValue) {
+              vendorSpecMap[key.toLowerCase().trim()] = String(specValue);
+            }
+          });
+
+          // Map and update specifications
+          let specsUpdated = false;
+          for (const catSpec of categorySpecs) {
+            if (catSpec.mapping_spec_name && catSpec.mapping_spec_name.trim() !== '') {
+              const mappingKey = catSpec.mapping_spec_name.toLowerCase().trim();
+              
+              if (vendorSpecMap[mappingKey]) {
+                const rawValue = vendorSpecMap[mappingKey];
+                
+                // Sanitize value by removing unit if present in the value
+                let sanitizedValue = rawValue;
+                if (catSpec.unit) {
+                  const unitPattern = new RegExp(`\\s*${catSpec.unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                  sanitizedValue = rawValue.replace(unitPattern, '').trim();
+                }
+
+                // Upsert specification value
+                await pool.query(`
+                  INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
+                  VALUES ($1, $2, $3)
+                  ON CONFLICT (component_id, category_spec_id)
+                  DO UPDATE SET 
+                    spec_value = EXCLUDED.spec_value,
+                    updated_at = CURRENT_TIMESTAMP
+                `, [comp.component_id, catSpec.id, sanitizedValue]);
+
+                specsUpdated = true;
+              }
+            }
+          }
+
+          if (specsUpdated) {
+            updatedCount++;
+            console.log(`✓ Updated specifications for ${comp.part_number}`);
+          } else {
+            skippedCount++;
+            console.log(`⊘ No mappable specifications found for ${comp.part_number}`);
+          }
+        } else {
+          skippedCount++;
+          console.log(`⊘ No vendor data found for ${comp.part_number} (SKU: ${comp.sku})`);
+        }
+
+        // Add a small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+      } catch (error) {
+        console.error(`✗ Error updating ${comp.part_number}:`, error.message);
+        errors.push({
+          partNumber: comp.part_number,
+          sku: comp.sku,
+          distributor: comp.distributor_name,
+          error: error.message
+        });
+        skippedCount++;
+      }
+    }
+
+    console.log(`Bulk specification update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
+
+    res.json({
+      success: true,
+      message: `Bulk specification update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`,
+      updatedCount,
+      skippedCount,
+      totalChecked: componentsResult.rows.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error in bulk specification update:', error);
+    next(error);
+  }
+};
