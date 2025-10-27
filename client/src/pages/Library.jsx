@@ -171,8 +171,6 @@ const Library = () => {
       }
     });
     
-    console.log('Vendor Spec Map:', vendorSpecMap);
-    
     // Map category specs with vendor values ONLY where mapping_spec_name exists
     return categorySpecs.map(spec => {
       // Keep the original spec_value if no mapping exists
@@ -181,20 +179,12 @@ const Library = () => {
       // Only update if mapping_spec_name is defined and not empty
       if (spec.mapping_spec_name && spec.mapping_spec_name.trim() !== '') {
         const mappingKey = spec.mapping_spec_name.toLowerCase().trim();
-        console.log(`Checking spec: ${spec.spec_name}, mapping_spec_name: ${spec.mapping_spec_name}`);
         
         if (vendorSpecMap[mappingKey]) {
           const rawValue = vendorSpecMap[mappingKey];
-          console.log(`  -> Found match! Raw value: ${rawValue}`);
-          
           // Sanitize the value by removing unit if present
           mappedValue = sanitizeSpecValue(rawValue, spec.unit);
-          console.log(`  -> After sanitize: ${mappedValue}`);
-        } else {
-          console.log(`  -> No matching vendor spec found for key: ${mappingKey}`);
         }
-      } else {
-        console.log(`Spec "${spec.spec_name}" has no mapping_spec_name - keeping original value`);
       }
       
       return {
@@ -685,12 +675,9 @@ const Library = () => {
                 minimumOrderQuantity: digikeyResult.minimumOrderQuantity
               }
             };
-            
-            console.log('✓ Auto-loaded vendor data for reference (display only)');
           }
         }
       } catch (error) {
-        console.log('Could not auto-load vendor data:', error.message);
         // Silent fail - this is just a convenience feature
       }
     }
@@ -1540,19 +1527,12 @@ const Library = () => {
     // Map vendor specifications to component specifications
     // Use the same logic as "Add to Library" feature
     if (vendorData.specifications && editData.specifications && editData.specifications.length > 0) {
-      console.log('=== Auto Fill Specifications Debug ===');
-      console.log('Current editData.specifications:', editData.specifications);
-      console.log('Vendor specifications:', vendorData.specifications);
-      
       const mappedSpecs = mapVendorSpecifications(vendorData.specifications, editData.specifications);
-      console.log('Mapped specifications:', mappedSpecs);
-      
       updates.specifications = mappedSpecs;
       updateCount++; // Count specifications as one update
     }
 
     // Apply all updates
-    console.log('Auto Fill Updates:', updates);
     setEditData((prev) => ({
       ...prev,
       ...updates

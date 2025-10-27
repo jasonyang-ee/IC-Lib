@@ -1171,18 +1171,50 @@ const Settings = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="mb-6">
+      <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Admin Settings</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
           System configuration and user management (Administrator access only)
         </p>
       </div>
 
+      {/* Navigation Menu */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 mb-6 border border-gray-200 dark:border-[#3a3a3a] sticky top-0 z-10">
+        <nav className="flex flex-wrap gap-2">
+          {[
+            { id: 'users', label: 'User Management', icon: Users },
+            { id: 'categories', label: 'Categories', icon: Database },
+            { id: 'auto-update', label: 'Auto Data Update', icon: RefreshCw },
+            { id: 'database', label: 'Database Operations', icon: Database },
+            { id: 'audit', label: 'Audit Logs', icon: FileText }
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => {
+                const element = document.getElementById(id);
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-[#333333] hover:bg-primary-100 dark:hover:bg-primary-900/30 text-gray-700 dark:text-gray-300 hover:text-primary-700 dark:hover:text-primary-400 transition-colors font-medium text-sm"
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
       <div className="space-y-6">
+      {/* User Management Section */}
+      <div id="users" className="scroll-mt-24">
+        <UserManagement />
+      </div>
+
       {/* Category Configuration Section */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <div id="categories" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Category Configuration</h2>
           <button
@@ -1505,7 +1537,7 @@ const Settings = () => {
       </div>
 
       {/* Database Operations Section */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <div id="database" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h2>
         
         {/* Standard Operations */}
@@ -1647,11 +1679,8 @@ const Settings = () => {
         </div>
       </div>
 
-      {/* User Management Section */}
-      <UserManagement />
-
       {/* Auto Data Update Section */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <div id="auto-update" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
         <div className="flex items-center gap-2 mb-4">
           <RefreshCw className="w-6 h-6 text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Auto Data Update</h2>
@@ -1720,7 +1749,7 @@ const Settings = () => {
       </div>
 
       {/* Audit Logs Management */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <div id="audit" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
         <div className="flex items-center gap-2 mb-4">
           <FileText className="w-6 h-6 text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Audit Logs Management</h2>

@@ -12,9 +12,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo "================================================================"
-echo "  OrCAD Component Library - Local Development Mode"
-echo "================================================================"
+echo "OrCAD Component Library - Local Development Mode"
 echo ""
 
 # Check if .env file exists
@@ -128,9 +126,7 @@ else
 fi
 
 echo ""
-echo "================================================================"
-echo "  Starting Development Servers..."
-echo "================================================================"
+echo "Starting Development Servers..."
 echo ""
 
 # Function to handle cleanup
@@ -195,9 +191,8 @@ echo -e "${GREEN}✓${NC} Frontend started (PID: $FRONTEND_PID)"
 echo -e "   URL: ${BLUE}http://localhost:5173${NC}"
 echo ""
 
-echo "================================================================"
-echo -e "  ${GREEN}✓ Development servers running!${NC}"
-echo "================================================================"
+echo ""
+echo -e "${GREEN}✓ Development servers running!${NC}"
 echo ""
 echo -e "${GREEN}Frontend:${NC} http://localhost:5173"
 echo -e "${GREEN}Backend API:${NC} http://localhost:${PORT:-3500}/api"

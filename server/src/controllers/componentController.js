@@ -1135,8 +1135,6 @@ export const bulkUpdateStock = async (req, res, next) => {
     let skippedCount = 0;
     const errors = [];
 
-    console.log(`Starting bulk stock update for ${distributorsResult.rows.length} distributor entries...`);
-
     // Update each distributor entry
     for (const dist of distributorsResult.rows) {
       try {
@@ -1170,17 +1168,14 @@ export const bulkUpdateStock = async (req, res, next) => {
             dist.id
           ]);
           updatedCount++;
-          console.log(`✓ Updated ${dist.sku} (${dist.distributor_name})`);
         } else {
           skippedCount++;
-          console.log(`⊘ No data found for ${dist.sku} (${dist.distributor_name})`);
         }
 
         // Add a small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (error) {
-        console.error(`✗ Error updating ${dist.sku}:`, error.message);
         errors.push({
           sku: dist.sku,
           distributor: dist.distributor_name,
@@ -1189,8 +1184,6 @@ export const bulkUpdateStock = async (req, res, next) => {
         });
       }
     }
-
-    console.log(`Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,
@@ -1239,8 +1232,6 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
     let updatedCount = 0;
     let skippedCount = 0;
     const errors = [];
-
-    console.log(`Starting bulk specification update for ${componentsResult.rows.length} components...`);
 
     // Update each component
     for (const comp of componentsResult.rows) {
@@ -1314,21 +1305,17 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
           if (specsUpdated) {
             updatedCount++;
-            console.log(`✓ Updated specifications for ${comp.part_number}`);
           } else {
             skippedCount++;
-            console.log(`⊘ No mappable specifications found for ${comp.part_number}`);
           }
         } else {
           skippedCount++;
-          console.log(`⊘ No vendor data found for ${comp.part_number} (SKU: ${comp.sku})`);
         }
 
         // Add a small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 150));
 
       } catch (error) {
-        console.error(`✗ Error updating ${comp.part_number}:`, error.message);
         errors.push({
           partNumber: comp.part_number,
           sku: comp.sku,
@@ -1338,8 +1325,6 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
         skippedCount++;
       }
     }
-
-    console.log(`Bulk specification update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,

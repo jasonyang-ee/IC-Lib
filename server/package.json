@@ -1,7 +1,7 @@
 {
-  "name": "allegro-component-library-server",
+  "name": "ic-lib-backend-server",
   "version": "1.0.0",
-  "description": "Backend API for Allegro Component Library Management",
+  "description": "Backend API for IC Lib",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

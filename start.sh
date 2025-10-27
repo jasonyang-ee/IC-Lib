@@ -5,9 +5,8 @@
 
 set -e
 
-echo "================================================"
-echo "  Allegro Component Library - Starting..."
-echo "================================================"
+echo "Allegro Component Library - Starting..."
+echo ""
 
 # Function to handle shutdown gracefully
 cleanup() {
@@ -119,9 +118,7 @@ fi
 echo "✓ Backend started (PID: $BACKEND_PID)"
 
 echo ""
-echo "================================================"
-echo "  ✓ All services running successfully!"
-echo "================================================"
+echo "✓ All services running successfully!"
 echo ""
 echo "  Frontend: http://localhost"
 echo "  Backend API: http://localhost:3500/api"
