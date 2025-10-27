@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, Cpu } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -46,6 +46,7 @@ const Sidebar = () => {
     { path: '/library', icon: BookOpen, label: 'Parts Library' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
+    { path: '/cad-search', icon: Cpu, label: 'CAD Search' },
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit', icon: ClipboardList, label: 'Audit Log' },

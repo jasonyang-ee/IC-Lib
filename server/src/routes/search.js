@@ -12,10 +12,15 @@ router.post('/mouser', searchController.searchMouser);
 // Search both vendors
 router.post('/all', searchController.searchAllVendors);
 
-// Download footprint from Ultra Librarian
-router.post('/footprint/ultra-librarian', searchController.downloadUltraLibrarianFootprint);
+// SamacSys Library Loader
+router.post('/library/samacsys/search', searchController.searchSamacSysParts);
+router.post('/library/samacsys', searchController.downloadSamacSysLibrary);
+router.get('/library/samacsys/auth-status', searchController.checkSamacSysAuth);
+router.post('/library/samacsys/login', searchController.loginSamacSys);
+router.post('/library/samacsys/logout', searchController.logoutSamacSys);
 
-// Download footprint from SnapEDA
+// Legacy footprint endpoints (deprecated)
+router.post('/footprint/ultra-librarian', searchController.downloadUltraLibrarianFootprint);
 router.post('/footprint/snapeda', searchController.downloadSnapEDAFootprint);
 
 // Add vendor part to library

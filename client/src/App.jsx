@@ -8,6 +8,7 @@ import Library from './pages/Library'
 import Inventory from './pages/Inventory'
 import Projects from './pages/Projects'
 import VendorSearch from './pages/VendorSearch'
+import CADSearch from './pages/CADSearch'
 import Reports from './pages/Reports'
 import Audit from './pages/Audit'
 import Settings from './pages/Settings'
@@ -17,8 +18,13 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
-        {/* Public route */}
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        
+        {/* CAD Search - public route with layout */}
+        <Route path="/" element={<Layout />}>
+          <Route path="cad-search" element={<CADSearch />} />
+        </Route>
         
         {/* Protected routes - require authentication */}
         <Route

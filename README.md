@@ -10,10 +10,19 @@
 - **Parts Library**: Browse and search a comprehensive library of PCB components.
 - **Alternative Parts**: Suggest alternative components based on specifications.
 - **Inventory Management**: Track component availability and stock levels.
-- **Footprints & Symbols**: Access and download footprints and symbols for OrCAD.
-- **Vendor Integration**: Fetch real-time data from popular electronic component distributors.
+- **Footprints & Symbols**: Download PCB footprints and schematic symbols using **SamacSys Library Loader** integration.
+- **Vendor Integration**: Fetch real-time data from popular electronic component distributors (Digikey, Mouser).
 - **Project Management**: Organize components by projects for easy access. [TBD]
 - **User Management**: Secure user authentication and role-based access control. [TBD]
+
+### SamacSys Integration
+
+IC-Lib now integrates with [SamacSys Component Search Engine](https://componentsearchengine.com) to provide automatic downloads of:
+- PCB footprints for multiple CAD formats (KiCad, Altium, Eagle, OrCAD, etc.)
+- Schematic symbols
+- 3D models (STEP files)
+
+**See [SamacSys Integration Guide](docs/SAMACSYS_INTEGRATION.md) for setup instructions.**
 
 ## Getting Started
 

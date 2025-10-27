@@ -172,8 +172,10 @@ export const api = {
   searchMouser: (partNumber) => apiClient.post('/search/mouser', { partNumber }),
   searchAllVendors: (partNumber) => apiClient.post('/search/all', { partNumber }),
   addVendorPartToLibrary: (data) => apiClient.post('/search/add-to-library', data),
-  downloadUltraLibrarianFootprint: (data) => apiClient.post('/search/footprint/ultra-librarian', data),
-  downloadSnapEDAFootprint: (data) => apiClient.post('/search/footprint/snapeda', data),
+  searchSamacSysParts: (data) => apiClient.post('/search/library/samacsys/search', data),
+  downloadSamacSysLibrary: (data) => apiClient.post('/search/library/samacsys', data),
+  checkSamacSysAuth: () => apiClient.get('/search/library/samacsys/auth-status'),
+  loginSamacSys: (credentials) => apiClient.post('/search/library/samacsys/login', credentials),
 
   // Reports
   getComponentSummary: () => apiClient.get('/reports/component-summary'),

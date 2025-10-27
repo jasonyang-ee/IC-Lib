@@ -3,6 +3,7 @@ import pool from '../config/database.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
 import * as footprintService from '../services/footprintService.js';
+import * as samacsysService from '../services/samacsysService.js';
 
 export const searchDigikey = async (req, res, next) => {
   try {
@@ -205,6 +206,99 @@ export const addVendorPartToLibrary = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error preparing vendor part data:', error);
+    next(error);
+  }
+};
+
+// SamacSys Library Loader - Download library files
+export const downloadSamacSysLibrary = async (req, res, next) => {
+  try {
+    const { partNumber, manufacturer, downloadUrl } = req.body;
+
+    if (!partNumber) {
+      return res.status(400).json({ error: 'Part number is required' });
+    }
+
+    if (!manufacturer) {
+      return res.status(400).json({ error: 'Manufacturer is required' });
+    }
+
+    const result = await samacsysService.downloadLibrary(partNumber, manufacturer, downloadUrl);
+    
+    if (result.requiresLogin) {
+      return res.status(401).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('SamacSys library download error:', error);
+    next(error);
+  }
+};
+
+// Check SamacSys authentication status
+export const checkSamacSysAuth = async (req, res, next) => {
+  try {
+    const result = await samacsysService.checkAuthentication();
+    res.json(result);
+  } catch (error) {
+    console.error('SamacSys auth check error:', error);
+    next(error);
+  }
+};
+
+// Login to SamacSys
+export const loginSamacSys = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+    }
+
+    const result = await samacsysService.loginToSamacSys(email, password);
+    
+    if (!result.success) {
+      return res.status(401).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('SamacSys login error:', error);
+    next(error);
+  }
+};
+
+// Search SamacSys parts
+export const searchSamacSysParts = async (req, res, next) => {
+  try {
+    const { query } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Search query is required' 
+      });
+    }
+
+    const result = await samacsysService.searchParts(query);
+    res.json(result);
+  } catch (error) {
+    console.error('SamacSys search error:', error);
+    next(error);
+  }
+};
+
+// Logout from SamacSys
+export const logoutSamacSys = async (req, res, next) => {
+  try {
+    const result = await samacsysService.logout();
+    res.json(result);
+  } catch (error) {
+    console.error('SamacSys logout error:', error);
     next(error);
   }
 };

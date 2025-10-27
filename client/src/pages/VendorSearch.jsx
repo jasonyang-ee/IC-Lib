@@ -29,6 +29,12 @@ const VendorSearch = () => {
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allLibraryParts, setAllLibraryParts] = useState([]);
   const [partSortBy, setPartSortBy] = useState('part_number'); // Sort field for parts list
+  
+  // SamacSys authentication state
+  const [showSamacSysLogin, setShowSamacSysLogin] = useState(false);
+  const [samacSysEmail, setSamacSysEmail] = useState('');
+  const [samacSysPassword, setSamacSysPassword] = useState('');
+  const [samacSysAuthStatus, setSamacSysAuthStatus] = useState({ authenticated: false });
 
   // Fetch distributors and manufacturers for appending
   const { data: distributors } = useQuery({
@@ -104,6 +110,39 @@ const VendorSearch = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  // Check SamacSys authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await api.checkSamacSysAuth();
+        setSamacSysAuthStatus(response.data);
+      } catch (error) {
+        console.error('Error checking SamacSys auth:', error);
+        setSamacSysAuthStatus({ authenticated: false });
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // SamacSys login mutation
+  const samacSysLoginMutation = useMutation({
+    mutationFn: (credentials) => api.loginSamacSys(credentials),
+    onSuccess: (response) => {
+      if (response.data.success) {
+        showSuccess('Successfully logged in to SamacSys!');
+        setSamacSysAuthStatus({ authenticated: true, message: 'Logged in' });
+        setShowSamacSysLogin(false);
+        setSamacSysPassword('');
+      } else {
+        showError(response.data.message || 'Login failed');
+      }
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message || 'Login failed';
+      showError(errorMsg);
+    }
+  });
 
   // Helper to toggle part selection
   const togglePartSelection = (part) => {
@@ -382,18 +421,31 @@ const VendorSearch = () => {
   });
 
   const downloadFootprintMutation = useMutation({
-    mutationFn: ({ partNumber, source }) => {
-      if (source === 'ultra-librarian') {
-        return api.downloadUltraLibrarianFootprint({ partNumber });
-      } else {
-        return api.downloadSnapEDAFootprint({ partNumber });
+    mutationFn: ({ partNumber, source, manufacturer }) => {
+      if (source === 'samacsys') {
+        return api.downloadSamacSysLibrary({ partNumber, manufacturer });
       }
+      // Legacy support (if needed)
+      return Promise.reject(new Error('Unsupported footprint source'));
     },
     onSuccess: (data) => {
-      console.log('Footprint download response:', data);
+      console.log('Library download response:', data);
+      if (data.data?.success) {
+        showSuccess(data.data.message || 'Library files downloaded successfully!');
+      } else if (data.data?.requiresLogin) {
+        showError('Please login to SamacSys first');
+        setShowSamacSysLogin(true);
+      }
     },
     onError: (error) => {
-      console.error('Footprint download error:', error);
+      console.error('Library download error:', error);
+      if (error.response?.status === 401 || error.response?.data?.requiresLogin) {
+        showError('Please login to SamacSys to download library files');
+        setShowSamacSysLogin(true);
+      } else {
+        const errorMsg = error.response?.data?.message || error.message || 'Failed to download library files';
+        showError(errorMsg);
+      }
     }
   });
 
@@ -757,6 +809,7 @@ const VendorSearch = () => {
       const part = selectedParts[0];
       downloadFootprintMutation.mutate({
         partNumber: part.manufacturerPartNumber,
+        manufacturer: part.manufacturer,
         source,
       });
     }
@@ -1130,22 +1183,24 @@ const VendorSearch = () => {
               </>
             )}
             <button
-              onClick={() => handleDownloadFootprint('ultra-librarian')}
+              onClick={() => handleDownloadFootprint('samacsys')}
               disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
               className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from Ultra Librarian'}
+              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint & symbol from SamacSys'}
             >
               <Download className="w-4 h-4" />
-              {downloadFootprintMutation.isPending ? 'Downloading...' : 'Ultra Librarian'}
+              {downloadFootprintMutation.isPending ? 'Downloading...' : 'SamacSys Library'}
             </button>
             <button
-              onClick={() => handleDownloadFootprint('snapeda')}
-              disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from SnapEDA'}
+              onClick={() => setShowSamacSysLogin(true)}
+              className={`btn-secondary flex items-center gap-2 text-xs ${
+                samacSysAuthStatus.authenticated 
+                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                  : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+              }`}
+              title={samacSysAuthStatus.authenticated ? 'SamacSys: Logged in' : 'Click to login to SamacSys'}
             >
-              <Download className="w-4 h-4" />
-              {downloadFootprintMutation.isPending ? 'Downloading...' : 'SnapEDA'}
+              {samacSysAuthStatus.authenticated ? '✓ SamacSys Connected' : '⚠ SamacSys Login'}
             </button>
           </div>
           {addToLibraryMutation.isSuccess && (
@@ -1155,7 +1210,7 @@ const VendorSearch = () => {
           )}
           {downloadFootprintMutation.isSuccess && (
             <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-              Footprint download completed! Check the downloads folder.
+              Library files downloaded successfully! Check the downloads/libraries folder.
             </p>
           )}
           {downloadFootprintMutation.isError && (
@@ -1364,6 +1419,108 @@ const VendorSearch = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* SamacSys Login Modal */}
+      {showSamacSysLogin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Login to SamacSys
+              </h3>
+              <button
+                onClick={() => {
+                  setShowSamacSysLogin(false);
+                  setSamacSysPassword('');
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                samacSysLoginMutation.mutate({ email: samacSysEmail, password: samacSysPassword });
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Please login to your SamacSys Component Search Engine account to download library files.
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                  Don't have an account? <a 
+                    href="https://componentsearchengine.com/signup" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Sign up here
+                  </a>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={samacSysEmail}
+                  onChange={(e) => setSamacSysEmail(e.target.value)}
+                  className="input-field"
+                  required
+                  autoFocus
+                  placeholder="your@email.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={samacSysPassword}
+                  onChange={(e) => setSamacSysPassword(e.target.value)}
+                  className="input-field"
+                  required
+                  placeholder="••••••••"
+                />
+              </div>
+
+              {samacSysAuthStatus.message && !samacSysAuthStatus.authenticated && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {samacSysAuthStatus.message}
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSamacSysLogin(false);
+                    setSamacSysPassword('');
+                  }}
+                  className="btn-secondary flex-1"
+                  disabled={samacSysLoginMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary flex-1"
+                  disabled={samacSysLoginMutation.isPending}
+                >
+                  {samacSysLoginMutation.isPending ? 'Logging in...' : 'Login'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
