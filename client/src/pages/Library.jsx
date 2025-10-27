@@ -924,14 +924,28 @@ const Library = () => {
         await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         
         // Update stock and pricing info from vendor APIs for all distributors with SKUs
+        let stockUpdateMessage = '';
         try {
-          const stockUpdateResult = await api.updateComponentStock(selectedComponent.id);
-          if (stockUpdateResult.data.updatedCount > 0) {
-            console.log(`✓ Updated stock info for ${stockUpdateResult.data.updatedCount} distributors`);
+          const distributorsWithSku = validDistributors.filter(d => d.sku?.trim());
+          if (distributorsWithSku.length > 0) {
+            const stockUpdateResult = await api.updateComponentStock(selectedComponent.id);
+            if (stockUpdateResult.data.updatedCount > 0) {
+              stockUpdateMessage = ` Stock/price updated for ${stockUpdateResult.data.updatedCount} distributor(s).`;
+              // Show toast notification
+              setAutoFillToast({ 
+                show: true, 
+                message: `✓ Auto-updated stock and pricing from vendor APIs`, 
+                count: stockUpdateResult.data.updatedCount 
+              });
+              setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
+            }
           }
         } catch (error) {
           console.error('Error updating stock info:', error);
-          // Don't fail the save if stock update fails
+          // Don't fail the save if stock update fails, but inform the user
+          if (validDistributors.filter(d => d.sku?.trim()).length > 0) {
+            stockUpdateMessage = ' Note: Stock/price update from vendor APIs failed.';
+          }
         }
         
         // Handle alternatives - create new, update existing, delete removed
