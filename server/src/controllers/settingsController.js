@@ -314,10 +314,11 @@ export const getCategoryConfigs = async (req, res) => {
         name,
         prefix,
         leading_zeros,
+        display_order,
         enabled,
         created_at
       FROM component_categories
-      ORDER BY name
+      ORDER BY display_order, name
     `);
     
     res.json(result.rows);
@@ -428,11 +429,17 @@ export const createCategory = async (req, res) => {
       return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
     }
 
+    // Get the maximum display_order to append new category at the end
+    const maxOrderResult = await pool.query(
+      'SELECT COALESCE(MAX(display_order), 0) as max_order FROM component_categories'
+    );
+    const nextDisplayOrder = maxOrderResult.rows[0].max_order + 1;
+
     const result = await pool.query(`
-      INSERT INTO component_categories (name, prefix, leading_zeros, enabled)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, name, prefix, leading_zeros, enabled, created_at
-    `, [name.trim(), prefix.trim(), validLeadingZeros, validEnabled]);
+      INSERT INTO component_categories (name, prefix, leading_zeros, enabled, display_order)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, name, prefix, leading_zeros, enabled, display_order, created_at
+    `, [name.trim(), prefix.trim(), validLeadingZeros, validEnabled, nextDisplayOrder]);
 
     res.status(201).json({
       success: true,
@@ -451,6 +458,46 @@ export const createCategory = async (req, res) => {
     
     res.status(500).json({ 
       error: 'Failed to create category',
+      message: error.message 
+    });
+  }
+};
+
+/**
+ * PUT /api/settings/categories/reorder - Update display order for multiple categories
+ */
+export const updateCategoryOrder = async (req, res) => {
+  try {
+    const { categories } = req.body; // Array of { id, display_order }
+
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ error: 'Categories array is required' });
+    }
+
+    // Update each category's display order
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const category of categories) {
+        await client.query(
+          'UPDATE component_categories SET display_order = $1 WHERE id = $2',
+          [category.display_order, category.id]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'Category order updated successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error updating category order:', error);
+    res.status(500).json({ 
+      error: 'Failed to update category order',
       message: error.message 
     });
   }

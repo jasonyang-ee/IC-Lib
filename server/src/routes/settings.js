@@ -11,6 +11,7 @@ import {
   getCategoryConfigs,
   updateCategoryConfig,
   createCategory,
+  updateCategoryOrder,
   getCategorySpecifications,
   createCategorySpecification,
   updateCategorySpecification,
@@ -27,8 +28,9 @@ router.put('/', updateSettings);
 
 // Category configuration routes
 router.get('/categories', getCategoryConfigs);
-router.put('/categories/:id', updateCategoryConfig);
+router.put('/categories/reorder', updateCategoryOrder);
 router.post('/categories', createCategory);
+router.put('/categories/:id', updateCategoryConfig);
 
 // Category specifications routes
 router.get('/categories/:categoryId/specifications', getCategorySpecifications);

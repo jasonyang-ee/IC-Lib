@@ -953,6 +953,7 @@ const Settings = () => {
   const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
   const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
+  const [draggedCategory, setDraggedCategory] = useState(null);
   
   // Auto Data Update states
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
@@ -1037,6 +1038,22 @@ const Settings = () => {
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;
       showError(`Error creating category: ${errorMsg}`);
+    },
+  });
+
+  const reorderCategoriesMutation = useMutation({
+    mutationFn: async (categories) => {
+      const response = await api.updateCategoryOrder(categories);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categoryConfigs']);
+      queryClient.invalidateQueries(['categories']);
+      showSuccess('Category order updated successfully!');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message;
+      showError(`Error updating category order: ${errorMsg}`);
     },
   });
 
@@ -1127,6 +1144,39 @@ const Settings = () => {
       showError(`Error clearing audit logs: ${errorMsg}`);
     },
   });
+
+  // Drag and drop handlers for category reordering
+  const handleDragStart = (category) => {
+    setDraggedCategory(category);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault(); // Allow drop
+  };
+
+  const handleDrop = (targetCategory) => {
+    if (!draggedCategory || draggedCategory.id === targetCategory.id) {
+      setDraggedCategory(null);
+      return;
+    }
+
+    const categories = [...(categoryConfigs || [])];
+    const draggedIndex = categories.findIndex(c => c.id === draggedCategory.id);
+    const targetIndex = categories.findIndex(c => c.id === targetCategory.id);
+
+    // Remove dragged category and insert at target position
+    const [removed] = categories.splice(draggedIndex, 1);
+    categories.splice(targetIndex, 0, removed);
+
+    // Update display_order for all categories
+    const updatedCategories = categories.map((cat, index) => ({
+      id: cat.id,
+      display_order: index + 1
+    }));
+
+    reorderCategoriesMutation.mutate(updatedCategories);
+    setDraggedCategory(null);
+  };
 
   // Bulk update stock handler
   const handleBulkUpdateStock = async () => {
@@ -1572,7 +1622,16 @@ const Settings = () => {
               </thead>
               <tbody>
                 {categoryConfigs?.map((category) => (
-                  <tr key={category.id} className="border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333]">
+                  <tr 
+                    key={category.id} 
+                    draggable="true"
+                    onDragStart={() => handleDragStart(category)}
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDrop(category)}
+                    className={`border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors ${
+                      draggedCategory?.id === category.id ? 'opacity-50' : 'cursor-move'
+                    }`}
+                  >
                     <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{category.name}</td>
                     <td className="py-3 px-4">
                       {editingCategory === category.id ? (

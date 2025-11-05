@@ -157,6 +157,7 @@ export const api = {
   updateCategory: (id, data) => apiClient.put(`/categories/${id}`, data),
   deleteCategory: (id) => apiClient.delete(`/categories/${id}`),
   getComponentsByCategory: (id, params) => apiClient.get(`/categories/${id}/components`, { params }),
+  updateCategoryOrder: (categories) => apiClient.put('/settings/categories/reorder', { categories }),
 
   // Inventory
   getInventory: () => apiClient.get('/inventory'),

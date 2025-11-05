@@ -20,30 +20,31 @@ CREATE TABLE IF NOT EXISTS component_categories (
     description TEXT,
     prefix VARCHAR(20) NOT NULL,
     leading_zeros INTEGER DEFAULT 5,
+    display_order INTEGER DEFAULT 0,
     enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default categories
-INSERT INTO component_categories (id, name, description, prefix, leading_zeros) VALUES
-    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5),
-    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 5),
-    (3, 'Inductors', 'Inductors and coils', 'IND', 5),
-    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5),
-    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5),
-    (6, 'ICs', 'Integrated circuits', 'IC', 5),
-    (7, 'Connectors', 'Connectors and headers', 'CONN', 5),
-    (8, 'Switches', 'Switches and buttons', 'SW', 5),
-    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5),
-    (11, 'MCU', 'Microcontroller', 'IC', 5),
-	(12, 'Mechanical', 'Mechanical Parts', 'MECH', 5),
-	(13, 'Misc', 'Miscellaneous Parts', 'MISC', 5),
-	(14, 'Relays', 'Relays', 'RELAY', 5),
-	(15, 'Transformers', 'Transformers', 'TRNS', 5)
+INSERT INTO component_categories (id, name, description, prefix, leading_zeros, display_order) VALUES
+    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5, 1),
+    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 5, 2),
+    (3, 'Inductors', 'Inductors and coils', 'IND', 5, 3),
+    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5, 4),
+    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
+    (6, 'ICs', 'Integrated circuits', 'IC', 5, 6),
+    (7, 'Connectors', 'Connectors and headers', 'CONN', 5, 7),
+    (8, 'Switches', 'Switches and buttons', 'SW', 5, 8),
+    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
+    (11, 'MCU', 'Microcontroller', 'IC', 5, 10),
+	(12, 'Mechanical', 'Mechanical Parts', 'MECH', 5, 11),
+	(13, 'Misc', 'Miscellaneous Parts', 'MISC', 5, 12),
+	(14, 'Relays', 'Relays', 'RELAY', 5, 13),
+	(15, 'Transformers', 'Transformers', 'TRNS', 5, 14)
 ON CONFLICT (id) DO NOTHING;
 
--- Reset sequence to continue from 12
-SELECT setval('component_categories_id_seq', 12, true);
+-- Reset sequence to continue from 15 (highest id)
+SELECT setval('component_categories_id_seq', 15, true);
 
 -- Table: manufacturers
 -- Stores manufacturer information

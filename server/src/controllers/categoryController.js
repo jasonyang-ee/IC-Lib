@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 export const getAllCategories = async (req, res, next) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM component_categories ORDER BY name'
+      'SELECT * FROM component_categories ORDER BY display_order, name'
     );
     res.json(result.rows);
   } catch (error) {
