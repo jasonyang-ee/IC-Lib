@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'read-write', 'admin')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'read-write', 'approver', 'admin')),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_by INTEGER REFERENCES users(id),
   last_login TIMESTAMP,

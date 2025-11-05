@@ -277,7 +277,55 @@ export async function initializeAuthentication() {
   console.log('');
   
   try {
-    // First, check if main parts database exists
+    // First, check and initialize users table (REQUIRED by parts schema)
+    console.log('� Checking authentication setup...');
+    console.log('');
+    
+    const usersTableExists = await checkUsersTableExists();
+    
+    if (!usersTableExists) {
+      console.log('⚠️  Users table not found - initializing from init-users.sql');
+      const initialized = await initializeUsersTable();
+      
+      if (!initialized) {
+        console.error('❌ Failed to initialize users table');
+        console.error('   Authentication will not work until this is resolved');
+        console.error('   Please check database/init-users.sql file exists');
+        return false;
+      }
+      
+      // Ensure activity types exist
+      await ensureUserActivityTypes();
+      
+      console.log('✅ Users table initialized successfully');
+    } else {
+      // Table exists - validate schema
+      const schemaValid = await validateUsersTableSchema();
+      
+      if (!schemaValid) {
+        console.error('❌ Users table schema is invalid');
+        console.error('   Please run database/init-users.sql manually or drop the table to auto-recreate');
+        return false;
+      }
+      
+      // Check if default admin exists
+      const adminExists = await checkDefaultAdminExists();
+      
+      if (!adminExists) {
+        console.log('⚠️  Default admin user not found - creating...');
+        await createDefaultAdmin();
+      } else {
+        console.log('✅ Users table found with valid schema');
+      }
+      
+      // Ensure activity types exist
+      await ensureUserActivityTypes();
+    }
+    
+    console.log('✅ Authentication setup verified');
+    console.log('');
+    
+    // Now check parts database (references users table)
     console.log('📦 Checking parts database schema...');
     const { allExist: partsExist, tables: partsTables } = await checkPartsTablesExist();
     
@@ -297,7 +345,7 @@ export async function initializeAuthentication() {
         console.error('❌ Failed to initialize parts database');
         console.error('   Core functionality will not work until this is resolved');
         console.error('   Please check database/init-schema.sql file exists');
-        // Continue anyway to try to set up authentication
+        return false;
       } else {
         console.log('✅ Parts database initialized successfully');
       }
@@ -306,54 +354,7 @@ export async function initializeAuthentication() {
     }
     
     console.log('');
-    console.log('🔐 Checking authentication setup...');
-    console.log('');
-    
-    // Check if users table exists
-    const usersTableExists = await checkUsersTableExists();
-    
-    if (!usersTableExists) {
-      console.log('⚠️  Users table not found - initializing from init-users.sql');
-      const initialized = await initializeUsersTable();
-      
-      if (!initialized) {
-        console.error('❌ Failed to initialize users table');
-        console.error('   Authentication will not work until this is resolved');
-        console.error('   Please check database/init-users.sql file exists');
-        return false;
-      }
-      
-      // Ensure activity types exist
-      await ensureUserActivityTypes();
-      
-      console.log('✅ Authentication setup complete');
-      console.log('');
-      return true;
-    }
-    
-    // Table exists - validate schema
-    const schemaValid = await validateUsersTableSchema();
-    
-    if (!schemaValid) {
-      console.error('❌ Users table schema is invalid');
-      console.error('   Please run database/init-users.sql manually or drop the table to auto-recreate');
-      return false;
-    }
-    
-    // Check if default admin exists
-    const adminExists = await checkDefaultAdminExists();
-    
-    if (!adminExists) {
-      console.log('⚠️  Default admin user not found - creating...');
-      await createDefaultAdmin();
-    } else {
-      console.log('✅ Users table found with valid schema');
-    }
-    
-    // Ensure activity types exist
-    await ensureUserActivityTypes();
-    
-    console.log('✅ Authentication setup verified');
+    console.log('✅ Database initialization complete');
     console.log('');
     
     return true;

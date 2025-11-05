@@ -131,7 +131,9 @@ export const createComponent = async (req, res, next) => {
       pspice,
       datasheet_url,
       status,
-      notes
+      notes,
+      part_status,
+      approval_status
     } = req.body;
     
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
@@ -152,8 +154,8 @@ export const createComponent = async (req, res, next) => {
         category_id, part_number, manufacturer_id, manufacturer_pn,
         description, value, sub_category1, sub_category2, sub_category3,
         pcb_footprint, package_size, schematic, step_model, pspice,
-        datasheet_url, status, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        datasheet_url, status, notes, part_status, approval_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `;
 
@@ -161,7 +163,9 @@ export const createComponent = async (req, res, next) => {
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3,
       pcb_footprint, package_size, schematic, step_model, pspice,
-      datasheet_url, status || 'Active', notes
+      datasheet_url, status || 'Active', notes,
+      part_status || 'temporary',
+      approval_status || 'new'
     ]);
 
     const component = componentResult.rows[0];
@@ -222,7 +226,11 @@ export const updateComponent = async (req, res, next) => {
       pspice,
       datasheet_url,
       status,
-      notes
+      notes,
+      part_status,
+      approval_status,
+      approval_user_id,
+      approval_date
     } = req.body;
     
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
@@ -258,14 +266,20 @@ export const updateComponent = async (req, res, next) => {
         datasheet_url = COALESCE($15, datasheet_url),
         status = COALESCE($16, status),
         notes = COALESCE($17, notes),
+        part_status = COALESCE($18, part_status),
+        approval_status = COALESCE($19, approval_status),
+        approval_user_id = $20,
+        approval_date = $21,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $18
+      WHERE id = $22
       RETURNING *
     `, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3,
       pcb_footprint, package_size, schematic, step_model, pspice,
-      datasheet_url, status, notes, id
+      datasheet_url, status, notes,
+      part_status, approval_status, approval_user_id, approval_date,
+      id
     ]);
 
     // Log activity
@@ -756,6 +770,7 @@ export const createAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
+      part_status,
       distributors = [] // Array of distributor info objects
     } = req.body;
     
@@ -771,14 +786,14 @@ export const createAlternative = async (req, res, next) => {
     
     const partNumber = componentResult.rows[0].part_number;
     
-    // Create the alternative (no notes field)
+    // Create the alternative with part_status (defaults to 'temporary')
     const result = await pool.query(`
       INSERT INTO components_alternative (
-        part_number, manufacturer_id, manufacturer_pn
+        part_number, manufacturer_id, manufacturer_pn, part_status
       )
-      VALUES ($1, $2, $3)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [partNumber, manufacturer_id, manufacturer_pn]);
+    `, [partNumber, manufacturer_id, manufacturer_pn, part_status || 'temporary']);
     
     const alternativeId = result.rows[0].id;
     
@@ -848,6 +863,7 @@ export const updateAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
+      part_status,
       distributors = []
     } = req.body;
     
@@ -868,10 +884,11 @@ export const updateAlternative = async (req, res, next) => {
       SET 
         manufacturer_id = COALESCE($1, manufacturer_id),
         manufacturer_pn = COALESCE($2, manufacturer_pn),
+        part_status = COALESCE($3, part_status),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3 AND part_number = $4
+      WHERE id = $4 AND part_number = $5
       RETURNING *
-    `, [manufacturer_id, manufacturer_pn, altId, partNumber]);
+    `, [manufacturer_id, manufacturer_pn, part_status, altId, partNumber]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
@@ -1337,6 +1354,84 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
   } catch (error) {
     console.error('Error in bulk specification update:', error);
+    next(error);
+  }
+};
+
+// Update component approval status
+export const updateComponentApproval = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { action, user_id } = req.body; // action: 'approve', 'deny', 'send_to_review'
+    
+    if (!action || !user_id) {
+      return res.status(400).json({ error: 'Action and user_id are required' });
+    }
+
+    // Check if component exists
+    const componentCheck = await pool.query(
+      'SELECT id, part_status, approval_status FROM components WHERE id = $1',
+      [id]
+    );
+    
+    if (componentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+
+    const component = componentCheck.rows[0];
+    let newApprovalStatus;
+    let newPartStatus = component.part_status;
+
+    // Determine new statuses based on action
+    switch (action) {
+      case 'approve':
+        newApprovalStatus = 'approved';
+        newPartStatus = 'active'; // Auto-change to active when approved
+        break;
+      case 'deny':
+        newApprovalStatus = 'denied';
+        newPartStatus = 'archived'; // Auto-change to archived when denied
+        break;
+      case 'send_to_review':
+        newApprovalStatus = 'pending review';
+        // Keep existing part_status when sending to review
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid action. Must be approve, deny, or send_to_review' });
+    }
+
+    // Update the component
+    const result = await pool.query(`
+      UPDATE components 
+      SET 
+        approval_status = $1,
+        approval_user_id = $2,
+        approval_date = CURRENT_TIMESTAMP,
+        part_status = $3,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *
+    `, [newApprovalStatus, user_id, newPartStatus, id]);
+
+    // Fetch complete component with joined data
+    const fullComponent = await pool.query(`
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        u.username as approval_username,
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      LEFT JOIN users u ON c.approval_user_id = u.id
+      WHERE c.id = $1
+    `, [id]);
+
+    res.json(fullComponent.rows[0]);
+  } catch (error) {
+    console.error('Error in updateComponentApproval:', error);
     next(error);
   }
 };

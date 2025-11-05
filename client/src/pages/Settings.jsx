@@ -109,6 +109,8 @@ const UserManagement = () => {
     switch (role) {
       case 'admin':
         return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200';
+      case 'approver':
+        return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200';
       case 'read-write':
         return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200';
       case 'read-only':
@@ -252,6 +254,7 @@ const UserManagement = () => {
                 >
                   <option value="read-only">Read Only</option>
                   <option value="read-write">Read Write</option>
+                  <option value="approver">Approver</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -322,6 +325,7 @@ const UserManagement = () => {
                 >
                   <option value="read-only">Read Only</option>
                   <option value="read-write">Read Write</option>
+                  <option value="approver">Approver</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>

@@ -136,6 +136,9 @@ export const api = {
   updateComponentAlternative: (id, altId, data) => apiClient.put(`/components/${id}/alternatives/${altId}`, data),
   deleteComponentAlternative: (id, altId) => apiClient.delete(`/components/${id}/alternatives/${altId}`),
   
+  // Component Approval
+  updateComponentApproval: (id, action, user_id) => apiClient.post(`/components/${id}/approval`, { action, user_id }),
+  
   getSubCategorySuggestions: (categoryId, level, filters = {}) => {
     const params = { categoryId, level };
     if (filters.subCat1) params.subCat1 = filters.subCat1;

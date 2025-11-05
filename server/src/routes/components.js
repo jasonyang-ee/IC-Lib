@@ -1,5 +1,6 @@
 import express from 'express';
 import * as componentController from '../controllers/componentController.js';
+import { authenticate, canApprove, canWrite } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -22,37 +23,40 @@ router.post('/bulk/update-specifications', componentController.bulkUpdateSpecifi
 router.get('/:id', componentController.getComponentById);
 
 // Create new component
-router.post('/', componentController.createComponent);
+router.post('/', authenticate, canWrite, componentController.createComponent);
 
 // Update component
-router.put('/:id', componentController.updateComponent);
+router.put('/:id', authenticate, canWrite, componentController.updateComponent);
 
 // Delete component
-router.delete('/:id', componentController.deleteComponent);
+router.delete('/:id', authenticate, canWrite, componentController.deleteComponent);
 
 // Get component specifications
 router.get('/:id/specifications', componentController.getComponentSpecifications);
 
 // Update component specifications
-router.put('/:id/specifications', componentController.updateComponentSpecifications);
+router.put('/:id/specifications', authenticate, canWrite, componentController.updateComponentSpecifications);
 
 // Get distributor info for component
 router.get('/:id/distributors', componentController.getDistributorInfo);
 
 // Update distributor info for component
-router.put('/:id/distributors', componentController.updateDistributorInfo);
+router.put('/:id/distributors', authenticate, canWrite, componentController.updateDistributorInfo);
 
 // Get alternative parts for a component
 router.get('/:id/alternatives', componentController.getAlternatives);
 
 // Create alternative part
-router.post('/:id/alternatives', componentController.createAlternative);
+router.post('/:id/alternatives', authenticate, canWrite, componentController.createAlternative);
 
 // Update alternative part
-router.put('/:id/alternatives/:altId', componentController.updateAlternative);
+router.put('/:id/alternatives/:altId', authenticate, canWrite, componentController.updateAlternative);
 
 // Delete alternative part
-router.delete('/:id/alternatives/:altId', componentController.deleteAlternative);
+router.delete('/:id/alternatives/:altId', authenticate, canWrite, componentController.deleteAlternative);
+
+// Update approval status for component (requires approver or admin role)
+router.post('/:id/approval', authenticate, canApprove, componentController.updateComponentApproval);
 
 // Update stock info for a single component (primary + alternatives)
 router.post('/:id/update-stock', componentController.updateComponentStock);

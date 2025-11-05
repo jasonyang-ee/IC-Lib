@@ -126,20 +126,20 @@ export const resetDatabase = async () => {
     await client.query('GRANT ALL ON SCHEMA public TO public');
     results.steps.push('Created new schema');
 
-    // Reinitialize schema from SQL file
+    // Initialize users table FIRST (required by schema foreign keys)
+    const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
+    const usersSql = readFileSync(usersPath, 'utf8');
+    
+    await client.query(usersSql);
+    results.steps.push('Initialized users table with default admin account');
+
+    // Reinitialize schema from SQL file (references users table)
     const schemaPath = join(__dirname, '..', '..', '..', 'database', 'init-schema.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     
     // Execute schema as single query (schema file is designed for this)
     await client.query(schema);
     results.steps.push('Reinitialized database schema');
-
-    // Initialize users table
-    const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
-    const usersSql = readFileSync(usersPath, 'utf8');
-    
-    await client.query(usersSql);
-    results.steps.push('Initialized users table with default admin account');
 
     // Note: Sample data is NOT loaded during reset to keep database clean
     // Users can manually load sample data using the "Load Sample Data" button
@@ -197,7 +197,14 @@ export const initializeDatabase = async () => {
 
     console.log('[initDatabase] Database is empty, initializing schema...');
 
-    // Load and execute schema
+    // Initialize users table FIRST (required by schema foreign keys)
+    const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
+    const usersSql = readFileSync(usersPath, 'utf8');
+    
+    await client.query(usersSql);
+    results.steps.push('Initialized users table with default admin account');
+
+    // Load and execute schema (references users table)
     const schemaPath = join(__dirname, '..', '..', '..', 'database', 'init-schema.sql');
     const schema = readFileSync(schemaPath, 'utf8');
     

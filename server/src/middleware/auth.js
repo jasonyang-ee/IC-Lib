@@ -94,3 +94,43 @@ export const isAdmin = (req, res, next) => {
 
   next();
 };
+
+/**
+ * Check if user can approve parts (approver or admin)
+ */
+export const canApprove = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      error: 'Authentication required' 
+    });
+  }
+
+  if (req.user.role !== 'approver' && req.user.role !== 'admin') {
+    return res.status(403).json({ 
+      error: 'Access denied',
+      message: 'Approver or admin access required' 
+    });
+  }
+
+  next();
+};
+
+/**
+ * Check if user has write access (read-write, approver, or admin)
+ */
+export const canWrite = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      error: 'Authentication required' 
+    });
+  }
+
+  if (req.user.role === 'read-only') {
+    return res.status(403).json({ 
+      error: 'Access denied',
+      message: 'Write access required' 
+    });
+  }
+
+  next();
+};

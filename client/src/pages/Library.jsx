@@ -10,7 +10,7 @@ const Library = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { canWrite } = useAuth();
+  const { canWrite, canApprove, user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -75,6 +75,10 @@ const Library = () => {
   const [showAddToProjectModal, setShowAddToProjectModal] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectQuantity, setProjectQuantity] = useState(1);
+  
+  // Part status and approval status state
+  const [updatingPartStatus, setUpdatingPartStatus] = useState(false);
+  const [updatingApproval, setUpdatingApproval] = useState(false);
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -271,6 +275,65 @@ const Library = () => {
           message: `Error adding to project: ${errorMessage}` 
         });
       }
+    }
+  };
+
+  // Handle part_status update
+  const handlePartStatusChange = async (newStatus) => {
+    if (!selectedComponent || !canWrite()) return;
+    
+    setUpdatingPartStatus(true);
+    try {
+      const response = await api.updateComponent(selectedComponent.id, {
+        part_status: newStatus
+      });
+      
+      // Update local state
+      setSelectedComponent(prev => ({ ...prev, part_status: newStatus }));
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+    } catch (error) {
+      console.error('Error updating part status:', error);
+      setWarningModal({ 
+        show: true, 
+        message: `Error updating part status: ${error.response?.data?.error || error.message}` 
+      });
+    } finally {
+      setUpdatingPartStatus(false);
+    }
+  };
+
+  // Handle approval action (approve, deny, send_to_review)
+  const handleApprovalAction = async (action) => {
+    if (!selectedComponent || !user) return;
+    
+    setUpdatingApproval(true);
+    try {
+      const response = await api.updateComponentApproval(selectedComponent.id, action, user.id);
+      
+      // Update local state with response data
+      setSelectedComponent(prev => ({
+        ...prev,
+        approval_status: response.data.approval_status,
+        approval_user_id: response.data.approval_user_id,
+        approval_username: response.data.approval_username,
+        approval_date: response.data.approval_date,
+        part_status: response.data.part_status // This will be auto-updated by backend
+      }));
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+    } catch (error) {
+      console.error('Error updating approval status:', error);
+      setWarningModal({ 
+        show: true, 
+        message: `Error updating approval status: ${error.response?.data?.error || error.message}` 
+      });
+    } finally {
+      setUpdatingApproval(false);
     }
   };
 
@@ -1101,6 +1164,8 @@ const Library = () => {
       step_model: '',
       pspice: '',
       datasheet_url: '',
+      part_status: 'temporary', // Default to temporary for new parts
+      approval_status: 'new', // Default to new for new parts
       specifications: [], // Array of {spec_name, spec_value, unit}
       distributors: defaultDistributors, // Default four distributors with IDs
       alternatives: [], // Initialize empty alternatives array
@@ -1741,11 +1806,25 @@ const Library = () => {
     }
   };
 
+  // Handle clicking on the page background to deselect component
+  const handlePageClick = (e) => {
+    // Only deselect if not in edit/add mode and a component is selected
+    if (!isEditMode && !isAddMode && selectedComponent) {
+      // Check if click is on the main container (the grid background)
+      // and not on any of the panels
+      if (e.target.classList.contains('page-click-handler')) {
+        setSelectedComponent(null);
+      }
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
-      <div className={`grid grid-cols-1 gap-4 flex-1 overflow-hidden ${
+      <div 
+        onClick={handlePageClick} 
+        className={`page-click-handler grid grid-cols-1 gap-4 flex-1 overflow-hidden ${
         (isEditMode || isAddMode) 
           ? 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
           : 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
@@ -2668,6 +2747,26 @@ const Library = () => {
                     />
                   </div>
 
+                  {/* Part Status */}
+                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">
+                      Part Status
+                    </label>
+                    <select
+                      value={editData.part_status || 'temporary'}
+                      onChange={(e) => handleFieldChange('part_status', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium"
+                    >
+                      <option value="temporary">🔵 Temporary</option>
+                      <option value="active">✅ Active</option>
+                      <option value="experimental">🧪 Experimental</option>
+                      <option value="archived">📦 Archived</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {isAddMode ? 'New parts default to Temporary status' : 'Change the lifecycle status of this part'}
+                    </p>
+                  </div>
+
                   {/* Distributor Info Section - Merged into Component Details in Edit/Add Mode */}
                   <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
@@ -2751,7 +2850,9 @@ const Library = () => {
                             {alternatives && alternatives.length > 0 && (
                               <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-gray-600 dark:text-gray-400">Alternative Parts:</span>
+                                  <span className="text-gray-600 dark:text-gray-400">
+                                    Alternative Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ':'}
+                                  </span>
                                   {canWrite() && (
                                     <button
                                       onClick={() => {
@@ -2873,6 +2974,102 @@ const Library = () => {
                                 </a>
                               </div>
                             )}
+
+                            {/* Row 11: Part Status Dropdown */}
+                            <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
+                              <label className="block text-gray-600 dark:text-gray-400 mb-2 text-sm font-medium">
+                                Part Status
+                              </label>
+                              <div className="relative">
+                                <select
+                                  value={componentDetails.part_status || 'temporary'}
+                                  onChange={(e) => handlePartStatusChange(e.target.value)}
+                                  disabled={!canApprove() || updatingPartStatus}
+                                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-primary-400 dark:hover:border-primary-600"
+                                  style={{
+                                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                                    backgroundPosition: 'right 0.5rem center',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundSize: '1.5em 1.5em'
+                                  }}
+                                >
+                                  <option value="temporary">🔵 Temporary</option>
+                                  <option value="active">✅ Active</option>
+                                  <option value="experimental">🧪 Experimental</option>
+                                  <option value="archived">📦 Archived</option>
+                                </select>
+                              </div>
+                              {updatingPartStatus && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Updating...</p>
+                              )}
+                            </div>
+
+                            {/* Row 12: Approval Status Block */}
+                            <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
+                              <div className="bg-gray-50 dark:bg-[#252525] rounded-lg p-4 space-y-3">
+                                {/* Status Badge */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">Status:</span>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                    componentDetails.approval_status === 'denied' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                    componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                  }`}>
+                                    {componentDetails.approval_status === 'approved' && '✓ Approved'}
+                                    {componentDetails.approval_status === 'denied' && '✗ Denied'}
+                                    {componentDetails.approval_status === 'pending review' && '⏳ Pending Review'}
+                                    {componentDetails.approval_status === 'new' && '🆕 New'}
+                                  </span>
+                                </div>
+
+                                {/* Approver Info */}
+                                {componentDetails.approval_username && (
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    <span className="font-medium">By:</span> {componentDetails.approval_username}
+                                  </div>
+                                )}
+
+                                {/* Approval Date */}
+                                {componentDetails.approval_date && (
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
+                                  </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                {canApprove() && (
+                                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-[#3a3a3a]">
+                                    <button
+                                      onClick={() => handleApprovalAction('approve')}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'approved'}
+                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                    >
+                                      ✓ Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleApprovalAction('deny')}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'denied'}
+                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                    >
+                                      ✗ Deny
+                                    </button>
+                                    <button
+                                      onClick={() => handleApprovalAction('send_to_review')}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
+                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                    >
+                                      📤 Send to Review
+                                    </button>
+                                  </div>
+                                )}
+
+                                {updatingApproval && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">Processing...</p>
+                                )}
+                              </div>
+                            </div>
                           </>
                         );
                       })()}

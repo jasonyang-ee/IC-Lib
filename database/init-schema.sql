@@ -106,12 +106,22 @@ CREATE TABLE IF NOT EXISTS components (
     -- Status
     status VARCHAR(50) DEFAULT 'Active',
     
+    -- Part Status (new feature)
+    part_status VARCHAR(50) DEFAULT 'temporary',
+    
+    -- Approval Status (new feature)
+    approval_status VARCHAR(50) DEFAULT 'new',
+    approval_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approval_date TIMESTAMP,
+    
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Indexes
-    CONSTRAINT check_status CHECK (status IN ('Active', 'Obsolete', 'NRND', 'Development'))
+    CONSTRAINT check_status CHECK (status IN ('Active', 'Obsolete', 'NRND', 'Development')),
+    CONSTRAINT check_part_status CHECK (part_status IN ('temporary', 'active', 'archived', 'experimental')),
+    CONSTRAINT check_approval_status CHECK (approval_status IN ('approved', 'pending review', 'denied', 'new'))
 );
 
 -- ============================================================================
@@ -159,9 +169,11 @@ CREATE TABLE IF NOT EXISTS components_alternative (
     part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
+    part_status VARCHAR(50) DEFAULT 'temporary',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(part_number, manufacturer_id, manufacturer_pn)
+    UNIQUE(part_number, manufacturer_id, manufacturer_pn),
+    CONSTRAINT check_alternative_part_status CHECK (part_status IN ('temporary', 'active', 'archived', 'experimental'))
 );
 
 -- Table: inventory_alternative
