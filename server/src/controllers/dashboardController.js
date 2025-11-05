@@ -33,15 +33,6 @@ export const getDashboardStats = async (req, res, next) => {
       WHERE created_at >= NOW() - INTERVAL '30 days'
     `);
 
-    // Get part status breakdown
-    const partStatusResult = await pool.query(`
-      SELECT 
-        part_status,
-        COUNT(*) as count
-      FROM components
-      GROUP BY part_status
-    `);
-
     // Get approval status breakdown
     const approvalStatusResult = await pool.query(`
       SELECT 
@@ -51,12 +42,7 @@ export const getDashboardStats = async (req, res, next) => {
       GROUP BY approval_status
     `);
 
-    // Convert to objects for easy access
-    const partStatusCounts = {};
-    partStatusResult.rows.forEach(row => {
-      partStatusCounts[row.part_status || 'temporary'] = parseInt(row.count);
-    });
-
+    // Convert to object for easy access
     const approvalStatusCounts = {};
     approvalStatusResult.rows.forEach(row => {
       approvalStatusCounts[row.approval_status || 'new'] = parseInt(row.count);
@@ -70,8 +56,14 @@ export const getDashboardStats = async (req, res, next) => {
       missingFootprints: parseInt(missingFootprintsResult.rows[0].count),
       lowStockAlerts: parseInt(lowStockResult.rows[0].count),
       recentlyAdded: parseInt(recentComponentsResult.rows[0].count),
-      partStatus: partStatusCounts,
-      approvalStatus: approvalStatusCounts
+      approvalStatus: {
+        new: approvalStatusCounts.new || 0,
+        temporary: approvalStatusCounts.temporary || 0,
+        pending_review: approvalStatusCounts['pending review'] || 0,
+        experimental: approvalStatusCounts.experimental || 0,
+        approved: approvalStatusCounts.approved || 0,
+        archived: approvalStatusCounts.archived || 0
+      }
     });
   } catch (error) {
     next(error);

@@ -13,7 +13,6 @@ const Library = () => {
   const { canWrite, canApprove, user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPartStatus, setSelectedPartStatus] = useState('');
   const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -78,8 +77,7 @@ const Library = () => {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectQuantity, setProjectQuantity] = useState(1);
   
-  // Part status and approval status state
-  const [updatingPartStatus, setUpdatingPartStatus] = useState(false);
+  // Approval status state
   const [updatingApproval, setUpdatingApproval] = useState(false);
 
   // Search input ref for auto-focus
@@ -280,34 +278,7 @@ const Library = () => {
     }
   };
 
-  // Handle part_status update
-  const handlePartStatusChange = async (newStatus) => {
-    if (!selectedComponent || !canWrite()) return;
-    
-    setUpdatingPartStatus(true);
-    try {
-      const response = await api.updateComponent(selectedComponent.id, {
-        part_status: newStatus
-      });
-      
-      // Update local state
-      setSelectedComponent(prev => ({ ...prev, part_status: newStatus }));
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
-    } catch (error) {
-      console.error('Error updating part status:', error);
-      setWarningModal({ 
-        show: true, 
-        message: `Error updating part status: ${error.response?.data?.error || error.message}` 
-      });
-    } finally {
-      setUpdatingPartStatus(false);
-    }
-  };
-
-  // Handle approval action (approve, deny, send_to_review)
+  // Handle approval action (approve, deny, send_to_review, send_to_prototype)
   const handleApprovalAction = async (action) => {
     if (!selectedComponent || !user) return;
     
@@ -350,12 +321,11 @@ const Library = () => {
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, searchTerm, selectedPartStatus, selectedApprovalStatus],
+    queryKey: ['components', selectedCategory, searchTerm, selectedApprovalStatus],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
         search: searchTerm,
-        partStatus: selectedPartStatus,
         approvalStatus: selectedApprovalStatus,
       });
       return response.data;
@@ -1168,7 +1138,6 @@ const Library = () => {
       step_model: '',
       pspice: '',
       datasheet_url: '',
-      part_status: 'temporary', // Default to temporary for new parts
       approval_status: 'new', // Default to new for new parts
       specifications: [], // Array of {spec_name, spec_value, unit}
       distributors: defaultDistributors, // Default four distributors with IDs
@@ -1951,25 +1920,9 @@ const Library = () => {
                 </div>
               </div>
 
-              {/* Part Status Filter */}
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Part:</label>
-                <select
-                  value={selectedPartStatus}
-                  onChange={(e) => setSelectedPartStatus(e.target.value)}
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                >
-                  <option value="">All Status</option>
-                  <option value="temporary">Temporary</option>
-                  <option value="active">Active</option>
-                  <option value="experimental">Experimental</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
-
               {/* Approval Status Filter */}
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Appr:</label>
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Status:</label>
                 <select
                   value={selectedApprovalStatus}
                   onChange={(e) => setSelectedApprovalStatus(e.target.value)}
@@ -1978,8 +1931,9 @@ const Library = () => {
                   <option value="">All Status</option>
                   <option value="new">New</option>
                   <option value="pending review">Pending Review</option>
+                  <option value="experimental">Experimental</option>
                   <option value="approved">Approved</option>
-                  <option value="denied">Denied</option>
+                  <option value="archived">Archived</option>
                 </select>
               </div>
             </div>
@@ -2786,26 +2740,6 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* Part Status */}
-                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1 font-medium">
-                      Part Status
-                    </label>
-                    <select
-                      value={editData.part_status || 'temporary'}
-                      onChange={(e) => handleFieldChange('part_status', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium"
-                    >
-                      <option value="temporary">🔵 Temporary</option>
-                      <option value="active">✅ Active</option>
-                      <option value="experimental">🧪 Experimental</option>
-                      <option value="archived">📦 Archived</option>
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {isAddMode ? 'New parts default to Temporary status' : 'Change the lifecycle status of this part'}
-                    </p>
-                  </div>
-
                   {/* Distributor Info Section - Merged into Component Details in Edit/Add Mode */}
                   <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
@@ -3014,71 +2948,47 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* Row 11: Part Status and Approval Status Combined */}
+                            {/* Row 11: Approval Status Section */}
                             <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                {/* Part Status Section */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Part Status</h4>
-                                  <select
-                                    value={componentDetails.part_status || 'temporary'}
-                                    onChange={(e) => handlePartStatusChange(e.target.value)}
-                                    disabled={!canApprove() || updatingPartStatus}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-primary-400 dark:hover:border-primary-600"
-                                    style={{
-                                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                                      backgroundPosition: 'right 0.5rem center',
-                                      backgroundRepeat: 'no-repeat',
-                                      backgroundSize: '1.5em 1.5em'
-                                    }}
-                                  >
-                                    <option value="temporary">Temporary</option>
-                                    <option value="active">Active</option>
-                                    <option value="experimental">Experimental</option>
-                                    <option value="archived">Archived</option>
-                                  </select>
-                                  {updatingPartStatus && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Updating...</p>
-                                  )}
-                                </div>
-
-                                {/* Approval Status Section */}
-                                <div>
-                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
-                                  <div className="space-y-2">
-                                    {/* Status Badge */}
-                                    <div>
-                                      <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold w-full text-center ${
-                                        componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                                        componentDetails.approval_status === 'denied' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                                        componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                                        'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                      }`}>
-                                        {componentDetails.approval_status === 'approved' && 'Approved'}
-                                        {componentDetails.approval_status === 'denied' && 'Denied'}
-                                        {componentDetails.approval_status === 'pending review' && 'Pending Review'}
-                                        {componentDetails.approval_status === 'new' && 'New'}
-                                      </span>
-                                    </div>
-
-                                    {/* Approver Info */}
-                                    {componentDetails.approval_username && (
-                                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                                        <span className="font-medium">By:</span> {componentDetails.approval_username}
-                                      </div>
-                                    )}
-
-                                    {/* Approval Date */}
-                                    {componentDetails.approval_date && (
-                                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                                        <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
-                                      </div>
-                                    )}
+                              <div>
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
+                                <div className="space-y-3">
+                                  {/* Status Badge */}
+                                  <div>
+                                    <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold w-full text-center ${
+                                      componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                      componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                      componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                                      componentDetails.approval_status === 'experimental' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                                      'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                    }`}>
+                                      {componentDetails.approval_status === 'approved' && 'Approved'}
+                                      {componentDetails.approval_status === 'archived' && 'Archived'}
+                                      {componentDetails.approval_status === 'pending review' && 'Pending Review'}
+                                      {componentDetails.approval_status === 'experimental' && 'Experimental'}
+                                      {componentDetails.approval_status === 'new' && 'New'}
+                                    </span>
                                   </div>
+
+                                  {/* Approval Info */}
+                                  {(componentDetails.approval_user_name || componentDetails.approval_date) && (
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                      {componentDetails.approval_user_name && (
+                                        <div>
+                                          <span className="font-medium">By:</span> {componentDetails.approval_user_name}
+                                        </div>
+                                      )}
+                                      {componentDetails.approval_date && (
+                                        <div>
+                                          <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
-                              {/* Action Buttons - Full Width Below Both Sections */}
+                              {/* Action Buttons - Full Width Below Status */}
                               <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
                                 {canApprove() && (
                                   <>
@@ -3091,7 +3001,7 @@ const Library = () => {
                                     </button>
                                     <button
                                       onClick={() => handleApprovalAction('deny')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'denied'}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'archived'}
                                       className="flex-1 min-w-[80px] px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
                                     >
                                       Deny
@@ -3099,13 +3009,22 @@ const Library = () => {
                                   </>
                                 )}
                                 {canWrite() && (
-                                  <button
-                                    onClick={() => handleApprovalAction('send_to_review')}
-                                    disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
-                                    className="flex-1 min-w-[80px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                  >
-                                    Send to Review
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => handleApprovalAction('send_to_review')}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
+                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                    >
+                                      Send to Review
+                                    </button>
+                                    <button
+                                      onClick={() => handleApprovalAction('send_to_prototype')}
+                                      disabled={updatingApproval || componentDetails.approval_status === 'experimental'}
+                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                    >
+                                      Send to Prototype
+                                    </button>
+                                  </>
                                 )}
                               </div>
 

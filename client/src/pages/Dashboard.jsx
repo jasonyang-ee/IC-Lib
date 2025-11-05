@@ -160,69 +160,39 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* Part Status and Approval Status Combined */}
+      {/* Approval Status */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Part Status Breakdown */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Part Status</h2>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Temporary</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.partStatus?.temporary || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.partStatus?.active || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Experimental</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.partStatus?.experimental || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Archived</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.partStatus?.archived || 0}
-                </span>
-              </div>
-            </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Approval Status</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">New</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.new || 0}
+            </span>
           </div>
-
-          {/* Approval Status Breakdown */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Approval Status</h2>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">New</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.approvalStatus?.new || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pending Review</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.approvalStatus?.['pending review'] || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Approved</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.approvalStatus?.approved || 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Denied</span>
-                <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  {stats?.approvalStatus?.denied || 0}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pending Review</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.pending_review || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Experimental</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.experimental || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Approved</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.approved || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Archived</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.archived || 0}
+            </span>
           </div>
         </div>
       </div>

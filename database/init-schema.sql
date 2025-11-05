@@ -106,10 +106,7 @@ CREATE TABLE IF NOT EXISTS components (
     -- Status
     status VARCHAR(50) DEFAULT 'Active',
     
-    -- Part Status (new feature)
-    part_status VARCHAR(50) DEFAULT 'temporary',
-    
-    -- Approval Status (new feature)
+    -- Approval Status (merged single status)
     approval_status VARCHAR(50) DEFAULT 'new',
     approval_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     approval_date TIMESTAMP,
@@ -120,8 +117,7 @@ CREATE TABLE IF NOT EXISTS components (
     
     -- Indexes
     CONSTRAINT check_status CHECK (status IN ('Active', 'Obsolete', 'NRND', 'Development')),
-    CONSTRAINT check_part_status CHECK (part_status IN ('temporary', 'active', 'archived', 'experimental')),
-    CONSTRAINT check_approval_status CHECK (approval_status IN ('approved', 'pending review', 'denied', 'new'))
+    CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'approved', 'archived', 'pending review', 'experimental'))
 );
 
 -- ============================================================================
@@ -169,11 +165,9 @@ CREATE TABLE IF NOT EXISTS components_alternative (
     part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
-    part_status VARCHAR(50) DEFAULT 'temporary',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(part_number, manufacturer_id, manufacturer_pn),
-    CONSTRAINT check_alternative_part_status CHECK (part_status IN ('temporary', 'active', 'archived', 'experimental'))
+    UNIQUE(part_number, manufacturer_id, manufacturer_pn)
 );
 
 -- Table: inventory_alternative
@@ -416,10 +410,13 @@ SELECT
     c.*,
     get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type,
     m.name AS manufacturer_name,
-    cat.name AS category_name
+    cat.name AS category_name,
+    u.username AS approval_user_name
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-LEFT JOIN component_categories cat ON c.category_id = cat.id;
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+LEFT JOIN users u ON c.approval_user_id = u.id
+WHERE c.approval_status != 'archived' OR c.approval_status IS NULL;
 
 -- Create a view that includes the alternative parts with manufacturer name
 CREATE OR REPLACE VIEW components_alternative_with_mfg_name AS
