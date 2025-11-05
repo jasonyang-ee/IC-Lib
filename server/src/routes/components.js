@@ -19,6 +19,9 @@ router.post('/bulk/update-stock', componentController.bulkUpdateStock);
 // Bulk update specifications for all components (MUST be before /:id routes)
 router.post('/bulk/update-specifications', componentController.bulkUpdateSpecifications);
 
+// Bulk update distributors for all components (MUST be before /:id routes)
+router.post('/bulk/update-distributors', componentController.bulkUpdateDistributors);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 

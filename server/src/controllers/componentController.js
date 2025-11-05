@@ -569,7 +569,7 @@ export const updateDistributorInfo = async (req, res, next) => {
           stock_quantity = EXCLUDED.stock_quantity,
           minimum_order_quantity = EXCLUDED.minimum_order_quantity,
           price_breaks = EXCLUDED.price_breaks,
-          last_updated = CURRENT_TIMESTAMP
+          updated_at = CURRENT_TIMESTAMP
       `, [
         id,
         dist.distributor_id,
@@ -751,7 +751,7 @@ export const getAlternatives = async (req, res, next) => {
               'minimum_order_quantity', di.minimum_order_quantity,
               'packaging', di.packaging,
               'price_breaks', di.price_breaks,
-              'last_updated', di.last_updated
+              'last_updated', di.updated_at
             )
           )
           FROM distributor_info di
@@ -820,7 +820,7 @@ export const createAlternative = async (req, res, next) => {
               minimum_order_quantity = EXCLUDED.minimum_order_quantity,
               packaging = EXCLUDED.packaging,
               price_breaks = EXCLUDED.price_breaks,
-              last_updated = CURRENT_TIMESTAMP
+              updated_at = CURRENT_TIMESTAMP
         `, [
           alternativeId,
           dist.distributor_id,
@@ -934,7 +934,7 @@ export const updateAlternative = async (req, res, next) => {
                 minimum_order_quantity = EXCLUDED.minimum_order_quantity,
                 packaging = EXCLUDED.packaging,
                 price_breaks = EXCLUDED.price_breaks,
-                last_updated = CURRENT_TIMESTAMP
+                updated_at = CURRENT_TIMESTAMP
           `, [
             altId,
             dist.distributor_id,
@@ -1084,7 +1084,7 @@ export const updateComponentStock = async (req, res, next) => {
               stock_quantity = $2,
               in_stock = $3,
               url = COALESCE($4, url),
-              last_updated = CURRENT_TIMESTAMP
+              updated_at = CURRENT_TIMESTAMP
             WHERE id = $5
           `, [
             JSON.stringify(vendorData.pricing),
@@ -1142,7 +1142,7 @@ export const bulkUpdateStock = async (req, res, next) => {
       LEFT JOIN components_alternative ca ON di.alternative_id = ca.id
       WHERE di.sku IS NOT NULL
       AND di.sku != ''
-      ORDER BY di.last_updated ASC NULLS FIRST
+      ORDER BY di.updated_at ASC NULLS FIRST
     `;
 
     if (maxLimit) {
@@ -1178,7 +1178,7 @@ export const bulkUpdateStock = async (req, res, next) => {
               stock_quantity = $2,
               in_stock = $3,
               url = COALESCE($4, url),
-              last_updated = CURRENT_TIMESTAMP
+              updated_at = CURRENT_TIMESTAMP
             WHERE id = $5
           `, [
             JSON.stringify(vendorData.pricing),
@@ -1371,6 +1371,198 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
   } catch (error) {
     console.error('Error in bulk specification update:', error);
+    next(error);
+  }
+};
+
+// Bulk update distributor information by searching with manufacturer part numbers
+export const bulkUpdateDistributors = async (req, res, next) => {
+  try {
+    const { limit } = req.query;
+    const maxLimit = limit ? parseInt(limit) : null;
+
+    // Get all components with manufacturer part numbers
+    let query = `
+      SELECT 
+        c.id as component_id,
+        c.part_number,
+        c.manufacturer_pn,
+        m.name as manufacturer_name
+      FROM components c
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.manufacturer_pn IS NOT NULL
+      AND c.manufacturer_pn != ''
+      ORDER BY c.part_number
+    `;
+
+    if (maxLimit) {
+      query += ` LIMIT ${maxLimit}`;
+    }
+
+    const componentsResult = await pool.query(query);
+
+    let updatedCount = 0;
+    let skippedCount = 0;
+    const errors = [];
+
+    // Get distributor IDs for supported distributors
+    const distributorsResult = await pool.query(`
+      SELECT id, name FROM distributors WHERE name IN ('Digikey', 'Mouser', 'Arrow', 'Newark')
+    `);
+    const distributorMap = {};
+    distributorsResult.rows.forEach(d => {
+      distributorMap[d.name.toLowerCase()] = d.id;
+    });
+
+    // Update each component
+    for (const comp of componentsResult.rows) {
+      try {
+        // Search all vendors for this manufacturer part number
+        let allResults = [];
+
+        console.log(`\n🔍 [BULK UPDATE] Processing component:`, {
+          part_number: comp.part_number,
+          manufacturer_pn: comp.manufacturer_pn,
+          manufacturer_name: comp.manufacturer_name
+        });
+
+        // Search Digikey
+        try {
+          console.log(`📞 [DIGIKEY] Searching for: ${comp.manufacturer_pn}`);
+          const digikeyResult = await digikeyService.searchPart(comp.manufacturer_pn);
+          console.log(`📊 [DIGIKEY] Results count:`, digikeyResult.results?.length || 0);
+          
+          if (digikeyResult.results && digikeyResult.results.length > 0) {
+            // Filter for exact manufacturer part number match
+            const exactMatches = digikeyResult.results.filter(r => 
+              r.manufacturerPartNumber && 
+              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
+            );
+            console.log(`✅ [DIGIKEY] Exact matches:`, exactMatches.length);
+            
+            exactMatches.forEach(result => {
+              allResults.push({
+                source: 'digikey',
+                sku: result.partNumber,
+                url: result.productUrl,
+                moq: result.minimumOrderQuantity || 1,
+                stock: result.stock || 0
+              });
+            });
+          }
+        } catch (error) {
+          console.log(`❌ [DIGIKEY] Search failed for ${comp.manufacturer_pn}:`, error.message);
+        }
+
+        // Search Mouser
+        try {
+          console.log(`📞 [MOUSER] Searching for: ${comp.manufacturer_pn}`);
+          const mouserResult = await mouserService.searchPart(comp.manufacturer_pn);
+          console.log(`📊 [MOUSER] Results count:`, mouserResult.results?.length || 0);
+          
+          if (mouserResult.results && mouserResult.results.length > 0) {
+            // Filter for exact manufacturer part number match
+            const exactMatches = mouserResult.results.filter(r => 
+              r.manufacturerPartNumber && 
+              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
+            );
+            console.log(`✅ [MOUSER] Exact matches:`, exactMatches.length);
+            
+            exactMatches.forEach(result => {
+              allResults.push({
+                source: 'mouser',
+                sku: result.partNumber,
+                url: result.productUrl,
+                moq: result.minimumOrderQuantity || 1,
+                stock: result.stock || 0
+              });
+            });
+          }
+        } catch (error) {
+          console.log(`❌ [MOUSER] Search failed for ${comp.manufacturer_pn}:`, error.message);
+        }
+
+        console.log(`📋 [BULK UPDATE] Total results found:`, allResults.length);
+
+        // If we have results, pick the best one per distributor (lowest MOQ)
+        if (allResults.length > 0) {
+          // Group by source
+          const bySource = {};
+          allResults.forEach(result => {
+            if (!bySource[result.source]) {
+              bySource[result.source] = [];
+            }
+            bySource[result.source].push(result);
+          });
+
+          // For each source, pick the one with lowest MOQ
+          let distributorsUpdated = false;
+          for (const [source, results] of Object.entries(bySource)) {
+            // Sort by MOQ ascending
+            results.sort((a, b) => a.moq - b.moq);
+            const bestResult = results[0];
+
+            const distributorId = distributorMap[source.toLowerCase()];
+            if (distributorId) {
+              // Upsert distributor info
+              await pool.query(`
+                INSERT INTO distributor_info (component_id, distributor_id, sku, url, in_stock, stock_quantity)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (component_id, distributor_id)
+                DO UPDATE SET 
+                  sku = EXCLUDED.sku,
+                  url = EXCLUDED.url,
+                  in_stock = EXCLUDED.in_stock,
+                  stock_quantity = EXCLUDED.stock_quantity,
+                  updated_at = CURRENT_TIMESTAMP
+              `, [
+                comp.component_id,
+                distributorId,
+                bestResult.sku,
+                bestResult.url,
+                bestResult.stock > 0,
+                bestResult.stock
+              ]);
+
+              distributorsUpdated = true;
+            }
+          }
+
+          if (distributorsUpdated) {
+            updatedCount++;
+          } else {
+            skippedCount++;
+          }
+        } else {
+          skippedCount++;
+        }
+
+        // Add delay to avoid rate limiting (Mouser: ~30 calls/min, Digikey: higher)
+        // Using 2 seconds = 30 requests per minute to stay well under Mouser's limit
+        console.log(`⏱️ [BULK UPDATE] Waiting 2 seconds before next request...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (error) {
+        errors.push({
+          partNumber: comp.part_number,
+          manufacturerPn: comp.manufacturer_pn,
+          error: error.message
+        });
+        skippedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk distributor update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`,
+      updatedCount,
+      skippedCount,
+      totalChecked: componentsResult.rows.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error in bulk distributor update:', error);
     next(error);
   }
 };

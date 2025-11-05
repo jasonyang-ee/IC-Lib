@@ -247,6 +247,7 @@ export const api = {
   updateComponentStock: (id) => apiClient.post(`/components/${id}/update-stock`, {}),
   bulkUpdateStock: (limit) => apiClient.post('/components/bulk/update-stock', {}, { params: { limit } }),
   bulkUpdateSpecifications: (limit) => apiClient.post('/components/bulk/update-specifications', {}, { params: { limit } }),
+  bulkUpdateDistributors: (limit) => apiClient.post('/components/bulk/update-distributors', {}, { params: { limit } }),
 };
 
 export default apiClient;

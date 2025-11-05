@@ -957,9 +957,11 @@ const Settings = () => {
   // Auto Data Update states
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
   const [isUpdatingSpecs, setIsUpdatingSpecs] = useState(false);
+  const [isUpdatingDistributors, setIsUpdatingDistributors] = useState(false);
   const [updateToast, setUpdateToast] = useState({ show: false, message: '', type: 'success' });
   const [bulkUpdateStockConfirm, setBulkUpdateStockConfirm] = useState(false);
   const [bulkUpdateSpecsConfirm, setBulkUpdateSpecsConfirm] = useState(false);
+  const [bulkUpdateDistributorsConfirm, setBulkUpdateDistributorsConfirm] = useState(false);
   
   // Manufacturer rename states
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
@@ -1194,6 +1196,43 @@ const Settings = () => {
       }, 5000);
     } finally {
       setIsUpdatingSpecs(false);
+    }
+  };
+
+  // Bulk update distributors handler
+  const handleBulkUpdateDistributors = async () => {
+    setBulkUpdateDistributorsConfirm(false);
+    setIsUpdatingDistributors(true);
+    setUpdateToast({ show: true, message: 'Starting bulk distributor update...', type: 'info' });
+    
+    try {
+      const result = await api.bulkUpdateDistributors();
+      setUpdateToast({ 
+        show: true, 
+        message: `✓ Distributor update complete: ${result.data.updatedCount} distributors updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        type: 'success' 
+      });
+      
+      // Refresh component data
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['componentDetails']);
+      
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } catch (error) {
+      console.error('Error updating distributors:', error);
+      setUpdateToast({ 
+        show: true, 
+        message: '✗ Error updating distributors. Please try again.', 
+        type: 'error' 
+      });
+      setTimeout(() => {
+        setUpdateToast({ show: false, message: '', type: 'success' });
+      }, 5000);
+    } finally {
+      setIsUpdatingDistributors(false);
     }
   };
 
@@ -1821,7 +1860,7 @@ const Settings = () => {
           Automatically update component data from distributor APIs. Only parts with valid distributor SKUs will be updated.
         </p>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Update Stock Info */}
           <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -1833,7 +1872,7 @@ const Settings = () => {
             </p>
             <button
               onClick={() => setBulkUpdateStockConfirm(true)}
-              disabled={isUpdatingStock || isUpdatingSpecs}
+              disabled={isUpdatingStock || isUpdatingSpecs || isUpdatingDistributors}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {isUpdatingStock ? (
@@ -1861,7 +1900,7 @@ const Settings = () => {
             </p>
             <button
               onClick={() => setBulkUpdateSpecsConfirm(true)}
-              disabled={isUpdatingStock || isUpdatingSpecs}
+              disabled={isUpdatingStock || isUpdatingSpecs || isUpdatingDistributors}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {isUpdatingSpecs ? (
@@ -1873,6 +1912,34 @@ const Settings = () => {
                 <>
                   <Database className="w-4 h-4" />
                   Update Specifications
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Update Distributors */}
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <RefreshCw className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Distributors</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches.
+            </p>
+            <button
+              onClick={() => setBulkUpdateDistributorsConfirm(true)}
+              disabled={isUpdatingStock || isUpdatingSpecs || isUpdatingDistributors}
+              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isUpdatingDistributors ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  Update Distributors
                 </>
               )}
             </button>
@@ -1998,6 +2065,39 @@ const Settings = () => {
               <button
                 onClick={handleBulkUpdateSpecifications}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Start Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Update Distributors Confirmation */}
+      {bulkUpdateDistributorsConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                <RefreshCw className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Update Distributors
+              </h3>
+            </div>
+            <p className="text-gray-700 dark:text-gray-300 mb-6">
+              This will search for and update distributor SKUs and URLs for all parts by matching manufacturer part numbers. If multiple results are found, the one with the lowest minimum order quantity will be selected. This may take several minutes.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkUpdateDistributorsConfirm(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkUpdateDistributors}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 Start Update
               </button>

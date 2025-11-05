@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS distributor_info (
     minimum_order_quantity INTEGER DEFAULT 1,
     packaging VARCHAR(100),
     price_breaks JSONB,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_component_or_alternative CHECK (
         (component_id IS NOT NULL AND alternative_id IS NULL) OR
         (component_id IS NULL AND alternative_id IS NOT NULL)
