@@ -111,7 +111,7 @@
 
   <DbTableCfg indx="0">
     <NewPartDB>0</NewPartDB>
-    <TableName>components_with_part_type</TableName>
+    <TableName>active_parts</TableName>
     <TableUsed>1</TableUsed>
     <DbFieldDef indx="0">
       <FieldName></FieldName>
@@ -350,7 +350,7 @@
 
   <DbTableCfg indx="1">
     <NewPartDB>0</NewPartDB>
-    <TableName>components_alternative_with_mfg_name</TableName>
+    <TableName>alternative_parts</TableName>
     <TableUsed>0</TableUsed>
     <DbFieldDef indx="0">
       <FieldName></FieldName>

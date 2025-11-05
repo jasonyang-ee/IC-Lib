@@ -405,7 +405,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Create a view that includes the computed part_type
-CREATE OR REPLACE VIEW components_with_part_type AS
+CREATE OR REPLACE VIEW active_parts AS
 SELECT 
     c.*,
     get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type,
@@ -419,7 +419,7 @@ LEFT JOIN users u ON c.approval_user_id = u.id
 WHERE c.approval_status != 'archived' OR c.approval_status IS NULL;
 
 -- Create a view that includes the alternative parts with manufacturer name
-CREATE OR REPLACE VIEW components_alternative_with_mfg_name AS
+CREATE OR REPLACE VIEW alternative_parts AS
 SELECT 
     ca.*,
     m.name AS manufacturer_name

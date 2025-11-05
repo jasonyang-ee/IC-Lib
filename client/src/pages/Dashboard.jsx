@@ -101,42 +101,36 @@ const Dashboard = () => {
       value: stats?.totalComponents || 0,
       icon: Package,
       color: 'bg-blue-500',
-      change: '+12%',
     },
     {
       title: 'Categories',
       value: stats?.totalCategories || 0,
       icon: Layers,
       color: 'bg-green-500',
-      change: null,
     },
     {
       title: 'Inventory Items',
       value: stats?.totalInventoryItems || 0,
       icon: Box,
       color: 'bg-purple-500',
-      change: '+8%',
     },
     {
       title: 'Missing Footprints',
       value: stats?.missingFootprints || 0,
       icon: AlertTriangle,
       color: 'bg-orange-500',
-      change: '-5%',
     },
     {
       title: 'Low Stock Alerts',
       value: stats?.lowStockAlerts || 0,
       icon: TrendingUp,
       color: 'bg-red-500',
-      change: stats?.lowStockAlerts > 0 ? 'Action needed' : 'All good',
     },
     {
       title: 'Total Inventory Qty',
       value: stats?.totalInventoryQuantity || 0,
       icon: Database,
       color: 'bg-indigo-500',
-      change: null,
     },
   ];
 
@@ -163,7 +157,7 @@ const Dashboard = () => {
       {/* Approval Status */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Approval Status</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
           <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">New</span>
             <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -176,16 +170,16 @@ const Dashboard = () => {
               {stats?.approvalStatus?.pending_review || 0}
             </span>
           </div>
-          <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Experimental</span>
-            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
-              {stats?.approvalStatus?.experimental || 0}
-            </span>
-          </div>
           <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Approved</span>
             <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
               {stats?.approvalStatus?.approved || 0}
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Experimental</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {stats?.approvalStatus?.experimental || 0}
             </span>
           </div>
           <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
