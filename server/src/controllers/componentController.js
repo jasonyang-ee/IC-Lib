@@ -1095,6 +1095,10 @@ export const updateComponentStock = async (req, res, next) => {
           ]);
           updatedCount++;
         }
+
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
       } catch (error) {
         console.error(`Error updating stock for SKU ${dist.sku}:`, error.message);
         errors.push({
@@ -1192,10 +1196,22 @@ export const bulkUpdateStock = async (req, res, next) => {
           skippedCount++;
         }
 
-        // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error) {
+        // Check for rate limit error
+        if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          return res.status(429).json({
+            success: false,
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
+            updatedCount,
+            skippedCount,
+            totalChecked: updatedCount + skippedCount + 1
+          });
+        }
+        
         errors.push({
           sku: dist.sku,
           distributor: dist.distributor_name,
@@ -1346,10 +1362,22 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           skippedCount++;
         }
 
-        // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // Add delay to avoid rate limiting (Digikey: 1000 calls/day = ~40/hour = 1.5s per call safe)
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error) {
+        // Check for rate limit error
+        if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          return res.status(429).json({
+            success: false,
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
+            updatedCount,
+            skippedCount,
+            totalChecked: updatedCount + skippedCount + 1
+          });
+        }
+        
         errors.push({
           partNumber: comp.part_number,
           sku: comp.sku,
@@ -1440,6 +1468,10 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             });
           }
         } catch (error) {
+          // Re-throw rate limit errors to abort the entire operation
+          if (error.message === 'RATE_LIMIT_EXCEEDED') {
+            throw error;
+          }
           console.log(`Digikey search failed for ${comp.manufacturer_pn}:`, error.message);
         }
 
@@ -1463,6 +1495,10 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             });
           }
         } catch (error) {
+          // Re-throw rate limit errors to abort the entire operation
+          if (error.message === 'RATE_LIMIT_EXCEEDED') {
+            throw error;
+          }
           console.log(`Mouser search failed for ${comp.manufacturer_pn}:`, error.message);
         }
 
@@ -1523,6 +1559,18 @@ export const bulkUpdateDistributors = async (req, res, next) => {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error) {
+        // Check for rate limit error
+        if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          return res.status(429).json({
+            success: false,
+            error: 'RATE_LIMIT_EXCEEDED',
+            message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
+            updatedCount,
+            skippedCount,
+            totalChecked: updatedCount + skippedCount + 1
+          });
+        }
+        
         errors.push({
           partNumber: comp.part_number,
           manufacturerPn: comp.manufacturer_pn,

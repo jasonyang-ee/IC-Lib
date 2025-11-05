@@ -958,6 +958,9 @@ const Settings = () => {
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
   const [isUpdatingSpecs, setIsUpdatingSpecs] = useState(false);
   const [isUpdatingDistributors, setIsUpdatingDistributors] = useState(false);
+  const [stockProgress, setStockProgress] = useState(0);
+  const [specsProgress, setSpecsProgress] = useState(0);
+  const [distributorsProgress, setDistributorsProgress] = useState(0);
   const [updateToast, setUpdateToast] = useState({ show: false, message: '', type: 'success' });
   const [bulkUpdateStockConfirm, setBulkUpdateStockConfirm] = useState(false);
   const [bulkUpdateSpecsConfirm, setBulkUpdateSpecsConfirm] = useState(false);
@@ -1129,10 +1132,21 @@ const Settings = () => {
   const handleBulkUpdateStock = async () => {
     setBulkUpdateStockConfirm(false);
     setIsUpdatingStock(true);
+    setStockProgress(0);
     setUpdateToast({ show: true, message: 'Starting bulk stock update...', type: 'info' });
+    
+    // Simulate progress animation
+    const progressInterval = setInterval(() => {
+      setStockProgress(prev => {
+        if (prev >= 95) return 95; // Cap at 95% until complete
+        return prev + Math.random() * 5;
+      });
+    }, 1000);
     
     try {
       const result = await api.bulkUpdateStock();
+      clearInterval(progressInterval);
+      setStockProgress(100);
       setUpdateToast({ 
         show: true, 
         message: `✓ Stock update complete: ${result.data.updatedCount} updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
@@ -1146,14 +1160,28 @@ const Settings = () => {
       // Hide toast after 5 seconds
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
+        setStockProgress(0);
       }, 5000);
     } catch (error) {
+      clearInterval(progressInterval);
+      setStockProgress(0);
       console.error('Error updating stock:', error);
-      setUpdateToast({ 
-        show: true, 
-        message: '✗ Error updating stock. Please try again.', 
-        type: 'error' 
-      });
+      
+      // Check for rate limit error
+      if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
+        setUpdateToast({ 
+          show: true, 
+          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          type: 'warning' 
+        });
+      } else {
+        setUpdateToast({ 
+          show: true, 
+          message: '✗ Error updating stock. Please try again.', 
+          type: 'error' 
+        });
+      }
+      
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
       }, 5000);
@@ -1166,10 +1194,21 @@ const Settings = () => {
   const handleBulkUpdateSpecifications = async () => {
     setBulkUpdateSpecsConfirm(false);
     setIsUpdatingSpecs(true);
+    setSpecsProgress(0);
     setUpdateToast({ show: true, message: 'Starting bulk specification update...', type: 'info' });
+    
+    // Simulate progress animation
+    const progressInterval = setInterval(() => {
+      setSpecsProgress(prev => {
+        if (prev >= 95) return 95; // Cap at 95% until complete
+        return prev + Math.random() * 5;
+      });
+    }, 1000);
     
     try {
       const result = await api.bulkUpdateSpecifications();
+      clearInterval(progressInterval);
+      setSpecsProgress(100);
       setUpdateToast({ 
         show: true, 
         message: `✓ Specification update complete: ${result.data.updatedCount} parts updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
@@ -1183,14 +1222,28 @@ const Settings = () => {
       // Hide toast after 5 seconds
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
+        setSpecsProgress(0);
       }, 5000);
     } catch (error) {
+      clearInterval(progressInterval);
+      setSpecsProgress(0);
       console.error('Error updating specifications:', error);
-      setUpdateToast({ 
-        show: true, 
-        message: '✗ Error updating specifications. Please try again.', 
-        type: 'error' 
-      });
+      
+      // Check for rate limit error
+      if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
+        setUpdateToast({ 
+          show: true, 
+          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          type: 'warning' 
+        });
+      } else {
+        setUpdateToast({ 
+          show: true, 
+          message: '✗ Error updating specifications. Please try again.', 
+          type: 'error' 
+        });
+      }
+      
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
       }, 5000);
@@ -1203,10 +1256,21 @@ const Settings = () => {
   const handleBulkUpdateDistributors = async () => {
     setBulkUpdateDistributorsConfirm(false);
     setIsUpdatingDistributors(true);
+    setDistributorsProgress(0);
     setUpdateToast({ show: true, message: 'Starting bulk distributor update...', type: 'info' });
+    
+    // Simulate progress animation
+    const progressInterval = setInterval(() => {
+      setDistributorsProgress(prev => {
+        if (prev >= 95) return 95; // Cap at 95% until complete
+        return prev + Math.random() * 5;
+      });
+    }, 1000);
     
     try {
       const result = await api.bulkUpdateDistributors();
+      clearInterval(progressInterval);
+      setDistributorsProgress(100);
       setUpdateToast({ 
         show: true, 
         message: `✓ Distributor update complete: ${result.data.updatedCount} distributors updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
@@ -1220,14 +1284,28 @@ const Settings = () => {
       // Hide toast after 5 seconds
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
+        setDistributorsProgress(0);
       }, 5000);
     } catch (error) {
+      clearInterval(progressInterval);
+      setDistributorsProgress(0);
       console.error('Error updating distributors:', error);
-      setUpdateToast({ 
-        show: true, 
-        message: '✗ Error updating distributors. Please try again.', 
-        type: 'error' 
-      });
+      
+      // Check for rate limit error
+      if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
+        setUpdateToast({ 
+          show: true, 
+          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          type: 'warning' 
+        });
+      } else {
+        setUpdateToast({ 
+          show: true, 
+          message: '✗ Error updating distributors. Please try again.', 
+          type: 'error' 
+        });
+      }
+      
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
       }, 5000);
@@ -1878,7 +1956,7 @@ const Settings = () => {
               {isUpdatingStock ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating...
+                  Updating... {Math.round(stockProgress)}%
                 </>
               ) : (
                 <>
@@ -1906,7 +1984,7 @@ const Settings = () => {
               {isUpdatingSpecs ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating...
+                  Updating... {Math.round(specsProgress)}%
                 </>
               ) : (
                 <>
@@ -1924,7 +2002,7 @@ const Settings = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Distributors</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches.
+              Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches. Operation has 2 seconds delay between parts to avoid API rate limits.
             </p>
             <button
               onClick={() => setBulkUpdateDistributorsConfirm(true)}
@@ -1934,7 +2012,7 @@ const Settings = () => {
               {isUpdatingDistributors ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating...
+                  Updating... {Math.round(distributorsProgress)}%
                 </>
               ) : (
                 <>
@@ -2109,23 +2187,28 @@ const Settings = () => {
       {/* Toast Notification */}
       {updateToast.show && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
-          <div className={`rounded-lg shadow-lg p-4 max-w-md border ${
+          <div className={`rounded-lg shadow-2xl p-5 max-w-lg border-2 ${
             updateToast.type === 'success' 
-              ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800' 
+              ? 'bg-green-100 dark:bg-green-800 border-green-400 dark:border-green-600' 
               : updateToast.type === 'error'
-              ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
-              : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
+              ? 'bg-red-100 dark:bg-red-800 border-red-400 dark:border-red-600'
+              : updateToast.type === 'warning'
+              ? 'bg-yellow-100 dark:bg-yellow-800 border-yellow-400 dark:border-yellow-600'
+              : 'bg-blue-100 dark:bg-blue-800 border-blue-400 dark:border-blue-600'
           }`}>
             <div className="flex items-center gap-3">
-              {updateToast.type === 'success' && <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />}
-              {updateToast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />}
-              {updateToast.type === 'info' && <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />}
-              <p className={`text-sm font-medium ${
+              {updateToast.type === 'success' && <CheckCircle className="w-6 h-6 text-green-700 dark:text-green-300" />}
+              {updateToast.type === 'error' && <AlertCircle className="w-6 h-6 text-red-700 dark:text-red-300" />}
+              {updateToast.type === 'warning' && <AlertTriangle className="w-6 h-6 text-yellow-700 dark:text-yellow-300" />}
+              {updateToast.type === 'info' && <Loader2 className="w-6 h-6 text-blue-700 dark:text-blue-300 animate-spin" />}
+              <p className={`text-base font-semibold ${
                 updateToast.type === 'success' 
-                  ? 'text-green-800 dark:text-green-200' 
+                  ? 'text-green-900 dark:text-green-100' 
                   : updateToast.type === 'error'
-                  ? 'text-red-800 dark:text-red-200'
-                  : 'text-blue-800 dark:text-blue-200'
+                  ? 'text-red-900 dark:text-red-100'
+                  : updateToast.type === 'warning'
+                  ? 'text-yellow-900 dark:text-yellow-100'
+                  : 'text-blue-900 dark:text-blue-100'
               }`}>
                 {updateToast.message}
               </p>

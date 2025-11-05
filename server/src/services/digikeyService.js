@@ -105,7 +105,15 @@ export async function searchPart(partNumber) {
     console.error('Status:', error.response?.status);
     console.error('Request URL:', error.config?.url);
     
-    // Return error information
+    // Check for rate limit errors
+    if (error.response?.status === 429 || 
+        (error.response?.data?.detail && error.response.data.detail.includes('Ratelimit exceeded'))) {
+      const rateLimitError = new Error('RATE_LIMIT_EXCEEDED');
+      rateLimitError.vendorMessage = error.response?.data?.detail || 'Daily rate limit exceeded';
+      throw rateLimitError;
+    }
+    
+    // Return error information for other errors
     if (error.message.includes('authenticate')) {
       return {
         source: 'digikey',
