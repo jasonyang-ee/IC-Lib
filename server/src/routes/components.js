@@ -55,8 +55,8 @@ router.put('/:id/alternatives/:altId', authenticate, canWrite, componentControll
 // Delete alternative part
 router.delete('/:id/alternatives/:altId', authenticate, canWrite, componentController.deleteAlternative);
 
-// Update approval status for component (requires approver or admin role)
-router.post('/:id/approval', authenticate, canApprove, componentController.updateComponentApproval);
+// Update approval status for component (permission check done in controller)
+router.post('/:id/approval', authenticate, componentController.updateComponentApproval);
 
 // Update stock info for a single component (primary + alternatives)
 router.post('/:id/update-stock', componentController.updateComponentStock);

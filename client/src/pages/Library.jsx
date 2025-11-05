@@ -13,6 +13,8 @@ const Library = () => {
   const { canWrite, canApprove, user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPartStatus, setSelectedPartStatus] = useState('');
+  const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
@@ -348,11 +350,13 @@ const Library = () => {
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, searchTerm],
+    queryKey: ['components', selectedCategory, searchTerm, selectedPartStatus, selectedApprovalStatus],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
         search: searchTerm,
+        partStatus: selectedPartStatus,
+        approvalStatus: selectedApprovalStatus,
       });
       return response.data;
     },
@@ -1810,31 +1814,34 @@ const Library = () => {
   const handlePageClick = (e) => {
     // Only deselect if not in edit/add mode and a component is selected
     if (!isEditMode && !isAddMode && selectedComponent) {
-      // Check if click is on the main container (the grid background)
-      // and not on any of the panels
-      if (e.target.classList.contains('page-click-handler')) {
+      // Check if the click is within any component panel
+      const isOnPanel = e.target.closest('[data-panel]');
+      
+      // If click is NOT on a panel (i.e., on the gap/background), deselect
+      if (!isOnPanel) {
         setSelectedComponent(null);
       }
     }
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col library-background" onClick={handlePageClick}>
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
       <div 
-        onClick={handlePageClick} 
         className={`page-click-handler grid grid-cols-1 gap-4 flex-1 overflow-hidden ${
         (isEditMode || isAddMode) 
           ? 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
           : 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
-        <div className="space-y-4 xl:w-[250px] overflow-y-auto custom-scrollbar">
-          {/* Category Selector */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Category</h3>
-            <div className="space-y-2">
+        <div className="flex flex-col space-y-4 xl:w-[250px] overflow-hidden" data-panel>
+          {/* Category Selector - Scrollable */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Category</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pt-3 custom-scrollbar space-y-2">
               <button
                 onClick={() => setSelectedCategory('')}
                 className={`w-full text-left px-3 py-2 rounded ${
@@ -1861,8 +1868,8 @@ const Library = () => {
             </div>
           </div>
 
-          {/* Search */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+          {/* Search - Always Visible */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Search</h3>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -1943,11 +1950,43 @@ const Library = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Part Status Filter */}
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Part:</label>
+                <select
+                  value={selectedPartStatus}
+                  onChange={(e) => setSelectedPartStatus(e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                >
+                  <option value="">All Status</option>
+                  <option value="temporary">Temporary</option>
+                  <option value="active">Active</option>
+                  <option value="experimental">Experimental</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+
+              {/* Approval Status Filter */}
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Appr:</label>
+                <select
+                  value={selectedApprovalStatus}
+                  onChange={(e) => setSelectedApprovalStatus(e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                >
+                  <option value="">All Status</option>
+                  <option value="new">New</option>
+                  <option value="pending review">Pending Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="denied">Denied</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+          {/* Actions - Always Visible */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
             <div className="space-y-2">
               {isAddMode ? (
@@ -2043,7 +2082,7 @@ const Library = () => {
 
         {/* Center - Component List (Hidden in Edit Mode and Add Mode) */}
         {!isEditMode && !isAddMode && (
-          <div className="flex flex-col xl:min-w-[250px] overflow-hidden">
+          <div className="flex flex-col xl:min-w-[250px] overflow-hidden" data-panel>
             {/* Component List */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
@@ -2156,7 +2195,7 @@ const Library = () => {
         )}
 
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
-        <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar">
+        <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar" data-panel>
           {/* Component Details - Always Shown */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center justify-between mb-4">
@@ -2975,100 +3014,104 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* Row 11: Part Status Dropdown */}
-                            <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
-                              <label className="block text-gray-600 dark:text-gray-400 mb-2 text-sm font-medium">
-                                Part Status
-                              </label>
-                              <div className="relative">
-                                <select
-                                  value={componentDetails.part_status || 'temporary'}
-                                  onChange={(e) => handlePartStatusChange(e.target.value)}
-                                  disabled={!canApprove() || updatingPartStatus}
-                                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-primary-400 dark:hover:border-primary-600"
-                                  style={{
-                                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                                    backgroundPosition: 'right 0.5rem center',
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundSize: '1.5em 1.5em'
-                                  }}
-                                >
-                                  <option value="temporary">🔵 Temporary</option>
-                                  <option value="active">✅ Active</option>
-                                  <option value="experimental">🧪 Experimental</option>
-                                  <option value="archived">📦 Archived</option>
-                                </select>
-                              </div>
-                              {updatingPartStatus && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Updating...</p>
-                              )}
-                            </div>
-
-                            {/* Row 12: Approval Status Block */}
+                            {/* Row 11: Part Status and Approval Status Combined */}
                             <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
-                              <div className="bg-gray-50 dark:bg-[#252525] rounded-lg p-4 space-y-3">
-                                {/* Status Badge */}
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">Status:</span>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                                    componentDetails.approval_status === 'denied' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                                    componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                                    'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                  }`}>
-                                    {componentDetails.approval_status === 'approved' && '✓ Approved'}
-                                    {componentDetails.approval_status === 'denied' && '✗ Denied'}
-                                    {componentDetails.approval_status === 'pending review' && '⏳ Pending Review'}
-                                    {componentDetails.approval_status === 'new' && '🆕 New'}
-                                  </span>
+                              <div className="grid grid-cols-2 gap-4">
+                                {/* Part Status Section */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Part Status</h4>
+                                  <select
+                                    value={componentDetails.part_status || 'temporary'}
+                                    onChange={(e) => handlePartStatusChange(e.target.value)}
+                                    disabled={!canApprove() || updatingPartStatus}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:border-primary-400 dark:hover:border-primary-600"
+                                    style={{
+                                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                                      backgroundPosition: 'right 0.5rem center',
+                                      backgroundRepeat: 'no-repeat',
+                                      backgroundSize: '1.5em 1.5em'
+                                    }}
+                                  >
+                                    <option value="temporary">Temporary</option>
+                                    <option value="active">Active</option>
+                                    <option value="experimental">Experimental</option>
+                                    <option value="archived">Archived</option>
+                                  </select>
+                                  {updatingPartStatus && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Updating...</p>
+                                  )}
                                 </div>
 
-                                {/* Approver Info */}
-                                {componentDetails.approval_username && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                                    <span className="font-medium">By:</span> {componentDetails.approval_username}
-                                  </div>
-                                )}
+                                {/* Approval Status Section */}
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
+                                  <div className="space-y-2">
+                                    {/* Status Badge */}
+                                    <div>
+                                      <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold w-full text-center ${
+                                        componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                        componentDetails.approval_status === 'denied' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                        componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                                        'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                      }`}>
+                                        {componentDetails.approval_status === 'approved' && 'Approved'}
+                                        {componentDetails.approval_status === 'denied' && 'Denied'}
+                                        {componentDetails.approval_status === 'pending review' && 'Pending Review'}
+                                        {componentDetails.approval_status === 'new' && 'New'}
+                                      </span>
+                                    </div>
 
-                                {/* Approval Date */}
-                                {componentDetails.approval_date && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                                    <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
-                                  </div>
-                                )}
+                                    {/* Approver Info */}
+                                    {componentDetails.approval_username && (
+                                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium">By:</span> {componentDetails.approval_username}
+                                      </div>
+                                    )}
 
-                                {/* Action Buttons */}
+                                    {/* Approval Date */}
+                                    {componentDetails.approval_date && (
+                                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                                        <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons - Full Width Below Both Sections */}
+                              <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
                                 {canApprove() && (
-                                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-[#3a3a3a]">
+                                  <>
                                     <button
                                       onClick={() => handleApprovalAction('approve')}
                                       disabled={updatingApproval || componentDetails.approval_status === 'approved'}
                                       className="flex-1 min-w-[80px] px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
                                     >
-                                      ✓ Approve
+                                      Approve
                                     </button>
                                     <button
                                       onClick={() => handleApprovalAction('deny')}
                                       disabled={updatingApproval || componentDetails.approval_status === 'denied'}
                                       className="flex-1 min-w-[80px] px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
                                     >
-                                      ✗ Deny
+                                      Deny
                                     </button>
-                                    <button
-                                      onClick={() => handleApprovalAction('send_to_review')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
-                                      className="flex-1 min-w-[80px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                    >
-                                      📤 Send to Review
-                                    </button>
-                                  </div>
+                                  </>
                                 )}
-
-                                {updatingApproval && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">Processing...</p>
+                                {canWrite() && (
+                                  <button
+                                    onClick={() => handleApprovalAction('send_to_review')}
+                                    disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
+                                    className="flex-1 min-w-[80px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                  >
+                                    Send to Review
+                                  </button>
                                 )}
                               </div>
+
+                              {updatingApproval && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">Processing...</p>
+                              )}
                             </div>
                           </>
                         );
@@ -3159,7 +3202,7 @@ const Library = () => {
 
         {/* Fourth Column - Specifications & Alternative Parts (Edit/Add Mode Only) */}
         {(isEditMode || isAddMode) && (
-          <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar">
+          <div className="space-y-4 xl:min-w-[400px] overflow-y-auto custom-scrollbar" data-panel>
             {/* Specifications Panel - For inputting values */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
@@ -3408,7 +3451,7 @@ const Library = () => {
         )}
 
         {/* Fifth Column - Vendor API Data & Component Specifications */}
-        <div className="space-y-4 xl:min-w-[350px] overflow-y-auto custom-scrollbar">
+        <div className="space-y-4 xl:min-w-[350px] overflow-y-auto custom-scrollbar" data-panel>
           {/* Vendor API Data - Shown in both Add Mode and Edit Mode when vendor data is available */}
           {(isAddMode || isEditMode) && editData._vendorSearchData && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">

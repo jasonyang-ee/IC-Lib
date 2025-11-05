@@ -4,7 +4,7 @@ import * as mouserService from '../services/mouserService.js';
 
 export const getAllComponents = async (req, res, next) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, partStatus, approvalStatus } = req.query;
     
     let query = `
       SELECT 
@@ -24,6 +24,18 @@ export const getAllComponents = async (req, res, next) => {
     if (category) {
       query += ` AND cat.id = $${paramCount}`;
       params.push(category);
+      paramCount++;
+    }
+
+    if (partStatus) {
+      query += ` AND c.part_status = $${paramCount}`;
+      params.push(partStatus);
+      paramCount++;
+    }
+
+    if (approvalStatus) {
+      query += ` AND c.approval_status = $${paramCount}`;
+      params.push(approvalStatus);
       paramCount++;
     }
 
@@ -1366,6 +1378,26 @@ export const updateComponentApproval = async (req, res, next) => {
     
     if (!action || !user_id) {
       return res.status(400).json({ error: 'Action and user_id are required' });
+    }
+
+    // Check permissions based on action
+    const userRole = req.user?.role;
+    if (action === 'approve' || action === 'deny') {
+      // Only approvers and admins can approve/deny
+      if (userRole !== 'approver' && userRole !== 'admin') {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          message: 'Approver or admin access required to approve or deny parts'
+        });
+      }
+    } else if (action === 'send_to_review') {
+      // Anyone with write access can send to review
+      if (userRole === 'read-only') {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          message: 'Write access required to send parts to review'
+        });
+      }
     }
 
     // Check if component exists
