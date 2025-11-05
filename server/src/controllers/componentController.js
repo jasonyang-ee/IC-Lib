@@ -1269,13 +1269,13 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
         // Update specifications if vendor data found
         if (vendorData && vendorData.specifications) {
-          // Get category specifications with mapping_spec_name
+          // Get category specifications with mapping_spec_names
           const categorySpecsResult = await pool.query(`
             SELECT 
               id,
               spec_name,
               unit,
-              mapping_spec_name
+              mapping_spec_names
             FROM category_specifications
             WHERE category_id = $1
             ORDER BY display_order ASC
@@ -1295,31 +1295,45 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           // Map and update specifications
           let specsUpdated = false;
           for (const catSpec of categorySpecs) {
-            if (catSpec.mapping_spec_name && catSpec.mapping_spec_name.trim() !== '') {
-              const mappingKey = catSpec.mapping_spec_name.toLowerCase().trim();
-              
-              if (vendorSpecMap[mappingKey]) {
-                const rawValue = vendorSpecMap[mappingKey];
+            // Support both mapping_spec_names array and legacy mapping_spec_name
+            const mappings = Array.isArray(catSpec.mapping_spec_names) 
+              ? catSpec.mapping_spec_names 
+              : (catSpec.mapping_spec_name ? [catSpec.mapping_spec_name] : []);
+            
+            // Try each mapping until we find a match
+            let matchedValue = null;
+            for (const mapping of mappings) {
+              if (mapping && mapping.trim() !== '') {
+                const mappingKey = mapping.toLowerCase().trim();
                 
-                // Sanitize value by removing unit if present in the value
-                let sanitizedValue = rawValue;
-                if (catSpec.unit) {
-                  const unitPattern = new RegExp(`\\s*${catSpec.unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
-                  sanitizedValue = rawValue.replace(unitPattern, '').trim();
+                if (vendorSpecMap[mappingKey]) {
+                  matchedValue = vendorSpecMap[mappingKey];
+                  break; // Stop after first match
                 }
-
-                // Upsert specification value
-                await pool.query(`
-                  INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
-                  VALUES ($1, $2, $3)
-                  ON CONFLICT (component_id, category_spec_id)
-                  DO UPDATE SET 
-                    spec_value = EXCLUDED.spec_value,
-                    updated_at = CURRENT_TIMESTAMP
-                `, [comp.component_id, catSpec.id, sanitizedValue]);
-
-                specsUpdated = true;
               }
+            }
+            
+            if (matchedValue) {
+              const rawValue = matchedValue;
+                
+              // Sanitize value by removing unit if present in the value
+              let sanitizedValue = rawValue;
+              if (catSpec.unit) {
+                const unitPattern = new RegExp(`\\s*${catSpec.unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                sanitizedValue = rawValue.replace(unitPattern, '').trim();
+              }
+
+              // Upsert specification value
+              await pool.query(`
+                INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (component_id, category_spec_id)
+                DO UPDATE SET 
+                  spec_value = EXCLUDED.spec_value,
+                  updated_at = CURRENT_TIMESTAMP
+              `, [comp.component_id, catSpec.id, sanitizedValue]);
+
+              specsUpdated = true;
             }
           }
 
@@ -1433,6 +1447,31 @@ export const updateComponentApproval = async (req, res, next) => {
       WHERE id = $3
       RETURNING *
     `, [newApprovalStatus, user_id, id]);
+
+    // Log approval action to activity_log
+    const activityTypeMap = {
+      'approve': 'approval_approved',
+      'deny': 'approval_denied',
+      'send_to_review': 'approval_sent_to_review',
+      'send_to_prototype': 'approval_sent_to_prototype'
+    };
+
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      SELECT $1, c.part_number, c.description, cat.name, $2, $3
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      WHERE c.id = $1
+    `, [
+      id,
+      activityTypeMap[action],
+      JSON.stringify({
+        action: action,
+        old_status: component.approval_status,
+        new_status: newApprovalStatus,
+        user_id: user_id
+      })
+    ]);
 
     // Fetch complete component with joined data
     const fullComponent = await pool.query(`

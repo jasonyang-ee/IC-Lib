@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS category_specifications (
     category_id INTEGER REFERENCES component_categories(id) ON DELETE CASCADE,
     spec_name VARCHAR(100) NOT NULL,
     unit VARCHAR(50),
-	mapping_spec_name VARCHAR(100),
+	mapping_spec_names JSONB DEFAULT '[]'::jsonb,
     display_order INTEGER DEFAULT 0,
     is_required BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -445,55 +445,55 @@ ON CONFLICT (version) DO NOTHING;
 -- ============================================================================
 
 -- Capacitors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (1, 'Capacitance', 'F', 'Capacitance', 1, false),
-    (1, 'Voltage Rating', 'V', 'Voltage - Rated', 2, false),
-    (1, 'Tolerance', '%', 'Tolerance', 3, false),
-    (1, 'Temperature Coefficient', '', 'Temperature Coefficient', 4, false),
-    (1, 'ESR', 'Ohms', 'ESR', 5, false),
-    (1, 'Operating Temperature', '', 'Operating Temperature', 6, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+    (1, 'Capacitance', 'F', '["Capacitance"]'::jsonb, 1, false),
+    (1, 'Voltage Rating', 'V', '["Voltage - Rated"]'::jsonb, 2, false),
+    (1, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+    (1, 'Temperature Coefficient', '', '["Temperature Coefficient"]'::jsonb, 4, false),
+    (1, 'ESR', 'Ohms', '["ESR"]'::jsonb, 5, false),
+    (1, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 6, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Resistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (2, 'Resistance', 'Ohms', 'Resistance', 1, false),
-    (2, 'Power', 'W', 'Power (Watts)', 2, false),
-    (2, 'Tolerance', '%', 'Tolerance', 3, false),
-    (2, 'Temperature Coefficient', 'ppm/°C', 'Temperature Coefficient', 4, false),
-    (2, 'Operating Temperature', '', 'Operating Temperature', 5, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+    (2, 'Resistance', 'Ohms', '["Resistance"]'::jsonb, 1, false),
+    (2, 'Power', 'W', '["Power (Watts)"]'::jsonb, 2, false),
+    (2, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+    (2, 'Temperature Coefficient', 'ppm/°C', '["Temperature Coefficient"]'::jsonb, 4, false),
+    (2, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Inductors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (3, 'Inductance', 'H', 'Inductance', 1, false),
-    (3, 'Current Rating', 'A', 'Current Rating (Amps)', 2, false),
-    (3, 'Tolerance', '%', 'Tolerance', 3, false),
-    (3, 'DC Resistance', 'Ω', 'DC Resistance (DCR)', 4, false),
-    (3, 'Saturation Current', 'A', 'Current - Saturation (Isat)', 5, false),
-    (3, 'Self-Resonant Frequency', 'Hz', 'Frequency - Self Resonant', 6, false),
-    (2, 'Operating Temperature', '', 'Operating Temperature', 7, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+    (3, 'Inductance', 'H', '["Inductance"]'::jsonb, 1, false),
+    (3, 'Current Rating', 'A', '["Current Rating (Amps)"]'::jsonb, 2, false),
+    (3, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+    (3, 'DC Resistance', 'Ω', '["DC Resistance (DCR)"]'::jsonb, 4, false),
+    (3, 'Saturation Current', 'A', '["Current - Saturation (Isat)"]'::jsonb, 5, false),
+    (3, 'Self-Resonant Frequency', 'Hz', '["Frequency - Self Resonant"]'::jsonb, 6, false),
+    (2, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 7, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Diodes specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (4, 'Forward Voltage', '', 'Voltage - Forward (Vf) (Max) @ If', 1, false),
-    (4, 'Reverse Voltage', 'V', 'Voltage - DC Reverse (Vr) (Max)', 2, false),
-    (4, 'Current Rectified', 'A', 'Current - Average Rectified (Io)', 3, true),
-	(4, 'Reverse Leakage Current', '', 'Current - Reverse Leakage @ Vr', 4, false),
-	(4, 'Technology', '', 'Technology', 5, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+    (4, 'Forward Voltage', '', '["Voltage - Forward (Vf) (Max) @ If"]'::jsonb, 1, false),
+    (4, 'Reverse Voltage', 'V', '["Voltage - DC Reverse (Vr) (Max)"]'::jsonb, 2, false),
+    (4, 'Current Rectified', 'A', '["Current - Average Rectified (Io)"]'::jsonb, 3, true),
+	(4, 'Reverse Leakage Current', '', '["Current - Reverse Leakage @ Vr"]'::jsonb, 4, false),
+	(4, 'Technology', '', '["Technology"]'::jsonb, 5, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- Transistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_name, display_order, is_required) VALUES
-    (5, 'Transistor Type', '', 'Configuration', 1, false),
-    (5, 'Vdss', 'V', 'Drain to Source Voltage (Vdss)', 2, false),
-    (5, 'Id', 'A', 'Current - Continuous Drain (Id) @ 25°C', 3, false),
-    (5, 'Rds On', '', 'Rds On (Max) @ Id, Vgs', 4, false),
-    (5, 'Vgs(th)', '', 'Vgs(th) (Max) @ Id', 5, false),
-    (5, 'Gate Charge (Qg)', '', 'Gate Charge (Qg) (Max) @ Vgs', 6, false),
-	(5, 'Input Capacitance (Ciss)', '', 'nput Capacitance (Ciss) (Max) @ Vds', 7, false),
-	(5, 'Power', 'W', 'Power - Max', 8, false),
-	(5, 'Operating Temperature', '', 'Operating Temperature', 9, false)
+INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+    (5, 'Transistor Type', '', '["Configuration"]'::jsonb, 1, false),
+    (5, 'Vdss', 'V', '["Drain to Source Voltage (Vdss)"]'::jsonb, 2, false),
+    (5, 'Id', 'A', '["Current - Continuous Drain (Id) @ 25°C"]'::jsonb, 3, false),
+    (5, 'Rds On', '', '["Rds On (Max) @ Id, Vgs"]'::jsonb, 4, false),
+    (5, 'Vgs(th)', '', '["Vgs(th) (Max) @ Id"]'::jsonb, 5, false),
+    (5, 'Gate Charge (Qg)', '', '["Gate Charge (Qg) (Max) @ Vgs"]'::jsonb, 6, false),
+	(5, 'Input Capacitance (Ciss)', '', '["nput Capacitance (Ciss) (Max) @ Vds"]'::jsonb, 7, false),
+	(5, 'Power', 'W', '["Power - Max"]'::jsonb, 8, false),
+	(5, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 9, false)
 ON CONFLICT (category_id, spec_name) DO NOTHING;
 
 -- ============================================================================

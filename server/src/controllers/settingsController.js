@@ -470,7 +470,7 @@ export const getCategorySpecifications = async (req, res) => {
         category_id,
         spec_name,
         unit,
-        mapping_spec_name,
+        mapping_spec_names,
         display_order,
         is_required,
         created_at,
@@ -497,22 +497,25 @@ export const getCategorySpecifications = async (req, res) => {
 export const createCategorySpecification = async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const { spec_name, unit, mapping_spec_name, display_order, is_required } = req.body;
+    const { spec_name, unit, mapping_spec_names, display_order, is_required } = req.body;
     
     if (!spec_name || spec_name.trim() === '') {
       return res.status(400).json({ error: 'spec_name is required' });
     }
     
+    // Ensure mapping_spec_names is an array, default to empty array
+    const mappings = Array.isArray(mapping_spec_names) ? mapping_spec_names : [];
+    
     const result = await pool.query(`
       INSERT INTO category_specifications 
-        (category_id, spec_name, unit, mapping_spec_name, display_order, is_required)
+        (category_id, spec_name, unit, mapping_spec_names, display_order, is_required)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `, [
       categoryId, 
       spec_name.trim(), 
       unit || null, 
-      mapping_spec_name || null,
+      JSON.stringify(mappings),
       display_order || 0, 
       is_required || false
     ]);
@@ -542,20 +545,43 @@ export const createCategorySpecification = async (req, res) => {
 export const updateCategorySpecification = async (req, res) => {
   try {
     const { id } = req.params;
-    const { spec_name, unit, mapping_spec_name, display_order, is_required } = req.body;
+    const { spec_name, unit, mapping_spec_names, display_order, is_required } = req.body;
+    
+    // Build update query dynamically based on provided fields
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (spec_name !== undefined) {
+      updates.push(`spec_name = $${paramCount++}`);
+      values.push(spec_name);
+    }
+    if (unit !== undefined) {
+      updates.push(`unit = $${paramCount++}`);
+      values.push(unit);
+    }
+    if (mapping_spec_names !== undefined) {
+      updates.push(`mapping_spec_names = $${paramCount++}`);
+      values.push(JSON.stringify(Array.isArray(mapping_spec_names) ? mapping_spec_names : []));
+    }
+    if (display_order !== undefined) {
+      updates.push(`display_order = $${paramCount++}`);
+      values.push(display_order);
+    }
+    if (is_required !== undefined) {
+      updates.push(`is_required = $${paramCount++}`);
+      values.push(is_required);
+    }
+    
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
     
     const result = await pool.query(`
       UPDATE category_specifications
-      SET 
-        spec_name = COALESCE($1, spec_name),
-        unit = COALESCE($2, unit),
-        mapping_spec_name = COALESCE($3, mapping_spec_name),
-        display_order = COALESCE($4, display_order),
-        is_required = COALESCE($5, is_required),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount}
       RETURNING *
-    `, [spec_name, unit, mapping_spec_name, display_order, is_required, id]);
+    `, values);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Specification not found' });

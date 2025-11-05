@@ -407,9 +407,11 @@ const CategorySpecificationsManager = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isAddingSpec, setIsAddingSpec] = useState(false);
   const [editingSpec, setEditingSpec] = useState(null);
-  const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', mapping_spec_name: '', is_required: false });
+  const [newSpec, setNewSpec] = useState({ spec_name: '', unit: '', mapping_spec_names: [], is_required: false });
   const [tempSpec, setTempSpec] = useState({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [newMappingInput, setNewMappingInput] = useState('');
+  const [editMappingInput, setEditMappingInput] = useState('');
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -438,7 +440,8 @@ const CategorySpecificationsManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
       setIsAddingSpec(false);
-      setNewSpec({ spec_name: '', unit: '', mapping_spec_name: '', is_required: false });
+      setNewSpec({ spec_name: '', unit: '', mapping_spec_names: [], is_required: false });
+      setNewMappingInput('');
     },
   });
 
@@ -475,7 +478,11 @@ const CategorySpecificationsManager = () => {
 
   const handleEditSpec = (spec) => {
     setEditingSpec(spec.id);
-    setTempSpec({ ...spec });
+    setTempSpec({ 
+      ...spec,
+      mapping_spec_names: Array.isArray(spec.mapping_spec_names) ? spec.mapping_spec_names : []
+    });
+    setEditMappingInput('');
   };
 
   const handleSaveSpec = () => {
@@ -545,7 +552,7 @@ const CategorySpecificationsManager = () => {
 
           {isAddingSpec && (
             <div className="mb-4 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                     Specification Name *
@@ -570,18 +577,6 @@ const CategorySpecificationsManager = () => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Vendor Mapping
-                  </label>
-                  <input
-                    type="text"
-                    value={newSpec.mapping_spec_name}
-                    onChange={(e) => setNewSpec({ ...newSpec, mapping_spec_name: e.target.value })}
-                    placeholder="e.g., Capacitance"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                  />
-                </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                     <input
@@ -594,6 +589,74 @@ const CategorySpecificationsManager = () => {
                   </label>
                 </div>
               </div>
+              
+              {/* Vendor Mapping List */}
+              <div className="mt-4">
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Vendor Mappings
+                </label>
+                <div className="space-y-2">
+                  {newSpec.mapping_spec_names && newSpec.mapping_spec_names.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {newSpec.mapping_spec_names.map((mapping, index) => (
+                        <div
+                          key={index}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm"
+                        >
+                          <span>{mapping}</span>
+                          <button
+                            onClick={() => {
+                              const updated = [...newSpec.mapping_spec_names];
+                              updated.splice(index, 1);
+                              setNewSpec({ ...newSpec, mapping_spec_names: updated });
+                            }}
+                            className="hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMappingInput}
+                      onChange={(e) => setNewMappingInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newMappingInput.trim()) {
+                          e.preventDefault();
+                          if (!newSpec.mapping_spec_names.includes(newMappingInput.trim())) {
+                            setNewSpec({
+                              ...newSpec,
+                              mapping_spec_names: [...newSpec.mapping_spec_names, newMappingInput.trim()]
+                            });
+                          }
+                          setNewMappingInput('');
+                        }
+                      }}
+                      placeholder="Enter vendor field name and press Enter"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newMappingInput.trim() && !newSpec.mapping_spec_names.includes(newMappingInput.trim())) {
+                          setNewSpec({
+                            ...newSpec,
+                            mapping_spec_names: [...newSpec.mapping_spec_names, newMappingInput.trim()]
+                          });
+                          setNewMappingInput('');
+                        }
+                      }}
+                      disabled={!newMappingInput.trim()}
+                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={handleAddSpec}
@@ -680,16 +743,81 @@ const CategorySpecificationsManager = () => {
                       </td>
                       <td className="py-3 px-4">
                         {editingSpec === spec.id ? (
-                          <input
-                            type="text"
-                            value={tempSpec.mapping_spec_name || ''}
-                            onChange={(e) => setTempSpec({ ...tempSpec, mapping_spec_name: e.target.value })}
-                            className="w-32 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                          />
+                          <div className="space-y-2">
+                            {tempSpec.mapping_spec_names && tempSpec.mapping_spec_names.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {tempSpec.mapping_spec_names.map((mapping, index) => (
+                                  <div
+                                    key={index}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs"
+                                  >
+                                    <span>{mapping}</span>
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...tempSpec.mapping_spec_names];
+                                        updated.splice(index, 1);
+                                        setTempSpec({ ...tempSpec, mapping_spec_names: updated });
+                                      }}
+                                      className="hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full p-0.5"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex gap-1">
+                              <input
+                                type="text"
+                                value={editMappingInput}
+                                onChange={(e) => setEditMappingInput(e.target.value)}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter' && editMappingInput.trim()) {
+                                    e.preventDefault();
+                                    if (!tempSpec.mapping_spec_names.includes(editMappingInput.trim())) {
+                                      setTempSpec({
+                                        ...tempSpec,
+                                        mapping_spec_names: [...tempSpec.mapping_spec_names, editMappingInput.trim()]
+                                      });
+                                    }
+                                    setEditMappingInput('');
+                                  }
+                                }}
+                                placeholder="Add mapping"
+                                className="w-32 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-xs"
+                              />
+                              <button
+                                onClick={() => {
+                                  if (editMappingInput.trim() && !tempSpec.mapping_spec_names.includes(editMappingInput.trim())) {
+                                    setTempSpec({
+                                      ...tempSpec,
+                                      mapping_spec_names: [...tempSpec.mapping_spec_names, editMappingInput.trim()]
+                                    });
+                                    setEditMappingInput('');
+                                  }
+                                }}
+                                disabled={!editMappingInput.trim()}
+                                className="px-1 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
                         ) : (
-                          <span className="text-gray-600 dark:text-gray-400 text-sm">
-                            {spec.mapping_spec_name || '-'}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {spec.mapping_spec_names && spec.mapping_spec_names.length > 0 ? (
+                              spec.mapping_spec_names.map((mapping, index) => (
+                                <span
+                                  key={index}
+                                  className="inline-flex px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs"
+                                >
+                                  {mapping}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-600 dark:text-gray-400 text-sm">-</span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="py-3 px-4">

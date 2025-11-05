@@ -79,6 +79,16 @@ const Library = () => {
   
   // Approval status state
   const [updatingApproval, setUpdatingApproval] = useState(false);
+  
+  // Quick-add mapping state
+  const [mappingModal, setMappingModal] = useState({ 
+    show: false, 
+    specIndex: null, 
+    spec: null, 
+    newMapping: '',
+    newSpecName: '',
+    newSpecUnit: ''
+  });
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -159,7 +169,7 @@ const Library = () => {
     return value;
   };
 
-  // Map vendor specifications to component specifications using mapping_spec_name
+  // Map vendor specifications to component specifications using mapping_spec_names
   const mapVendorSpecifications = (vendorSpecs, categorySpecs) => {
     if (!vendorSpecs || !categorySpecs || categorySpecs.length === 0) {
       return categorySpecs;
@@ -175,19 +185,29 @@ const Library = () => {
       }
     });
     
-    // Map category specs with vendor values ONLY where mapping_spec_name exists
+    // Map category specs with vendor values ONLY where mapping_spec_names exists
     return categorySpecs.map(spec => {
       // Keep the original spec_value if no mapping exists
       let mappedValue = spec.spec_value || '';
       
-      // Only update if mapping_spec_name is defined and not empty
-      if (spec.mapping_spec_name && spec.mapping_spec_name.trim() !== '') {
-        const mappingKey = spec.mapping_spec_name.toLowerCase().trim();
-        
-        if (vendorSpecMap[mappingKey]) {
-          const rawValue = vendorSpecMap[mappingKey];
-          // Sanitize the value by removing unit if present
-          mappedValue = sanitizeSpecValue(rawValue, spec.unit);
+      // Support both old mapping_spec_name and new mapping_spec_names array
+      const mappings = Array.isArray(spec.mapping_spec_names) 
+        ? spec.mapping_spec_names 
+        : (spec.mapping_spec_name ? [spec.mapping_spec_name] : []);
+      
+      // Try each mapping until we find a match
+      if (mappings.length > 0) {
+        for (const mapping of mappings) {
+          if (mapping && mapping.trim() !== '') {
+            const mappingKey = mapping.toLowerCase().trim();
+            
+            if (vendorSpecMap[mappingKey]) {
+              const rawValue = vendorSpecMap[mappingKey];
+              // Sanitize the value by removing unit if present
+              mappedValue = sanitizeSpecValue(rawValue, spec.unit);
+              break; // Stop after first match
+            }
+          }
         }
       }
       
@@ -197,6 +217,7 @@ const Library = () => {
       };
     });
   };
+
 
   // Fallback clipboard method for when Clipboard API is not available
   const fallbackCopyToClipboard = (text, label) => {
@@ -812,7 +833,7 @@ const Library = () => {
             spec_name: catSpec.spec_name,
             spec_value: existing?.spec_value || '',
             unit: catSpec.unit || '',
-            mapping_spec_name: catSpec.mapping_spec_name || '',
+            mapping_spec_names: catSpec.mapping_spec_names || [],
             is_required: catSpec.is_required || false,
             display_order: catSpec.display_order || 0
           };
@@ -1279,7 +1300,7 @@ const Library = () => {
           spec_name: spec.spec_name,
           spec_value: '',
           unit: spec.unit || '',
-          mapping_spec_name: spec.mapping_spec_name || '',
+          mapping_spec_names: spec.mapping_spec_names || [],
           is_required: spec.is_required,
           display_order: spec.display_order
         }));
@@ -1596,6 +1617,142 @@ const Library = () => {
       setTimeout(() => {
         setAutoFillToast({ show: false, message: '', count: 0 });
       }, 3000);
+    }
+  };
+
+  // Quick-add mapping handlers
+  const handleOpenMappingModal = (specIndex, spec) => {
+    setMappingModal({ 
+      show: true, 
+      specIndex, 
+      spec: spec ? { ...spec } : null,
+      newMapping: '',
+      newSpecName: '',
+      newSpecUnit: ''
+    });
+  };
+
+  const handleCloseMappingModal = () => {
+    setMappingModal({ 
+      show: false, 
+      specIndex: null, 
+      spec: null, 
+      newMapping: '',
+      newSpecName: '',
+      newSpecUnit: ''
+    });
+  };
+
+  const handleCreateNewSpecification = async () => {
+    if (!mappingModal.newSpecName.trim()) {
+      setWarningModal({ show: true, message: 'Specification name is required!' });
+      return;
+    }
+    
+    if (!editData.category_id) {
+      setWarningModal({ show: true, message: 'Category ID not found!' });
+      return;
+    }
+    
+    try {
+      // Create new specification on server
+      const response = await api.createCategorySpecification(editData.category_id, {
+        spec_name: mappingModal.newSpecName.trim(),
+        unit: mappingModal.newSpecUnit.trim(),
+        mapping_spec_names: mappingModal.newMapping.trim() ? [mappingModal.newMapping.trim()] : [],
+        display_order: (editData.specifications?.length || 0) + 1,
+        is_required: false
+      });
+      
+      // Add to local state
+      const newSpec = {
+        category_spec_id: response.data.id,
+        spec_name: mappingModal.newSpecName.trim(),
+        spec_value: '',
+        unit: mappingModal.newSpecUnit.trim(),
+        mapping_spec_names: mappingModal.newMapping.trim() ? [mappingModal.newMapping.trim()] : [],
+        is_required: false,
+        display_order: (editData.specifications?.length || 0) + 1
+      };
+      
+      setEditData(prev => ({
+        ...prev,
+        specifications: [...(prev.specifications || []), newSpec]
+      }));
+      
+      // Show success message
+      setAutoFillToast({ 
+        show: true, 
+        message: `Created new specification "${mappingModal.newSpecName}"`, 
+        count: 1 
+      });
+      setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
+      
+      // Close modal
+      handleCloseMappingModal();
+    } catch (error) {
+      console.error('Error creating specification:', error);
+      setWarningModal({ 
+        show: true, 
+        message: 'Failed to create specification: ' + (error.response?.data?.error || error.message) 
+      });
+    }
+  };
+
+  const handleAddMapping = async (vendorFieldName) => {
+    if (!mappingModal.spec || !mappingModal.spec.category_spec_id) return;
+    
+    try {
+      // Get current mappings
+      const currentMappings = Array.isArray(mappingModal.spec.mapping_spec_names) 
+        ? mappingModal.spec.mapping_spec_names 
+        : [];
+      
+      // Check for duplicates
+      if (currentMappings.includes(vendorFieldName.trim())) {
+        setWarningModal({ show: true, message: 'This mapping already exists!' });
+        return;
+      }
+      
+      // Add new mapping to array
+      const updatedMappings = [...currentMappings, vendorFieldName.trim()];
+      
+      // Update on server - API signature is (id, data)
+      await api.updateCategorySpecification(
+        mappingModal.spec.category_spec_id,
+        { mapping_spec_names: updatedMappings }
+      );
+      
+      // Update local state
+      const updatedSpecs = [...editData.specifications];
+      updatedSpecs[mappingModal.specIndex] = {
+        ...updatedSpecs[mappingModal.specIndex],
+        mapping_spec_names: updatedMappings
+      };
+      setEditData(prev => ({ ...prev, specifications: updatedSpecs }));
+      
+      // Show success message
+      setAutoFillToast({ 
+        show: true, 
+        message: `Added mapping "${vendorFieldName}" to ${mappingModal.spec.spec_name}`, 
+        count: 1 
+      });
+      setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
+      
+      // Close modal
+      handleCloseMappingModal();
+    } catch (error) {
+      console.error('Error adding mapping:', error);
+      setWarningModal({ 
+        show: true, 
+        message: 'Failed to add mapping: ' + (error.response?.data?.error || error.message) 
+      });
+    }
+  };
+
+  const handleAddNewMapping = () => {
+    if (mappingModal.newMapping.trim()) {
+      handleAddMapping(mappingModal.newMapping.trim());
     }
   };
 
@@ -3128,29 +3285,61 @@ const Library = () => {
               <div className="text-sm">
                 <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Technical Specifications</h4>
                 {(editData.specifications || []).length > 0 ? (
-                  (editData.specifications || []).map((spec, index) => (
-                    <div key={index} className="grid grid-cols-[2fr_2fr_1fr] gap-2 mb-2">
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-700 dark:text-gray-300">
-                          {spec.spec_name}
-                          {spec.is_required && <span className="text-red-500 ml-1">*</span>}
-                        </span>
+                  <>
+                    {(editData.specifications || []).map((spec, index) => (
+                      <div key={index} className="grid grid-cols-[2fr_2fr_1fr_auto] gap-2 mb-2 items-center">
+                        <div className="flex items-center">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {spec.spec_name}
+                            {spec.is_required && <span className="text-red-500 ml-1">*</span>}
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={spec.spec_value || ''}
+                          onChange={(e) => {
+                            const newSpecs = [...(editData.specifications || [])];
+                            newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
+                            handleFieldChange('specifications', newSpecs);
+                          }}
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                        />
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          {spec.unit || ''}
+                        </div>
+                        {editData._vendorSearchData && editData._vendorSearchData.specifications && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMappingModal(index, spec)}
+                            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-1"
+                            title="Add vendor field mapping"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Mapping</span>
+                          </button>
+                        )}
                       </div>
-                      <input
-                        type="text"
-                        value={spec.spec_value || ''}
-                        onChange={(e) => {
-                          const newSpecs = [...(editData.specifications || [])];
-                          newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
-                          handleFieldChange('specifications', newSpecs);
-                        }}
-                        className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
-                      />
-                      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        {spec.unit || ''}
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                    
+                    {/* New Specification Button */}
+                    {editData._vendorSearchData && editData._vendorSearchData.specifications && (
+                      <button
+                        type="button"
+                        onClick={() => setMappingModal({ 
+                          show: true, 
+                          specIndex: -1, // -1 indicates new spec
+                          spec: null, 
+                          newMapping: '',
+                          newSpecName: '',
+                          newSpecUnit: ''
+                        })}
+                        className="mt-3 w-full text-sm px-3 py-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-dashed border-green-300 dark:border-green-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>New Specification</span>
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {isAddMode ? 'Select a category to see available specifications' : 'No specifications defined for this category'}
@@ -3876,6 +4065,213 @@ const Library = () => {
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick-Add Vendor Mapping Modal */}
+      {mappingModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-lg w-full border border-gray-200 dark:border-[#3a3a3a] max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {mappingModal.spec ? 'Add Vendor Field Mapping' : 'New Specification'}
+              </h3>
+              <button
+                onClick={handleCloseMappingModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {mappingModal.spec ? (
+              // Mode: Add mapping to existing specification
+              <>
+                {/* Specification Info */}
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Specification:</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                    {mappingModal.spec.spec_name}
+                    {mappingModal.spec.unit && <span className="text-gray-500 ml-2">({mappingModal.spec.unit})</span>}
+                  </p>
+                  
+                  {/* Show current mappings */}
+                  {mappingModal.spec.mapping_spec_names && mappingModal.spec.mapping_spec_names.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current mappings:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {mappingModal.spec.mapping_spec_names.map((mapping, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-xs"
+                          >
+                            {mapping}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Available vendor fields from current vendor data */}
+                {editData._vendorSearchData?.specifications && (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Select from vendor fields:
+                    </p>
+                    <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-[#444444] rounded-lg">
+                      {Object.keys(editData._vendorSearchData.specifications).map((fieldName, idx) => {
+                        const isAlreadyMapped = mappingModal.spec.mapping_spec_names?.includes(fieldName);
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => !isAlreadyMapped && handleAddMapping(fieldName)}
+                            disabled={isAlreadyMapped}
+                            className={`w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-[#444444] last:border-b-0 transition-colors ${
+                              isAlreadyMapped
+                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                                : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-900 dark:text-gray-100'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{fieldName}</span>
+                              {isAlreadyMapped && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">(already mapped)</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Or enter new mapping */}
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Or enter a new vendor field name:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={mappingModal.newMapping}
+                      onChange={(e) => setMappingModal(prev => ({ ...prev, newMapping: e.target.value }))}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && mappingModal.newMapping.trim()) {
+                          handleAddNewMapping();
+                        }
+                      }}
+                      placeholder="e.g., Capacitance, Cap, C"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                    />
+                    <button
+                      onClick={handleAddNewMapping}
+                      disabled={!mappingModal.newMapping.trim()}
+                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm font-medium"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleCloseMappingModal}
+                    className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              // Mode: Create new specification
+              <>
+                <div className="space-y-4 mb-4">
+                  {/* Specification Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Specification Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={mappingModal.newSpecName}
+                      onChange={(e) => setMappingModal(prev => ({ ...prev, newSpecName: e.target.value }))}
+                      placeholder="e.g., Capacitance, Voltage Rating"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+
+                  {/* Unit */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Unit (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={mappingModal.newSpecUnit}
+                      onChange={(e) => setMappingModal(prev => ({ ...prev, newSpecUnit: e.target.value }))}
+                      placeholder="e.g., F, V, Ω"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+
+                  {/* Available vendor fields */}
+                  {editData._vendorSearchData?.specifications && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select vendor field to map (optional):
+                      </p>
+                      <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-[#444444] rounded-lg">
+                        {Object.keys(editData._vendorSearchData.specifications).map((fieldName, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setMappingModal(prev => ({ ...prev, newMapping: fieldName }))}
+                            className={`w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-[#444444] last:border-b-0 transition-colors ${
+                              mappingModal.newMapping === fieldName
+                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100'
+                            }`}
+                          >
+                            {fieldName}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Or enter custom mapping */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Or enter custom vendor field name:
+                    </label>
+                    <input
+                      type="text"
+                      value={mappingModal.newMapping}
+                      onChange={(e) => setMappingModal(prev => ({ ...prev, newMapping: e.target.value }))}
+                      placeholder="e.g., Capacitance, Cap, C"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={handleCloseMappingModal}
+                    className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateNewSpecification}
+                    disabled={!mappingModal.newSpecName.trim()}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm font-medium"
+                  >
+                    Create Specification
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
