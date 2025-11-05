@@ -67,20 +67,6 @@ const ECO = () => {
     }
   });
 
-  // Delete ECO mutation
-  const deleteMutation = useMutation({
-    mutationFn: (id) => api.deleteECO(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['ecos']);
-      setExpandedECO(null);
-      showSuccess('ECO deleted successfully.');
-    },
-    onError: (error) => {
-      console.error('Error deleting ECO:', error);
-      showError('Failed to delete ECO. Please try again.');
-    }
-  });
-
   const handleApprove = (ecoId) => {
     approveMutation.mutate(ecoId);
   };
@@ -88,12 +74,6 @@ const ECO = () => {
   const handleReject = () => {
     if (showRejectModal) {
       rejectMutation.mutate({ id: showRejectModal, rejection_reason: rejectionReason });
-    }
-  };
-
-  const handleDelete = (ecoId) => {
-    if (window.confirm('Are you sure you want to delete this ECO? This action cannot be undone.')) {
-      deleteMutation.mutate(ecoId);
     }
   };
 
@@ -248,16 +228,6 @@ const ECO = () => {
                               Reject
                             </button>
                           </>
-                        )}
-                        {(user.id === eco.initiated_by || canApprove()) && (
-                          <button
-                            onClick={() => handleDelete(eco.id)}
-                            disabled={deleteMutation.isPending}
-                            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                            title="Delete ECO"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         )}
                       </>
                     )}

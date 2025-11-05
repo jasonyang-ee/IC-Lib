@@ -241,8 +241,34 @@ export const approveECO = async (req, res) => {
       return res.status(400).json({ error: 'ECO order is not pending' });
     }
     
-    // Apply component field changes
-    const changesResult = await client.query('SELECT * FROM eco_changes WHERE eco_id = $1', [id]);
+    // Check if this is a deletion ECO
+    const deletionCheck = await client.query(`
+      SELECT * FROM eco_changes 
+      WHERE eco_id = $1 AND field_name IN ('delete_component', '_delete_component')
+    `, [id]);
+    
+    if (deletionCheck.rows.length > 0) {
+      // This is a deletion ECO - delete the component
+      await client.query('DELETE FROM components WHERE id = $1', [eco.component_id]);
+      
+      // Update ECO order status
+      await client.query(`
+        UPDATE eco_orders
+        SET status = 'approved', approved_by = $1, approved_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [req.user.id, id]);
+      
+      await client.query('COMMIT');
+      return res.json({ message: 'ECO approved - Component deleted successfully' });
+    }
+    
+    // Apply component field changes (for non-deletion ECOs)
+    const changesResult = await client.query(`
+      SELECT * FROM eco_changes 
+      WHERE eco_id = $1 AND field_name NOT IN ('delete_component', '_delete_component')
+    `, [id]);
+    
     if (changesResult.rows.length > 0) {
       const updateFields = [];
       const updateValues = [];

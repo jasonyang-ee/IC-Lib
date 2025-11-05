@@ -29,6 +29,7 @@ const Library = () => {
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
+  const [ecoDeleteConfirmation, setEcoDeleteConfirmation] = useState({ show: false });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
   const [sortBy, setSortBy] = useState('part_number');
@@ -1317,6 +1318,48 @@ const Library = () => {
     setEcoChanges([]);
     setEcoNotes('');
   };
+  
+  const handleMarkForDeletion = () => {
+    setEcoDeleteConfirmation({ show: true });
+  };
+  
+  const handleConfirmECODeletion = async () => {
+    // First set the delete flag
+    setEditData(prev => ({ ...prev, delete_component: true }));
+    setEcoDeleteConfirmation({ show: false });
+    
+    // Wait a moment for state to update, then auto-submit the ECO
+    setTimeout(async () => {
+      try {
+        // Prepare the ECO data with delete flag
+        const ecoData = {
+          component_id: selectedComponent.id,
+          part_number: selectedComponent.part_number,
+          notes: ecoNotes || 'Component marked for deletion',
+          changes: [{ field_name: 'delete_component', old_value: 'false', new_value: 'true' }],
+          distributors: [],
+          alternatives: [],
+          specifications: []
+        };
+
+        await api.createECO(ecoData);
+
+        // Reset states
+        setIsECOMode(false);
+        setIsEditMode(false);
+        setEcoChanges([]);
+        setEcoNotes('');
+        queryClient.invalidateQueries(['components']);
+        queryClient.invalidateQueries(['ecos']);
+
+        // Show success message
+        showSuccess('ECO submitted successfully! Component marked for deletion pending approval.');
+      } catch (error) {
+        console.error('Error submitting ECO:', error);
+        showError('Failed to submit ECO. Please try again.');
+      }
+    }, 100);
+  };
 
   const handleDelete = () => {
     if (selectedComponent) {
@@ -2383,15 +2426,11 @@ const Library = () => {
                   {/* Delete Component option in ECO mode */}
                   {isECOMode && (
                     <button
-                      onClick={() => {
-                        if (window.confirm('Mark this component for deletion in ECO?')) {
-                          setEditData({ ...editData, delete_component: true });
-                        }
-                      }}
+                      onClick={handleMarkForDeletion}
                       className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
-                      {editData.delete_component ? 'Marked for Deletion' : 'Mark for Deletion'}
+                      {editData.delete_component ? 'Mark for Deletion' : 'Mark for Deletion'}
                     </button>
                   )}
                   
@@ -3476,13 +3515,6 @@ const Library = () => {
                                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">Processing...</p>
                               )}
                             </div>
-
-                            {/* ECO Section - Only shown if CONFIG_ECO is enabled */}
-                            <ECOSection 
-                              isEnabled={isECOEnabled}
-                              canWrite={canWrite()}
-                              onInitiateECO={() => handleInitiateECO(componentDetails)}
-                            />
                           </>
                         );
                       })()}
@@ -4153,6 +4185,46 @@ const Library = () => {
               >
                 <Trash2 className="w-4 h-4" />
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modern ECO Delete Confirmation Modal */}
+      {ecoDeleteConfirmation.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Mark Component for Deletion
+            </h3>
+            
+            {/* Message */}
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+              This will create an ECO to delete <span className="font-semibold text-gray-900 dark:text-gray-100">"{selectedComponent?.part_number}"</span>. 
+              The deletion will be pending until an approver reviews and approves this ECO.
+            </p>
+            
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEcoDeleteConfirmation({ show: false })}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmECODeletion}
+                className="flex-1 px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Mark for Deletion
               </button>
             </div>
           </div>
