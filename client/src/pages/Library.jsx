@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
+import ECOSection from '../components/ECOSection';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -11,12 +13,18 @@ const Library = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canWrite, canApprove, user } = useAuth();
+  const { showSuccess, showError } = useNotification();
+  
+  // Check if ECO feature is enabled
+  const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true' || import.meta.env.CONFIG_ECO === 'true';
+  
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [isECOMode, setIsECOMode] = useState(false); // New state for ECO edit mode
   const [editData, setEditData] = useState({});
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
@@ -27,6 +35,10 @@ const Library = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [copiedText, setCopiedText] = useState('');
   const [autoFillToast, setAutoFillToast] = useState({ show: false, message: '', count: 0 });
+  
+  // ECO state
+  const [ecoChanges, setEcoChanges] = useState([]);
+  const [ecoNotes, setEcoNotes] = useState('');
   
   // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
@@ -635,7 +647,8 @@ const Library = () => {
     const normalizeDistributors = (existingDistributors = []) => {
       return distributorOrder.map(distName => {
         const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors.find(d => {
+        const existing = existingDistributors?.find(d => {
+          if (!d || !d.distributor_id) return false;
           const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
           return existingDistName === distName;
         });
@@ -1147,6 +1160,162 @@ const Library = () => {
         setWarningModal({ show: true, message: 'Failed to save component. Please try again.' });
       }
     }
+  };
+
+  // ECO-related functions
+  const handleInitiateECO = async (component) => {
+    // Set ECO mode and edit mode
+    setIsECOMode(true);
+    setIsEditMode(true);
+    setIsAddMode(false);
+    setEcoChanges([]);
+    setEcoNotes('');
+    
+    // Load the component for editing (reuse handleEdit logic)
+    setSelectedComponent(component);
+    
+    // Populate editData with current component details
+    // This ensures the edit form shows current values
+    if (componentDetails) {
+      const preparedData = {
+        ...componentDetails,
+        // Include specifications
+        specifications: componentDetails.specifications || [],
+        // Include distributors
+        distributors: componentDetails.distributors || [],
+      };
+      setEditData(preparedData);
+    }
+    
+    // Set manufacturer input for type-ahead
+    const manufacturerName = manufacturers?.find(m => m.id === component?.manufacturer_id)?.name || '';
+    setManufacturerInput(manufacturerName);
+  };
+
+  const handleSubmitECO = async () => {
+    if (!selectedComponent) return;
+
+    try {
+      // Collect all changes
+      const changes = [];
+      const specifications = [];
+      const distributors = [];
+      const alternativesParts = [];
+
+      // Track component field changes
+      const fieldsToTrack = [
+        'description', 'value', 'pcb_footprint', 'package_size',
+        'sub_category1', 'sub_category2', 'sub_category3',
+        'schematic', 'step_model', 'pspice', 'datasheet_url', 'notes',
+        'manufacturer_id', 'manufacturer_pn'
+      ];
+
+      for (const field of fieldsToTrack) {
+        const oldValue = componentDetails?.[field];
+        const newValue = editData[field];
+        
+        if (oldValue !== newValue && newValue !== undefined) {
+          changes.push({
+            field_name: field,
+            old_value: String(oldValue || ''),
+            new_value: String(newValue || '')
+          });
+        }
+      }
+
+      // Track specification changes
+      if (editData.specifications) {
+        for (const spec of editData.specifications) {
+          const oldSpec = componentDetails?.specifications?.find(s => s.id === spec.id);
+          if (oldSpec && oldSpec.spec_value !== spec.spec_value) {
+            specifications.push({
+              category_spec_id: spec.id,
+              old_value: oldSpec.spec_value || '',
+              new_value: spec.spec_value || ''
+            });
+          }
+        }
+      }
+
+      // Track distributor changes (simplified - tracks adds/updates)
+      if (editData.distributors) {
+        for (const dist of editData.distributors) {
+          const oldDist = componentDetails?.distributors?.find(d => 
+            d.distributor_id === dist.distributor_id && 
+            d.alternative_id === dist.alternative_id
+          );
+          
+          distributors.push({
+            alternative_id: dist.alternative_id || null,
+            distributor_id: dist.distributor_id,
+            action: oldDist ? 'update' : 'add',
+            sku: dist.sku,
+            url: dist.url,
+            currency: dist.currency || 'USD',
+            in_stock: dist.in_stock || false,
+            stock_quantity: dist.stock_quantity || 0,
+            minimum_order_quantity: dist.minimum_order_quantity || 1,
+            packaging: dist.packaging,
+            price_breaks: dist.price_breaks || []
+          });
+        }
+      }
+
+      // Track alternative parts changes (simplified)
+      if (editData.alternatives) {
+        for (const alt of editData.alternatives) {
+          const oldAlt = alternatives?.find(a => a.id === alt.id);
+          
+          alternativesParts.push({
+            alternative_id: alt.id || null,
+            action: oldAlt ? 'update' : 'add',
+            manufacturer_id: alt.manufacturer_id,
+            manufacturer_pn: alt.manufacturer_pn
+          });
+        }
+      }
+
+      // Check if there's a delete action
+      if (editData.delete_component) {
+        changes.push({
+          field_name: '_delete_component',
+          old_value: 'active',
+          new_value: 'marked_for_deletion'
+        });
+      }
+
+      // Create ECO order
+      await api.createECO({
+        component_id: selectedComponent.id,
+        part_number: selectedComponent.part_number,
+        changes,
+        specifications,
+        distributors,
+        alternatives: alternativesParts,
+        notes: ecoNotes
+      });
+
+      // Reset states
+      setIsECOMode(false);
+      setIsEditMode(false);
+      setEcoChanges([]);
+      setEcoNotes('');
+      queryClient.invalidateQueries(['components']);
+      queryClient.invalidateQueries(['ecos']);
+
+      // Show success message
+      showSuccess('ECO submitted successfully! It will be reviewed by an approver.');
+    } catch (error) {
+      console.error('Error submitting ECO:', error);
+      showError('Failed to submit ECO. Please try again.');
+    }
+  };
+
+  const handleCancelECO = () => {
+    setIsECOMode(false);
+    setIsEditMode(false);
+    setEcoChanges([]);
+    setEcoNotes('');
   };
 
   const handleDelete = () => {
@@ -2204,14 +2373,30 @@ const Library = () => {
               ) : isEditMode ? (
                 <>
                   <button
-                    onClick={handleSave}
+                    onClick={isECOMode ? handleSubmitECO : handleSave}
                     className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <Check className="w-4 h-4" />
-                    Save Changes
+                    {isECOMode ? 'Submit ECO' : 'Save Changes'}
                   </button>
+                  
+                  {/* Delete Component option in ECO mode */}
+                  {isECOMode && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Mark this component for deletion in ECO?')) {
+                          setEditData({ ...editData, delete_component: true });
+                        }
+                      }}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {editData.delete_component ? 'Marked for Deletion' : 'Mark for Deletion'}
+                    </button>
+                  )}
+                  
                   <button
-                    onClick={() => {
+                    onClick={isECOMode ? handleCancelECO : () => {
                       setIsEditMode(false);
                       setManufacturerInput('');
                       setAltManufacturerInputs({});
@@ -2251,23 +2436,41 @@ const Library = () => {
                       Add Component
                     </button>
                   )}
-                  {selectedComponent && canWrite() && (
-                    <button
-                      onClick={handleEdit}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit Component
-                    </button>
-                  )}
-                  {canWrite() && (
-                    <button
-                      onClick={toggleBulkDeleteMode}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete Components
-                    </button>
+                  
+                  {/* Show different buttons based on ECO configuration */}
+                  {isECOEnabled ? (
+                    // ECO Mode: Show only "Initiate ECO" button
+                    selectedComponent && canWrite() && (
+                      <button
+                        onClick={() => handleInitiateECO(selectedComponent)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <FileEdit className="w-4 h-4" />
+                        Initiate ECO
+                      </button>
+                    )
+                  ) : (
+                    // Normal Mode: Show Edit and Delete buttons
+                    <>
+                      {selectedComponent && canWrite() && (
+                        <button
+                          onClick={handleEdit}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Component
+                        </button>
+                      )}
+                      {canWrite() && (
+                        <button
+                          onClick={toggleBulkDeleteMode}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete Components
+                        </button>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -3273,6 +3476,13 @@ const Library = () => {
                                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">Processing...</p>
                               )}
                             </div>
+
+                            {/* ECO Section - Only shown if CONFIG_ECO is enabled */}
+                            <ECOSection 
+                              isEnabled={isECOEnabled}
+                              canWrite={canWrite()}
+                              onInitiateECO={() => handleInitiateECO(componentDetails)}
+                            />
                           </>
                         );
                       })()}
@@ -3639,6 +3849,25 @@ const Library = () => {
                 </div>
               )}
             </div>
+            
+            {/* ECO Notes Section - Only shown in ECO mode, after Alternative Parts */}
+            {isECOMode && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg shadow-md p-4 border border-yellow-200 dark:border-yellow-800">
+                <h3 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-3">
+                  ECO Notes
+                </h3>
+                <textarea
+                  value={ecoNotes}
+                  onChange={(e) => setEcoNotes(e.target.value)}
+                  placeholder="Describe the reason for these changes..."
+                  className="w-full px-3 py-2 border border-yellow-300 dark:border-yellow-700 rounded-md bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                  rows={4}
+                />
+                <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
+                  Provide a clear explanation for the proposed changes to help approvers understand the ECO.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

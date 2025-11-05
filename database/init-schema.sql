@@ -630,3 +630,135 @@ WHERE NOT EXISTS (
 )
 ON CONFLICT (component_id) DO NOTHING;
 
+-- ============================================================================
+-- PART 8: ENGINEER CHANGE ORDER (ECO) TABLES
+-- ============================================================================
+
+-- Table: eco_orders
+-- Stores ECO header information
+-- Note: User IDs are INTEGER (not UUID) to match users table definition
+CREATE TABLE IF NOT EXISTS eco_orders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eco_number VARCHAR(20) UNIQUE NOT NULL, -- Format: ECO-XXXXXX (6 digit sequential)
+    component_id UUID REFERENCES components(id) ON DELETE CASCADE,
+    part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
+    initiated_by INTEGER, -- References users(id) - INTEGER not UUID
+    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+    approved_by INTEGER, -- References users(id) - INTEGER not UUID
+    approved_at TIMESTAMP,
+    rejection_reason TEXT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_eco_status CHECK (status IN ('pending', 'approved', 'rejected'))
+);
+
+-- Table: eco_changes
+-- Stores the buffered component field changes
+CREATE TABLE IF NOT EXISTS eco_changes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    field_name VARCHAR(100) NOT NULL, -- e.g., 'description', 'value', 'pcb_footprint', etc.
+    old_value TEXT,
+    new_value TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: eco_distributors
+-- Stores buffered distributor information changes
+CREATE TABLE IF NOT EXISTS eco_distributors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE, -- NULL for primary component
+    distributor_id UUID REFERENCES distributors(id) ON DELETE CASCADE,
+    action VARCHAR(20) NOT NULL, -- 'add', 'update', 'delete'
+    sku VARCHAR(100),
+    url VARCHAR(500),
+    currency VARCHAR(10) DEFAULT 'USD',
+    in_stock BOOLEAN DEFAULT false,
+    stock_quantity INTEGER,
+    minimum_order_quantity INTEGER DEFAULT 1,
+    packaging VARCHAR(100),
+    price_breaks JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_eco_dist_action CHECK (action IN ('add', 'update', 'delete'))
+);
+
+-- Table: eco_alternative_parts
+-- Stores buffered alternative parts changes
+CREATE TABLE IF NOT EXISTS eco_alternative_parts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE, -- NULL for new alternatives
+    action VARCHAR(20) NOT NULL, -- 'add', 'update', 'delete'
+    manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
+    manufacturer_pn VARCHAR(200),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_eco_alt_action CHECK (action IN ('add', 'update', 'delete'))
+);
+
+-- Table: eco_specifications
+-- Stores buffered specification changes
+CREATE TABLE IF NOT EXISTS eco_specifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    category_spec_id UUID REFERENCES category_specifications(id) ON DELETE CASCADE,
+    old_value VARCHAR(500),
+    new_value VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for ECO tables
+CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_eco_number ON eco_orders(eco_number);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_created_at ON eco_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
+
+-- Trigger to update eco_orders updated_at timestamp
+CREATE TRIGGER update_eco_orders_updated_at
+    BEFORE UPDATE ON eco_orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to generate next ECO number
+CREATE OR REPLACE FUNCTION generate_eco_number()
+RETURNS VARCHAR AS $$
+DECLARE
+    next_number INTEGER;
+    eco_num VARCHAR(20);
+BEGIN
+    -- Get the highest ECO number and increment
+    SELECT COALESCE(MAX(CAST(SUBSTRING(eco_number FROM 5) AS INTEGER)), 0) + 1
+    INTO next_number
+    FROM eco_orders;
+    
+    -- Format as ECO-XXXXXX (6 digits with leading zeros)
+    eco_num := 'ECO-' || LPAD(next_number::TEXT, 6, '0');
+    
+    RETURN eco_num;
+END;
+$$ LANGUAGE plpgsql;
+
+-- View: eco_orders_full
+-- ECO orders with user information
+CREATE OR REPLACE VIEW eco_orders_full AS
+SELECT 
+    eo.*,
+    u1.username as initiated_by_name,
+    u2.username as approved_by_name,
+    c.part_number as component_part_number,
+    c.description as component_description,
+    cc.name as category_name,
+    m.name as manufacturer_name
+FROM eco_orders eo
+LEFT JOIN users u1 ON eo.initiated_by = u1.id
+LEFT JOIN users u2 ON eo.approved_by = u2.id
+LEFT JOIN components c ON eo.component_id = c.id
+LEFT JOIN component_categories cc ON c.category_id = cc.id
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+ORDER BY eo.created_at DESC;
+

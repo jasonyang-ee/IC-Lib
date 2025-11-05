@@ -179,9 +179,9 @@ export const createUser = async (req, res) => {
       });
     }
 
-    if (!['read-only', 'read-write', 'admin'].includes(role)) {
+    if (!['read-only', 'read-write', 'approver', 'admin'].includes(role)) {
       return res.status(400).json({ 
-        error: 'Invalid role. Must be: read-only, read-write, or admin' 
+        error: 'Invalid role. Must be: read-only, read-write, approver, or admin' 
       });
     }
 
@@ -290,7 +290,7 @@ export const updateUser = async (req, res) => {
     }
 
     if (role !== undefined) {
-      if (!['read-only', 'read-write', 'admin'].includes(role)) {
+      if (!['read-only', 'read-write', 'approver', 'admin'].includes(role)) {
         return res.status(400).json({ 
           error: 'Invalid role' 
         });

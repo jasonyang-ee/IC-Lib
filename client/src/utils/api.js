@@ -250,6 +250,14 @@ export const api = {
   bulkUpdateStock: (limit) => apiClient.post('/components/bulk/update-stock', {}, { params: { limit } }),
   bulkUpdateSpecifications: (limit) => apiClient.post('/components/bulk/update-specifications', {}, { params: { limit } }),
   bulkUpdateDistributors: (limit) => apiClient.post('/components/bulk/update-distributors', {}, { params: { limit } }),
+  
+  // ECO (Engineer Change Order)
+  getECOs: (params) => apiClient.get('/eco', { params }),
+  getECOById: (id) => apiClient.get(`/eco/${id}`),
+  createECO: (data) => apiClient.post('/eco', data),
+  approveECO: (id) => apiClient.post(`/eco/${id}/approve`),
+  rejectECO: (id, data) => apiClient.post(`/eco/${id}/reject`, data),
+  deleteECO: (id) => apiClient.delete(`/eco/${id}`),
 };
 
 export default apiClient;

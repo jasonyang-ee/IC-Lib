@@ -28,6 +28,7 @@ import settingsRoutes from './routes/settings.js';
 import adminRoutes from './routes/admin.js';
 import specificationTemplateRoutes from './routes/specificationTemplates.js';
 import projectRoutes from './routes/projects.js';
+import ecoRoutes from './routes/eco.js';
 
 // Import initialization service
 import { initializeAuthentication, getAuthenticationStatus } from './services/initializationService.js';
@@ -85,6 +86,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/specification-templates', specificationTemplateRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/eco', ecoRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

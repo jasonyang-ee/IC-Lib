@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,6 +7,9 @@ const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  
+  // Check if ECO feature is enabled
+  const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true' || import.meta.env.CONFIG_ECO === 'true';
 
   // Get the base path for assets
 const getBasePath = () => {
@@ -54,8 +57,8 @@ const getBasePath = () => {
   return '/';
 };
 
-  // Construct the logo path with base URL
-  const logoPath = getBasePath() + 'logo_bg.png';
+  // Construct the logo path - Vite serves public folder assets from root
+  const logoPath = '/logo_bg.png';
 
   useEffect(() => {
     // Initialize dark mode from localStorage
@@ -88,6 +91,11 @@ const getBasePath = () => {
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit', icon: ClipboardList, label: 'Audit Log' },
   ];
+
+  // Add ECO menu item if feature is enabled
+  if (isECOEnabled) {
+    menuItems.push({ path: '/eco', icon: FileEdit, label: 'ECO' });
+  }
 
   // User Settings available to all users
   menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });

@@ -14,13 +14,12 @@ async function checkPartsTablesExist() {
   try {
     const result = await pool.query(`
       SELECT 
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'categories') as categories,
+        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'component_categories') as categories,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'components') as components,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'manufacturers') as manufacturers,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'distributors') as distributors,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'inventory') as inventory,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_log') as activity_log,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_types') as activity_types;
+        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_log') as activity_log;
     `);
     
     const tables = result.rows[0];

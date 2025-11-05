@@ -197,7 +197,7 @@ export const getExtendedDashboardStats = async (req, res, next) => {
 
     // Get components with alternatives
     const componentsWithAlternativesResult = await pool.query(
-      'SELECT COUNT(DISTINCT component_id) as count FROM components_alternative'
+      'SELECT COUNT(DISTINCT part_number) as count FROM components_alternative'
     );
 
     // Get top storage locations

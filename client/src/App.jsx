@@ -12,6 +12,10 @@ import Reports from './pages/Reports'
 import Audit from './pages/Audit'
 import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
+import ECO from './pages/ECO'
+
+// Check if ECO feature is enabled
+const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true' || import.meta.env.CONFIG_ECO === 'true';
 
 function App() {
   return (
@@ -36,6 +40,9 @@ function App() {
           <Route path="vendor-search" element={<VendorSearch />} />
           <Route path="reports" element={<Reports />} />
           <Route path="audit" element={<Audit />} />
+          
+          {/* ECO route - only if feature is enabled */}
+          {isECOEnabled && <Route path="eco" element={<ECO />} />}
           
           {/* User Settings - available to all authenticated users */}
           <Route path="user-settings" element={<UserSettings />} />
@@ -62,3 +69,4 @@ function App() {
 }
 
 export default App
+

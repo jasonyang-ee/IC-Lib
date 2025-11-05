@@ -180,7 +180,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-y-auto custom-scrollbar">
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>

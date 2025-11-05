@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogIn, AlertCircle, Loader2, Package } from 'lucide-react';
+import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -47,9 +47,11 @@ const Login = () => {
         {/* Logo and Title */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Package className="w-10 h-10 text-white" />
-            </div>
+            <img 
+              src="/logo_bg.png" 
+              alt="IC Lib Logo" 
+              className="w-20 h-20 rounded-lg"
+            />
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
             IC-Lib
