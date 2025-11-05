@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS component_categories (
     prefix VARCHAR(20) NOT NULL,
     leading_zeros INTEGER DEFAULT 5,
     display_order INTEGER DEFAULT 0,
-    enabled BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

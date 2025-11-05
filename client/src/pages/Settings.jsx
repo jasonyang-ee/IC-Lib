@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -947,10 +947,10 @@ const Settings = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [editingCategory, setEditingCategory] = useState(null);
-  const [tempConfig, setTempConfig] = useState({ prefix: '', leading_zeros: 5, enabled: true });
+  const [tempConfig, setTempConfig] = useState({ prefix: '', leading_zeros: 5 });
   const [confirmDialog, setConfirmDialog] = useState({ show: false, action: '', title: '', message: '' });
   const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
+  const [newCategory, setNewCategory] = useState({ name: '', description: '', prefix: '', leading_zeros: 5 });
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
   const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
   const [draggedCategory, setDraggedCategory] = useState(null);
@@ -1032,7 +1032,7 @@ const Settings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['categoryConfigs']);
       setIsAddingCategory(false);
-      setNewCategory({ name: '', description: '', prefix: '', leading_zeros: 5, enabled: true });
+      setNewCategory({ name: '', description: '', prefix: '', leading_zeros: 5 });
       showSuccess('Category created successfully!');
     },
     onError: (error) => {
@@ -1383,8 +1383,7 @@ const Settings = () => {
     setEditingCategory(category.id);
     setTempConfig({
       prefix: category.prefix,
-      leading_zeros: category.leading_zeros,
-      enabled: category.enabled ?? true
+      leading_zeros: category.leading_zeros
     });
   };
 
@@ -1394,7 +1393,7 @@ const Settings = () => {
 
   const handleCancelEdit = () => {
     setEditingCategory(null);
-    setTempConfig({ prefix: '', leading_zeros: 5, enabled: true });
+    setTempConfig({ prefix: '', leading_zeros: 5 });
   };
 
   const handleCreateCategory = () => {
@@ -1572,20 +1571,11 @@ const Settings = () => {
                 />
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={newCategory.enabled}
-                  onChange={(e) => setNewCategory({ ...newCategory, enabled: e.target.checked })}
-                  className="rounded border-gray-300 dark:border-[#444444]"
-                />
-                Enabled
-              </label>
+            <div className="mt-3 flex items-center justify-end gap-3">
               <button
                 onClick={handleCreateCategory}
                 disabled={createCategoryMutation.isPending}
-                className="ml-auto bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 {createCategoryMutation.isPending ? (
                   <>
@@ -1612,11 +1602,11 @@ const Settings = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
+                  <th className="text-center py-3 px-2 font-semibold text-gray-700 dark:text-gray-300 w-24">Display Order</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Category</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Prefix</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Leading Zeros</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Example</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Status</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Actions</th>
                 </tr>
               </thead>
@@ -1629,9 +1619,15 @@ const Settings = () => {
                     onDragOver={handleDragOver}
                     onDrop={() => handleDrop(category)}
                     className={`border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors ${
-                      draggedCategory?.id === category.id ? 'opacity-50' : 'cursor-move'
+                      draggedCategory?.id === category.id ? 'opacity-50' : ''
                     }`}
                   >
+                    <td className="py-3 px-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500 cursor-move" />
+                        <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{category.display_order}</span>
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{category.name}</td>
                     <td className="py-3 px-4">
                       {editingCategory === category.id ? (
@@ -1664,27 +1660,6 @@ const Settings = () => {
                       <span className="text-gray-600 dark:text-gray-400 font-mono text-sm">
                         {category.prefix}-{String(1).padStart(editingCategory === category.id ? tempConfig.leading_zeros : category.leading_zeros, '0')}
                       </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {editingCategory === category.id ? (
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={tempConfig.enabled}
-                            onChange={(e) => setTempConfig({ ...tempConfig, enabled: e.target.checked })}
-                            className="rounded border-gray-300 dark:border-[#444444]"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Enabled</span>
-                        </label>
-                      ) : (
-                        <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          category.enabled
-                            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
-                        }`}>
-                          {category.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      )}
                     </td>
                     <td className="py-3 px-4">
                       {editingCategory === category.id ? (
@@ -1999,12 +1974,12 @@ const Settings = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Update Stock Info */}
-          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4 flex flex-col">
             <div className="flex items-center gap-2 mb-2">
               <Package className="w-5 h-5 text-green-600 dark:text-green-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Stock Info</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
               Update stock quantities, pricing, and availability from distributor APIs for all parts with SKUs.
             </p>
             <button
@@ -2027,12 +2002,12 @@ const Settings = () => {
           </div>
 
           {/* Update Specifications */}
-          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4 flex flex-col">
             <div className="flex items-center gap-2 mb-2">
               <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Parts Specifications</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
               Auto-fill component specifications from distributor data using mapped specification names. Preserves existing values.
             </p>
             <button
@@ -2055,12 +2030,12 @@ const Settings = () => {
           </div>
 
           {/* Update Distributors */}
-          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4">
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4 flex flex-col">
             <div className="flex items-center gap-2 mb-2">
               <RefreshCw className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Distributors</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
               Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches. Operation has 2 seconds delay between parts to avoid API rate limits.
             </p>
             <button

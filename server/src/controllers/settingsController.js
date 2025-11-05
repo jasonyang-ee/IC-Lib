@@ -315,7 +315,6 @@ export const getCategoryConfigs = async (req, res) => {
         prefix,
         leading_zeros,
         display_order,
-        enabled,
         created_at
       FROM component_categories
       ORDER BY display_order, name
@@ -337,7 +336,7 @@ export const getCategoryConfigs = async (req, res) => {
 export const updateCategoryConfig = async (req, res) => {
   try {
     const { id } = req.params;
-    const { prefix, leading_zeros, enabled } = req.body;
+    const { prefix, leading_zeros } = req.body;
 
     // Validate inputs
     if (prefix !== undefined && (typeof prefix !== 'string' || prefix.length === 0)) {
@@ -346,10 +345,6 @@ export const updateCategoryConfig = async (req, res) => {
     
     if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
       return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
-    }
-    
-    if (enabled !== undefined && typeof enabled !== 'boolean') {
-      return res.status(400).json({ error: 'Invalid enabled: must be a boolean' });
     }
 
     // Build dynamic update query
@@ -368,12 +363,6 @@ export const updateCategoryConfig = async (req, res) => {
       values.push(leading_zeros);
       paramCount++;
     }
-    
-    if (enabled !== undefined) {
-      updates.push(`enabled = $${paramCount}`);
-      values.push(enabled);
-      paramCount++;
-    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
@@ -385,7 +374,7 @@ export const updateCategoryConfig = async (req, res) => {
       UPDATE component_categories
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, name, prefix, leading_zeros, enabled, created_at
+      RETURNING id, name, prefix, leading_zeros, created_at
     `, values);
 
     if (result.rows.length === 0) {
@@ -410,7 +399,7 @@ export const updateCategoryConfig = async (req, res) => {
  */
 export const createCategory = async (req, res) => {
   try {
-    const { name, prefix, leading_zeros, enabled } = req.body;
+    const { name, prefix, leading_zeros } = req.body;
 
     // Validate required fields
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -422,7 +411,6 @@ export const createCategory = async (req, res) => {
     }
 
     const validLeadingZeros = leading_zeros !== undefined ? leading_zeros : 5;
-    const validEnabled = enabled !== undefined ? enabled : true;
 
     // Validate types
     if (typeof validLeadingZeros !== 'number' || validLeadingZeros < 1 || validLeadingZeros > 10) {
@@ -436,10 +424,10 @@ export const createCategory = async (req, res) => {
     const nextDisplayOrder = maxOrderResult.rows[0].max_order + 1;
 
     const result = await pool.query(`
-      INSERT INTO component_categories (name, prefix, leading_zeros, enabled, display_order)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, name, prefix, leading_zeros, enabled, display_order, created_at
-    `, [name.trim(), prefix.trim(), validLeadingZeros, validEnabled, nextDisplayOrder]);
+      INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, prefix, leading_zeros, display_order, created_at
+    `, [name.trim(), prefix.trim(), validLeadingZeros, nextDisplayOrder]);
 
     res.status(201).json({
       success: true,

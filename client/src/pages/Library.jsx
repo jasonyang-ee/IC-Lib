@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 // Component Library - Fixed 3-Column Layout
@@ -251,6 +251,53 @@ const Library = () => {
     navigate('/inventory', { state: { searchUuid: componentId } });
   };
 
+  // Parse part number to extract prefix and number
+  const parsePartNumber = (partNumber) => {
+    if (!partNumber || typeof partNumber !== 'string') return null;
+    const match = partNumber.match(/^([A-Z]+)-(\d+)$/);
+    if (!match) return null;
+    return {
+      prefix: match[1],
+      number: parseInt(match[2], 10),
+      leadingZeros: match[2].length
+    };
+  };
+
+  // Format part number with leading zeros
+  const formatPartNumber = (prefix, number, leadingZeros) => {
+    return `${prefix}-${String(number).padStart(leadingZeros, '0')}`;
+  };
+
+  // Navigate to previous part number
+  const handlePreviousPart = () => {
+    const parsed = parsePartNumber(searchTerm);
+    if (!parsed || parsed.number <= 1) return;
+    const newPartNumber = formatPartNumber(parsed.prefix, parsed.number - 1, parsed.leadingZeros);
+    setSearchTerm(newPartNumber);
+    // Keep focus on search input and select text
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      }
+    }, 100);
+  };
+
+  // Navigate to next part number
+  const handleNextPart = () => {
+    const parsed = parsePartNumber(searchTerm);
+    if (!parsed) return;
+    const newPartNumber = formatPartNumber(parsed.prefix, parsed.number + 1, parsed.leadingZeros);
+    setSearchTerm(newPartNumber);
+    // Keep focus on search input and select text
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      }
+    }, 100);
+  };
+
   // Handle adding component to project
   const handleAddToProject = async () => {
     if (!selectedProjectId || !selectedComponent) {
@@ -424,6 +471,20 @@ const Library = () => {
       setIsAddMode(false);
     }
   }, [components, location.state]);
+
+  // Auto-select component when using Previous/Next navigation
+  useEffect(() => {
+    // Only trigger if we have components and a valid part number format in search
+    if (components && components.length > 0 && searchTerm && parsePartNumber(searchTerm)) {
+      // Check if the search term exactly matches a component's part number
+      const matchingComponent = components.find(c => c.part_number === searchTerm);
+      if (matchingComponent && matchingComponent.id !== selectedComponent?.id) {
+        setSelectedComponent(matchingComponent);
+        setIsEditMode(false);
+        setIsAddMode(false);
+      }
+    }
+  }, [searchTerm, components]);
 
   // Handle refresh requests from vendor search (after appending distributors or alternatives)
   useEffect(() => {
@@ -2029,6 +2090,29 @@ const Library = () => {
                 </button>
               )}
             </div>
+
+            {/* Part Number Navigation */}
+            {searchTerm && parsePartNumber(searchTerm) && (
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={handlePreviousPart}
+                  disabled={parsePartNumber(searchTerm)?.number <= 1}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  title="Previous part number"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
+                <button
+                  onClick={handleNextPart}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors text-sm font-medium"
+                  title="Next part number"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Sorting Controls */}
             <div className="mt-3 space-y-2">
