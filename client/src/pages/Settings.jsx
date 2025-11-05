@@ -1602,10 +1602,10 @@ const Settings = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
-                  <th className="text-center py-3 px-2 font-semibold text-gray-700 dark:text-gray-300 w-24">Display Order</th>
+                  <th className="text-center py-3 px-2 font-semibold text-gray-700 dark:text-gray-300">Display Order</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Category</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Prefix</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Leading Zeros</th>
+                  <th className="text-center py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Leading Zeros</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Example</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Actions</th>
                 </tr>
@@ -1642,7 +1642,7 @@ const Settings = () => {
                         <span className="text-gray-900 dark:text-gray-100 font-mono">{category.prefix}</span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="text-center py-3 px-4">
                       {editingCategory === category.id ? (
                         <input
                           type="number"
