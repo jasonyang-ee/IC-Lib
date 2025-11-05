@@ -1420,26 +1420,15 @@ export const bulkUpdateDistributors = async (req, res, next) => {
         // Search all vendors for this manufacturer part number
         let allResults = [];
 
-        console.log(`\n🔍 [BULK UPDATE] Processing component:`, {
-          part_number: comp.part_number,
-          manufacturer_pn: comp.manufacturer_pn,
-          manufacturer_name: comp.manufacturer_name
-        });
-
         // Search Digikey
         try {
-          console.log(`📞 [DIGIKEY] Searching for: ${comp.manufacturer_pn}`);
           const digikeyResult = await digikeyService.searchPart(comp.manufacturer_pn);
-          console.log(`📊 [DIGIKEY] Results count:`, digikeyResult.results?.length || 0);
-          
           if (digikeyResult.results && digikeyResult.results.length > 0) {
             // Filter for exact manufacturer part number match
             const exactMatches = digikeyResult.results.filter(r => 
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
             );
-            console.log(`✅ [DIGIKEY] Exact matches:`, exactMatches.length);
-            
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'digikey',
@@ -1451,23 +1440,18 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             });
           }
         } catch (error) {
-          console.log(`❌ [DIGIKEY] Search failed for ${comp.manufacturer_pn}:`, error.message);
+          console.log(`Digikey search failed for ${comp.manufacturer_pn}:`, error.message);
         }
 
         // Search Mouser
         try {
-          console.log(`📞 [MOUSER] Searching for: ${comp.manufacturer_pn}`);
           const mouserResult = await mouserService.searchPart(comp.manufacturer_pn);
-          console.log(`📊 [MOUSER] Results count:`, mouserResult.results?.length || 0);
-          
           if (mouserResult.results && mouserResult.results.length > 0) {
             // Filter for exact manufacturer part number match
             const exactMatches = mouserResult.results.filter(r => 
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
             );
-            console.log(`✅ [MOUSER] Exact matches:`, exactMatches.length);
-            
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'mouser',
@@ -1479,10 +1463,8 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             });
           }
         } catch (error) {
-          console.log(`❌ [MOUSER] Search failed for ${comp.manufacturer_pn}:`, error.message);
+          console.log(`Mouser search failed for ${comp.manufacturer_pn}:`, error.message);
         }
-
-        console.log(`📋 [BULK UPDATE] Total results found:`, allResults.length);
 
         // If we have results, pick the best one per distributor (lowest MOQ)
         if (allResults.length > 0) {
@@ -1537,9 +1519,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
           skippedCount++;
         }
 
-        // Add delay to avoid rate limiting (Mouser: ~30 calls/min, Digikey: higher)
-        // Using 2 seconds = 30 requests per minute to stay well under Mouser's limit
-        console.log(`⏱️ [BULK UPDATE] Waiting 2 seconds before next request...`);
+        // Add delay to avoid rate limiting (Mouser: ~30 calls/min)
         await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error) {
