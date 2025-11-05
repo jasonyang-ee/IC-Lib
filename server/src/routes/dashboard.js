@@ -18,4 +18,7 @@ router.delete('/activities/all', dashboardController.clearAllActivities);
 // Get category breakdown
 router.get('/category-breakdown', dashboardController.getCategoryBreakdown);
 
+// Get extended dashboard statistics
+router.get('/extended-stats', dashboardController.getExtendedDashboardStats);
+
 export default router;

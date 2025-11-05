@@ -147,3 +147,92 @@ export const getCategoryBreakdown = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getExtendedDashboardStats = async (req, res, next) => {
+  try {
+    // Get total users
+    const totalUsersResult = await pool.query(
+      'SELECT COUNT(*) as count FROM users'
+    );
+
+    // Get total manufacturers
+    const totalManufacturersResult = await pool.query(
+      'SELECT COUNT(*) as count FROM manufacturers'
+    );
+
+    // Get total distributors
+    const totalDistributorsResult = await pool.query(
+      'SELECT COUNT(*) as count FROM distributors'
+    );
+
+    // Get total projects
+    const totalProjectsResult = await pool.query(
+      'SELECT COUNT(*) as count FROM projects'
+    );
+
+    // Get active projects (status = 'active' or 'planning')
+    const activeProjectsResult = await pool.query(
+      "SELECT COUNT(*) as count FROM projects WHERE status IN ('active', 'planning')"
+    );
+
+    // Get total project components
+    const totalProjectComponentsResult = await pool.query(
+      'SELECT COUNT(*) as count FROM project_components'
+    );
+
+    // Get average components per project
+    const avgComponentsResult = await pool.query(`
+      SELECT COALESCE(ROUND(AVG(component_count)), 0) as avg
+      FROM (
+        SELECT COUNT(*) as component_count
+        FROM project_components
+        GROUP BY project_id
+      ) as project_counts
+    `);
+
+    // Get components with specifications
+    const componentsWithSpecsResult = await pool.query(
+      'SELECT COUNT(DISTINCT component_id) as count FROM component_specification_values'
+    );
+
+    // Get components with alternatives
+    const componentsWithAlternativesResult = await pool.query(
+      'SELECT COUNT(DISTINCT component_id) as count FROM components_alternative'
+    );
+
+    // Get top storage locations
+    const topLocationsResult = await pool.query(`
+      SELECT location, COUNT(*) as count
+      FROM inventory
+      WHERE location IS NOT NULL AND location != ''
+      GROUP BY location
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+
+    // Get recent user logins
+    const recentLoginsResult = await pool.query(`
+      SELECT username, role, last_login
+      FROM users
+      WHERE last_login IS NOT NULL
+      ORDER BY last_login DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      totalUsers: parseInt(totalUsersResult.rows[0].count),
+      totalManufacturers: parseInt(totalManufacturersResult.rows[0].count),
+      totalDistributors: parseInt(totalDistributorsResult.rows[0].count),
+      totalProjects: parseInt(totalProjectsResult.rows[0].count),
+      activeProjects: parseInt(activeProjectsResult.rows[0].count),
+      totalProjectComponents: parseInt(totalProjectComponentsResult.rows[0].count),
+      avgComponentsPerProject: parseInt(avgComponentsResult.rows[0].avg || 0),
+      componentsWithSpecs: parseInt(componentsWithSpecsResult.rows[0].count),
+      componentsWithAlternatives: parseInt(componentsWithAlternativesResult.rows[0].count),
+      topLocations: topLocationsResult.rows,
+      recentLogins: recentLoginsResult.rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -186,17 +186,9 @@ const UserManagement = () => {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => handleEditUser(user)}
-                        className="p-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                        title="Edit user"
+                        className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded transition-colors"
                       >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(user)}
-                        className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                        title="Delete user"
-                      >
-                        <Trash2 className="w-4 h-4" />
+                        Edit
                       </button>
                     </div>
                   </td>
@@ -344,20 +336,28 @@ const UserManagement = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="flex justify-between items-center gap-2 mt-6">
               <button
-                onClick={() => setShowEditModal(false)}
-                className="btn-secondary"
+                onClick={() => setShowDeleteConfirm(selectedUser)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
               >
-                Cancel
+                Delete User
               </button>
-              <button
-                onClick={handleUpdateUser}
-                disabled={updateUserMutation.isPending}
-                className="btn-primary disabled:bg-gray-400"
-              >
-                {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateUser}
+                  disabled={updateUserMutation.isPending}
+                  className="btn-primary disabled:bg-gray-400"
+                >
+                  {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -412,6 +412,7 @@ const CategorySpecificationsManager = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [newMappingInput, setNewMappingInput] = useState('');
   const [editMappingInput, setEditMappingInput] = useState('');
+  const [draggedSpec, setDraggedSpec] = useState(null);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -465,6 +466,52 @@ const CategorySpecificationsManager = () => {
       queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
     },
   });
+
+  // Reorder specifications mutation
+  const reorderSpecsMutation = useMutation({
+    mutationFn: async (specs) => {
+      await api.reorderCategorySpecifications(selectedCategory, { specifications: specs });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      showSuccess('Specification order updated successfully!');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.message;
+      showError(`Error updating specification order: ${errorMsg}`);
+    },
+  });
+
+  // Drag and drop handlers for specification reordering
+  const handleDragStartSpec = (spec) => {
+    setDraggedSpec(spec);
+  };
+
+  const handleDragOverSpec = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDropSpec = (targetSpec) => {
+    if (!draggedSpec || draggedSpec.id === targetSpec.id) {
+      setDraggedSpec(null);
+      return;
+    }
+
+    const specs = [...(specifications || [])];
+    const draggedIndex = specs.findIndex(s => s.id === draggedSpec.id);
+    const targetIndex = specs.findIndex(s => s.id === targetSpec.id);
+
+    const [removed] = specs.splice(draggedIndex, 1);
+    specs.splice(targetIndex, 0, removed);
+
+    const updatedSpecs = specs.map((spec, index) => ({
+      id: spec.id,
+      display_order: index + 1
+    }));
+
+    reorderSpecsMutation.mutate(updatedSpecs);
+    setDraggedSpec(null);
+  };
 
   const handleAddSpec = () => {
     if (newSpec.spec_name.trim()) {
@@ -689,6 +736,9 @@ const CategorySpecificationsManager = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
+                    <th className="text-center py-3 px-2 font-semibold text-gray-700 dark:text-gray-300 w-32">
+                      Display Order
+                    </th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
                       Specification Name
                     </th>
@@ -702,9 +752,6 @@ const CategorySpecificationsManager = () => {
                       Required
                     </th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
-                      Display Order
-                    </th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
                       Actions
                     </th>
                   </tr>
@@ -713,8 +760,20 @@ const CategorySpecificationsManager = () => {
                   {specifications.map((spec) => (
                     <tr
                       key={spec.id}
-                      className="border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333]"
+                      draggable="true"
+                      onDragStart={() => handleDragStartSpec(spec)}
+                      onDragOver={handleDragOverSpec}
+                      onDrop={() => handleDropSpec(spec)}
+                      className={`border-b border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors ${
+                        draggedSpec?.id === spec.id ? 'opacity-50' : ''
+                      }`}
                     >
+                      <td className="py-3 px-2 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <GripVertical className="w-5 h-5 text-gray-400 dark:text-gray-500 cursor-move" />
+                          <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{spec.display_order}</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">
                         {editingSpec === spec.id ? (
                           <input
@@ -842,22 +901,6 @@ const CategorySpecificationsManager = () => {
                       </td>
                       <td className="py-3 px-4">
                         {editingSpec === spec.id ? (
-                          <input
-                            type="number"
-                            value={tempSpec.display_order}
-                            onChange={(e) =>
-                              setTempSpec({ ...tempSpec, display_order: parseInt(e.target.value) || 0 })
-                            }
-                            className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                          />
-                        ) : (
-                          <span className="text-gray-600 dark:text-gray-400 text-sm">
-                            {spec.display_order}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        {editingSpec === spec.id ? (
                           <div className="flex items-center gap-2">
                             <button
                               onClick={handleSaveSpec}
@@ -872,15 +915,6 @@ const CategorySpecificationsManager = () => {
                             >
                               Cancel
                             </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleEditSpec(spec)}
-                              className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-3 rounded transition-colors text-sm"
-                            >
-                              Edit
-                            </button>
                             <button
                               onClick={() => handleDeleteSpec(spec)}
                               disabled={deleteSpecMutation.isPending}
@@ -889,6 +923,13 @@ const CategorySpecificationsManager = () => {
                               Delete
                             </button>
                           </div>
+                        ) : (
+                          <button
+                            onClick={() => handleEditSpec(spec)}
+                            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-1 px-3 rounded transition-colors text-sm"
+                          >
+                            Edit
+                          </button>
                         )}
                       </td>
                     </tr>

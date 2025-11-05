@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, Edit, Trash2, Minus, MapPin } from 'lucide-react';
+import { Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, Edit, Trash2, Minus, MapPin, Users, Building2, Briefcase, FileText, Link2 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -28,6 +28,15 @@ const Dashboard = () => {
     queryKey: ['recentActivities'],
     queryFn: async () => {
       const response = await api.getRecentActivities();
+      return response.data;
+    },
+    retry: false,
+  });
+
+  const { data: extendedStats } = useQuery({
+    queryKey: ['extendedStats'],
+    queryFn: async () => {
+      const response = await api.getExtendedDashboardStats();
       return response.data;
     },
     retry: false,
@@ -115,6 +124,24 @@ const Dashboard = () => {
       color: 'bg-purple-500',
     },
     {
+      title: 'Total Users',
+      value: extendedStats?.totalUsers || 0,
+      icon: Users,
+      color: 'bg-cyan-500',
+    },
+    {
+      title: 'Manufacturers',
+      value: extendedStats?.totalManufacturers || 0,
+      icon: Building2,
+      color: 'bg-teal-500',
+    },
+    {
+      title: 'Projects',
+      value: extendedStats?.totalProjects || 0,
+      icon: Briefcase,
+      color: 'bg-indigo-500',
+    },
+    {
       title: 'Missing Footprints',
       value: stats?.missingFootprints || 0,
       icon: AlertTriangle,
@@ -130,15 +157,38 @@ const Dashboard = () => {
       title: 'Total Inventory Qty',
       value: stats?.totalInventoryQuantity || 0,
       icon: Database,
-      color: 'bg-indigo-500',
+      color: 'bg-violet-500',
+    },
+    {
+      title: 'With Specifications',
+      value: extendedStats?.componentsWithSpecs || 0,
+      icon: FileText,
+      color: 'bg-emerald-500',
+    },
+    {
+      title: 'With Alternatives',
+      value: extendedStats?.componentsWithAlternatives || 0,
+      icon: Link2,
+      color: 'bg-pink-500',
+    },
+    {
+      title: 'Distributors',
+      value: extendedStats?.totalDistributors || 0,
+      icon: Building2,
+      color: 'bg-amber-500',
     },
   ];
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Overview of your component library system</p>
+      </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => (
           <div key={index} className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center justify-between">
@@ -148,6 +198,9 @@ const Dashboard = () => {
                 {stat.change && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{stat.change}</p>
                 )}
+              </div>
+              <div className={`${stat.color} p-3 rounded-lg`}>
+                <stat.icon className="w-6 h-6 text-white" />
               </div>
             </div>
           </div>
@@ -187,6 +240,75 @@ const Dashboard = () => {
             <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
               {stats?.approvalStatus?.archived || 0}
             </span>
+          </div>
+        </div>
+      </div>
+
+      {/* System Health Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Project Activity */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Project Overview</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active Projects</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {extendedStats?.activeProjects || 0}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Components in Projects</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {extendedStats?.totalProjectComponents || 0}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Avg Components/Project</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                {extendedStats?.avgComponentsPerProject || 0}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Top Storage Locations */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top Storage Locations</h2>
+          <div className="space-y-2">
+            {extendedStats?.topLocations?.slice(0, 5).map((location, index) => (
+              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {location.location || 'Unknown'}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {location.count} items
+                </span>
+              </div>
+            )) || <p className="text-sm text-gray-500 dark:text-gray-400">No locations recorded</p>}
+          </div>
+        </div>
+
+        {/* Recent User Logins */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent User Activity</h2>
+          <div className="space-y-2">
+            {extendedStats?.recentLogins?.slice(0, 5).map((user, index) => (
+              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{user.username}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
+                </span>
+              </div>
+            )) || <p className="text-sm text-gray-500 dark:text-gray-400">No user activity</p>}
           </div>
         </div>
       </div>
