@@ -30,7 +30,7 @@ COPY server/ .
 
 # Install production dependencies (generates package-lock.json)
 RUN npm install --omit=dev --prefer-offline --no-audit
-
+ 
 # Copy built frontend to nginx html directory
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 
@@ -45,7 +45,7 @@ COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Expose only port 80 (nginx handles both frontend and API proxy)
-EXPOSE 80
+EXPOSE 80 
 
 # Set working directory back to /app
 WORKDIR /app

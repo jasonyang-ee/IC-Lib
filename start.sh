@@ -33,11 +33,11 @@ fi
 
 echo ""
 echo "Configuration:"
-echo "  Database: ${DB_HOST}:${DB_PORT:-5432}"
-echo "  Database Name: ${DB_NAME:-cip}"
-echo "  Backend Port: ${PORT:-3500}"
-echo "  Frontend: http://localhost (nginx on port 80)"
-echo "  Environment: ${NODE_ENV:-production}"
+echo "  Database: ${DB_HOST}:${DB_PORT}"
+echo "  Database Name: ${DB_NAME}"
+echo "  Backend Port: ${PORT}"
+echo "  Frontend: http://localhost:80"
+echo "  Environment: ${NODE_ENV}"
 echo ""
 
 # Wait for database to be ready
@@ -54,13 +54,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         const { Client } = pg;
         const client = new Client({
             host: process.env.DB_HOST,
-            port: process.env.DB_PORT || 5432,
+            port: process.env.DB_PORT,
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME || 'cip'
+            database: process.env.DB_NAME
         });
         client.connect()
-            .then(() => { console.log('Connected!'); client.end(); process.exit(0); })
+            .then(() => { client.end(); process.exit(0); })
             .catch(() => process.exit(1));
     " 2>/dev/null; then
         echo "✓ Database connection successful"
@@ -72,8 +72,8 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         echo "ERROR: Could not connect to database after $MAX_RETRIES attempts"
         echo "Please check your database connection settings:"
         echo "  DB_HOST=${DB_HOST}"
-        echo "  DB_PORT=${DB_PORT:-5432}"
-        echo "  DB_NAME=${DB_NAME:-cip}"
+        echo "  DB_PORT=${DB_PORT}"
+        echo "  DB_NAME=${DB_NAME}"
         exit 1
     fi
     
@@ -128,8 +128,6 @@ echo "  📝 Authentication:"
 echo "     Default Admin Username: admin"
 echo "     Default Admin Password: admin123"
 echo "     ⚠️  Change password after first login!"
-echo ""
-echo "  Press Ctrl+C to stop all services"
 echo ""
 
 # Wait for either process to exit

@@ -13,11 +13,12 @@ import Audit from './pages/Audit'
 import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
-
-// Check if ECO feature is enabled
-const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true' || import.meta.env.CONFIG_ECO === 'true';
+import { isECOEnabled } from './config'
 
 function App() {
+  // Check if ECO feature is enabled from runtime config
+  const ecoEnabled = isECOEnabled();
+  
   return (
     <AuthProvider>
       <Routes>
@@ -42,7 +43,7 @@ function App() {
           <Route path="audit" element={<Audit />} />
           
           {/* ECO route - only if feature is enabled */}
-          {isECOEnabled && <Route path="eco" element={<ECO />} />}
+          {ecoEnabled && <Route path="eco" element={<ECO />} />}
           
           {/* User Settings - available to all authenticated users */}
           <Route path="user-settings" element={<UserSettings />} />

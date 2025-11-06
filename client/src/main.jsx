@@ -57,7 +57,7 @@ const getBasename = () => {
   if (match && match[1] !== '') {
     const segment = match[1];
     // List of known app routes (not base paths)
-    const knownRoutes = ['login', 'dashboard', 'library', 'inventory', 'projects', 
+    const knownRoutes = ['login', 'dashboard', 'library', 'inventory', 'projects', 'eco',
                          'vendor-search', 'reports', 'audit', 'user-settings', 'admin-settings', 'settings'];
     
     // If the segment is not a known route, assume it's a base path
