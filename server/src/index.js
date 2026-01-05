@@ -29,6 +29,8 @@ import adminRoutes from './routes/admin.js';
 import specificationTemplateRoutes from './routes/specificationTemplates.js';
 import projectRoutes from './routes/projects.js';
 import ecoRoutes from './routes/eco.js';
+import smtpRoutes from './routes/smtp.js';
+import fileUploadRoutes from './routes/fileUpload.js';
 
 // Import initialization service
 import { initializeAuthentication, getAuthenticationStatus } from './services/initializationService.js';
@@ -87,6 +89,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/specification-templates', specificationTemplateRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/eco', ecoRoutes);
+app.use('/api/smtp', smtpRoutes);
+app.use('/api/files', fileUploadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

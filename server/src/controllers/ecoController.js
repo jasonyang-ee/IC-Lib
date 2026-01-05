@@ -1,4 +1,52 @@
 import pool from '../config/database.js';
+import { sendECONotification } from '../services/emailService.js';
+
+// Whitelist of valid component field names to prevent SQL injection
+const VALID_COMPONENT_FIELDS = [
+  'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
+  'notes', 'status', 'approval_status', 'sub_category1', 'sub_category2', 
+  'sub_category3', 'schematic', 'step_model', 'pspice', 'manufacturer_id',
+  'manufacturer_pn', 'category_id', '_delete_component'
+];
+
+// Helper function to log ECO activities
+const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
+  try {
+    await client.query(`
+      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      ecoOrder.component_id,
+      ecoOrder.part_number,
+      `ECO ${ecoOrder.eco_number}: ${activityType}`,
+      null,
+      activityType,
+      JSON.stringify({ 
+        eco_id: ecoOrder.id, 
+        eco_number: ecoOrder.eco_number,
+        user_id: userId,
+        ...details 
+      })
+    ]);
+  } catch (error) {
+    console.error('Error logging ECO activity:', error);
+  }
+};
+
+// Helper to get ECO with full details for email notifications
+const getECOForEmail = async (client, ecoId) => {
+  const result = await client.query(`
+    SELECT 
+      eo.*,
+      u1.username as initiated_by_name,
+      c.description as component_description
+    FROM eco_orders eo
+    LEFT JOIN users u1 ON eo.initiated_by = u1.id
+    LEFT JOIN components c ON eo.component_id = c.id
+    WHERE eo.id = $1
+  `, [ecoId]);
+  return result.rows[0];
+};
 
 // Get all ECO orders with details
 export const getAllECOs = async (req, res) => {
@@ -158,9 +206,13 @@ export const createECO = async (req, res) => {
     
     const ecoId = ecoResult.rows[0].id;
     
-    // Insert component field changes
+    // Insert component field changes (with field validation)
     if (changes && changes.length > 0) {
       for (const change of changes) {
+        // Validate field_name to prevent SQL injection
+        if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) {
+          throw new Error(`Invalid field name: ${change.field_name}`);
+        }
         await client.query(`
           INSERT INTO eco_changes (eco_id, field_name, old_value, new_value)
           VALUES ($1, $2, $3, $4)
@@ -211,12 +263,28 @@ export const createECO = async (req, res) => {
       }
     }
     
+    // Log ECO creation activity
+    await logECOActivity(client, ecoResult.rows[0], 'eco_initiated', {
+      changes_count: changes?.length || 0,
+      distributors_count: distributors?.length || 0,
+      alternatives_count: alternatives?.length || 0,
+      specifications_count: specifications?.length || 0,
+      notes: notes
+    }, req.user.id);
+
     await client.query('COMMIT');
+    
+    // Send email notification (async, don't block the response)
+    const ecoForEmail = await getECOForEmail(pool, ecoResult.rows[0].id);
+    sendECONotification(ecoForEmail, 'eco_created').catch(err => {
+      console.error('Error sending ECO creation notification:', err);
+    });
+    
     res.status(201).json(ecoResult.rows[0]);
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error creating ECO order:', error);
-    res.status(500).json({ error: 'Failed to create ECO order' });
+    res.status(500).json({ error: error.message || 'Failed to create ECO order' });
   } finally {
     client.release();
   }
@@ -241,10 +309,15 @@ export const approveECO = async (req, res) => {
       return res.status(400).json({ error: 'ECO order is not pending' });
     }
     
-    // Check if this is a deletion ECO
+    // Prevent self-approval (initiator cannot approve their own ECO)
+    if (eco.initiated_by === req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'You cannot approve your own ECO. Please have another user approve it.' });
+    }
+    
+    // Check if this is a deletion ECO (standardized to _delete_component)
     const deletionCheck = await client.query(`
       SELECT * FROM eco_changes 
-      WHERE eco_id = $1 AND field_name IN ('delete_component', '_delete_component')
+      WHERE eco_id = $1 AND field_name = '_delete_component'
     `, [id]);
     
     if (deletionCheck.rows.length > 0) {
@@ -275,6 +348,11 @@ export const approveECO = async (req, res) => {
       let paramIndex = 1;
       
       for (const change of changesResult.rows) {
+        // Validate field_name to prevent SQL injection
+        if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) {
+          console.error(`Skipping invalid field name in ECO: ${change.field_name}`);
+          continue;
+        }
         updateFields.push(`${change.field_name} = $${paramIndex}`);
         updateValues.push(change.new_value);
         paramIndex++;
@@ -410,8 +488,26 @@ export const approveECO = async (req, res) => {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
     `, [req.user.id, id]);
+
+    // Log ECO approval activity
+    await logECOActivity(client, eco, 'eco_approved', {
+      approved_by: req.user.id,
+      changes_applied: changesResult.rows.length,
+      distributors_applied: distributorsResult.rows.length,
+      alternatives_applied: alternativesResult.rows.length,
+      specifications_applied: specificationsResult.rows.length
+    }, req.user.id);
     
     await client.query('COMMIT');
+    
+    // Get approver name for email and send notification
+    const approverResult = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+    const approverName = approverResult.rows[0]?.username || 'Unknown';
+    const ecoForEmail = await getECOForEmail(pool, id);
+    sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approverName }).catch(err => {
+      console.error('Error sending ECO approval notification:', err);
+    });
+    
     res.json({ message: 'ECO order approved and changes applied successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -426,8 +522,21 @@ export const approveECO = async (req, res) => {
 export const rejectECO = async (req, res) => {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    
     const { id } = req.params;
     const { rejection_reason } = req.body;
+    
+    // First get the ECO order to log activity
+    const ecoResult = await client.query('SELECT * FROM eco_orders WHERE id = $1', [id]);
+    if (ecoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'ECO order not found' });
+    }
+    
+    const eco = ecoResult.rows[0];
+    if (eco.status !== 'pending') {
+      return res.status(400).json({ error: 'ECO order is not pending' });
+    }
     
     const result = await client.query(`
       UPDATE eco_orders
@@ -438,11 +547,29 @@ export const rejectECO = async (req, res) => {
     `, [req.user.id, rejection_reason || null, id]);
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'ECO order not found or not pending' });
     }
     
+    // Log ECO rejection activity
+    await logECOActivity(client, eco, 'eco_rejected', {
+      rejected_by: req.user.id,
+      rejection_reason: rejection_reason || 'No reason provided'
+    }, req.user.id);
+    
+    await client.query('COMMIT');
+    
+    // Get rejecter name for email and send notification
+    const rejecterResult = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
+    const rejecterName = rejecterResult.rows[0]?.username || 'Unknown';
+    const ecoForEmail = await getECOForEmail(pool, id);
+    sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName }).catch(err => {
+      console.error('Error sending ECO rejection notification:', err);
+    });
+    
     res.json(result.rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error rejecting ECO order:', error);
     res.status(500).json({ error: 'Failed to reject ECO order' });
   } finally {

@@ -4,6 +4,58 @@ const DIGIKEY_API_BASE = 'https://api.digikey.com';
 let accessToken = null;
 let tokenExpiry = null;
 
+// Search result cache with TTL
+const searchCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+
+// In-flight request tracking for deduplication
+const pendingRequests = new Map();
+
+// Cache helper functions
+const getCacheKey = (partNumber) => partNumber?.toLowerCase().trim();
+
+const getCachedResult = (partNumber) => {
+  const key = getCacheKey(partNumber);
+  if (!key) return null;
+  
+  const cached = searchCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`[DigiKey] Cache hit for: ${partNumber}`);
+    return cached.data;
+  }
+  
+  if (cached) {
+    searchCache.delete(key); // Clean up expired entry
+  }
+  return null;
+};
+
+const setCachedResult = (partNumber, data) => {
+  const key = getCacheKey(partNumber);
+  if (!key) return;
+  
+  searchCache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+  
+  // Clean up old entries if cache gets too large (max 100 entries)
+  if (searchCache.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of searchCache.entries()) {
+      if (now - v.timestamp > CACHE_TTL_MS) {
+        searchCache.delete(k);
+      }
+    }
+  }
+};
+
+// Export cache clear function for testing or manual refresh
+export const clearSearchCache = () => {
+  searchCache.clear();
+  console.log('[DigiKey] Search cache cleared');
+};
+
 // Get OAuth2 access token
 async function getAccessToken() {
   if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
@@ -34,18 +86,36 @@ async function getAccessToken() {
   }
 }
 
-// Search for a part
-export async function searchPart(partNumber) {
-  try {
-    const token = await getAccessToken();
+// Search for a part (with caching and request deduplication)
+export async function searchPart(partNumber, skipCache = false) {
+  const cacheKey = getCacheKey(partNumber);
+  
+  // Check cache first (unless skipCache is true)
+  if (!skipCache) {
+    const cachedResult = getCachedResult(partNumber);
+    if (cachedResult) {
+      return cachedResult;
+    }
+  }
+  
+  // Check for in-flight request for same part number (deduplication)
+  if (pendingRequests.has(cacheKey)) {
+    console.log(`[DigiKey] Waiting for in-flight request: ${partNumber}`);
+    return pendingRequests.get(cacheKey);
+  }
+  
+  // Create the request promise
+  const requestPromise = (async () => {
+    try {
+      const token = await getAccessToken();
 
-    const response = await axios.post(
-      `${DIGIKEY_API_BASE}/products/v4/search/keyword`,
-      {
-        Keywords: partNumber,
-        Limit: 10,
-        Offset: 0,
-        FilterOptionsRequest: {
+      const response = await axios.post(
+        `${DIGIKEY_API_BASE}/products/v4/search/keyword`,
+        {
+          Keywords: partNumber,
+          Limit: 10,
+          Offset: 0,
+          FilterOptionsRequest: {
           ManufacturerFilter: [],
           MinimumQuantityAvailable: 0,
           PackagingFilter: []
@@ -63,7 +133,7 @@ export async function searchPart(partNumber) {
       }
     );
 
-    return {
+    const result = {
       source: 'digikey',
       results: response.data.Products?.map(product => {
         // Get the first product variation (usually the primary packaging)
@@ -100,6 +170,11 @@ export async function searchPart(partNumber) {
         };
       }) || []
     };
+    
+    // Cache the successful result
+    setCachedResult(partNumber, result);
+    
+    return result;
   } catch (error) {
     console.error('Digikey search error:', error.response?.data || error.message);
     console.error('Status:', error.response?.status);
@@ -135,6 +210,18 @@ export async function searchPart(partNumber) {
       error: error.message || 'Unknown error occurred',
       results: []
     };
+  }
+})();
+
+  // Store the pending request
+  pendingRequests.set(cacheKey, requestPromise);
+  
+  try {
+    const result = await requestPromise;
+    return result;
+  } finally {
+    // Clean up pending request
+    pendingRequests.delete(cacheKey);
   }
 }
 
