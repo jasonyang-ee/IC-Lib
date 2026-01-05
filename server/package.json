@@ -1,6 +1,6 @@
 {
   "name": "ic-lib-backend-server",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Backend API for IC Lib",
   "main": "src/index.js",
   "type": "module",
