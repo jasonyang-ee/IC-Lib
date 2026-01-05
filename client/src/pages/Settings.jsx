@@ -1942,7 +1942,7 @@ const Settings = () => {
         <div className="border-t border-gray-200 dark:border-[#3a3a3a] pt-4">
           <button
             onClick={() => setShowAdvancedOps(!showAdvancedOps)}
-            className="w-full bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-600 rounded-lg p-4 transition-all duration-200 shadow-sm hover:shadow-md"
+            className="w-full bg-linear-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-2 border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-600 rounded-lg p-4 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1977,7 +1977,7 @@ const Settings = () => {
           {showAdvancedOps && (
             <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4 mt-4 animate-fadeIn">
               <div className="flex items-start gap-3 mb-3">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-semibold text-red-900 dark:text-red-200 mb-1">Danger Zone</h4>
                   <p className="text-sm text-red-800 dark:text-red-300 mb-3">
@@ -2041,7 +2041,7 @@ const Settings = () => {
               <Package className="w-5 h-5 text-green-600 dark:text-green-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Stock Info</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
               Update stock quantities, pricing, and availability from distributor APIs for all parts with SKUs.
             </p>
             <button
@@ -2069,7 +2069,7 @@ const Settings = () => {
               <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Parts Specifications</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
               Auto-fill component specifications from distributor data using mapped specification names. Preserves existing values.
             </p>
             <button
@@ -2097,7 +2097,7 @@ const Settings = () => {
               <RefreshCw className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Distributors</h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-grow">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
               Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches. Operation has 2 seconds delay between parts to avoid API rate limits.
             </p>
             <button
@@ -2323,7 +2323,7 @@ const Settings = () => {
           }`}>
             <div className="flex items-center gap-3 mb-3">
               {confirmDialog.action === 'reset' && (
-                <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+                <AlertCircle className="w-8 h-8 text-red-600 shrink-0" />
               )}
               <h3 className={`text-lg font-semibold ${
                 confirmDialog.action === 'reset' 

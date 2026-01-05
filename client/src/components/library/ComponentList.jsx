@@ -39,9 +39,9 @@ const ComponentList = ({
   });
 
   return (
-    <div className="flex flex-col xl:min-w-[250px] overflow-hidden" data-panel>
+    <div className="flex flex-col xl:min-w-62.5 overflow-hidden" data-panel>
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Components ({components.length || 0})
             {bulkDeleteMode && (

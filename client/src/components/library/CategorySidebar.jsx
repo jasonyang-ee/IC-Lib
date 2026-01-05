@@ -8,7 +8,7 @@ const CategorySidebar = ({
 }) => {
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
-      <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+      <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] shrink-0">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100">Category</h3>
       </div>
       <div className="flex-1 overflow-y-auto p-4 pt-3 custom-scrollbar space-y-2">

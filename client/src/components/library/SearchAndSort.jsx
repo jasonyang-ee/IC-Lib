@@ -21,7 +21,7 @@ const SearchAndSort = ({
   const parsedPart = parsePartNumber?.(searchTerm);
 
   return (
-    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
       <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Search</h3>
       
       {/* Search Input */}
@@ -81,7 +81,7 @@ const SearchAndSort = ({
       {/* Sorting Controls */}
       <div className="mt-3 space-y-2">
         <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600 dark:text-gray-400 w-[50px]">Sort:</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400 w-12.5">Sort:</label>
           <select
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value)}
@@ -98,7 +98,7 @@ const SearchAndSort = ({
         
         {/* Sort Order Toggle */}
         <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600 dark:text-gray-400 w-[45px]">Order:</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400 w-11.25">Order:</label>
           <div className="flex-1 flex gap-2">
             <button
               onClick={() => onSortOrderChange('asc')}
@@ -127,7 +127,7 @@ const SearchAndSort = ({
 
         {/* Approval Status Filter */}
         <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600 dark:text-gray-400 w-[45px]">Status:</label>
+          <label className="text-sm text-gray-600 dark:text-gray-400 w-11.25">Status:</label>
           <select
             value={selectedApprovalStatus}
             onChange={(e) => onApprovalStatusChange(e.target.value)}

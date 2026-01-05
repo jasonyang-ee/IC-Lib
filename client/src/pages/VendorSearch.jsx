@@ -779,7 +779,7 @@ const VendorSearch = () => {
     <div className="h-full flex flex-col">
 
       {/* Search Form */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0 mb-6">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] shrink-0 mb-6">
         <form onSubmit={handleSearch} className="flex gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -812,7 +812,7 @@ const VendorSearch = () => {
       </div>
 
       {/* Vendor Barcode Scanner */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0 mb-6">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0 mb-6">
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           <QrCode className="w-4 h-4 inline mr-1" />
           Scan Vendor Barcode
@@ -894,7 +894,7 @@ const VendorSearch = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden mb-6">
           {/* Digikey Results */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20 flex items-center justify-between flex-shrink-0">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20 flex items-center justify-between shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Digikey Results</h3>
               {selectedParts.length > 0 && (
                 <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
@@ -977,7 +977,7 @@ const VendorSearch = () => {
 
           {/* Mouser Results */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-between flex-shrink-0">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-between shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Mouser Results</h3>
               {selectedParts.length > 0 && (
                 <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
@@ -1062,7 +1062,7 @@ const VendorSearch = () => {
 
       {/* Selected Parts Actions */}
       {selectedParts.length > 0 && (
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Actions for Selected Parts

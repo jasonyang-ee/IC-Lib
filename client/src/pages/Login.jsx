@@ -105,7 +105,7 @@ const Login = () => {
 
             {error && (
               <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
                 <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
               </div>
             )}

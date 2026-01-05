@@ -27,7 +27,7 @@ const ActionButtons = ({
   editData,
 }) => {
   return (
-    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] flex-shrink-0">
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
       <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Actions</h3>
       <div className="space-y-2">
         {isAddMode ? (

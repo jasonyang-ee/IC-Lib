@@ -60,9 +60,9 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-[210px] bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
+    <div className="w-52.5 bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
       {/* Logo/Title */}
-      <div className="p-5 border-b border-gray-700 flex-shrink-0">
+      <div className="p-5 border-b border-gray-700 shrink-0">
         <div className="flex items-center gap-3">
           <img src={logoPath} alt="IC Lib Logo" className="w-12 h-12"/>
           <div>
@@ -97,7 +97,7 @@ const Sidebar = () => {
       </nav>
 
       {/* Dark Mode Toggle */}
-      <div className="px-4 pb-4 flex-shrink-0">
+      <div className="px-4 pb-4 shrink-0">
         <button
           onClick={toggleDarkMode}
           className="w-full flex items-center justify-between px-1 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
@@ -121,7 +121,7 @@ const Sidebar = () => {
       </div>
 
       {/* User Info and Logout */}
-      <div className="p-4 border-t border-gray-700 space-y-2 flex-shrink-0">
+      <div className="p-4 border-t border-gray-700 space-y-2 shrink-0">
         {/* User Info */}
         <div className="flex items-center gap-3 px-3 py-2 bg-gray-800 rounded-lg">
           <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
@@ -144,9 +144,12 @@ const Sidebar = () => {
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-700 flex-shrink-0">
+      <div className="p-4 border-t border-gray-700 shrink-0">
         <p className="text-xs text-gray-500 text-center">
-          IC Lib © 2025 • AGPL-3.0 License
+          IC Lib v{__APP_VERSION__} © 2025
+        </p>
+        <p className="text-xs text-gray-500 text-center mt-1">
+          AGPL-3.0 License
         </p>
       </div>
     </div>

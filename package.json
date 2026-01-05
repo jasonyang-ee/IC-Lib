@@ -1,0 +1,50 @@
+{
+  "name": "ic-lib",
+  "version": "1.3.1",
+  "description": "IC Component Library Management System - PCB parts library with inventory management, vendor integration, and ECO workflow",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "lint": "./lint.sh",
+    "lint:fix": "cd client && npm run lint:fix && cd ../server && npm run lint:fix",
+    "test": "./test.sh",
+    "start": "./local-start.sh",
+    "docker:build": "./build.sh",
+    "release": "./release.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonyang-ee/IC-Lib.git"
+  },
+  "keywords": [
+    "pcb",
+    "component-library",
+    "inventory-management",
+    "allegro",
+    "orcad",
+    "electronics",
+    "parts-library",
+    "vendor-integration",
+    "eco",
+    "engineering-change-order"
+  ],
+  "author": "Jason Yang",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/jasonyang-ee/IC-Lib/issues"
+  },
+  "homepage": "https://github.com/jasonyang-ee/IC-Lib#readme",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
