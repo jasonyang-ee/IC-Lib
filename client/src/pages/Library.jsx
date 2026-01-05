@@ -5,7 +5,6 @@ import { api } from '../utils/api';
 import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { isECOEnabled as checkECOEnabled } from '../config';
 
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
@@ -15,8 +14,8 @@ const Library = () => {
   const { canWrite, canApprove, user } = useAuth();
   const { showSuccess, showError } = useNotification();
   
-  // Check if ECO feature is enabled from runtime config
-  const isECOEnabled = checkECOEnabled();
+  // Check if ECO feature is enabled from environment variable
+  const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
   
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');

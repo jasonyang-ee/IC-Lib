@@ -4,6 +4,9 @@
 # Stage 1: Build Frontend
 FROM node:22-alpine AS frontend-builder
 
+# Accept build arguments for environment variables
+ARG VITE_CONFIG_ECO=false
+
 # Copy all client source code
 WORKDIR /app/client
 COPY client/ .
@@ -11,8 +14,10 @@ COPY client/ .
 # Install dependencies (generates package-lock.json)
 RUN npm install --prefer-offline --no-audit
 
-# Build the React app
-# Note: Base path is auto-detected at runtime, no build-time configuration needed
+# Replace placeholder with actual build argument value in .env.production
+RUN sed -i "s/__VITE_CONFIG_ECO__/${VITE_CONFIG_ECO}/g" .env.production
+
+# Build the React app with the substituted environment variables
 RUN npm run build
 
 # Stage 2: Build Backend and Final Image

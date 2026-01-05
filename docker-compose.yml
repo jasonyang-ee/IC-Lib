@@ -2,6 +2,8 @@ services:
   iclib:
     build:
       context: .
+      args:
+        - VITE_CONFIG_ECO=${CONFIG_ECO:-false}
     image: iclib:latest
     container_name: iclib
     restart: unless-stopped
@@ -11,9 +13,6 @@ services:
       # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       
-      # Feature Flags
-      - CONFIG_ECO=true
-
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
       - DB_HOST=localhost

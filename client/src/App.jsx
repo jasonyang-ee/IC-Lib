@@ -13,11 +13,10 @@ import Audit from './pages/Audit'
 import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
-import { isECOEnabled } from './config'
 
 function App() {
-  // Check if ECO feature is enabled from runtime config
-  const ecoEnabled = isECOEnabled();
+  // Check if ECO feature is enabled from environment variable
+  const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
   
   return (
     <AuthProvider>
