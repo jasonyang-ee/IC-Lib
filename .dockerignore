@@ -21,6 +21,8 @@ lerna-debug.log*
 .env.local
 .env.development
 .env.test
+# Keep .env.production for Vite builds
+!client/.env.production
 
 # IDE
 .vscode/

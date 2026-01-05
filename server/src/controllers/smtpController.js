@@ -1,5 +1,5 @@
 import pool from '../config/database.js';
-import { encrypt, decrypt, testSMTPConnection, sendEmail } from '../services/emailService.js';
+import { encrypt, testSMTPConnection, sendEmail } from '../services/emailService.js';
 
 /**
  * Get SMTP settings (without password)

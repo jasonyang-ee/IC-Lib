@@ -1,4 +1,3 @@
-import axios from 'axios';
 import pool from '../config/database.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';

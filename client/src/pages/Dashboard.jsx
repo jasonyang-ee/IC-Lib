@@ -7,21 +7,24 @@ import {
 } from 'lucide-react';
 
 // Compact stat card component
-const StatCard = ({ title, value, icon: Icon, color, small = false }) => (
-  <div className={`bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] ${small ? 'p-3' : 'p-4'}`}>
-    <div className="flex items-center justify-between">
-      <div className="min-w-0 flex-1">
-        <p className={`${small ? 'text-xs' : 'text-sm'} font-medium text-gray-500 dark:text-gray-400 truncate`}>{title}</p>
-        <p className={`${small ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 dark:text-gray-100`}>
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </p>
-      </div>
-      <div className={`${color} ${small ? 'p-2' : 'p-2.5'} rounded-lg flex-shrink-0`}>
-        <Icon className={`${small ? 'w-4 h-4' : 'w-5 h-5'} text-white`} />
+const StatCard = ({ title, value, icon, color, small = false }) => {
+  const IconComponent = icon;
+  return (
+    <div className={`bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] ${small ? 'p-3' : 'p-4'}`}>
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <p className={`${small ? 'text-xs' : 'text-sm'} font-medium text-gray-500 dark:text-gray-400 truncate`}>{title}</p>
+          <p className={`${small ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 dark:text-gray-100`}>
+            {typeof value === 'number' ? value.toLocaleString() : value}
+          </p>
+        </div>
+        <div className={`${color} ${small ? 'p-2' : 'p-2.5'} rounded-lg shrink-0`}>
+          <IconComponent className={`${small ? 'w-4 h-4' : 'w-5 h-5'} text-white`} />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Status badge component
 const StatusBadge = ({ label, value, bgColor }) => (
@@ -32,18 +35,21 @@ const StatusBadge = ({ label, value, bgColor }) => (
 );
 
 // Compact list item component
-const ListItem = ({ icon: Icon, primary, secondary, trailing }) => (
-  <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
-    <div className="flex items-center gap-2 min-w-0 flex-1">
-      <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{primary}</p>
-        {secondary && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{secondary}</p>}
+const ListItem = ({ icon, primary, secondary, trailing }) => {
+  const IconComponent = icon;
+  return (
+    <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <IconComponent className="w-4 h-4 text-gray-400 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{primary}</p>
+          {secondary && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{secondary}</p>}
+        </div>
       </div>
+      {trailing && <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-2">{trailing}</span>}
     </div>
-    {trailing && <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">{trailing}</span>}
-  </div>
-);
+  );
+};
 
 // Activity item component
 const ActivityItem = ({ activity }) => {
@@ -142,7 +148,7 @@ const Dashboard = () => {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded-lg">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-6 w-6 text-yellow-500 flex-shrink-0" />
+            <AlertTriangle className="h-6 w-6 text-yellow-500 shrink-0" />
             <div>
               <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">Database Not Initialized</h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">

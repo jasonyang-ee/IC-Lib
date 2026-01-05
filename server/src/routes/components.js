@@ -1,6 +1,6 @@
 import express from 'express';
 import * as componentController from '../controllers/componentController.js';
-import { authenticate, canApprove, canWrite } from '../middleware/auth.js';
+import { authenticate, canWrite } from '../middleware/auth.js';
 
 const router = express.Router();
 

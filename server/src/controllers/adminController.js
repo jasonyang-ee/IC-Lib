@@ -92,7 +92,7 @@ const executeSQLFile = async (client, filePath, fileName) => {
 };
 
 // Initialize database with full schema
-export const initializeDatabase = async (req, res, next) => {
+export const initializeDatabase = async (req, res, _next) => {
   const client = await pool.connect();
   
   try {
@@ -153,7 +153,7 @@ export const initializeDatabase = async (req, res, next) => {
 };
 
 // Reset database (drop all tables and recreate)
-export const resetDatabase = async (req, res, next) => {
+export const resetDatabase = async (req, res, _next) => {
   const client = await pool.connect();
   
   try {
@@ -247,7 +247,7 @@ export const resetDatabase = async (req, res, next) => {
 };
 
 // Load sample data
-export const loadSampleData = async (req, res, next) => {
+export const loadSampleData = async (req, res, _next) => {
   const client = await pool.connect();
   
   try {

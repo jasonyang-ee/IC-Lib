@@ -9,10 +9,9 @@ ARG VITE_CONFIG_ECO=false
 
 # Copy all client source code
 WORKDIR /app/client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --prefer-offline --no-audit
 COPY client/ .
-
-# Install dependencies (generates package-lock.json)
-RUN npm install --prefer-offline --no-audit
 
 # Replace placeholder with actual build argument value in .env.production
 RUN sed -i "s/__VITE_CONFIG_ECO__/${VITE_CONFIG_ECO}/g" .env.production
@@ -31,10 +30,9 @@ RUN apk add --no-cache bash nginx wget
 
 # Copy backend source code
 WORKDIR /app/server
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev --prefer-offline --no-audit
 COPY server/ .
-
-# Install production dependencies (generates package-lock.json)
-RUN npm install --omit=dev --prefer-offline --no-audit
  
 # Copy built frontend to nginx html directory
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html

@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
-import pool from '../config/database.js';
 import { authenticate, canWrite } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -213,7 +212,7 @@ function extractSmartZip(zipPath, mfgPartNumber) {
 router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('files', 20), async (req, res) => {
   try {
     const { mfgPartNumber } = req.params;
-    const { category: explicitCategory, isPassiveShared } = req.body;
+    const { category: explicitCategory } = req.body;
     
     if (!mfgPartNumber) {
       return res.status(400).json({ error: 'Manufacturer part number is required' });

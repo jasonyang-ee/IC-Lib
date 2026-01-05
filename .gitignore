@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Environment variables
 .env
@@ -12,25 +11,15 @@ dist/
 build/
 *.log
 
-# OS files
-.DS_Store
-Thumbs.db
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Docker
-docker-compose.override.yml
-
-# Database
-*.db
-*.sqlite
-
 # Downloads
 download/
+downloads/
 import/
 scripts/
 
@@ -43,7 +32,4 @@ temp/
 *.txt
 *.md
 !README.md
-!config/README.md
-/reference
-
-build.sh
+!CHANGELOG.md

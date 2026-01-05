@@ -1656,18 +1656,6 @@ export const updateComponentApproval = async (req, res, next) => {
         return res.status(400).json({ error: 'Invalid action. Must be approve, deny, send_to_review, or send_to_prototype' });
     }
 
-    // Update the component
-    const result = await pool.query(`
-      UPDATE components 
-      SET 
-        approval_status = $1,
-        approval_user_id = $2,
-        approval_date = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-      RETURNING *
-    `, [newApprovalStatus, user_id, id]);
-
     // Log approval action to activity_log
     const activityTypeMap = {
       'approve': 'approval_approved',

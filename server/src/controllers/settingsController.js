@@ -23,7 +23,7 @@ const DEFAULT_SETTINGS = {
 const ensureSettingsFile = async () => {
   try {
     await fs.access(SETTINGS_FILE);
-  } catch (error) {
+  } catch (_error) {
     // File doesn't exist, create it with defaults
     const dir = path.dirname(SETTINGS_FILE);
     await fs.mkdir(dir, { recursive: true });
