@@ -760,12 +760,24 @@ const Library = () => {
   });
 
   const handleEdit = async () => {
-    setIsEditMode(true);
-    setIsAddMode(false);
+    // IMPORTANT: Set editData FIRST before setting edit mode to avoid race condition
+    // where the form renders before editData is populated
     
     // Set manufacturer input for type-ahead
     const manufacturerName = manufacturers?.find(m => m.id === componentDetails?.manufacturer_id)?.name || '';
     setManufacturerInput(manufacturerName);
+    
+    // Initialize altManufacturerInputs for alternatives BEFORE entering edit mode
+    if (alternativesData && alternativesData.length > 0) {
+      const altMfrInputs = {};
+      alternativesData.forEach((alt, index) => {
+        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
+        altMfrInputs[index] = mfrName;
+      });
+      setAltManufacturerInputs(altMfrInputs);
+    } else {
+      setAltManufacturerInputs({});
+    }
     
     // Store vendor data reference for later use
     let vendorDataReference = null;
@@ -928,7 +940,8 @@ const Library = () => {
     const normalizeDistributors = (existingDistributors = []) => {
       return distributorOrder.map(distName => {
         const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors.find(d => {
+        const existing = existingDistributors?.find(d => {
+          if (!d || !d.distributor_id) return false;
           const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
           return existingDistName === distName;
         });
@@ -962,17 +975,10 @@ const Library = () => {
       _vendorSearchData: vendorDataReference
     });
     
-    // Initialize alternative manufacturer inputs
-    if (alternativesData && alternativesData.length > 0) {
-      const altMfrInputs = {};
-      alternativesData.forEach((alt, index) => {
-        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
-        altMfrInputs[index] = mfrName;
-      });
-      setAltManufacturerInputs(altMfrInputs);
-    } else {
-      setAltManufacturerInputs({});
-    }
+    // NOW set edit mode - after editData is fully populated
+    // This prevents the form from rendering with empty data
+    setIsEditMode(true);
+    setIsAddMode(false);
   };
 
   const handleSave = async () => {
@@ -1165,10 +1171,7 @@ const Library = () => {
 
   // ECO-related functions
   const handleInitiateECO = async (component) => {
-    // Set ECO mode and edit mode
-    setIsECOMode(true);
-    setIsEditMode(true);
-    setIsAddMode(false);
+    // Initialize states that don't depend on async data
     setEcoChanges([]);
     setEcoNotes('');
     
@@ -1178,6 +1181,18 @@ const Library = () => {
     // Set manufacturer input for type-ahead
     const manufacturerName = manufacturers?.find(m => m.id === component?.manufacturer_id)?.name || '';
     setManufacturerInput(manufacturerName);
+    
+    // Initialize alternative manufacturer inputs BEFORE entering edit mode
+    if (alternativesData && alternativesData.length > 0) {
+      const altMfrInputs = {};
+      alternativesData.forEach((alt, index) => {
+        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
+        altMfrInputs[index] = mfrName;
+      });
+      setAltManufacturerInputs(altMfrInputs);
+    } else {
+      setAltManufacturerInputs({});
+    }
     
     // Store vendor data reference for ECO mode (auto-search DigiKey for suggested specs)
     let vendorDataReference = null;
@@ -1285,7 +1300,8 @@ const Library = () => {
     const normalizeDistributors = (existingDistributors = []) => {
       return distributorOrder.map(distName => {
         const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors.find(d => {
+        const existing = existingDistributors?.find(d => {
+          if (!d || !d.distributor_id) return false;
           const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
           return existingDistName === distName;
         });
@@ -1319,17 +1335,11 @@ const Library = () => {
     };
     setEditData(preparedData);
     
-    // Initialize alternative manufacturer inputs
-    if (alternativesData && alternativesData.length > 0) {
-      const altMfrInputs = {};
-      alternativesData.forEach((alt, index) => {
-        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
-        altMfrInputs[index] = mfrName;
-      });
-      setAltManufacturerInputs(altMfrInputs);
-    } else {
-      setAltManufacturerInputs({});
-    }
+    // NOW set ECO mode and edit mode - after editData is fully populated
+    // This prevents the form from rendering with empty data
+    setIsECOMode(true);
+    setIsEditMode(true);
+    setIsAddMode(false);
   };
 
   const handleSubmitECO = async () => {
