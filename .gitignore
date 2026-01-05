@@ -21,7 +21,6 @@ build/
 download/
 downloads/
 import/
-scripts/
 
 # Temporary files
 tmp/
