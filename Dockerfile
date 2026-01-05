@@ -7,6 +7,10 @@ FROM node:22-alpine AS frontend-builder
 # Accept build arguments for environment variables
 ARG VITE_CONFIG_ECO=false
 
+# Copy root package.json for version info (needed by vite.config.js)
+WORKDIR /app
+COPY package.json ./
+
 # Copy all client source code
 WORKDIR /app/client
 COPY client/package.json client/package-lock.json ./

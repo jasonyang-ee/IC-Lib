@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - develop
+  workflow_dispatch:
 
 jobs:
   test-client:
@@ -99,3 +100,54 @@ jobs:
           file: ./server/coverage/lcov.info
           flags: server
           fail_ci_if_error: false
+
+  docker-build-test:
+    name: Docker Build Test (test-* branches)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/test-')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ secrets.USERNAME_DOCKERHUB }}/iclib
+            ghcr.io/${{ github.actor }}/iclib
+          tags: type=ref,event=branch
+          flavor: onlatest=false
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.USERNAME_DOCKERHUB }}
+          password: ${{ secrets.TOKEN_DOCKERHUB }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
