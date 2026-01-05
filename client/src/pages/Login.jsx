@@ -130,16 +130,6 @@ const Login = () => {
           </form>
         </div>
 
-        {/* Default credentials note (for development) */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-500">
-            Default credentials: <strong>admin</strong> / <strong>admin123</strong>
-            <br />
-            <span className="text-red-600 dark:text-red-400">
-              (Change password immediately after first login)
-            </span>
-          </p>
-        </div>
       </div>
     </div>
   );

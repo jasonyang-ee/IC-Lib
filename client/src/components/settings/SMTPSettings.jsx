@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Mail, Send, CheckCircle, Loader2 } from 'lucide-react';
-import { api } from '../utils/api';
-import { useNotification } from '../contexts/NotificationContext';
+import { api } from '../../utils/api';
+import { useNotification } from '../../contexts/NotificationContext';
 
 export default function SMTPSettings() {
   const { showSuccess, showError } = useNotification();

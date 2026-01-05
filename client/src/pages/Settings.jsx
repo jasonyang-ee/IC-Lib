@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
-import SMTPSettings from '../components/SMTPSettings';
+import SMTPSettings from '../components/settings/SMTPSettings';
 
 // User Management Component (Admin Only)
 const UserManagement = () => {
