@@ -1,5 +1,3 @@
-[![DockerPublish](https://github.com/jasonyang-ee/IC-Lib/actions/workflows/publish.yml/badge.svg)](https://github.com/jasonyang-ee/IC-Lib/actions/workflows/publish.yml)
-[![Testing](https://github.com/jasonyang-ee/IC-Lib/actions/workflows/testing.yml/badge.svg)](https://github.com/jasonyang-ee/IC-Lib/actions/workflows/testing.yml)
 
 <h1 align="center">IC Lib</h1>
 <h3 align="center">OrCAD Allegro Component Library Web Interface</h3>
