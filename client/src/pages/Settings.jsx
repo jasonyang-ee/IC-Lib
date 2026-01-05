@@ -1014,7 +1014,7 @@ const Settings = () => {
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
   const [newManufacturerName, setNewManufacturerName] = useState('');
   const [manufacturerSearchTerm, setManufacturerSearchTerm] = useState('');
-  const [newNameSearchTerm, setNewNameSearchTerm] = useState('');
+  const [_newNameSearchTerm, setNewNameSearchTerm] = useState('');
   const [manufacturerDropdownOpen, setManufacturerDropdownOpen] = useState(false);
   const [newNameDropdownOpen, setNewNameDropdownOpen] = useState(false);
   const manufacturerDropdownRef = useRef(null);
@@ -1531,6 +1531,7 @@ const Settings = () => {
             { id: 'auto-update', label: 'Auto Data Update', icon: RefreshCw },
             { id: 'database', label: 'Database Operations', icon: Database },
             { id: 'audit', label: 'Audit Logs', icon: FileText }
+            // eslint-disable-next-line no-unused-vars
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -1747,11 +1748,15 @@ const Settings = () => {
           </div>
         )}
       </div>
+      )}
 
       {/* Category Specifications Management */}
+      {activeTab === 'categories' && (
       <CategorySpecificationsManager />
+      )}
 
       {/* Manufacturer Rename Section */}
+      {activeTab === 'categories' && (
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Rename/Merge Manufacturers</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">

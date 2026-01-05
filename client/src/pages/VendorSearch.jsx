@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 const VendorSearch = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess } = useNotification();
   const { canWrite } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
@@ -24,7 +24,7 @@ const VendorSearch = () => {
   const vendorBarcodeInputRef = useRef(null);
   const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
   const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
-  const [selectedLibraryPart, setSelectedLibraryPart] = useState(null);
+  const [_selectedLibraryPart, setSelectedLibraryPart] = useState(null);
   const [appendMode, setAppendMode] = useState(''); // 'distributor' or 'alternative'
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allLibraryParts, setAllLibraryParts] = useState([]);
@@ -165,11 +165,14 @@ const VendorSearch = () => {
       
       // Remove header if present in first field
       if (index === 0) {
+        // eslint-disable-next-line no-control-regex
         field = field.replace(/^\[\)>[\x1e]*06/, '');
+        // eslint-disable-next-line no-control-regex
         field = field.replace(/^[\x1e\x1d]+/, '');
       }
       
       // Remove trailing control characters
+      // eslint-disable-next-line no-control-regex
       field = field.replace(/[\x1e\x04]+$/, '');
       
       if (!field) return;
@@ -327,7 +330,7 @@ const VendorSearch = () => {
           formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX ]
         },
         handleCameraScan,
-        (errorMessage) => {
+        () => {
           // Ignore errors, they're just "no QR code found" messages
         }
       ).catch(err => {
@@ -446,7 +449,7 @@ const VendorSearch = () => {
               is_alternative: true
             });
           });
-        } catch (error) {
+        } catch {
           // Ignore errors from individual alternative fetches
           console.log(`No alternatives for ${component.part_number}`);
         }
@@ -632,7 +635,6 @@ const VendorSearch = () => {
     } catch (error) {
       console.error('Error appending distributors:', error);
       console.error('Error details:', error.response?.data);
-      console.error('Merged distributors data:', mergedDistributors);
       alert('Error appending distributors: ' + (error.response?.data?.error || error.message));
     }
   };

@@ -25,7 +25,7 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
       return {
         success: false,
         error: 'Ultra Librarian API not configured',
-        message: 'Please set ULTRA_LIBRARIAN_TOKEN in environment variables'
+        message: 'Please set ULTRA_LIBRARIAN_TOKEN in environment variables',
       };
     }
 
@@ -34,9 +34,9 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
       `https://www.ultralibrarian.com/api/v1/part/${encodeURIComponent(partNumber)}`,
       {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
+          'Authorization': `Bearer ${token}`,
+        },
+      },
     );
 
     if (response.data && response.data.downloadUrl) {
@@ -44,7 +44,7 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
       
       // Download the actual file
       const fileResponse = await axios.get(response.data.downloadUrl, {
-        responseType: 'arraybuffer'
+        responseType: 'arraybuffer',
       });
       
       await fs.writeFile(downloadPath, fileResponse.data);
@@ -53,7 +53,7 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
       if (componentId) {
         await pool.query(
           'UPDATE components SET footprint_path = $1 WHERE id = $2',
-          [downloadPath, componentId]
+          [downloadPath, componentId],
         );
 
         await pool.query(`
@@ -65,21 +65,21 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
       return {
         success: true,
         path: downloadPath,
-        source: 'Ultra Librarian'
+        source: 'Ultra Librarian',
       };
     }
 
     return {
       success: false,
       error: 'Footprint not found',
-      message: 'No footprint available for this part number'
+      message: 'No footprint available for this part number',
     };
   } catch (error) {
     console.error('Ultra Librarian download error:', error.message);
     return {
       success: false,
       error: error.message,
-      message: 'Failed to download from Ultra Librarian'
+      message: 'Failed to download from Ultra Librarian',
     };
   }
 }
@@ -95,19 +95,19 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
       return {
         success: false,
         error: 'SnapEDA API not configured',
-        message: 'Please set SNAPEDA_API_KEY in environment variables'
+        message: 'Please set SNAPEDA_API_KEY in environment variables',
       };
     }
 
     // SnapEDA API endpoint (this is a placeholder - check actual API docs)
     const searchResponse = await axios.get(
-      `https://www.snapeda.com/api/v1/parts/search`,
+      'https://www.snapeda.com/api/v1/parts/search',
       {
         params: {
           q: partNumber,
-          api_key: apiKey
-        }
-      }
+          api_key: apiKey,
+        },
+      },
     );
 
     if (searchResponse.data && searchResponse.data.results && searchResponse.data.results.length > 0) {
@@ -120,9 +120,9 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
         // Download the actual file
         const fileResponse = await axios.get(downloadUrl, {
           headers: {
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${apiKey}`,
           },
-          responseType: 'arraybuffer'
+          responseType: 'arraybuffer',
         });
         
         await fs.writeFile(downloadPath, fileResponse.data);
@@ -131,7 +131,7 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
         if (componentId) {
           await pool.query(
             'UPDATE components SET footprint_path = $1 WHERE id = $2',
-            [downloadPath, componentId]
+            [downloadPath, componentId],
           );
 
           await pool.query(`
@@ -143,7 +143,7 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
         return {
           success: true,
           path: downloadPath,
-          source: 'SnapEDA'
+          source: 'SnapEDA',
         };
       }
     }
@@ -151,14 +151,14 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
     return {
       success: false,
       error: 'Footprint not found',
-      message: 'No Allegro footprint available for this part number'
+      message: 'No Allegro footprint available for this part number',
     };
   } catch (error) {
     console.error('SnapEDA download error:', error.message);
     return {
       success: false,
       error: error.message,
-      message: 'Failed to download from SnapEDA'
+      message: 'Failed to download from SnapEDA',
     };
   }
 }

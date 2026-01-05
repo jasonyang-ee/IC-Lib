@@ -19,28 +19,28 @@ const DOWNLOAD_BASE = path.resolve(__dirname, '../../../download');
 const FILE_CATEGORIES = {
   footprint: {
     extensions: ['.brd', '.kicad_mod', '.lbr', '.pad', '.olb', '.psm', '.fsm', '.bxl'],
-    subdir: 'footprint'
+    subdir: 'footprint',
   },
   pad: {
     extensions: ['.pad', '.plb'],
-    subdir: 'pad'
+    subdir: 'pad',
   },
   symbol: {
     extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.SchLib'],
-    subdir: 'symbol'
+    subdir: 'symbol',
   },
   model: {
     extensions: ['.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t'],
-    subdir: 'model'
+    subdir: 'model',
   },
   pspice: {
     extensions: ['.lib', '.mod', '.cir', '.sub', '.inc'],
-    subdir: 'pspice'
+    subdir: 'pspice',
   },
   libraries: {
     extensions: ['.zip', '.7z'],
-    subdir: 'libraries'
-  }
+    subdir: 'libraries',
+  },
 };
 
 // Passive component categories that can share files
@@ -60,14 +60,14 @@ const storage = multer.diskStorage({
     // Keep original filename with timestamp to avoid conflicts
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, uniqueSuffix + '-' + file.originalname);
-  }
+  },
 });
 
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB max file size
-  }
+    fileSize: 50 * 1024 * 1024, // 50MB max file size
+  },
 });
 
 /**
@@ -196,7 +196,7 @@ function extractSmartZip(zipPath, mfgPartNumber) {
         category,
         filename,
         path: targetPath,
-        source
+        source,
       });
     }
   }
@@ -236,7 +236,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
             originalName: file.originalname,
             type: 'archive',
             extracted: extractedFiles,
-            filesExtracted: extractedFiles.length
+            filesExtracted: extractedFiles.length,
           });
         } catch (error) {
           console.error('Error extracting ZIP:', error);
@@ -246,12 +246,12 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
             originalName: file.originalname,
             type: 'library',
             path: targetPath,
-            error: 'Could not extract, saved as library file'
+            error: 'Could not extract, saved as library file',
           });
         }
       } else {
         // Regular file - determine category
-        let category = explicitCategory || getFileCategory(file.originalname);
+        const category = explicitCategory || getFileCategory(file.originalname);
         
         if (!category) {
           // Clean up and report error for this file
@@ -259,7 +259,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
           results.push({
             originalName: file.originalname,
             error: 'Unknown file type',
-            supported: Object.values(FILE_CATEGORIES).flatMap(c => c.extensions)
+            supported: Object.values(FILE_CATEGORIES).flatMap(c => c.extensions),
           });
           continue;
         }
@@ -268,7 +268,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
         results.push({
           originalName: file.originalname,
           type: category,
-          path: targetPath
+          path: targetPath,
         });
       }
     }
@@ -276,7 +276,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
     res.json({
       message: 'Files processed successfully',
       mfgPartNumber,
-      results
+      results,
     });
   } catch (error) {
     console.error('Error uploading files:', error);
@@ -299,7 +299,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
     // Verify it's a passive component category
     if (!PASSIVE_CATEGORIES.includes(componentCategory)) {
       return res.status(400).json({ 
-        error: 'This endpoint is only for passive components (Capacitors, Resistors, Inductors)' 
+        error: 'This endpoint is only for passive components (Capacitors, Resistors, Inductors)', 
       });
     }
     
@@ -323,14 +323,14 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
             originalName: file.originalname,
             type: 'archive',
             extracted: extractedFiles,
-            filesExtracted: extractedFiles.length
+            filesExtracted: extractedFiles.length,
           });
         } catch (error) {
           console.error('Error extracting ZIP:', error);
           fs.unlinkSync(file.path);
           results.push({
             originalName: file.originalname,
-            error: 'Failed to extract archive'
+            error: 'Failed to extract archive',
           });
         }
       } else {
@@ -341,7 +341,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
           fs.unlinkSync(file.path);
           results.push({
             originalName: file.originalname,
-            error: 'Unknown file type'
+            error: 'Unknown file type',
           });
           continue;
         }
@@ -350,7 +350,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
         results.push({
           originalName: file.originalname,
           type: category,
-          path: targetPath
+          path: targetPath,
         });
       }
     }
@@ -360,7 +360,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
       sharedId,
       value,
       packageSize,
-      results
+      results,
     });
   } catch (error) {
     console.error('Error uploading passive files:', error);
@@ -387,7 +387,7 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
           .map(f => ({
             name: f,
             path: path.join(config.subdir, sanitizedPN, f),
-            size: fs.statSync(path.join(dirPath, f)).size
+            size: fs.statSync(path.join(dirPath, f)).size,
           }));
         
         if (dirFiles.length > 0) {
@@ -398,7 +398,7 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
     
     res.json({
       mfgPartNumber,
-      files
+      files,
     });
   } catch (error) {
     console.error('Error listing files:', error);

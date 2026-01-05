@@ -52,7 +52,7 @@ const getBasename = () => {
   // 3. Auto-detect from pathname (for directory-style deployments)
   // Extract first path segment (e.g., /test from /test/dashboard)
   const pathname = window.location.pathname;
-  const match = pathname.match(/^\/([^\/]+)/);
+  const match = pathname.match(/^\/([^/]+)/);
   
   if (match && match[1] !== '') {
     const segment = match[1];

@@ -30,7 +30,7 @@ const Inventory = () => {
   const [editingAlternative, setEditingAlternative] = useState(null);
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [receiveQtyFromQr, setReceiveQtyFromQr] = useState(null);
+  const [_receiveQtyFromQr, _setReceiveQtyFromQr] = useState(null);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [cameraDevices, setCameraDevices] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState('');
@@ -100,7 +100,7 @@ const Inventory = () => {
   });
 
   // Update quantity mutation
-  const updateQtyMutation = useMutation({
+  const _updateQtyMutation = useMutation({
     mutationFn: async ({ id, quantity, location }) => {
       const updateData = {};
       if (quantity !== undefined) updateData.quantity = quantity;
@@ -110,10 +110,6 @@ const Inventory = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['inventory']);
       queryClient.invalidateQueries(['lowStock']);
-      setEditingQty(null);
-      setNewQty('');
-      setEditingLocation(null);
-      setNewLocation('');
     },
   });
 
@@ -257,11 +253,14 @@ const Inventory = () => {
       
       // Remove header if present in first field
       if (index === 0) {
+        // eslint-disable-next-line no-control-regex
         field = field.replace(/^\[\)>[\x1e]*06/, '');
+        // eslint-disable-next-line no-control-regex
         field = field.replace(/^[\x1e\x1d]+/, '');
       }
       
       // Remove trailing control characters
+      // eslint-disable-next-line no-control-regex
       field = field.replace(/[\x1e\x04]+$/, '');
       
       console.log(`Field ${index}: "${field}" (length: ${field.length})`);
@@ -440,7 +439,7 @@ const Inventory = () => {
           formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX ]
         },
         handleCameraScan,
-        (errorMessage) => {
+        () => {
           // Ignore errors, they're just "no QR code found" messages
         }
       ).catch(err => {
@@ -886,7 +885,7 @@ const Inventory = () => {
   };
 
   // Copy QR code for alternative part (manufacturer P/N only)
-  const copyAlternativeQRCodeMfgOnly = async (alt, primaryItem) => {
+  const copyAlternativeQRCodeMfgOnly = async (alt, _primaryItem) => {
     try {
       const mfgPn = alt.manufacturer_pn || 'N/A';
       
@@ -1029,7 +1028,7 @@ const Inventory = () => {
     }));
   };
 
-  const saveAlternativeChanges = (alt) => {
+  const _saveAlternativeChanges = (alt) => {
     if (editingAlternative && editingAlternative[alt.id]) {
       const changes = editingAlternative[alt.id];
       const updateData = {};

@@ -220,7 +220,7 @@ const Projects = () => {
             component: match,
             quantity: 1 // Default quantity
           };
-        } catch (error) {
+        } catch {
           return {
             searchTerm: pn,
             found: false,

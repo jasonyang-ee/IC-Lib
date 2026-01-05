@@ -95,7 +95,7 @@ export const saveSMTPSettings = async (req, res) => {
 
       const result = await client.query(insertQuery, [
         host, port || 587, secure || false, no_auth || false, auth_user, encryptedPassword,
-        from_address, from_name || 'IC Library System', enabled || false, req.user.id
+        from_address, from_name || 'IC Library System', enabled || false, req.user.id,
       ]);
 
       const settings = result.rows[0];
@@ -167,7 +167,7 @@ export const getNotificationPreferences = async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM email_notification_preferences WHERE user_id = $1',
-      [req.user.id]
+      [req.user.id],
     );
 
     if (result.rows.length === 0) {

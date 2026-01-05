@@ -102,7 +102,7 @@ export const deleteManufacturer = async (req, res, next) => {
     
     const result = await pool.query(
       'DELETE FROM manufacturers WHERE id = $1 RETURNING *',
-      [id]
+      [id],
     );
 
     if (result.rows.length === 0) {
@@ -127,7 +127,7 @@ export const renameManufacturer = async (req, res, next) => {
     // Check if old manufacturer exists
     const oldManufacturer = await pool.query(
       'SELECT * FROM manufacturers WHERE id = $1',
-      [id]
+      [id],
     );
 
     if (oldManufacturer.rows.length === 0) {
@@ -137,7 +137,7 @@ export const renameManufacturer = async (req, res, next) => {
     // Check if a manufacturer with the new name already exists
     const existingManufacturer = await pool.query(
       'SELECT * FROM manufacturers WHERE name = $1',
-      [newName]
+      [newName],
     );
 
     if (existingManufacturer.rows.length > 0) {
@@ -155,7 +155,7 @@ export const renameManufacturer = async (req, res, next) => {
 
       res.json({ 
         message: `Successfully merged "${oldManufacturer.rows[0].name}" into "${newName}"`,
-        manufacturer: existingManufacturer.rows[0]
+        manufacturer: existingManufacturer.rows[0],
       });
     } else {
       // Simple rename
@@ -168,7 +168,7 @@ export const renameManufacturer = async (req, res, next) => {
 
       res.json({ 
         message: `Successfully renamed to "${newName}"`,
-        manufacturer: result.rows[0]
+        manufacturer: result.rows[0],
       });
     }
   } catch (error) {

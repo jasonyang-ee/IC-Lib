@@ -6,7 +6,7 @@ import {
   createECO,
   approveECO,
   rejectECO,
-  deleteECO
+  deleteECO,
 } from '../controllers/ecoController.js';
 
 const router = express.Router();

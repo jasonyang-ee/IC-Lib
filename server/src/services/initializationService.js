@@ -130,7 +130,7 @@ async function validateUsersTableSchema() {
     
     const requiredColumns = [
       'id', 'username', 'password_hash', 'role', 
-      'created_at', 'created_by', 'last_login', 'is_active'
+      'created_at', 'created_by', 'last_login', 'is_active',
     ];
     
     const existingColumns = result.rows.map(row => row.column_name);
@@ -378,7 +378,7 @@ export async function getAuthenticationStatus() {
       usersTableExists,
       schemaValid,
       defaultAdminExists: adminExists,
-      ready: usersTableExists && schemaValid && adminExists
+      ready: usersTableExists && schemaValid && adminExists,
     };
   } catch (error) {
     return {
@@ -386,7 +386,7 @@ export async function getAuthenticationStatus() {
       schemaValid: false,
       defaultAdminExists: false,
       ready: false,
-      error: error.message
+      error: error.message,
     };
   }
 }

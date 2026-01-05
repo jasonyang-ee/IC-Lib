@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,7 +6,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { CheckCircle, XCircle, Clock, FileText, User, Calendar, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
 const ECO = () => {
-  const { canApprove, user } = useAuth();
+  const { canApprove } = useAuth();
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [selectedStatus, setSelectedStatus] = useState('pending');

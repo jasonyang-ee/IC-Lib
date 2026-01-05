@@ -52,7 +52,7 @@ router.post('/', async (req, res) => {
        (category_id, spec_name, unit, display_order, is_required)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [category_id, spec_name, unit || null, display_order || 0, is_required || false]
+      [category_id, spec_name, unit || null, display_order || 0, is_required || false],
     );
     
     res.status(201).json(result.rows[0]);
@@ -83,7 +83,7 @@ router.put('/:id', async (req, res) => {
            is_required = COALESCE($4, is_required)
        WHERE id = $5
        RETURNING *`,
-      [spec_name, unit, display_order, is_required, id]
+      [spec_name, unit, display_order, is_required, id],
     );
     
     if (result.rows.length === 0) {
@@ -105,7 +105,7 @@ router.delete('/:id', async (req, res) => {
     
     const result = await pool.query(
       'DELETE FROM specification_templates WHERE id = $1 RETURNING *',
-      [id]
+      [id],
     );
     
     if (result.rows.length === 0) {

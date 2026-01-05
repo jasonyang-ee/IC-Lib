@@ -4,7 +4,7 @@ import {
   resetDatabase,
   loadSampleData,
   getDatabaseStats,
-  verifyDatabaseSchema
+  verifyDatabaseSchema,
 } from '../controllers/adminController.js';
 
 const router = express.Router();

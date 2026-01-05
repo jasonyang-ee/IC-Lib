@@ -37,7 +37,7 @@ const Library = () => {
   const [autoFillToast, setAutoFillToast] = useState({ show: false, message: '', count: 0 });
   
   // ECO state
-  const [ecoChanges, setEcoChanges] = useState([]);
+  const [_ecoChanges, setEcoChanges] = useState([]);
   const [ecoNotes, setEcoNotes] = useState('');
   
   // Sub-category suggestions and dropdown states
@@ -523,7 +523,7 @@ const Library = () => {
       if (vendorData.specifications) {
         // Look for "Package / Case" parameter
         const packageSpec = Object.entries(vendorData.specifications).find(
-          ([key, val]) => key === 'Package / Case' || key === 'Package'
+          ([key]) => key === 'Package / Case' || key === 'Package'
         );
         if (packageSpec && packageSpec[1]?.value) {
           packageFromSpecs = packageSpec[1].value;
@@ -809,7 +809,7 @@ const Library = () => {
             };
           }
         }
-      } catch (error) {
+      } catch {
         // Silent fail - this is just a convenience feature
       }
     }
@@ -1057,13 +1057,13 @@ const Library = () => {
         await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         
         // Update stock and pricing info from vendor APIs for all distributors with SKUs
-        let stockUpdateMessage = '';
+        let _stockUpdateMessage = '';
         try {
           const distributorsWithSku = validDistributors.filter(d => d.sku?.trim());
           if (distributorsWithSku.length > 0) {
             const stockUpdateResult = await api.updateComponentStock(selectedComponent.id);
             if (stockUpdateResult.data.updatedCount > 0) {
-              stockUpdateMessage = ` Stock/price updated for ${stockUpdateResult.data.updatedCount} distributor(s).`;
+              _stockUpdateMessage = ` Stock/price updated for ${stockUpdateResult.data.updatedCount} distributor(s).`;
               // Show toast notification
               setAutoFillToast({ 
                 show: true, 
@@ -1077,7 +1077,7 @@ const Library = () => {
           console.error('Error updating stock info:', error);
           // Don't fail the save if stock update fails, but inform the user
           if (validDistributors.filter(d => d.sku?.trim()).length > 0) {
-            stockUpdateMessage = ' Note: Stock/price update from vendor APIs failed.';
+            // stockUpdateMessage = ' Note: Stock/price update from vendor APIs failed.';
           }
         }
         
@@ -1502,7 +1502,7 @@ const Library = () => {
     }, 100);
   };
 
-  const handleDelete = () => {
+  const _handleDelete = () => {
     if (selectedComponent) {
       setDeleteConfirmation({ 
         show: true, 

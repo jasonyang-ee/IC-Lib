@@ -10,7 +10,7 @@ export const generateToken = (user) => {
   const payload = {
     userId: user.id,
     username: user.username,
-    role: user.role
+    role: user.role,
   };
 
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -50,7 +50,7 @@ export const authenticate = (req, res, next) => {
     if (!token) {
       return res.status(401).json({ 
         error: 'Authentication required',
-        message: 'No token provided' 
+        message: 'No token provided', 
       });
     }
 
@@ -59,7 +59,7 @@ export const authenticate = (req, res, next) => {
     if (!decoded) {
       return res.status(401).json({ 
         error: 'Authentication failed',
-        message: 'Invalid or expired token' 
+        message: 'Invalid or expired token', 
       });
     }
 
@@ -70,7 +70,7 @@ export const authenticate = (req, res, next) => {
     console.error('Authentication error:', error);
     res.status(401).json({ 
       error: 'Authentication failed',
-      message: 'Token verification failed' 
+      message: 'Token verification failed', 
     });
   }
 };
@@ -81,14 +81,14 @@ export const authenticate = (req, res, next) => {
 export const isAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ 
-      error: 'Authentication required' 
+      error: 'Authentication required', 
     });
   }
 
   if (req.user.role !== 'admin') {
     return res.status(403).json({ 
       error: 'Access denied',
-      message: 'Admin access required' 
+      message: 'Admin access required', 
     });
   }
 
@@ -101,14 +101,14 @@ export const isAdmin = (req, res, next) => {
 export const canApprove = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ 
-      error: 'Authentication required' 
+      error: 'Authentication required', 
     });
   }
 
   if (req.user.role !== 'approver' && req.user.role !== 'admin') {
     return res.status(403).json({ 
       error: 'Access denied',
-      message: 'Approver or admin access required' 
+      message: 'Approver or admin access required', 
     });
   }
 
@@ -121,14 +121,14 @@ export const canApprove = (req, res, next) => {
 export const canWrite = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ 
-      error: 'Authentication required' 
+      error: 'Authentication required', 
     });
   }
 
   if (req.user.role === 'read-only') {
     return res.status(403).json({ 
       error: 'Access denied',
-      message: 'Write access required' 
+      message: 'Write access required', 
     });
   }
 

@@ -58,7 +58,7 @@ export const getInventoryByComponent = async (req, res, next) => {
 
     const result = await pool.query(
       'SELECT * FROM inventory WHERE component_id = $1',
-      [componentId]
+      [componentId],
     );
 
     res.json(result.rows);
@@ -75,7 +75,7 @@ export const createInventory = async (req, res, next) => {
       quantity,
       minimum_quantity,
       last_counted,
-      notes
+      notes,
     } = req.body;
 
     const result = await pool.query(`
@@ -100,7 +100,7 @@ export const updateInventory = async (req, res, next) => {
       quantity,
       minimum_quantity,
       last_counted,
-      notes
+      notes,
     } = req.body;
 
     // First, get the old values and component info for activity logging
@@ -148,7 +148,7 @@ export const updateInventory = async (req, res, next) => {
         oldItem.description,
         oldItem.category_name,
         'location_updated',
-        JSON.stringify({ old_location: oldItem.location, new_location: location })
+        JSON.stringify({ old_location: oldItem.location, new_location: location }),
       ]);
     }
 
@@ -164,7 +164,7 @@ export const updateInventory = async (req, res, next) => {
         oldItem.description,
         oldItem.category_name,
         activityType,
-        JSON.stringify({ old_quantity: oldItem.quantity, new_quantity: quantity, change: quantity - oldItem.quantity })
+        JSON.stringify({ old_quantity: oldItem.quantity, new_quantity: quantity, change: quantity - oldItem.quantity }),
       ]);
     }
 
@@ -180,7 +180,7 @@ export const deleteInventory = async (req, res, next) => {
 
     const result = await pool.query(
       'DELETE FROM inventory WHERE id = $1 RETURNING *',
-      [id]
+      [id],
     );
 
     if (result.rows.length === 0) {
@@ -263,7 +263,7 @@ export const getAlternativeInventory = async (req, res, next) => {
     // First get the component's part number
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
-      [id]
+      [id],
     );
 
     if (componentResult.rows.length === 0) {
@@ -305,7 +305,7 @@ export const updateAlternativeInventory = async (req, res, next) => {
     // Check if inventory record exists
     const checkResult = await pool.query(
       'SELECT id FROM inventory_alternative WHERE alternative_id = $1',
-      [altId]
+      [altId],
     );
 
     let result;

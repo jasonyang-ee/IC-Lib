@@ -49,7 +49,7 @@ export const clearDatabaseData = async () => {
     success: false,
     message: '',
     clearedTables: [],
-    errors: []
+    errors: [],
   };
 
   try {
@@ -67,7 +67,7 @@ export const clearDatabaseData = async () => {
       'components',
       'component_categories',
       'distributors',
-      'manufacturers'
+      'manufacturers',
     ];
     
     for (const table of mainTables) {
@@ -110,7 +110,7 @@ export const resetDatabase = async () => {
     success: false,
     message: '',
     steps: [],
-    errors: []
+    errors: [],
   };
 
   try {
@@ -169,7 +169,7 @@ export const initializeDatabase = async () => {
     message: '',
     steps: [],
     tableCount: 0,
-    errors: []
+    errors: [],
   };
 
   try {
@@ -246,7 +246,7 @@ export const loadSampleData = async () => {
     success: false,
     message: '',
     recordCounts: {},
-    errors: []
+    errors: [],
   };
 
   try {
@@ -268,7 +268,7 @@ export const loadSampleData = async () => {
           console.error('Statement error:', statement.substring(0, 100), stmtError.message);
           results.errors.push({ 
             statement: statement.substring(0, 100) + '...', 
-            error: stmtError.message 
+            error: stmtError.message, 
           });
         }
       }
@@ -316,7 +316,7 @@ export const getDatabaseStatus = async () => {
     tableCount: 0,
     tables: [],
     recordCounts: {},
-    errors: []
+    errors: [],
   };
 
   try {

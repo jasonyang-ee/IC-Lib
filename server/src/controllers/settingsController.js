@@ -14,7 +14,7 @@ const SETTINGS_FILE = path.join(__dirname, '../../../config/settings.json');
 
 // Default settings structure
 const DEFAULT_SETTINGS = {
-  partNumberConfigs: {}
+  partNumberConfigs: {},
 };
 
 /**
@@ -59,7 +59,7 @@ export const getSettings = async (req, res) => {
     console.error('Error reading settings:', error);
     res.status(500).json({ 
       error: 'Failed to read settings',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -79,21 +79,21 @@ export const updateSettings = async (req, res) => {
       // Handle nested partNumberConfigs merge
       partNumberConfigs: {
         ...currentSettings.partNumberConfigs,
-        ...(req.body.partNumberConfigs || {})
-      }
+        ...(req.body.partNumberConfigs || {}),
+      },
     };
 
     await writeSettings(updatedSettings);
     
     res.json({
       success: true,
-      settings: updatedSettings
+      settings: updatedSettings,
     });
   } catch (error) {
     console.error('Error updating settings:', error);
     res.status(500).json({ 
       error: 'Failed to update settings',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -109,7 +109,7 @@ export const getDatabaseStatus = async (req, res) => {
     console.error('Error getting database status:', error);
     res.status(500).json({ 
       error: 'Failed to get database status',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -128,20 +128,20 @@ export const clearDatabase = async (req, res) => {
         success: true,
         message: results.message,
         clearedTables: results.clearedTables,
-        errors: results.errors
+        errors: results.errors,
       });
     } else {
       res.status(500).json({
         success: false,
         message: results.message,
-        errors: results.errors
+        errors: results.errors,
       });
     }
   } catch (error) {
     console.error('Error clearing database:', error);
     res.status(500).json({ 
       error: 'Failed to clear database',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -156,7 +156,7 @@ export const resetDatabase = async (req, res) => {
     if (req.body.confirm !== true) {
       return res.status(400).json({
         error: 'Confirmation required',
-        message: 'Full database reset requires { "confirm": true } in request body'
+        message: 'Full database reset requires { "confirm": true } in request body',
       });
     }
 
@@ -168,20 +168,20 @@ export const resetDatabase = async (req, res) => {
         success: true,
         message: results.message,
         steps: results.steps,
-        errors: results.errors
+        errors: results.errors,
       });
     } else {
       res.status(500).json({
         success: false,
         message: results.message,
-        errors: results.errors
+        errors: results.errors,
       });
     }
   } catch (error) {
     console.error('Error resetting database:', error);
     res.status(500).json({ 
       error: 'Failed to reset database',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -199,21 +199,21 @@ export const initDatabase = async (req, res) => {
         success: true,
         message: results.message,
         tableCount: results.tableCount,
-        steps: results.steps
+        steps: results.steps,
       });
     } else {
       res.status(400).json({
         success: false,
         message: results.message,
         tableCount: results.tableCount,
-        errors: results.errors
+        errors: results.errors,
       });
     }
   } catch (error) {
     console.error('Error initializing database:', error);
     res.status(500).json({ 
       error: 'Failed to initialize database',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -230,20 +230,20 @@ export const loadSampleData = async (req, res) => {
       res.json({
         success: true,
         message: results.message,
-        recordCounts: results.recordCounts
+        recordCounts: results.recordCounts,
       });
     } else {
       res.status(500).json({
         success: false,
         message: results.message,
-        errors: results.errors
+        errors: results.errors,
       });
     }
   } catch (error) {
     console.error('Error loading sample data:', error);
     res.status(500).json({ 
       error: 'Failed to load sample data',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -266,7 +266,7 @@ export const verifyDatabase = async (req, res) => {
       'distributor_info',
       'inventory',
       'footprint_sources',
-      'schema_version'
+      'schema_version',
     ];
     
     const result = await pool.query(`
@@ -291,14 +291,14 @@ export const verifyDatabase = async (req, res) => {
       extraTables,
       issues: valid ? [] : [
         ...missingTables.map(t => `Missing table: ${t}`),
-        ...extraTables.map(t => `Unexpected table: ${t}`)
-      ]
+        ...extraTables.map(t => `Unexpected table: ${t}`),
+      ],
     });
   } catch (error) {
     console.error('Error verifying database:', error);
     res.status(500).json({ 
       error: 'Failed to verify database',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -325,7 +325,7 @@ export const getCategoryConfigs = async (req, res) => {
     console.error('Error fetching category configs:', error);
     res.status(500).json({ 
       error: 'Failed to fetch category configurations',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -383,13 +383,13 @@ export const updateCategoryConfig = async (req, res) => {
 
     res.json({
       success: true,
-      category: result.rows[0]
+      category: result.rows[0],
     });
   } catch (error) {
     console.error('Error updating category config:', error);
     res.status(500).json({ 
       error: 'Failed to update category configuration',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -419,7 +419,7 @@ export const createCategory = async (req, res) => {
 
     // Get the maximum display_order to append new category at the end
     const maxOrderResult = await pool.query(
-      'SELECT COALESCE(MAX(display_order), 0) as max_order FROM component_categories'
+      'SELECT COALESCE(MAX(display_order), 0) as max_order FROM component_categories',
     );
     const nextDisplayOrder = maxOrderResult.rows[0].max_order + 1;
 
@@ -431,7 +431,7 @@ export const createCategory = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      category: result.rows[0]
+      category: result.rows[0],
     });
   } catch (error) {
     console.error('Error creating category:', error);
@@ -440,13 +440,13 @@ export const createCategory = async (req, res) => {
     if (error.code === '23505') {
       return res.status(409).json({ 
         error: 'Category with this name or prefix already exists',
-        message: error.message 
+        message: error.message, 
       });
     }
     
     res.status(500).json({ 
       error: 'Failed to create category',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -470,7 +470,7 @@ export const updateCategoryOrder = async (req, res) => {
       for (const category of categories) {
         await client.query(
           'UPDATE component_categories SET display_order = $1 WHERE id = $2',
-          [category.display_order, category.id]
+          [category.display_order, category.id],
         );
       }
 
@@ -486,7 +486,7 @@ export const updateCategoryOrder = async (req, res) => {
     console.error('Error updating category order:', error);
     res.status(500).json({ 
       error: 'Failed to update category order',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -520,7 +520,7 @@ export const getCategorySpecifications = async (req, res) => {
     console.error('Error fetching category specifications:', error);
     res.status(500).json({ 
       error: 'Failed to fetch category specifications',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -552,7 +552,7 @@ export const createCategorySpecification = async (req, res) => {
       unit || null, 
       JSON.stringify(mappings),
       display_order || 0, 
-      is_required || false
+      is_required || false,
     ]);
     
     res.status(201).json(result.rows[0]);
@@ -562,13 +562,13 @@ export const createCategorySpecification = async (req, res) => {
     // Handle unique constraint violation
     if (error.code === '23505') {
       return res.status(409).json({ 
-        error: 'This specification already exists for this category' 
+        error: 'This specification already exists for this category', 
       });
     }
     
     res.status(500).json({ 
       error: 'Failed to create category specification',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -608,7 +608,7 @@ export const updateCategorySpecification = async (req, res) => {
       values.push(is_required);
     }
     
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
     
     const result = await pool.query(`
@@ -629,13 +629,13 @@ export const updateCategorySpecification = async (req, res) => {
     // Handle unique constraint violation
     if (error.code === '23505') {
       return res.status(409).json({ 
-        error: 'A specification with this name already exists for this category' 
+        error: 'A specification with this name already exists for this category', 
       });
     }
     
     res.status(500).json({ 
       error: 'Failed to update category specification',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -661,13 +661,13 @@ export const deleteCategorySpecification = async (req, res) => {
     res.json({ 
       success: true,
       message: 'Specification deleted successfully',
-      deleted: result.rows[0]
+      deleted: result.rows[0],
     });
   } catch (error) {
     console.error('Error deleting category specification:', error);
     res.status(500).json({ 
       error: 'Failed to delete category specification',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -717,7 +717,7 @@ export const reorderCategorySpecifications = async (req, res) => {
     console.error('Error reordering category specifications:', error);
     res.status(500).json({ 
       error: 'Failed to reorder specifications',
-      message: error.message 
+      message: error.message, 
     });
   }
 };
@@ -743,13 +743,13 @@ export const syncComponentsToInventory = async (req, res) => {
     res.json({ 
       message: 'Components synced to inventory successfully',
       created: result.rows.length,
-      entries: result.rows
+      entries: result.rows,
     });
   } catch (error) {
     console.error('Error syncing components to inventory:', error);
     res.status(500).json({ 
       error: 'Failed to sync components to inventory',
-      message: error.message 
+      message: error.message, 
     });
   }
 };

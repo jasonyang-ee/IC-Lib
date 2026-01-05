@@ -13,7 +13,7 @@ const getBasePath = () => {
   const pathname = window.location.pathname;
   
   // Extract first path segment (e.g., /test from /test/dashboard)
-  const match = pathname.match(/^\/([^\/]+)/);
+  const match = pathname.match(/^\/([^/]+)/);
   if (match && match[1] !== '') {
     // Check if it looks like a base path (not a route like 'login', 'dashboard', etc.)
     const segment = match[1];
@@ -272,10 +272,6 @@ export const api = {
     test: (data) => apiClient.post('/smtp/test', data),
     testEmail: () => apiClient.post('/smtp/test-email'),
   },
-  
-  // User Notification Preferences
-  getNotificationPreferences: () => apiClient.get('/smtp/preferences'),
-  updateNotificationPreferences: (data) => apiClient.put('/smtp/preferences', data),
   
   // File Upload
   uploadComponentFiles: (mfgPartNumber, formData) => 

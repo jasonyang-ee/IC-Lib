@@ -142,7 +142,7 @@ export const createComponent = async (req, res, next) => {
       datasheet_url,
       status,
       notes,
-      approval_status
+      approval_status,
     } = req.body;
     
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
@@ -173,7 +173,7 @@ export const createComponent = async (req, res, next) => {
       description, value, sub_category1, sub_category2, sub_category3,
       pcb_footprint, package_size, schematic, step_model, pspice,
       datasheet_url, status || 'Active', notes,
-      approval_status || 'new'
+      approval_status || 'new',
     ]);
 
     const component = componentResult.rows[0];
@@ -237,7 +237,7 @@ export const updateComponent = async (req, res, next) => {
       notes,
       approval_status,
       approval_user_id,
-      approval_date
+      approval_date,
     } = req.body;
     
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
@@ -285,7 +285,7 @@ export const updateComponent = async (req, res, next) => {
       pcb_footprint, package_size, schematic, step_model, pspice,
       datasheet_url, status, notes,
       approval_status, approval_user_id, approval_date,
-      id
+      id,
     ]);
 
     // Log activity
@@ -326,7 +326,7 @@ export const deleteComponent = async (req, res, next) => {
        FROM components c 
        LEFT JOIN component_categories cat ON c.category_id = cat.id
        WHERE c.id = $1`,
-      [id]
+      [id],
     );
 
     if (componentCheck.rows.length === 0) {
@@ -511,7 +511,7 @@ export const updateDistributorInfo = async (req, res, next) => {
             price_breaks: vendorData.pricing,
             stock_quantity: vendorData.stock || dist.stock_quantity,
             in_stock: (vendorData.stock || 0) > 0,
-            url: vendorData.productUrl || dist.url
+            url: vendorData.productUrl || dist.url,
           };
         }
       } catch (error) {
@@ -578,7 +578,7 @@ export const updateDistributorInfo = async (req, res, next) => {
         dist.in_stock || false,
         dist.stock_quantity || 0,
         dist.minimum_order_quantity || 1,
-        dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+        dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
       ]);
     });
 
@@ -587,7 +587,7 @@ export const updateDistributorInfo = async (req, res, next) => {
     // Get component info for audit log
     const componentResult = await pool.query(
       'SELECT part_number, description FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     const component = componentResult.rows[0];
@@ -607,9 +607,9 @@ export const updateDistributorInfo = async (req, res, next) => {
         distributors: distributorsWithPricing.map(d => ({
           distributor_id: d.distributor_id,
           sku: d.sku,
-          in_stock: d.in_stock
-        }))
-      })
+          in_stock: d.in_stock,
+        })),
+      }),
     ]);
 
     // Return updated distributor info
@@ -722,7 +722,7 @@ export const getAlternatives = async (req, res, next) => {
     // First get the component's part number
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (componentResult.rows.length === 0) {
@@ -776,13 +776,13 @@ export const createAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      distributors = [] // Array of distributor info objects
+      distributors = [], // Array of distributor info objects
     } = req.body;
     
     // Get component's part number
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (componentResult.rows.length === 0) {
@@ -831,7 +831,7 @@ export const createAlternative = async (req, res, next) => {
           dist.stock_quantity || 0,
           dist.minimum_order_quantity || 1,
           dist.packaging || '',
-          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+          dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
         ]);
       }
     }
@@ -849,8 +849,8 @@ export const createAlternative = async (req, res, next) => {
       JSON.stringify({
         alternative_id: alternativeId,
         manufacturer_pn: manufacturer_pn,
-        distributor_count: distributors?.length || 0
-      })
+        distributor_count: distributors?.length || 0,
+      }),
     ]);
     
     res.status(201).json(result.rows[0]);
@@ -868,13 +868,13 @@ export const updateAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      distributors = []
+      distributors = [],
     } = req.body;
     
     // Get component's part number
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (componentResult.rows.length === 0) {
@@ -945,7 +945,7 @@ export const updateAlternative = async (req, res, next) => {
             dist.stock_quantity || 0,
             dist.minimum_order_quantity || 1,
             dist.packaging || '',
-            dist.price_breaks ? JSON.stringify(dist.price_breaks) : null
+            dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
           ]);
         }
       }
@@ -964,8 +964,8 @@ export const updateAlternative = async (req, res, next) => {
       JSON.stringify({
         alternative_id: altId,
         manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
-        distributor_count: distributors?.length || 0
-      })
+        distributor_count: distributors?.length || 0,
+      }),
     ]);
     
     res.json(result.rows[0]);
@@ -981,7 +981,7 @@ export const deleteAlternative = async (req, res, next) => {
     // Get component's part number
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (componentResult.rows.length === 0) {
@@ -993,7 +993,7 @@ export const deleteAlternative = async (req, res, next) => {
     // Get alternative info before deleting
     const altResult = await pool.query(
       'SELECT manufacturer_pn FROM components_alternative WHERE id = $1',
-      [altId]
+      [altId],
     );
     
     const alternativePn = altResult.rows[0]?.manufacturer_pn;
@@ -1001,7 +1001,7 @@ export const deleteAlternative = async (req, res, next) => {
     // Delete the alternative (distributor_info will be cascade deleted)
     const result = await pool.query(
       'DELETE FROM components_alternative WHERE id = $1 AND part_number = $2 RETURNING *',
-      [altId, partNumber]
+      [altId, partNumber],
     );
     
     if (result.rows.length === 0) {
@@ -1020,8 +1020,8 @@ export const deleteAlternative = async (req, res, next) => {
       'alternative_deleted',
       JSON.stringify({
         alternative_id: altId,
-        manufacturer_pn: alternativePn
-      })
+        manufacturer_pn: alternativePn,
+      }),
     ]);
     
     res.json({ message: 'Alternative deleted successfully' });
@@ -1091,7 +1091,7 @@ export const updateComponentStock = async (req, res, next) => {
             vendorData.stock || 0,
             (vendorData.stock || 0) > 0,
             vendorData.productUrl || null,
-            dist.id
+            dist.id,
           ]);
           updatedCount++;
         }
@@ -1104,7 +1104,7 @@ export const updateComponentStock = async (req, res, next) => {
         errors.push({
           sku: dist.sku,
           distributor: dist.distributor_name,
-          error: error.message
+          error: error.message,
         });
       }
     }
@@ -1114,7 +1114,7 @@ export const updateComponentStock = async (req, res, next) => {
       message: `Updated ${updatedCount} distributor entries`,
       updatedCount,
       totalChecked: distributorsResult.rows.length,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
 
   } catch (error) {
@@ -1189,7 +1189,7 @@ export const bulkUpdateStock = async (req, res, next) => {
             vendorData.stock || 0,
             (vendorData.stock || 0) > 0,
             vendorData.productUrl || null,
-            dist.id
+            dist.id,
           ]);
           updatedCount++;
         } else {
@@ -1208,7 +1208,7 @@ export const bulkUpdateStock = async (req, res, next) => {
             message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
             updatedCount,
             skippedCount,
-            totalChecked: updatedCount + skippedCount + 1
+            totalChecked: updatedCount + skippedCount + 1,
           });
         }
         
@@ -1216,7 +1216,7 @@ export const bulkUpdateStock = async (req, res, next) => {
           sku: dist.sku,
           distributor: dist.distributor_name,
           partNumber: dist.part_number,
-          error: error.message
+          error: error.message,
         });
       }
     }
@@ -1227,7 +1227,7 @@ export const bulkUpdateStock = async (req, res, next) => {
       updatedCount,
       skippedCount,
       totalChecked: distributorsResult.rows.length,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
 
   } catch (error) {
@@ -1374,7 +1374,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
             message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
             updatedCount,
             skippedCount,
-            totalChecked: updatedCount + skippedCount + 1
+            totalChecked: updatedCount + skippedCount + 1,
           });
         }
         
@@ -1382,7 +1382,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           partNumber: comp.part_number,
           sku: comp.sku,
           distributor: comp.distributor_name,
-          error: error.message
+          error: error.message,
         });
         skippedCount++;
       }
@@ -1394,7 +1394,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       updatedCount,
       skippedCount,
       totalChecked: componentsResult.rows.length,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
 
   } catch (error) {
@@ -1446,7 +1446,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     for (const comp of componentsResult.rows) {
       try {
         // Search all vendors for this manufacturer part number
-        let allResults = [];
+        const allResults = [];
 
         // Search Digikey
         try {
@@ -1455,7 +1455,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             // Filter for exact manufacturer part number match
             const exactMatches = digikeyResult.results.filter(r => 
               r.manufacturerPartNumber && 
-              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
+              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
             exactMatches.forEach(result => {
               allResults.push({
@@ -1463,7 +1463,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
                 sku: result.partNumber,
                 url: result.productUrl,
                 moq: result.minimumOrderQuantity || 1,
-                stock: result.stock || 0
+                stock: result.stock || 0,
               });
             });
           }
@@ -1482,7 +1482,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             // Filter for exact manufacturer part number match
             const exactMatches = mouserResult.results.filter(r => 
               r.manufacturerPartNumber && 
-              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase()
+              r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
             exactMatches.forEach(result => {
               allResults.push({
@@ -1490,7 +1490,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
                 sku: result.partNumber,
                 url: result.productUrl,
                 moq: result.minimumOrderQuantity || 1,
-                stock: result.stock || 0
+                stock: result.stock || 0,
               });
             });
           }
@@ -1539,7 +1539,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
                 bestResult.sku,
                 bestResult.url,
                 bestResult.stock > 0,
-                bestResult.stock
+                bestResult.stock,
               ]);
 
               distributorsUpdated = true;
@@ -1567,14 +1567,14 @@ export const bulkUpdateDistributors = async (req, res, next) => {
             message: error.vendorMessage || 'API rate limit exceeded. Please try again later.',
             updatedCount,
             skippedCount,
-            totalChecked: updatedCount + skippedCount + 1
+            totalChecked: updatedCount + skippedCount + 1,
           });
         }
         
         errors.push({
           partNumber: comp.part_number,
           manufacturerPn: comp.manufacturer_pn,
-          error: error.message
+          error: error.message,
         });
         skippedCount++;
       }
@@ -1586,7 +1586,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       updatedCount,
       skippedCount,
       totalChecked: componentsResult.rows.length,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
 
   } catch (error) {
@@ -1612,7 +1612,7 @@ export const updateComponentApproval = async (req, res, next) => {
       if (userRole !== 'approver' && userRole !== 'admin') {
         return res.status(403).json({ 
           error: 'Access denied',
-          message: 'Approver or admin access required to approve or deny parts'
+          message: 'Approver or admin access required to approve or deny parts',
         });
       }
     } else if (action === 'send_to_review' || action === 'send_to_prototype') {
@@ -1620,7 +1620,7 @@ export const updateComponentApproval = async (req, res, next) => {
       if (userRole === 'read-only') {
         return res.status(403).json({ 
           error: 'Access denied',
-          message: 'Write access required to send parts to review or prototype'
+          message: 'Write access required to send parts to review or prototype',
         });
       }
     }
@@ -1628,7 +1628,7 @@ export const updateComponentApproval = async (req, res, next) => {
     // Check if component exists
     const componentCheck = await pool.query(
       'SELECT id, approval_status FROM components WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (componentCheck.rows.length === 0) {
@@ -1673,7 +1673,7 @@ export const updateComponentApproval = async (req, res, next) => {
       'approve': 'approval_approved',
       'deny': 'approval_denied',
       'send_to_review': 'approval_sent_to_review',
-      'send_to_prototype': 'approval_sent_to_prototype'
+      'send_to_prototype': 'approval_sent_to_prototype',
     };
 
     await pool.query(`
@@ -1689,8 +1689,8 @@ export const updateComponentApproval = async (req, res, next) => {
         action: action,
         old_status: component.approval_status,
         new_status: newApprovalStatus,
-        user_id: user_id
-      })
+        user_id: user_id,
+      }),
     ]);
 
     // Fetch complete component with joined data

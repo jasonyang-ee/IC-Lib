@@ -44,12 +44,12 @@ export const searchAllVendors = async (req, res, next) => {
 
     const [digikeyResult, mouserResult] = await Promise.allSettled([
       digikeyService.searchPart(partNumber),
-      mouserService.searchPart(partNumber)
+      mouserService.searchPart(partNumber),
     ]);
 
     res.json({
       digikey: digikeyResult.status === 'fulfilled' ? digikeyResult.value : null,
-      mouser: mouserResult.status === 'fulfilled' ? mouserResult.value : null
+      mouser: mouserResult.status === 'fulfilled' ? mouserResult.value : null,
     });
   } catch (error) {
     next(error);
@@ -103,7 +103,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       stock,
       productUrl,
       minimumOrderQuantity,
-      allDistributors // Array of all selected distributors
+      allDistributors, // Array of all selected distributors
     } = req.body;
 
     if (!manufacturerPartNumber) {
@@ -113,14 +113,14 @@ export const addVendorPartToLibrary = async (req, res, next) => {
     // Check if part already exists in library
     const existingPart = await pool.query(
       'SELECT id, part_number FROM components WHERE manufacturer_pn = $1',
-      [manufacturerPartNumber]
+      [manufacturerPartNumber],
     );
 
     if (existingPart.rows.length > 0) {
       return res.status(409).json({ 
         error: 'Part already exists in library',
         componentId: existingPart.rows[0].id,
-        partNumber: existingPart.rows[0].part_number
+        partNumber: existingPart.rows[0].part_number,
       });
     }
 
@@ -129,7 +129,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
     if (manufacturer && manufacturer !== 'N/A') {
       const manufacturerCheck = await pool.query(
         'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
-        [manufacturer]
+        [manufacturer],
       );
 
       if (manufacturerCheck.rows.length > 0) {
@@ -138,21 +138,21 @@ export const addVendorPartToLibrary = async (req, res, next) => {
         // Create new manufacturer
         const newManufacturer = await pool.query(
           'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
-          [manufacturer]
+          [manufacturer],
         );
         manufacturerId = newManufacturer.rows[0].id;
       }
     }
 
     // Process multiple distributors if provided
-    let distributorData = [];
+    const distributorData = [];
     
     if (allDistributors && Array.isArray(allDistributors) && allDistributors.length > 0) {
       // Process each distributor from the selection
       for (const dist of allDistributors) {
         const distributorResult = await pool.query(
           'SELECT id FROM distributors WHERE LOWER(name) = LOWER($1)',
-          [dist.source === 'digikey' ? 'Digikey' : 'Mouser']
+          [dist.source === 'digikey' ? 'Digikey' : 'Mouser'],
         );
         
         if (distributorResult.rows.length > 0) {
@@ -163,7 +163,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
             url: dist.productUrl,
             pricing: dist.pricing,
             stock: dist.stock,
-            minimumOrderQuantity: dist.minimumOrderQuantity
+            minimumOrderQuantity: dist.minimumOrderQuantity,
           });
         }
       }
@@ -171,7 +171,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       // Fallback to single distributor (backward compatibility)
       const distributorResult = await pool.query(
         'SELECT id FROM distributors WHERE LOWER(name) = LOWER($1)',
-        [source === 'digikey' ? 'Digikey' : 'Mouser']
+        [source === 'digikey' ? 'Digikey' : 'Mouser'],
       );
       const distributorId = distributorResult.rows.length > 0 ? distributorResult.rows[0].id : null;
       
@@ -183,7 +183,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
           url: productUrl,
           pricing,
           stock,
-          minimumOrderQuantity
+          minimumOrderQuantity,
         });
       }
     }
@@ -200,8 +200,8 @@ export const addVendorPartToLibrary = async (req, res, next) => {
         series,
         category,
         specifications: specifications || {},
-        distributors: distributorData // Now returns array of all distributors
-      }
+        distributors: distributorData, // Now returns array of all distributors
+      },
     });
   } catch (error) {
     console.error('Error preparing vendor part data:', error);

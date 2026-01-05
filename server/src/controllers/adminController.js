@@ -13,7 +13,7 @@ const executeSQLFile = async (client, filePath, fileName) => {
   const sql = readFileSync(filePath, 'utf8');
   
   // Better comment removal: preserve newlines, handle inline comments
-  let cleanedSQL = sql
+  const cleanedSQL = sql
     .split('\n')
     .map(line => {
       // Remove everything after -- (single line comments)
@@ -81,7 +81,7 @@ const executeSQLFile = async (client, filePath, fileName) => {
         statementNumber: i + 1,
         statement: preview + '...',
         error: error.message,
-        code: error.code
+        code: error.code,
       });
     }
   }
@@ -113,7 +113,7 @@ export const initializeDatabase = async (req, res, next) => {
         success: true,
         message: `Database already initialized with ${tableCount} tables`,
         tableCount: tableCount,
-        skipped: true
+        skipped: true,
       });
     }
     
@@ -138,14 +138,14 @@ export const initializeDatabase = async (req, res, next) => {
       message: `Database initialized successfully with ${finalTableCount} tables`,
       tableCount: finalTableCount,
       statementsExecuted: result.executedCount,
-      errors: result.errors
+      errors: result.errors,
     });
   } catch (error) {
     console.error('Database initialization error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to initialize database',
-      message: error.message
+      message: error.message,
     });
   } finally {
     client.release();
@@ -188,7 +188,7 @@ export const resetDatabase = async (req, res, next) => {
     
     // Verify users table was created
     try {
-      const usersCheck = await client.query("SELECT COUNT(*) FROM users");
+      const usersCheck = await client.query('SELECT COUNT(*) FROM users');
       console.log(`[info] [Admin] Users table verified: ${usersCheck.rows[0].count} users`);
     } catch (error) {
       console.error('[error] [Admin] Users table verification FAILED:', error.message);
@@ -221,25 +221,25 @@ export const resetDatabase = async (req, res, next) => {
       schema: {
         statementsExecuted: schemaResult.executedCount,
         totalStatements: schemaResult.totalStatements,
-        errors: schemaResult.errors
+        errors: schemaResult.errors,
       },
       users: {
         statementsExecuted: usersResult.executedCount,
         totalStatements: usersResult.totalStatements,
-        errors: usersResult.errors
+        errors: usersResult.errors,
       },
       sampleData: {
         statementsExecuted: sampleResult.executedCount,
         totalStatements: sampleResult.totalStatements,
-        errors: sampleResult.errors
-      }
+        errors: sampleResult.errors,
+      },
     });
   } catch (error) {
     console.error('Database reset error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to reset database',
-      message: error.message
+      message: error.message,
     });
   } finally {
     client.release();
@@ -273,14 +273,14 @@ export const loadSampleData = async (req, res, next) => {
         : `Sample data loaded with ${result.errors.length} errors`,
       statementsExecuted: result.executedCount,
       recordCounts: counts.rows[0],
-      errors: result.errors
+      errors: result.errors,
     });
   } catch (error) {
     console.error('Load sample data error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to load sample data',
-      message: error.message
+      message: error.message,
     });
   } finally {
     client.release();
@@ -331,7 +331,7 @@ export const getDatabaseStats = async (req, res, next) => {
     res.json({
       summary: stats.rows[0],
       categoryBreakdown: categoryStats.rows,
-      subCategoryBreakdown: subCategoryStats.rows
+      subCategoryBreakdown: subCategoryStats.rows,
     });
   } catch (error) {
     next(error);
@@ -354,7 +354,7 @@ export const verifyDatabaseSchema = async (req, res, next) => {
         'component_specifications',
         'distributor_info',
         'inventory',
-        'footprint_sources'
+        'footprint_sources',
       ];
       
       for (const tableName of requiredTables) {
@@ -396,7 +396,7 @@ export const verifyDatabaseSchema = async (req, res, next) => {
         valid: issues.length === 0,
         issues: issues,
         integrity: integrityCheck.rows[0],
-        message: issues.length === 0 ? 'Database schema is valid' : 'Issues found with database schema'
+        message: issues.length === 0 ? 'Database schema is valid' : 'Issues found with database schema',
       });
     } finally {
       client.release();

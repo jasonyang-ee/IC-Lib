@@ -17,7 +17,7 @@ import {
   updateCategorySpecification,
   deleteCategorySpecification,
   reorderCategorySpecifications,
-  syncComponentsToInventory
+  syncComponentsToInventory,
 } from '../controllers/settingsController.js';
 
 const router = express.Router();

@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 export const getAllCategories = async (req, res, next) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM component_categories ORDER BY display_order, name'
+      'SELECT * FROM component_categories ORDER BY display_order, name',
     );
     res.json(result.rows);
   } catch (error) {
@@ -16,7 +16,7 @@ export const getCategoryById = async (req, res, next) => {
     const { id } = req.params;
     const result = await pool.query(
       'SELECT * FROM component_categories WHERE id = $1',
-      [id]
+      [id],
     );
 
     if (result.rows.length === 0) {
@@ -75,7 +75,7 @@ export const deleteCategory = async (req, res, next) => {
 
     const result = await pool.query(
       'DELETE FROM component_categories WHERE id = $1 RETURNING *',
-      [id]
+      [id],
     );
 
     if (result.rows.length === 0) {

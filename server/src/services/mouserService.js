@@ -14,17 +14,17 @@ export async function searchPart(partNumber, retryCount = 0) {
         SearchByKeywordRequest: {
           keyword: partNumber,
           records: 10,
-          startingRecord: 0
-        }
+          startingRecord: 0,
+        },
       },
       {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         params: {
-          apiKey: API_KEY
-        }
-      }
+          apiKey: API_KEY,
+        },
+      },
     );
 
     const data = response.data.SearchResults;
@@ -37,7 +37,7 @@ export async function searchPart(partNumber, retryCount = 0) {
           if (attr.AttributeName && attr.AttributeValue) {
             acc[attr.AttributeName] = {
               value: attr.AttributeValue,
-              unit: ''
+              unit: '',
             };
           }
           return acc;
@@ -52,7 +52,7 @@ export async function searchPart(partNumber, retryCount = 0) {
           pricing: part.PriceBreaks?.map(price => ({
             quantity: price.Quantity,
             price: parseFloat(price.Price.replace(/[^0-9.]/g, '')),
-            currency: price.Currency
+            currency: price.Currency,
           })),
           stock: part.Availability ? parseInt(part.Availability.split(' ')[0]) : 0,
           productUrl: part.ProductDetailUrl,
@@ -63,9 +63,9 @@ export async function searchPart(partNumber, retryCount = 0) {
           series: part.Series || '-',
           category: part.Category || 'N/A',
           minimumOrderQuantity: part.Min || 1,
-          specifications: specifications
+          specifications: specifications,
         };
-      }) || []
+      }) || [],
     };
   } catch (error) {
     // Handle rate limiting with exponential backoff
@@ -85,7 +85,7 @@ export async function searchPart(partNumber, retryCount = 0) {
       return {
         source: 'mouser',
         error: 'API not configured. Please set MOUSER_API_KEY',
-        results: []
+        results: [],
       };
     }
     
@@ -101,9 +101,9 @@ export async function getPartByMouserPartNumber(mouserPartNumber) {
       {
         params: {
           apiKey: API_KEY,
-          partNumber: mouserPartNumber
-        }
-      }
+          partNumber: mouserPartNumber,
+        },
+      },
     );
 
     return response.data;

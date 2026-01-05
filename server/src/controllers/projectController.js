@@ -28,7 +28,7 @@ export const getProjectById = async (req, res) => {
     // Get project details
     const projectResult = await pool.query(
       'SELECT * FROM projects WHERE id = $1',
-      [id]
+      [id],
     );
     
     if (projectResult.rows.length === 0) {
@@ -97,7 +97,7 @@ export const createProject = async (req, res) => {
       `INSERT INTO projects (name, description, status)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [name, description || null, status || 'active']
+      [name, description || null, status || 'active'],
     );
     
     const project = result.rows[0];
@@ -115,8 +115,8 @@ export const createProject = async (req, res) => {
       JSON.stringify({
         project_id: project.id,
         project_name: name,
-        status: project.status
-      })
+        status: project.status,
+      }),
     ]);
     
     res.status(201).json(project);
@@ -139,7 +139,7 @@ export const updateProject = async (req, res) => {
            status = COALESCE($3, status)
        WHERE id = $4
        RETURNING *`,
-      [name, description, status, id]
+      [name, description, status, id],
     );
     
     if (result.rows.length === 0) {
@@ -161,8 +161,8 @@ export const updateProject = async (req, res) => {
       JSON.stringify({
         project_id: id,
         project_name: project.name,
-        status: project.status
-      })
+        status: project.status,
+      }),
     ]);
     
     res.json(project);
@@ -180,14 +180,14 @@ export const deleteProject = async (req, res) => {
     // Get project name before deleting
     const projectResult = await pool.query(
       'SELECT name FROM projects WHERE id = $1',
-      [id]
+      [id],
     );
     
     const projectName = projectResult.rows[0]?.name;
     
     const result = await pool.query(
       'DELETE FROM projects WHERE id = $1 RETURNING *',
-      [id]
+      [id],
     );
     
     if (result.rows.length === 0) {
@@ -206,8 +206,8 @@ export const deleteProject = async (req, res) => {
       'project_deleted',
       JSON.stringify({
         project_id: id,
-        project_name: projectName
-      })
+        project_name: projectName,
+      }),
     ]);
     
     res.json({ message: 'Project deleted successfully' });
@@ -226,7 +226,7 @@ export const addComponentToProject = async (req, res) => {
     // Validate that only one of component_id or alternative_id is provided
     if ((component_id && alternative_id) || (!component_id && !alternative_id)) {
       return res.status(400).json({ 
-        error: 'Must provide exactly one of component_id or alternative_id' 
+        error: 'Must provide exactly one of component_id or alternative_id', 
       });
     }
     
@@ -235,12 +235,12 @@ export const addComponentToProject = async (req, res) => {
       `SELECT id FROM project_components 
        WHERE project_id = $1 AND 
        ((component_id = $2 AND $2 IS NOT NULL) OR (alternative_id = $3 AND $3 IS NOT NULL))`,
-      [projectId, component_id || null, alternative_id || null]
+      [projectId, component_id || null, alternative_id || null],
     );
     
     if (existingCheck.rows.length > 0) {
       return res.status(409).json({ 
-        error: 'This component is already in this project' 
+        error: 'This component is already in this project', 
       });
     }
     
@@ -248,7 +248,7 @@ export const addComponentToProject = async (req, res) => {
       `INSERT INTO project_components (project_id, component_id, alternative_id, quantity, notes)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null]
+      [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null],
     );
     
     const projectComponent = result.rows[0];
@@ -260,12 +260,12 @@ export const addComponentToProject = async (req, res) => {
     if (component_id) {
       componentInfo = await pool.query(
         'SELECT part_number, description FROM components WHERE id = $1',
-        [component_id]
+        [component_id],
       );
     } else if (alternative_id) {
       componentInfo = await pool.query(
         'SELECT ca.manufacturer_pn as part_number, c.description FROM components_alternative ca JOIN components c ON ca.part_number = c.part_number WHERE ca.id = $1',
-        [alternative_id]
+        [alternative_id],
       );
     }
     
@@ -285,8 +285,8 @@ export const addComponentToProject = async (req, res) => {
         component_id: component_id,
         alternative_id: alternative_id,
         quantity: quantity || 1,
-        part_number: componentInfo?.rows[0]?.part_number
-      })
+        part_number: componentInfo?.rows[0]?.part_number,
+      }),
     ]);
     
     res.status(201).json(projectComponent);
@@ -308,7 +308,7 @@ export const updateProjectComponent = async (req, res) => {
            notes = COALESCE($2, notes)
        WHERE project_id = $3 AND id = $4
        RETURNING *`,
-      [quantity, notes, projectId, componentId]
+      [quantity, notes, projectId, componentId],
     );
     
     if (result.rows.length === 0) {
@@ -335,8 +335,8 @@ export const updateProjectComponent = async (req, res) => {
         project_name: projectInfo.rows[0]?.name,
         component_id: projectComponent.component_id,
         alternative_id: projectComponent.alternative_id,
-        quantity: projectComponent.quantity
-      })
+        quantity: projectComponent.quantity,
+      }),
     ]);
     
     res.json(projectComponent);
@@ -354,14 +354,14 @@ export const removeComponentFromProject = async (req, res) => {
     // Get info before deleting
     const componentResult = await pool.query(
       'SELECT component_id, alternative_id FROM project_components WHERE project_id = $1 AND id = $2',
-      [projectId, componentId]
+      [projectId, componentId],
     );
     
     const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
     
     const result = await pool.query(
       'DELETE FROM project_components WHERE project_id = $1 AND id = $2 RETURNING *',
-      [projectId, componentId]
+      [projectId, componentId],
     );
     
     if (result.rows.length === 0) {
@@ -382,8 +382,8 @@ export const removeComponentFromProject = async (req, res) => {
         project_id: projectId,
         project_name: projectInfo.rows[0]?.name,
         component_id: componentResult.rows[0]?.component_id,
-        alternative_id: componentResult.rows[0]?.alternative_id
-      })
+        alternative_id: componentResult.rows[0]?.alternative_id,
+      }),
     ]);
     
     res.json({ message: 'Component removed from project successfully' });
@@ -407,7 +407,7 @@ export const consumeProjectComponents = async (req, res) => {
       `SELECT pc.*, pc.component_id, pc.alternative_id, pc.quantity
        FROM project_components pc
        WHERE pc.project_id = $1`,
-      [id]
+      [id],
     );
     
     const updates = [];
@@ -422,7 +422,7 @@ export const consumeProjectComponents = async (req, res) => {
              SET quantity = GREATEST(0, quantity - $1)
              WHERE component_id = $2
              RETURNING quantity`,
-            [pc.quantity, pc.component_id]
+            [pc.quantity, pc.component_id],
           );
           updates.push({ component_id: pc.component_id, new_quantity: result.rows[0].quantity });
         } else if (pc.alternative_id) {
@@ -432,14 +432,14 @@ export const consumeProjectComponents = async (req, res) => {
              SET quantity = GREATEST(0, quantity - $1)
              WHERE alternative_id = $2
              RETURNING quantity`,
-            [pc.quantity, pc.alternative_id]
+            [pc.quantity, pc.alternative_id],
           );
           updates.push({ alternative_id: pc.alternative_id, new_quantity: result.rows[0].quantity });
         }
       } catch (error) {
         errors.push({ 
           id: pc.component_id || pc.alternative_id, 
-          error: error.message 
+          error: error.message, 
         });
       }
     }
@@ -449,7 +449,7 @@ export const consumeProjectComponents = async (req, res) => {
     res.json({ 
       message: 'Components consumed successfully',
       updates,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
     await client.query('ROLLBACK');

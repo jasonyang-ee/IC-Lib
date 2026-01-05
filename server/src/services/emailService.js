@@ -163,7 +163,7 @@ async function getECONotificationRecipients(notificationType) {
     `;
 
     if (notificationType === 'eco_pending_approval') {
-      query += ` AND u.role IN ('admin', 'approver')`;
+      query += ' AND u.role IN (\'admin\', \'approver\')';
     }
 
     const result = await pool.query(query);
@@ -298,8 +298,8 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
       }).then(result => ({
         ...result,
         recipient: recipient.email,
-      }))
-    )
+      })),
+    ),
   );
 
   // Log results

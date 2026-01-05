@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import App from '../App';
+import App from './App';
 
 // Mock the contexts
-vi.mock('../contexts/AuthContext', () => ({
+vi.mock('./contexts/AuthContext', () => ({
   AuthProvider: ({ children }) => children,
   useAuth: () => ({
     user: null,
@@ -15,7 +15,7 @@ vi.mock('../contexts/AuthContext', () => ({
   }),
 }));
 
-vi.mock('../contexts/NotificationContext', () => ({
+vi.mock('./contexts/NotificationContext', () => ({
   NotificationProvider: ({ children }) => children,
   useNotification: () => ({
     notifications: [],

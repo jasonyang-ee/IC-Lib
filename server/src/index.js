@@ -48,7 +48,7 @@ console.log('[info] [Config] MOUSER_API_KEY:', process.env.MOUSER_API_KEY ? 'Set
 app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true
+  credentials: true,
 }));
 app.use(compression());
 app.use(morgan('dev'));
@@ -63,13 +63,13 @@ app.get('/api/health', async (req, res) => {
     res.json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
-      authentication: authStatus
+      authentication: authStatus,
     });
   } catch (error) {
     res.json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
-      authentication: { error: error.message }
+      authentication: { error: error.message },
     });
   }
 });
@@ -98,8 +98,8 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     error: {
       message: err.message || 'Internal Server Error',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    }
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    },
   });
 });
 

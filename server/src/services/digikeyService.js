@@ -36,7 +36,7 @@ const setCachedResult = (partNumber, data) => {
   
   searchCache.set(key, {
     data,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
   
   // Clean up old entries if cache gets too large (max 100 entries)
@@ -68,13 +68,13 @@ async function getAccessToken() {
       new URLSearchParams({
         client_id: process.env.DIGIKEY_CLIENT_ID,
         client_secret: process.env.DIGIKEY_CLIENT_SECRET,
-        grant_type: 'client_credentials'
+        grant_type: 'client_credentials',
       }),
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
     );
 
     accessToken = response.data.access_token;
@@ -118,8 +118,8 @@ export async function searchPart(partNumber, skipCache = false) {
           FilterOptionsRequest: {
           ManufacturerFilter: [],
           MinimumQuantityAvailable: 0,
-          PackagingFilter: []
-        }
+          PackagingFilter: [],
+        },
       },
       {
         headers: {
@@ -128,9 +128,9 @@ export async function searchPart(partNumber, skipCache = false) {
           'Content-Type': 'application/json',
           'X-DIGIKEY-Locale-Site': 'US',
           'X-DIGIKEY-Locale-Language': 'en',
-          'X-DIGIKEY-Locale-Currency': 'USD'
-        }
-      }
+          'X-DIGIKEY-Locale-Currency': 'USD',
+        },
+      },
     );
 
     const result = {
@@ -148,17 +148,17 @@ export async function searchPart(partNumber, skipCache = false) {
           pricing: primaryVariation?.StandardPricing?.map(price => ({
             quantity: price.BreakQuantity,
             price: price.UnitPrice,
-            currency: 'USD'
+            currency: 'USD',
           })) || (product.UnitPrice ? [{
             quantity: 1,
             price: product.UnitPrice,
-            currency: 'USD'
+            currency: 'USD',
           }] : []),
           stock: product.QuantityAvailable || 0,
           specifications: product.Parameters?.reduce((acc, param) => {
             acc[param.ParameterText] = {
               value: param.ValueText,
-              unit: param.ParameterType
+              unit: param.ParameterType,
             };
             return acc;
           }, {}) || {},
@@ -166,9 +166,9 @@ export async function searchPart(partNumber, skipCache = false) {
           series: product.Series?.Name || '-',
           category: product.Category?.Name || 'N/A',
           packageType: primaryVariation?.PackageType?.Name || 'N/A',
-          minimumOrderQuantity: primaryVariation?.MinimumOrderQuantity || 1
+          minimumOrderQuantity: primaryVariation?.MinimumOrderQuantity || 1,
         };
-      }) || []
+      }) || [],
     };
     
     // Cache the successful result
@@ -193,7 +193,7 @@ export async function searchPart(partNumber, skipCache = false) {
       return {
         source: 'digikey',
         error: 'API not configured. Please set DIGIKEY_CLIENT_ID and DIGIKEY_CLIENT_SECRET',
-        results: []
+        results: [],
       };
     }
     
@@ -201,14 +201,14 @@ export async function searchPart(partNumber, skipCache = false) {
       return {
         source: 'digikey',
         error: 'Digikey API endpoint not found. The API may have changed.',
-        results: []
+        results: [],
       };
     }
     
     return {
       source: 'digikey',
       error: error.message || 'Unknown error occurred',
-      results: []
+      results: [],
     };
   }
 })();
@@ -238,9 +238,9 @@ export async function getPartDetails(digikeyPartNumber) {
           'X-DIGIKEY-Client-Id': process.env.DIGIKEY_CLIENT_ID,
           'X-DIGIKEY-Locale-Site': 'US',
           'X-DIGIKEY-Locale-Language': 'en',
-          'X-DIGIKEY-Locale-Currency': 'USD'
-        }
-      }
+          'X-DIGIKEY-Locale-Currency': 'USD',
+        },
+      },
     );
 
     return response.data;

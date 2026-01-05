@@ -4,27 +4,27 @@ export const getDashboardStats = async (req, res, next) => {
   try {
     // Get total components
     const totalComponentsResult = await pool.query(
-      'SELECT COUNT(*) as count FROM components'
+      'SELECT COUNT(*) as count FROM components',
     );
 
     // Get total categories
     const totalCategoriesResult = await pool.query(
-      'SELECT COUNT(*) as count FROM component_categories'
+      'SELECT COUNT(*) as count FROM component_categories',
     );
 
     // Get total inventory items
     const totalInventoryResult = await pool.query(
-      'SELECT COUNT(*) as count, SUM(quantity) as total_quantity FROM inventory'
+      'SELECT COUNT(*) as count, SUM(quantity) as total_quantity FROM inventory',
     );
 
     // Get components without footprints
     const missingFootprintsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''"
+      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''",
     );
 
     // Get low stock count
     const lowStockResult = await pool.query(
-      'SELECT COUNT(*) as count FROM inventory WHERE quantity <= minimum_quantity AND minimum_quantity > 0'
+      'SELECT COUNT(*) as count FROM inventory WHERE quantity <= minimum_quantity AND minimum_quantity > 0',
     );
 
     // Get recently added components
@@ -62,8 +62,8 @@ export const getDashboardStats = async (req, res, next) => {
         pending_review: approvalStatusCounts['pending review'] || 0,
         experimental: approvalStatusCounts.experimental || 0,
         approved: approvalStatusCounts.approved || 0,
-        archived: approvalStatusCounts.archived || 0
-      }
+        archived: approvalStatusCounts.archived || 0,
+      },
     });
   } catch (error) {
     next(error);
@@ -123,7 +123,7 @@ export const clearAllActivities = async (req, res, next) => {
     
     res.json({ 
       success: true, 
-      message: `Cleared ${result.rowCount} audit log entries` 
+      message: `Cleared ${result.rowCount} audit log entries`, 
     });
   } catch (error) {
     next(error);
@@ -152,32 +152,32 @@ export const getExtendedDashboardStats = async (req, res, next) => {
   try {
     // Get total users
     const totalUsersResult = await pool.query(
-      'SELECT COUNT(*) as count FROM users'
+      'SELECT COUNT(*) as count FROM users',
     );
 
     // Get total manufacturers
     const totalManufacturersResult = await pool.query(
-      'SELECT COUNT(*) as count FROM manufacturers'
+      'SELECT COUNT(*) as count FROM manufacturers',
     );
 
     // Get total distributors
     const totalDistributorsResult = await pool.query(
-      'SELECT COUNT(*) as count FROM distributors'
+      'SELECT COUNT(*) as count FROM distributors',
     );
 
     // Get total projects
     const totalProjectsResult = await pool.query(
-      'SELECT COUNT(*) as count FROM projects'
+      'SELECT COUNT(*) as count FROM projects',
     );
 
     // Get active projects (status = 'active' or 'planning')
     const activeProjectsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM projects WHERE status IN ('active', 'planning')"
+      "SELECT COUNT(*) as count FROM projects WHERE status IN ('active', 'planning')",
     );
 
     // Get total project components
     const totalProjectComponentsResult = await pool.query(
-      'SELECT COUNT(*) as count FROM project_components'
+      'SELECT COUNT(*) as count FROM project_components',
     );
 
     // Get average components per project
@@ -192,12 +192,12 @@ export const getExtendedDashboardStats = async (req, res, next) => {
 
     // Get components with specifications
     const componentsWithSpecsResult = await pool.query(
-      'SELECT COUNT(DISTINCT component_id) as count FROM component_specification_values'
+      'SELECT COUNT(DISTINCT component_id) as count FROM component_specification_values',
     );
 
     // Get components with alternatives
     const componentsWithAlternativesResult = await pool.query(
-      'SELECT COUNT(DISTINCT part_number) as count FROM components_alternative'
+      'SELECT COUNT(DISTINCT part_number) as count FROM components_alternative',
     );
 
     // Get top storage locations

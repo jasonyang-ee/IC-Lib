@@ -6,7 +6,7 @@ const VALID_COMPONENT_FIELDS = [
   'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
   'notes', 'status', 'approval_status', 'sub_category1', 'sub_category2', 
   'sub_category3', 'schematic', 'step_model', 'pspice', 'manufacturer_id',
-  'manufacturer_pn', 'category_id', '_delete_component'
+  'manufacturer_pn', 'category_id', '_delete_component',
 ];
 
 // Helper function to log ECO activities
@@ -25,8 +25,8 @@ const logECOActivity = async (client, ecoOrder, activityType, details, userId) =
         eco_id: ecoOrder.id, 
         eco_number: ecoOrder.eco_number,
         user_id: userId,
-        ...details 
-      })
+        ...details, 
+      }),
     ]);
   } catch (error) {
     console.error('Error logging ECO activity:', error);
@@ -167,7 +167,7 @@ export const getECOById = async (req, res) => {
       changes: changesResult.rows,
       distributors: distributorsResult.rows,
       alternatives: alternativesResult.rows,
-      specifications: specificationsResult.rows
+      specifications: specificationsResult.rows,
     });
   } catch (error) {
     console.error('Error fetching ECO details:', error);
@@ -190,7 +190,7 @@ export const createECO = async (req, res) => {
       distributors, 
       alternatives, 
       specifications,
-      notes 
+      notes, 
     } = req.body;
     
     // Generate ECO number
@@ -234,7 +234,7 @@ export const createECO = async (req, res) => {
           ecoId, dist.alternative_id || null, dist.distributor_id, dist.action,
           dist.sku, dist.url, dist.currency || 'USD', dist.in_stock || false,
           dist.stock_quantity, dist.minimum_order_quantity || 1,
-          dist.packaging, JSON.stringify(dist.price_breaks || [])
+          dist.packaging, JSON.stringify(dist.price_breaks || []),
         ]);
       }
     }
@@ -269,7 +269,7 @@ export const createECO = async (req, res) => {
       distributors_count: distributors?.length || 0,
       alternatives_count: alternatives?.length || 0,
       specifications_count: specifications?.length || 0,
-      notes: notes
+      notes: notes,
     }, req.user.id);
 
     await client.query('COMMIT');
@@ -408,7 +408,7 @@ export const approveECO = async (req, res) => {
             dist.stock_quantity,
             dist.minimum_order_quantity,
             dist.packaging,
-            JSON.stringify(priceBreaks)
+            JSON.stringify(priceBreaks),
           ]);
         } else {
           // If it exists, update it instead
@@ -424,7 +424,7 @@ export const approveECO = async (req, res) => {
             dist.stock_quantity, dist.minimum_order_quantity,
             dist.packaging, JSON.stringify(priceBreaks),
             dist.alternative_id || eco.component_id,
-            dist.distributor_id
+            dist.distributor_id,
           ]);
         }
       } else if (dist.action === 'update') {
@@ -440,7 +440,7 @@ export const approveECO = async (req, res) => {
           dist.stock_quantity, dist.minimum_order_quantity,
           dist.packaging, JSON.stringify(priceBreaks),
           dist.alternative_id || eco.component_id,
-          dist.distributor_id
+          dist.distributor_id,
         ]);
       } else if (dist.action === 'delete') {
         await client.query(`
@@ -495,7 +495,7 @@ export const approveECO = async (req, res) => {
       changes_applied: changesResult.rows.length,
       distributors_applied: distributorsResult.rows.length,
       alternatives_applied: alternativesResult.rows.length,
-      specifications_applied: specificationsResult.rows.length
+      specifications_applied: specificationsResult.rows.length,
     }, req.user.id);
     
     await client.query('COMMIT');
@@ -554,7 +554,7 @@ export const rejectECO = async (req, res) => {
     // Log ECO rejection activity
     await logECOActivity(client, eco, 'eco_rejected', {
       rejected_by: req.user.id,
-      rejection_reason: rejection_reason || 'No reason provided'
+      rejection_reason: rejection_reason || 'No reason provided',
     }, req.user.id);
     
     await client.query('COMMIT');
