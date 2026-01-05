@@ -946,6 +946,7 @@ const Library = () => {
     setEditData({
       ...componentDetails,
       manufacturer_id: componentDetails?.manufacturer_id || '',
+      manufacturer_pn: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
       specifications: editSpecifications,
       distributors: editDistributors,
@@ -1174,22 +1175,161 @@ const Library = () => {
     // Load the component for editing (reuse handleEdit logic)
     setSelectedComponent(component);
     
-    // Populate editData with current component details
-    // This ensures the edit form shows current values
-    if (componentDetails) {
-      const preparedData = {
-        ...componentDetails,
-        // Include specifications
-        specifications: componentDetails.specifications || [],
-        // Include distributors
-        distributors: componentDetails.distributors || [],
-      };
-      setEditData(preparedData);
-    }
-    
     // Set manufacturer input for type-ahead
     const manufacturerName = manufacturers?.find(m => m.id === component?.manufacturer_id)?.name || '';
     setManufacturerInput(manufacturerName);
+    
+    // Store vendor data reference for ECO mode (auto-search DigiKey for suggested specs)
+    let vendorDataReference = null;
+    const digikeyDist = componentDetails?.distributors?.find(d => 
+      d.distributor_name?.toLowerCase() === 'digikey'
+    );
+    if (digikeyDist?.sku) {
+      try {
+        console.log('[ECO] Auto-searching Digikey SKU for specifications:', digikeyDist.sku);
+        const searchResponse = await api.searchAllVendors(digikeyDist.sku);
+        
+        if (searchResponse.data) {
+          const searchResults = searchResponse.data;
+          const digikeyResult = searchResults.digikey?.results?.[0];
+          
+          if (digikeyResult) {
+            vendorDataReference = {
+              source: 'digikey',
+              manufacturerPartNumber: digikeyResult.manufacturerPartNumber,
+              manufacturer: digikeyResult.manufacturer,
+              description: digikeyResult.description,
+              datasheet: digikeyResult.datasheet,
+              packageType: digikeyResult.packageType,
+              series: digikeyResult.series,
+              category: digikeyResult.category,
+              specifications: digikeyResult.specifications || {},
+              distributor: {
+                source: 'digikey',
+                sku: digikeyResult.partNumber,
+                pricing: digikeyResult.pricing,
+                stock: digikeyResult.stock,
+                productUrl: digikeyResult.productUrl,
+                minimumOrderQuantity: digikeyResult.minimumOrderQuantity
+              }
+            };
+          }
+        }
+      } catch (error) {
+        console.log('[ECO] Digikey search failed:', error.message);
+      }
+    }
+    
+    // Always show all 4 supported distributors in ECO mode
+    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    const existingDistributors = componentDetails?.distributors || [];
+    
+    const existingDistMap = new Map();
+    existingDistributors.forEach(dist => {
+      if (dist.distributor_name) {
+        existingDistMap.set(dist.distributor_name, dist);
+      }
+    });
+    
+    const editDistributors = defaultDistributorNames.map(name => {
+      const existing = existingDistMap.get(name);
+      const dist = distributors?.find(d => d.name === name);
+      return {
+        id: existing?.id || undefined,
+        distributor_id: dist?.id || '',
+        distributor_name: name,
+        sku: existing?.sku || '',
+        url: existing?.url || '',
+        in_stock: existing?.in_stock || false,
+        stock_quantity: existing?.stock_quantity || 0,
+        price_breaks: existing?.price_breaks || []
+      };
+    });
+    
+    // Fetch category specifications and merge with existing
+    let editSpecifications = componentDetails?.specifications || [];
+    if (componentDetails?.category_id) {
+      try {
+        const categorySpecsResponse = await api.getCategorySpecifications(componentDetails.category_id);
+        const categorySpecs = categorySpecsResponse.data || [];
+        
+        const existingSpecsMap = new Map();
+        editSpecifications.forEach(spec => {
+          if (spec.category_spec_id) {
+            existingSpecsMap.set(spec.category_spec_id, spec);
+          }
+        });
+        
+        editSpecifications = categorySpecs.map(catSpec => {
+          const existing = existingSpecsMap.get(catSpec.id);
+          return {
+            category_spec_id: catSpec.id,
+            spec_name: catSpec.spec_name,
+            spec_value: existing?.spec_value || '',
+            unit: catSpec.unit || '',
+            mapping_spec_names: catSpec.mapping_spec_names || [],
+            is_required: catSpec.is_required || false,
+            display_order: catSpec.display_order || 0
+          };
+        });
+        
+        editSpecifications.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+      } catch (error) {
+        console.error('[ECO] Error fetching category specifications:', error);
+      }
+    }
+    
+    // Define the standard distributor order for alternatives
+    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+    
+    const normalizeDistributors = (existingDistributors = []) => {
+      return distributorOrder.map(distName => {
+        const dist = distributors?.find(d => d.name === distName);
+        const existing = existingDistributors.find(d => {
+          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
+          return existingDistName === distName;
+        });
+        
+        return {
+          distributor_id: dist?.id || null,
+          distributor_name: distName,
+          sku: existing?.sku || '',
+          url: existing?.url || ''
+        };
+      });
+    };
+    
+    // Populate editData with all component details including alternatives
+    const preparedData = {
+      ...componentDetails,
+      manufacturer_id: componentDetails?.manufacturer_id || '',
+      manufacturer_pn: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
+      manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
+      specifications: editSpecifications,
+      distributors: editDistributors,
+      alternatives: alternativesData && alternativesData.length > 0 
+        ? alternativesData.map(alt => ({
+            id: alt.id,
+            manufacturer_id: alt.manufacturer_id,
+            manufacturer_pn: alt.manufacturer_pn,
+            distributors: normalizeDistributors(alt.distributors)
+          }))
+        : [],
+      _vendorSearchData: vendorDataReference
+    };
+    setEditData(preparedData);
+    
+    // Initialize alternative manufacturer inputs
+    if (alternativesData && alternativesData.length > 0) {
+      const altMfrInputs = {};
+      alternativesData.forEach((alt, index) => {
+        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
+        altMfrInputs[index] = mfrName;
+      });
+      setAltManufacturerInputs(altMfrInputs);
+    } else {
+      setAltManufacturerInputs({});
+    }
   };
 
   const handleSubmitECO = async () => {
@@ -1302,6 +1442,8 @@ const Library = () => {
       setEcoNotes('');
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['ecos']);
+      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+      queryClient.invalidateQueries(['componentAlternatives', selectedComponent.id]);
 
       // Show success message
       showSuccess('ECO submitted successfully! It will be reviewed by an approver.');

@@ -39,10 +39,10 @@ const app = express();
 const PORT = process.env.PORT || 3500;
 
 // Log API configuration status (for debugging)
-console.log('API Configuration Status:');
-console.log('  DIGIKEY_CLIENT_ID:', process.env.DIGIKEY_CLIENT_ID ? '✓ Set' : '✗ Not set');
-console.log('  DIGIKEY_CLIENT_SECRET:', process.env.DIGIKEY_CLIENT_SECRET ? '✓ Set' : '✗ Not set');
-console.log('  MOUSER_API_KEY:', process.env.MOUSER_API_KEY ? '✓ Set' : '✗ Not set');
+console.log('[info] [Config] API Configuration Status:');
+console.log('[info] [Config] DIGIKEY_CLIENT_ID:', process.env.DIGIKEY_CLIENT_ID ? 'Set' : 'Not set');
+console.log('[info] [Config] DIGIKEY_CLIENT_SECRET:', process.env.DIGIKEY_CLIENT_SECRET ? 'Set' : 'Not set');
+console.log('[info] [Config] MOUSER_API_KEY:', process.env.MOUSER_API_KEY ? 'Set' : 'Not set');
 
 // Middleware
 app.use(helmet());
@@ -116,13 +116,13 @@ async function startServer() {
     
     // Start server
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📝 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🔗 API: http://localhost:${PORT}/api`);
+      console.log(`[info] [Server] Running on port ${PORT}`);
+      console.log(`[info] [Server] Environment: ${process.env.NODE_ENV}`);
+      console.log(`[info] [Server] API: http://localhost:${PORT}/api`);
       console.log('');
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('[error] [Server] Failed to start:', error);
     process.exit(1);
   }
 }

@@ -112,6 +112,12 @@ export const api = {
   updateUser: (id, userData) => apiClient.put(`/auth/users/${id}`, userData),
   deleteUser: (id) => apiClient.delete(`/auth/users/${id}`),
 
+  // User Profile
+  getProfile: () => apiClient.get('/auth/profile'),
+  updateProfile: (data) => apiClient.put('/auth/profile', data),
+  getNotificationPreferences: () => apiClient.get('/auth/notification-preferences'),
+  updateNotificationPreferences: (data) => apiClient.put('/auth/notification-preferences', data),
+
   patch: (url, data, config) => apiClient.patch(url, data, config),
 
   // Dashboard
@@ -258,6 +264,34 @@ export const api = {
   approveECO: (id) => apiClient.post(`/eco/${id}/approve`),
   rejectECO: (id, data) => apiClient.post(`/eco/${id}/reject`, data),
   deleteECO: (id) => apiClient.delete(`/eco/${id}`),
+  
+  // SMTP Settings
+  smtp: {
+    get: () => apiClient.get('/smtp'),
+    post: (data) => apiClient.post('/smtp', data),
+    test: (data) => apiClient.post('/smtp/test', data),
+    testEmail: () => apiClient.post('/smtp/test-email'),
+  },
+  
+  // User Notification Preferences
+  getNotificationPreferences: () => apiClient.get('/smtp/preferences'),
+  updateNotificationPreferences: (data) => apiClient.put('/smtp/preferences', data),
+  
+  // File Upload
+  uploadComponentFiles: (mfgPartNumber, formData) => 
+    apiClient.post(`/files/upload/${encodeURIComponent(mfgPartNumber)}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  uploadPassiveFiles: (formData) => 
+    apiClient.post('/files/upload-passive', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  listComponentFiles: (mfgPartNumber) => 
+    apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
+  deleteComponentFile: (category, mfgPartNumber, filename) => 
+    apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
+  getFileDownloadUrl: (category, mfgPartNumber, filename) => 
+    `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
 };
 
 export default apiClient;

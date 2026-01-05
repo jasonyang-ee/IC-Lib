@@ -181,36 +181,36 @@ export const resetDatabase = async (req, res, next) => {
     // Initialize users table
     const usersPath = path.join(__dirname, '../../../database/init-users.sql');
     const usersResult = await executeSQLFile(client, usersPath, 'init-users.sql');
-    console.log(`Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
+    console.log(`[info] [Admin] Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
     if (usersResult.errors.length > 0) {
-      console.error('Users initialization errors:', usersResult.errors);
+      console.error('[error] [Admin] Users initialization errors:', usersResult.errors);
     }
     
     // Verify users table was created
     try {
       const usersCheck = await client.query("SELECT COUNT(*) FROM users");
-      console.log(`✓ Users table verified: ${usersCheck.rows[0].count} users`);
+      console.log(`[info] [Admin] Users table verified: ${usersCheck.rows[0].count} users`);
     } catch (error) {
-      console.error('❌ Users table verification FAILED:', error.message);
+      console.error('[error] [Admin] Users table verification FAILED:', error.message);
       throw new Error('Users table was not created successfully');
     }
     
     // Load sample data
     const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
     const sampleResult = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
-    console.log(`Sample data loaded: ${sampleResult.executedCount}/${sampleResult.totalStatements} statements`);
+    console.log(`[info] [Admin] Sample data loaded: ${sampleResult.executedCount}/${sampleResult.totalStatements} statements`);
     if (sampleResult.errors.length > 0) {
-      console.error('Sample data errors:', sampleResult.errors);
+      console.error('[error] [Admin] Sample data errors:', sampleResult.errors);
     }
     
     // Check if users table was created successfully
     const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0 || sampleResult.errors.length > 0;
     
     if (hasErrors) {
-      console.warn('⚠️  Database reset completed with errors:');
-      if (schemaResult.errors.length > 0) console.warn('  Schema errors:', schemaResult.errors.length);
-      if (usersResult.errors.length > 0) console.warn('  Users errors:', usersResult.errors.length);
-      if (sampleResult.errors.length > 0) console.warn('  Sample data errors:', sampleResult.errors.length);
+      console.warn('[warn] [Admin] Database reset completed with errors:');
+      if (schemaResult.errors.length > 0) console.warn('[warn] [Admin] Schema errors:', schemaResult.errors.length);
+      if (usersResult.errors.length > 0) console.warn('[warn] [Admin] Users errors:', usersResult.errors.length);
+      if (sampleResult.errors.length > 0) console.warn('[warn] [Admin] Sample data errors:', sampleResult.errors.length);
     }
     
     res.json({

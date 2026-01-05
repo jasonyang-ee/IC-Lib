@@ -439,3 +439,197 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ error: 'Failed to change password' });
   }
 };
+
+/**
+ * Get current user profile
+ */
+export const getProfile = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, username, role, email, display_name, notification_preferences, 
+              created_at, last_login, is_active 
+       FROM users WHERE id = $1`,
+      [req.user.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      email: user.email,
+      displayName: user.display_name,
+      notificationPreferences: user.notification_preferences || {
+        eco_submitted: true,
+        eco_approved: true,
+        eco_rejected: true,
+        eco_assigned: true,
+        component_updated: false,
+        low_stock: false
+      },
+      createdAt: user.created_at,
+      lastLogin: user.last_login,
+      isActive: user.is_active
+    });
+  } catch (error) {
+    console.error('[error] [Auth] Get profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+};
+
+/**
+ * Update current user profile (email, display name)
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const { email, displayName } = req.body;
+
+    // Validate email format if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate display name length if provided
+    if (displayName && displayName.length > 100) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or less' });
+    }
+
+    // Update profile
+    const result = await pool.query(
+      `UPDATE users 
+       SET email = $1, display_name = $2 
+       WHERE id = $3 
+       RETURNING id, username, email, display_name`,
+      [email || null, displayName || null, req.user.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Log activity
+    try {
+      await pool.query(
+        `INSERT INTO user_activity_log (type_name, description, user_id)
+         VALUES ('profile_updated', $1, $2)`,
+        [`User ${req.user.username} updated their profile`, req.user.userId]
+      );
+    } catch (logError) {
+      console.error('[error] [Auth] Failed to log profile update:', logError);
+    }
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: result.rows[0].id,
+        username: result.rows[0].username,
+        email: result.rows[0].email,
+        displayName: result.rows[0].display_name
+      }
+    });
+  } catch (error) {
+    console.error('[error] [Auth] Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+/**
+ * Get notification preferences
+ */
+export const getNotificationPreferences = async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT notification_preferences FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Return default preferences if null
+    const preferences = result.rows[0].notification_preferences || {
+      eco_submitted: true,
+      eco_approved: true,
+      eco_rejected: true,
+      eco_assigned: true,
+      component_updated: false,
+      low_stock: false
+    };
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('[error] [Auth] Get notification preferences error:', error);
+    res.status(500).json({ error: 'Failed to fetch notification preferences' });
+  }
+};
+
+/**
+ * Update notification preferences
+ */
+export const updateNotificationPreferences = async (req, res) => {
+  try {
+    const preferences = req.body;
+
+    // Validate preferences structure
+    const validKeys = ['eco_submitted', 'eco_approved', 'eco_rejected', 'eco_assigned', 'component_updated', 'low_stock'];
+    const invalidKeys = Object.keys(preferences).filter(key => !validKeys.includes(key));
+    
+    if (invalidKeys.length > 0) {
+      return res.status(400).json({ 
+        error: `Invalid preference keys: ${invalidKeys.join(', ')}. Valid keys are: ${validKeys.join(', ')}` 
+      });
+    }
+
+    // Ensure all values are booleans
+    for (const [key, value] of Object.entries(preferences)) {
+      if (typeof value !== 'boolean') {
+        return res.status(400).json({ 
+          error: `Preference "${key}" must be a boolean value` 
+        });
+      }
+    }
+
+    // Get current preferences and merge
+    const currentResult = await pool.query(
+      'SELECT notification_preferences FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentPreferences = currentResult.rows[0].notification_preferences || {};
+    const mergedPreferences = { ...currentPreferences, ...preferences };
+
+    // Update preferences
+    await pool.query(
+      'UPDATE users SET notification_preferences = $1 WHERE id = $2',
+      [JSON.stringify(mergedPreferences), req.user.userId]
+    );
+
+    // Log activity
+    try {
+      await pool.query(
+        `INSERT INTO user_activity_log (type_name, description, user_id)
+         VALUES ('notification_preferences_updated', $1, $2)`,
+        [`User ${req.user.username} updated notification preferences`, req.user.userId]
+      );
+    } catch (logError) {
+      console.error('[error] [Auth] Failed to log notification preferences update:', logError);
+    }
+
+    res.json({
+      message: 'Notification preferences updated successfully',
+      preferences: mergedPreferences
+    });
+  } catch (error) {
+    console.error('[error] [Auth] Update notification preferences error:', error);
+    res.status(500).json({ error: 'Failed to update notification preferences' });
+  }
+};

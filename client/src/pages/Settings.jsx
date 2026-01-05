@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
+import SMTPSettings from '../components/SMTPSettings';
 
 // User Management Component (Admin Only)
 const UserManagement = () => {
@@ -995,6 +996,7 @@ const Settings = () => {
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
   const [showClearAuditConfirm, setShowClearAuditConfirm] = useState(false);
   const [draggedCategory, setDraggedCategory] = useState(null);
+  const [activeTab, setActiveTab] = useState('users');
   
   // Auto Data Update states
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
@@ -1229,10 +1231,10 @@ const Settings = () => {
     // Simulate progress animation
     const progressInterval = setInterval(() => {
       setStockProgress(prev => {
-        if (prev >= 95) return 95; // Cap at 95% until complete
-        return prev + Math.random() * 5;
+        if (prev >= 90) return 90; // Cap at 90% until complete
+        return prev + Math.random() * 3;
       });
-    }, 1000);
+    }, 2000);
     
     try {
       const result = await api.bulkUpdateStock();
@@ -1240,7 +1242,7 @@ const Settings = () => {
       setStockProgress(100);
       setUpdateToast({ 
         show: true, 
-        message: `✓ Stock update complete: ${result.data.updatedCount} updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        message: `Stock update complete: ${result.data.updatedCount} updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
         type: 'success' 
       });
       
@@ -1262,13 +1264,13 @@ const Settings = () => {
       if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
         setUpdateToast({ 
           show: true, 
-          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          message: `${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
           type: 'warning' 
         });
       } else {
         setUpdateToast({ 
           show: true, 
-          message: '✗ Error updating stock. Please try again.', 
+          message: 'Error updating stock. Please try again.', 
           type: 'error' 
         });
       }
@@ -1291,10 +1293,10 @@ const Settings = () => {
     // Simulate progress animation
     const progressInterval = setInterval(() => {
       setSpecsProgress(prev => {
-        if (prev >= 95) return 95; // Cap at 95% until complete
-        return prev + Math.random() * 5;
+        if (prev >= 90) return 90; // Cap at 90% until complete
+        return prev + Math.random() * 3;
       });
-    }, 1000);
+    }, 2000);
     
     try {
       const result = await api.bulkUpdateSpecifications();
@@ -1302,7 +1304,7 @@ const Settings = () => {
       setSpecsProgress(100);
       setUpdateToast({ 
         show: true, 
-        message: `✓ Specification update complete: ${result.data.updatedCount} parts updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        message: `Specification update complete: ${result.data.updatedCount} parts updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
         type: 'success' 
       });
       
@@ -1324,13 +1326,13 @@ const Settings = () => {
       if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
         setUpdateToast({ 
           show: true, 
-          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          message: `${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
           type: 'warning' 
         });
       } else {
         setUpdateToast({ 
           show: true, 
-          message: '✗ Error updating specifications. Please try again.', 
+          message: 'Error updating specifications. Please try again.', 
           type: 'error' 
         });
       }
@@ -1353,10 +1355,10 @@ const Settings = () => {
     // Simulate progress animation
     const progressInterval = setInterval(() => {
       setDistributorsProgress(prev => {
-        if (prev >= 95) return 95; // Cap at 95% until complete
-        return prev + Math.random() * 5;
+        if (prev >= 90) return 90; // Cap at 90% until complete
+        return prev + Math.random() * 3;
       });
-    }, 1000);
+    }, 2000);
     
     try {
       const result = await api.bulkUpdateDistributors();
@@ -1364,7 +1366,7 @@ const Settings = () => {
       setDistributorsProgress(100);
       setUpdateToast({ 
         show: true, 
-        message: `✓ Distributor update complete: ${result.data.updatedCount} distributors updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
+        message: `Distributor update complete: ${result.data.updatedCount} distributors updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
         type: 'success' 
       });
       
@@ -1386,13 +1388,13 @@ const Settings = () => {
       if (error.response?.status === 429 || error.response?.data?.error === 'RATE_LIMIT_EXCEEDED') {
         setUpdateToast({ 
           show: true, 
-          message: `⚠️ ${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
+          message: `${error.response?.data?.message || 'API rate limit exceeded. Please try again later.'}`, 
           type: 'warning' 
         });
       } else {
         setUpdateToast({ 
           show: true, 
-          message: '✗ Error updating distributors. Please try again.', 
+          message: 'Error updating distributors. Please try again.', 
           type: 'error' 
         });
       }
@@ -1519,27 +1521,27 @@ const Settings = () => {
         </p>
       </div>
 
-      {/* Navigation Menu */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 mb-6 border border-gray-200 dark:border-[#3a3a3a] sticky top-0 z-10">
-        <nav className="flex flex-wrap gap-2">
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-[#3a3a3a] mb-6">
+        <nav className="flex space-x-8">
           {[
             { id: 'users', label: 'User Management', icon: Users },
             { id: 'categories', label: 'Categories', icon: Database },
+            { id: 'smtp', label: 'Email Settings', icon: Mail },
             { id: 'auto-update', label: 'Auto Data Update', icon: RefreshCw },
             { id: 'database', label: 'Database Operations', icon: Database },
             { id: 'audit', label: 'Audit Logs', icon: FileText }
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => {
-                const element = document.getElementById(id);
-                if (element) {
-                  element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-[#333333] hover:bg-primary-100 dark:hover:bg-primary-900/30 text-gray-700 dark:text-gray-300 hover:text-primary-700 dark:hover:text-primary-400 transition-colors font-medium text-sm"
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === id
+                  ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-5 h-5" />
               {label}
             </button>
           ))}
@@ -1548,12 +1550,22 @@ const Settings = () => {
 
       <div className="space-y-6">
       {/* User Management Section */}
-      <div id="users" className="scroll-mt-24">
+      {activeTab === 'users' && (
+      <div id="users">
         <UserManagement />
       </div>
+      )}
+
+      {/* SMTP Settings Section */}
+      {activeTab === 'smtp' && (
+      <div id="smtp" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+        <SMTPSettings />
+      </div>
+      )}
 
       {/* Category Configuration Section */}
-      <div id="categories" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
+      {activeTab === 'categories' && (
+      <div id="categories" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Category Configuration</h2>
           <button
@@ -1859,9 +1871,11 @@ const Settings = () => {
           {renameManufacturerMutation.isPending ? 'Processing...' : 'Rename/Merge Manufacturer'}
         </button>
       </div>
+      )}
 
       {/* Database Operations Section */}
-      <div id="database" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
+      {activeTab === 'database' && (
+      <div id="database" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h2>
         
         {/* Standard Operations */}
@@ -2002,9 +2016,11 @@ const Settings = () => {
           </p>
         </div>
       </div>
+      )}
 
       {/* Auto Data Update Section */}
-      <div id="auto-update" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
+      {activeTab === 'auto-update' && (
+      <div id="auto-update" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center gap-2 mb-4">
           <RefreshCw className="w-6 h-6 text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Auto Data Update</h2>
@@ -2099,9 +2115,11 @@ const Settings = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Audit Logs Management */}
-      <div id="audit" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] scroll-mt-24">
+      {activeTab === 'audit' && (
+      <div id="audit" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <div className="flex items-center gap-2 mb-4">
           <FileText className="w-6 h-6 text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Audit Logs Management</h2>
@@ -2127,6 +2145,7 @@ const Settings = () => {
           )}
         </button>
       </div>
+      )}
 
       {showClearAuditConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

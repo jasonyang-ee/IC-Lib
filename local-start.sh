@@ -5,19 +5,12 @@
 
 set -e
 
-# Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-echo "OrCAD Component Library - Local Development Mode"
+echo "[info] [Startup] OrCAD Component Library - Local Development Mode"
 echo ""
 
 # Check if .env file exists
 if [ ! -f .env ]; then
-    echo -e "${RED}ERROR: .env file not found!${NC}"
+    echo "[error] [Startup] .env file not found!"
     echo ""
     echo "Please create a .env file from .env.example:"
     echo "  cp .env.example .env"
@@ -27,12 +20,12 @@ if [ ! -f .env ]; then
 fi
 
 # Load environment variables from .env
-echo -e "${BLUE}Loading environment variables from .env...${NC}"
+echo "[info] [Startup] Loading environment variables from .env..."
 export $(grep -v '^#' .env | xargs)
 
 # Validate required environment variables
 if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_NAME" ]; then
-    echo -e "${RED}ERROR: Missing required database configuration in .env${NC}"
+    echo "[error] [Startup] Missing required database configuration in .env"
     echo ""
     echo "Required variables:"
     echo "  DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME"
@@ -41,8 +34,8 @@ fi
 
 # Validate JWT_SECRET for authentication
 if [ -z "$JWT_SECRET" ]; then
-    echo -e "${YELLOW}WARNING: JWT_SECRET not set in .env${NC}"
-    echo -e "${YELLOW}Authentication will not work properly!${NC}"
+    echo "[warn] [Auth] JWT_SECRET not set in .env"
+    echo "[warn] [Auth] Authentication will not work properly!"
     echo ""
     echo "Generate a secure secret:"
     echo "  node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
@@ -52,10 +45,10 @@ if [ -z "$JWT_SECRET" ]; then
     echo ""
 fi
 
-echo -e "${GREEN}✓${NC} Environment variables loaded"
+echo "[info] [Startup] Environment variables loaded"
 echo ""
 
-echo "Configuration:"
+echo "[info] [Startup] Configuration:"
 echo "  Database: ${DB_HOST}:${DB_PORT}"
 echo "  Database Name: ${DB_NAME}"
 echo "  Backend Port: ${PORT:-3500}"
@@ -65,7 +58,7 @@ echo "  Environment: ${NODE_ENV:-development}"
 echo ""
 
 # Test database connection
-echo -e "${BLUE}Testing database connection...${NC}"
+echo "[info] [Database] Testing database connection..."
 cd server
 if node -e "
 import pg from 'pg';
@@ -79,18 +72,18 @@ const client = new Client({
 });
 client.connect()
     .then(() => { 
-        console.log('✓ Database connection successful'); 
+        console.log('[info] [Database] Connection successful'); 
         client.end(); 
         process.exit(0); 
     })
     .catch((err) => { 
-        console.error('✗ Database connection failed:', err.message); 
+        console.error('[error] [Database] Connection failed:', err.message); 
         process.exit(1); 
     });
 " 2>&1; then
-    echo -e "${GREEN}✓${NC} Database connection successful"
+    echo "[info] [Database] Connection successful"
 else
-    echo -e "${RED}✗${NC} Database connection failed"
+    echo "[error] [Database] Connection failed"
     echo ""
     echo "Please check your database configuration in .env:"
     echo "  DB_HOST=${DB_HOST}"
@@ -103,36 +96,36 @@ cd ..
 echo ""
 
 # Check if node_modules exist
-echo -e "${BLUE}Checking dependencies...${NC}"
+echo "[info] [Startup] Checking dependencies..."
 
 if [ ! -d "server/node_modules" ]; then
-    echo -e "${YELLOW}Installing backend dependencies...${NC}"
+    echo "[info] [Backend] Installing dependencies..."
     cd server
     npm install
     cd ..
-    echo -e "${GREEN}✓${NC} Backend dependencies installed"
+    echo "[info] [Backend] Dependencies installed"
 else
-    echo -e "${GREEN}✓${NC} Backend dependencies found"
+    echo "[info] [Backend] Dependencies found"
 fi
 
 if [ ! -d "client/node_modules" ]; then
-    echo -e "${YELLOW}Installing frontend dependencies...${NC}"
+    echo "[info] [Frontend] Installing dependencies..."
     cd client
     npm install
     cd ..
-    echo -e "${GREEN}✓${NC} Frontend dependencies installed"
+    echo "[info] [Frontend] Dependencies installed"
 else
-    echo -e "${GREEN}✓${NC} Frontend dependencies found"
+    echo "[info] [Frontend] Dependencies found"
 fi
 
 echo ""
-echo "Starting Development Servers..."
+echo "[info] [Startup] Starting Development Servers..."
 echo ""
 
 # Function to handle cleanup
 cleanup() {
     echo ""
-    echo -e "${YELLOW}Shutting down servers...${NC}"
+    echo "[info] [Startup] Shutting down servers..."
     
     if [ ! -z "$BACKEND_PID" ]; then
         kill $BACKEND_PID 2>/dev/null || true
@@ -144,7 +137,7 @@ cleanup() {
         wait $FRONTEND_PID 2>/dev/null || true
     fi
     
-    echo -e "${GREEN}Servers stopped.${NC}"
+    echo "[info] [Startup] Servers stopped."
     exit 0
 }
 
@@ -152,7 +145,7 @@ cleanup() {
 trap cleanup SIGTERM SIGINT
 
 # Start backend with hot reload
-echo -e "${BLUE}→ Starting Backend (Express.js with nodemon)...${NC}"
+echo "[info] [Backend] Starting Express.js with nodemon..."
 cd server
 npm run dev &
 BACKEND_PID=$!
@@ -162,16 +155,16 @@ cd ..
 sleep 2
 
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${RED}ERROR: Backend failed to start${NC}"
+    echo "[error] [Backend] Failed to start"
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Backend started (PID: $BACKEND_PID)"
-echo -e "   URL: ${BLUE}http://localhost:${PORT:-3500}${NC}"
+echo "[info] [Backend] Started (PID: $BACKEND_PID)"
+echo "   URL: http://localhost:${PORT:-3500}"
 echo ""
 
 # Start frontend with hot reload
-echo -e "${BLUE}→ Starting Frontend (Vite dev server)...${NC}"
+echo "[info] [Frontend] Starting Vite dev server..."
 cd client
 npm run build
 npm run dev &
@@ -182,30 +175,30 @@ cd ..
 sleep 2
 
 if ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    echo -e "${RED}ERROR: Frontend failed to start${NC}"
+    echo "[error] [Frontend] Failed to start"
     kill $BACKEND_PID 2>/dev/null || true
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Frontend started (PID: $FRONTEND_PID)"
-echo -e "   URL: ${BLUE}http://localhost:5173${NC}"
+echo "[info] [Frontend] Started (PID: $FRONTEND_PID)"
+echo "   URL: http://localhost:5173"
 echo ""
 
 echo ""
-echo -e "${GREEN}✓ Development servers running!${NC}"
+echo "[info] [Startup] Development servers running!"
 echo ""
-echo -e "${GREEN}Frontend:${NC} http://localhost:5173"
-echo -e "${GREEN}Backend API:${NC} http://localhost:${PORT:-3500}/api"
-echo -e "${GREEN}Health Check:${NC} http://localhost:${PORT:-3500}/health"
+echo "Frontend: http://localhost:5173"
+echo "Backend API: http://localhost:${PORT:-3500}/api"
+echo "Health Check: http://localhost:${PORT:-3500}/health"
 echo ""
-echo -e "${YELLOW}Hot Reload:${NC} Both servers will automatically reload on file changes"
+echo "Hot Reload: Both servers will automatically reload on file changes"
 echo ""
-echo -e "${BLUE}Download Folders:${NC}"
+echo "Download Folders:"
 echo "  - ./download/footprint"
 echo "  - ./download/symbol"
 echo "  - ./download/pad"
 echo ""
-echo -e "Press ${RED}Ctrl+C${NC} to stop all servers"
+echo "Press Ctrl+C to stop all servers"
 echo ""
 
 # Wait for either process to exit
@@ -215,9 +208,9 @@ wait -n $BACKEND_PID $FRONTEND_PID
 EXIT_CODE=$?
 
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${RED}ERROR: Backend exited unexpectedly${NC}"
+    echo "[error] [Backend] Exited unexpectedly"
 elif ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    echo -e "${RED}ERROR: Frontend exited unexpectedly${NC}"
+    echo "[error] [Frontend] Exited unexpectedly"
 fi
 
 cleanup

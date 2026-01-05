@@ -39,13 +39,13 @@ async function initializePartsDatabase() {
   const client = await pool.connect();
   
   try {
-    console.log('🔧 Initializing parts database schema...');
+    console.log('[info] [Database] Initializing parts database schema...');
     
     // Read the init-schema.sql file
     const sqlFilePath = path.resolve(__dirname, '../../../database/init-schema.sql');
     
     if (!fs.existsSync(sqlFilePath)) {
-      console.error('❌ init-schema.sql file not found at:', sqlFilePath);
+      console.error('[error] [Database] init-schema.sql file not found at:', sqlFilePath);
       return false;
     }
     
@@ -54,14 +54,14 @@ async function initializePartsDatabase() {
     // Execute the SQL - wrap in try-catch to handle duplicate trigger/constraint errors
     try {
       await client.query(sql);
-      console.log('✅ Parts database schema initialized successfully');
-      console.log('   Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
+      console.log('[info] [Database] Parts database schema initialized successfully');
+      console.log('[info] [Database] Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
     } catch (initError) {
       // If error is about existing triggers/constraints, that's actually OK - database is already initialized
       const errorMsg = initError.message || '';
       if (errorMsg.includes('already exists') || errorMsg.includes('duplicate')) {
-        console.log('ℹ️  Parts database schema already exists (some objects were already created)');
-        console.log('   This is normal for an existing database - skipping duplicate creation');
+        console.log('[info] [Database] Parts database schema already exists (some objects were already created)');
+        console.log('[info] [Database] This is normal for an existing database - skipping duplicate creation');
       } else {
         // For other errors, rethrow
         throw initError;
@@ -71,7 +71,7 @@ async function initializePartsDatabase() {
     console.log('');
     return true;
   } catch (error) {
-    console.error('❌ Failed to initialize parts database:', error.message);
+    console.error('[error] [Database] Failed to initialize parts database:', error.message);
     return false;
   } finally {
     client.release();
@@ -137,9 +137,9 @@ async function validateUsersTableSchema() {
     const hasAllColumns = requiredColumns.every(col => existingColumns.includes(col));
     
     if (!hasAllColumns) {
-      console.warn('⚠️  Users table exists but schema is incomplete');
+      console.warn('[warn] [Auth] Users table exists but schema is incomplete');
       const missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));
-      console.warn('   Missing columns:', missingColumns.join(', '));
+      console.warn('[warn] [Auth] Missing columns:', missingColumns.join(', '));
       return false;
     }
     
@@ -157,13 +157,13 @@ async function initializeUsersTable() {
   const client = await pool.connect();
   
   try {
-    console.log('🔧 Initializing users table...');
+    console.log('[info] [Auth] Initializing users table...');
     
     // Read the init-users.sql file
     const sqlFilePath = path.resolve(__dirname, '../../../database/init-users.sql');
     
     if (!fs.existsSync(sqlFilePath)) {
-      console.error('❌ init-users.sql file not found at:', sqlFilePath);
+      console.error('[error] [Auth] init-users.sql file not found at:', sqlFilePath);
       return false;
     }
     
@@ -172,18 +172,18 @@ async function initializeUsersTable() {
     // Execute the SQL
     await client.query(sql);
     
-    console.log('✅ Users table initialized successfully');
+    console.log('[info] [Auth] Users table initialized successfully');
     console.log('');
-    console.log('   Default admin user created:');
-    console.log('   Username: admin');
-    console.log('   Password: admin123');
+    console.log('[info] [Auth] Default admin user created:');
+    console.log('[info] [Auth] Username: admin');
+    console.log('[info] [Auth] Password: admin123');
     console.log('');
-    console.log('   ⚠️  IMPORTANT: Change the default password after first login!');
+    console.log('[warn] [Auth] IMPORTANT: Change the default password after first login!');
     console.log('');
     
     return true;
   } catch (error) {
-    console.error('❌ Failed to initialize users table:', error.message);
+    console.error('[error] [Auth] Failed to initialize users table:', error.message);
     return false;
   } finally {
     client.release();
@@ -212,7 +212,7 @@ async function checkDefaultAdminExists() {
  */
 async function createDefaultAdmin() {
   try {
-    console.log('🔧 Creating default admin user...');
+    console.log('[info] [Auth] Creating default admin user...');
     
     const password = 'admin123';
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -223,15 +223,15 @@ async function createDefaultAdmin() {
       ON CONFLICT (username) DO NOTHING;
     `, ['admin', hashedPassword]);
     
-    console.log('✅ Default admin user created');
-    console.log('   Username: admin');
-    console.log('   Password: admin123');
-    console.log('   ⚠️  Change this password immediately!');
+    console.log('[info] [Auth] Default admin user created');
+    console.log('[info] [Auth] Username: admin');
+    console.log('[info] [Auth] Password: admin123');
+    console.log('[warn] [Auth] Change this password immediately!');
     console.log('');
     
     return true;
   } catch (error) {
-    console.error('❌ Failed to create default admin:', error.message);
+    console.error('[error] [Auth] Failed to create default admin:', error.message);
     return false;
   }
 }
@@ -244,7 +244,7 @@ async function ensureUserActivityTypes() {
     const hasActivityTypes = await checkActivityTypesTableExists();
     
     if (!hasActivityTypes) {
-      console.log('⚠️  activity_types table not found, skipping user activity types');
+      console.log('[warn] [Auth] activity_types table not found, skipping user activity types');
       return true;
     }
     
@@ -272,38 +272,38 @@ async function ensureUserActivityTypes() {
  */
 export async function initializeAuthentication() {
   console.log('');
-  console.log('🚀 Starting database initialization...');
+  console.log('[info] [Init] Starting database initialization...');
   console.log('');
   
   try {
     // First, check and initialize users table (REQUIRED by parts schema)
-    console.log('� Checking authentication setup...');
+    console.log('[info] [Auth] Checking authentication setup...');
     console.log('');
     
     const usersTableExists = await checkUsersTableExists();
     
     if (!usersTableExists) {
-      console.log('⚠️  Users table not found - initializing from init-users.sql');
+      console.log('[warn] [Auth] Users table not found - initializing from init-users.sql');
       const initialized = await initializeUsersTable();
       
       if (!initialized) {
-        console.error('❌ Failed to initialize users table');
-        console.error('   Authentication will not work until this is resolved');
-        console.error('   Please check database/init-users.sql file exists');
+        console.error('[error] [Auth] Failed to initialize users table');
+        console.error('[error] [Auth] Authentication will not work until this is resolved');
+        console.error('[error] [Auth] Please check database/init-users.sql file exists');
         return false;
       }
       
       // Ensure activity types exist
       await ensureUserActivityTypes();
       
-      console.log('✅ Users table initialized successfully');
+      console.log('[info] [Auth] Users table initialized successfully');
     } else {
       // Table exists - validate schema
       const schemaValid = await validateUsersTableSchema();
       
       if (!schemaValid) {
-        console.error('❌ Users table schema is invalid');
-        console.error('   Please run database/init-users.sql manually or drop the table to auto-recreate');
+        console.error('[error] [Auth] Users table schema is invalid');
+        console.error('[error] [Auth] Please run database/init-users.sql manually or drop the table to auto-recreate');
         return false;
       }
       
@@ -311,55 +311,55 @@ export async function initializeAuthentication() {
       const adminExists = await checkDefaultAdminExists();
       
       if (!adminExists) {
-        console.log('⚠️  Default admin user not found - creating...');
+        console.log('[warn] [Auth] Default admin user not found - creating...');
         await createDefaultAdmin();
       } else {
-        console.log('✅ Users table found with valid schema');
+        console.log('[info] [Auth] Users table found with valid schema');
       }
       
       // Ensure activity types exist
       await ensureUserActivityTypes();
     }
     
-    console.log('✅ Authentication setup verified');
+    console.log('[info] [Auth] Authentication setup verified');
     console.log('');
     
     // Now check parts database (references users table)
-    console.log('📦 Checking parts database schema...');
+    console.log('[info] [Database] Checking parts database schema...');
     const { allExist: partsExist, tables: partsTables } = await checkPartsTablesExist();
     
     if (!partsExist) {
-      console.log('⚠️  Parts database incomplete - initializing from init-schema.sql');
+      console.log('[warn] [Database] Parts database incomplete - initializing from init-schema.sql');
       const missingTables = Object.entries(partsTables)
         .filter(([_, exists]) => !exists)
         .map(([name]) => name);
       
       if (missingTables.length > 0) {
-        console.log(`   Missing tables: ${missingTables.join(', ')}`);
+        console.log(`[info] [Database] Missing tables: ${missingTables.join(', ')}`);
       }
       
       const initialized = await initializePartsDatabase();
       
       if (!initialized) {
-        console.error('❌ Failed to initialize parts database');
-        console.error('   Core functionality will not work until this is resolved');
-        console.error('   Please check database/init-schema.sql file exists');
+        console.error('[error] [Database] Failed to initialize parts database');
+        console.error('[error] [Database] Core functionality will not work until this is resolved');
+        console.error('[error] [Database] Please check database/init-schema.sql file exists');
         return false;
       } else {
-        console.log('✅ Parts database initialized successfully');
+        console.log('[info] [Database] Parts database initialized successfully');
       }
     } else {
-      console.log('✅ Parts database schema verified');
+      console.log('[info] [Database] Parts database schema verified');
     }
     
     console.log('');
-    console.log('✅ Database initialization complete');
+    console.log('[info] [Init] Database initialization complete');
     console.log('');
     
     return true;
   } catch (error) {
-    console.error('❌ Database initialization failed:', error.message);
-    console.error('   Server will start but functionality may be limited');
+    console.error('[error] [Init] Database initialization failed:', error.message);
+    console.error('[error] [Init] Server will start but functionality may be limited');
     console.error('');
     return false;
   }

@@ -5,18 +5,18 @@
 
 set -e
 
-echo "IC Lib - Starting..."
+echo "[info] [Startup] IC Lib - Starting..."
 echo ""
 
 # Function to handle shutdown gracefully
 cleanup() {
     echo ""
-    echo "Shutting down services..."
+    echo "[info] [Startup] Shutting down services..."
     kill $BACKEND_PID 2>/dev/null || true
     kill $NGINX_PID 2>/dev/null || true
     wait $BACKEND_PID 2>/dev/null || true
     wait $NGINX_PID 2>/dev/null || true
-    echo "Services stopped."
+    echo "[info] [Startup] Services stopped."
     exit 0
 }
 
@@ -25,14 +25,14 @@ trap cleanup SIGTERM SIGINT
 
 # Check required environment variables
 if [ -z "$DB_HOST" ]; then
-    echo "ERROR: DB_HOST environment variable is not set"
+    echo "[error] [Startup] DB_HOST environment variable is not set"
     echo "Please set database connection parameters:"
     echo "  DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME"
     exit 1
 fi
 
 echo ""
-echo "Configuration:"
+echo "[info] [Startup] Configuration:"
 echo "  Database: ${DB_HOST}:${DB_PORT}"
 echo "  Database Name: ${DB_NAME}"
 echo "  Backend Port: ${PORT}"
@@ -41,7 +41,7 @@ echo "  Environment: ${NODE_ENV}"
 echo ""
 
 # Wait for database to be ready
-echo "Waiting for database connection..."
+echo "[info] [Startup] Waiting for database connection..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 
@@ -63,13 +63,13 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             .then(() => { client.end(); process.exit(0); })
             .catch(() => process.exit(1));
     " 2>/dev/null; then
-        echo "✓ Database connection successful"
+        echo "[info] [Database] Connection successful"
         break
     fi
     
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-        echo "ERROR: Could not connect to database after $MAX_RETRIES attempts"
+        echo "[error] [Database] Could not connect after $MAX_RETRIES attempts"
         echo "Please check your database connection settings:"
         echo "  DB_HOST=${DB_HOST}"
         echo "  DB_PORT=${DB_PORT}"
@@ -82,11 +82,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 echo ""
-echo "Starting services..."
+echo "[info] [Startup] Starting services..."
 echo ""
 
 # Start nginx in background
-echo "→ Starting nginx (frontend)..."
+echo "[info] [Nginx] Starting nginx (frontend)..."
 nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
 NGINX_PID=$!
 
@@ -94,14 +94,14 @@ NGINX_PID=$!
 sleep 2
 
 if ! kill -0 $NGINX_PID 2>/dev/null; then
-    echo "ERROR: nginx failed to start"
+    echo "[error] [Nginx] Failed to start"
     exit 1
 fi
 
-echo "✓ nginx started (PID: $NGINX_PID)"
+echo "[info] [Nginx] Started (PID: $NGINX_PID)"
 
 # Start backend
-echo "→ Starting Express.js backend..."
+echo "[info] [Backend] Starting Express.js backend..."
 cd /app/server
 node src/index.js 2>&1 | sed 's/^/[backend] /' &
 BACKEND_PID=$!
@@ -110,24 +110,24 @@ BACKEND_PID=$!
 sleep 2
 
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "ERROR: Backend failed to start"
+    echo "[error] [Backend] Failed to start"
     kill $NGINX_PID 2>/dev/null || true
     exit 1
 fi
 
-echo "✓ Backend started (PID: $BACKEND_PID)"
+echo "[info] [Backend] Started (PID: $BACKEND_PID)"
 
 echo ""
-echo "✓ All services running successfully!"
+echo "[info] [Startup] All services running successfully!"
 echo ""
 echo "  Frontend: http://localhost"
 echo "  Backend API: http://localhost:3500/api"
 echo "  Health Check: http://localhost:3500/health"
 echo ""
-echo "  📝 Authentication:"
+echo "  Authentication:"
 echo "     Default Admin Username: admin"
 echo "     Default Admin Password: admin123"
-echo "     ⚠️  Change password after first login!"
+echo "     IMPORTANT: Change password after first login!"
 echo ""
 
 # Wait for either process to exit
@@ -137,9 +137,9 @@ wait -n $BACKEND_PID $NGINX_PID
 EXIT_CODE=$?
 
 if ! kill -0 $NGINX_PID 2>/dev/null; then
-    echo "ERROR: nginx exited unexpectedly"
+    echo "[error] [Nginx] Exited unexpectedly"
 elif ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "ERROR: Backend exited unexpectedly"
+    echo "[error] [Backend] Exited unexpectedly"
 fi
 
 cleanup

@@ -4,6 +4,16 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'read-write', 'approver', 'admin')),
+  email VARCHAR(255),
+  display_name VARCHAR(100),
+  notification_preferences JSONB DEFAULT '{
+    "eco_submitted": true,
+    "eco_approved": true,
+    "eco_rejected": true,
+    "eco_assigned": true,
+    "component_updated": false,
+    "low_stock": false
+  }'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_by INTEGER REFERENCES users(id),
   last_login TIMESTAMP,
@@ -13,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Create index on username for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 
 -- Activity types table for user actions
 CREATE TABLE IF NOT EXISTS activity_types (

@@ -332,14 +332,14 @@ if gh release create "v$NEW_VERSION" \
     --notes "$CHANGELOG_CONTENT" \
     --draft; then
     echo ""
-    echo -e "${GREEN}${BOLD}✓ Release v$NEW_VERSION created successfully!${NC}"
+    echo -e "${GREEN}${BOLD}[info] Release v$NEW_VERSION created successfully!${NC}"
     echo ""
     echo -e "The release has been created as a ${YELLOW}draft${NC}."
     echo -e "Visit the GitHub releases page to review and publish it."
     echo ""
     gh release view "v$NEW_VERSION" --web 2>/dev/null || true
 else
-    echo -e "${RED}Error: Failed to create GitHub release.${NC}"
+    echo -e "${RED}[error] Failed to create GitHub release.${NC}"
     echo "The git tag was pushed successfully. You can create the release manually."
     exit 1
 fi
