@@ -1928,11 +1928,20 @@ const Library = () => {
           }
         }
         
-        // Cleanup will be handled by mutation's onSuccess
+        // All operations completed successfully - show success notification
+        showSuccess('Component added successfully!');
+        
+        // Explicit cleanup to ensure we exit add mode
+        // This is done here to ensure all async operations complete before resetting state
+        setIsAddMode(false);
+        setEditData({});
+        setSelectedComponent(null);
+        setManufacturerInput('');
+        setAltManufacturerInputs({});
       }
     } catch (error) {
       console.error('Error adding component:', error);
-      setWarningModal({ show: true, message: 'Failed to add component. Please try again.' });
+      showError('Failed to add component. Please try again.');
     }
   };
 
@@ -2790,48 +2799,48 @@ const Library = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {isAddMode ? 'Add New Component' : 'Component Details'}
               </h3>
-              {!isEditMode && !isAddMode && selectedComponent && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => jumpToInventory(selectedComponent.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
-                    title="View in Inventory"
-                  >
-                    <Package className="w-3.5 h-3.5" />
-                    <span>Inventory</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Navigate to Vendor Search with manufacturer part number from selected alternative
-                      const manufacturerPN = selectedAlternative?.manufacturer_pn || selectedComponent.manufacturer_pn;
-                      navigate('/vendor-search', { 
-                        state: { searchFromLibrary: manufacturerPN } 
-                      });
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                    title="Search Vendor"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                    <span>Search Vendor</span>
-                  </button>
-                  {canWrite() && (
-                    <button
-                      onClick={() => setShowAddToProjectModal(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                      title="Add to Project"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add to Project</span>
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            {!isEditMode && !isAddMode && selectedComponent && (
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => jumpToInventory(selectedComponent.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
+                  title="View in Inventory"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Inventory</span>
+                </button>
+                <button
+                  onClick={() => {
+                    // Navigate to Vendor Search with manufacturer part number from selected alternative
+                    const manufacturerPN = selectedAlternative?.manufacturer_pn || selectedComponent.manufacturer_pn;
+                    navigate('/vendor-search', { 
+                      state: { searchFromLibrary: manufacturerPN } 
+                    });
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                  title="Search Vendor"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Search Vendor</span>
+                </button>
+                {canWrite() && (
+                  <button
+                    onClick={() => setShowAddToProjectModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                    title="Add to Project"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add to Project</span>
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4 text-sm">
               {(isEditMode || isAddMode) ? (
                 <>
-                  {/* ROW 1: Part Number, Part Type (Category), Value */}
-                  <div className="col-span-2">
+                  {/* ROW 1: Part Number, Part Type (Category) */}
+                  <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Part Number <span className="text-red-500">*</span>
                     </label>
@@ -2864,8 +2873,8 @@ const Library = () => {
                   </div>
                   
 
-                  {/* ROW 2: Value (again), Package */}
-                  <div className="col-span-2">
+                  {/* ROW 2: Value, Package */}
+                  <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Value <span className="text-red-500">*</span>
                     </label>
@@ -2917,7 +2926,7 @@ const Library = () => {
                     </div>
                   </div>
 
-                  {/* ROW 3: Manufacturer, MFG Part Number (moved up from ROW 4) */}
+                  {/* ROW 3: Manufacturer, MFG Part Number */}
                   <div ref={manufacturerRef} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Manufacturer <span className="text-red-500">*</span>
@@ -2995,7 +3004,7 @@ const Library = () => {
                       })()}
                     </div>
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       MFG Part Number <span className="text-red-500">*</span>
                     </label>
@@ -3011,7 +3020,7 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* ROW 5: Sub-Category 1, Sub-Category 2, Sub-Category 3 */}
+                  {/* ROW 4: Sub-Category 1, Sub-Category 2 */}
                   <div ref={subCat1Ref} className="relative">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 1
@@ -3177,7 +3186,7 @@ const Library = () => {
                   </div>
 
                   {/* ROW 6: Description */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Description</label>
                     <textarea
                       value={editData.description || ''}
@@ -3189,7 +3198,7 @@ const Library = () => {
                   </div>
 
                   {/* ROW 7: PCB Footprint, Schematic Symbol */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
                     <div ref={footprintRef} className="relative">
                       <input
@@ -3228,7 +3237,7 @@ const Library = () => {
                       )}
                     </div>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
                     <div ref={symbolRef} className="relative">
                       <input
@@ -3269,7 +3278,7 @@ const Library = () => {
                   </div>
 
                   {/* ROW 8: STEP 3D Model, PSPICE Model */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP 3D Model</label>
                     <div className="relative" ref={stepModelRef}>
                       <div className="relative">
@@ -3315,7 +3324,7 @@ const Library = () => {
                       )}
                     </div>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
                     <div className="relative" ref={pspiceRef}>
                       <div className="relative">
@@ -3363,7 +3372,7 @@ const Library = () => {
                   </div>
 
                   {/* Datasheet URL */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
                     <input
                       type="url"
@@ -3375,7 +3384,7 @@ const Library = () => {
                   </div>
 
                   {/* Distributor Info Section - Merged into Component Details in Edit/Add Mode */}
-                  <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+                  <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
                     {(editData.distributors || []).map((dist, index) => (
                       <div key={index} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 mb-2">
@@ -3455,7 +3464,7 @@ const Library = () => {
 
                             {/* Row 3: Alternative Parts Selection */}
                             {alternatives && alternatives.length > 0 && (
-                              <div className="col-span-3 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
+                              <div className="col-span-2 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-gray-600 dark:text-gray-400">
                                     Alternative Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ':'}
@@ -3508,7 +3517,7 @@ const Library = () => {
 
                             {/* Row 5: Description */}
                             {componentDetails.description && (
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <span className="text-gray-600 dark:text-gray-400">Description:</span>
                                 <p 
                                   className="font-medium text-gray-900 dark:text-gray-100 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors"
@@ -3521,13 +3530,13 @@ const Library = () => {
                             )}
 
                             {/* Row 6: PCB Footprint */}
-                            <div className="col-span-3">
+                            <div className="col-span-2">
                               <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
                             </div>
 
                             {/* Row 7: Schematic Symbol */}
                             {componentDetails.schematic && (
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
                                 <p 
                                   className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
@@ -3541,7 +3550,7 @@ const Library = () => {
 
                             {/* Row 8: STEP 3D Model */}
                             {componentDetails.step_model && (
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
                                 <p 
                                   className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
@@ -3555,7 +3564,7 @@ const Library = () => {
 
                             {/* Row 9: PSPICE Model */}
                             {componentDetails.pspice && (
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
                                 <p 
                                   className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
@@ -3569,7 +3578,7 @@ const Library = () => {
 
                             {/* Row 10: Datasheet URL */}
                             {componentDetails.datasheet_url && (
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
                                 <a 
                                   href={componentDetails.datasheet_url} 
@@ -3583,7 +3592,7 @@ const Library = () => {
                             )}
 
                             {/* Row 11: Approval Status Section */}
-                            <div className="col-span-3 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
+                            <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
                               <div>
                                 <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
                                 <div className="space-y-3">
@@ -3671,7 +3680,7 @@ const Library = () => {
                       })()}
                     </>
                   ) : (
-                    <div className="col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="col-span-2 text-center py-8 text-gray-500 dark:text-gray-400">
                       <p>Select a component to view details</p>
                       <p className="text-sm mt-2">or click "Add Component" to create a new one</p>
                     </div>
@@ -3758,19 +3767,53 @@ const Library = () => {
           <div className="space-y-4 xl:min-w-100 overflow-y-auto custom-scrollbar" data-panel>
             {/* Specifications Panel - For inputting values */}
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Specifications</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Specifications</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newSpec = {
+                      category_spec_id: null,
+                      spec_name: '',
+                      spec_value: '',
+                      unit: '',
+                      is_required: false,
+                      is_custom: true // Mark as custom spec
+                    };
+                    handleFieldChange('specifications', [...(editData.specifications || []), newSpec]);
+                  }}
+                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Spec</span>
+                </button>
+              </div>
               <div className="text-sm">
-                <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Technical Specifications</h4>
                 {(editData.specifications || []).length > 0 ? (
                   <>
                     {(editData.specifications || []).map((spec, index) => (
                       <div key={index} className="grid grid-cols-[2fr_2fr_1fr_auto] gap-2 mb-2 items-center">
-                        <div className="flex items-center">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {spec.spec_name}
-                            {spec.is_required && <span className="text-red-500 ml-1">*</span>}
-                          </span>
-                        </div>
+                        {/* Spec Name - Editable for custom specs, read-only for template specs */}
+                        {spec.is_custom ? (
+                          <input
+                            type="text"
+                            value={spec.spec_name || ''}
+                            onChange={(e) => {
+                              const newSpecs = [...(editData.specifications || [])];
+                              newSpecs[index] = { ...newSpecs[index], spec_name: e.target.value };
+                              handleFieldChange('specifications', newSpecs);
+                            }}
+                            placeholder="Spec Name"
+                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {spec.spec_name}
+                              {spec.is_required && <span className="text-red-500 ml-1">*</span>}
+                            </span>
+                          </div>
+                        )}
                         <input
                           type="text"
                           value={spec.spec_value || ''}
@@ -3781,45 +3824,57 @@ const Library = () => {
                           }}
                           className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
-                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                          {spec.unit || ''}
-                        </div>
-                        {editData._vendorSearchData && editData._vendorSearchData.specifications && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenMappingModal(index, spec)}
-                            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-1"
-                            title="Add vendor field mapping"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Add Mapping</span>
-                          </button>
+                        {/* Unit field - Editable for custom specs */}
+                        {spec.is_custom ? (
+                          <input
+                            type="text"
+                            value={spec.unit || ''}
+                            onChange={(e) => {
+                              const newSpecs = [...(editData.specifications || [])];
+                              newSpecs[index] = { ...newSpecs[index], unit: e.target.value };
+                              handleFieldChange('specifications', newSpecs);
+                            }}
+                            placeholder="Unit"
+                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                          />
+                        ) : (
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            {spec.unit || ''}
+                          </div>
                         )}
+                        {/* Action buttons container */}
+                        <div className="flex items-center gap-1">
+                          {editData._vendorSearchData && editData._vendorSearchData.specifications && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenMappingModal(index, spec)}
+                              className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-1"
+                              title="Add vendor field mapping"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
+                          {/* Remove button - only for custom specs or non-required specs */}
+                          {(spec.is_custom || !spec.is_required) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSpecs = (editData.specifications || []).filter((_, i) => i !== index);
+                                handleFieldChange('specifications', newSpecs);
+                              }}
+                              className="text-xs p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                              title="Remove specification"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
-                    
-                    {/* New Specification Button */}
-                    {editData._vendorSearchData && editData._vendorSearchData.specifications && (
-                      <button
-                        type="button"
-                        onClick={() => setMappingModal({ 
-                          show: true, 
-                          specIndex: -1, // -1 indicates new spec
-                          spec: null, 
-                          newMapping: '',
-                          newSpecName: '',
-                          newSpecUnit: ''
-                        })}
-                        className="mt-3 w-full text-sm px-3 py-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-dashed border-green-300 dark:border-green-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>New Specification</span>
-                      </button>
-                    )}
                   </>
                 ) : (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {isAddMode ? 'Select a category to see available specifications' : 'No specifications defined for this category'}
+                    {isAddMode ? 'Select a category to see available specifications, or add custom specs' : 'No specifications defined. Click "Add Spec" to add custom specifications.'}
                   </p>
                 )}
               </div>

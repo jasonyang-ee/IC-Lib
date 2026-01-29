@@ -33,27 +33,6 @@ fi
 echo ""
 echo "Config: ${DB_HOST}:${DB_PORT}/${DB_NAME} | Backend: ${PORT:-3500} | Frontend: 5173"
 
-# Test database connection (silent unless error)
-cd server
-if ! node -e "
-import pg from 'pg';
-const { Client } = pg;
-const client = new Client({
-    host: process.env.DB_HOST || '${DB_HOST}',
-    port: process.env.DB_PORT || ${DB_PORT},
-    user: process.env.DB_USER || '${DB_USER}',
-    password: process.env.DB_PASSWORD || '${DB_PASSWORD}',
-    database: process.env.DB_NAME || '${DB_NAME}'
-});
-client.connect()
-    .then(() => { client.end(); process.exit(0); })
-    .catch(() => process.exit(1));
-" 2>/dev/null; then
-    echo "[error] Database connection failed. Check .env configuration."
-    exit 1
-fi
-cd ..
-
 # Check if node_modules exist (silent install if needed)
 if [ ! -d "server/node_modules" ]; then
     echo "Installing backend dependencies..."

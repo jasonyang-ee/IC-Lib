@@ -5,16 +5,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "./local-start.sh",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client",
     "build:client": "cd client && npm run build",
-    "build:server": "cd server && npm run build",
     "lint": "./lint.sh",
     "lint:fix": "cd client && npm run lint:fix && cd ../server && npm run lint:fix",
     "test": "./test.sh",
-    "start": "./local-start.sh",
     "docker:build": "./build.sh",
     "release": "./release.sh"
   },
@@ -31,8 +30,7 @@
     "electronics",
     "parts-library",
     "vendor-integration",
-    "eco",
-    "engineering-change-order"
+    "eco"
   ],
   "author": "Jason Yang",
   "license": "AGPL-3.0",

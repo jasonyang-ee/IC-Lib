@@ -32,7 +32,7 @@ export function decrypt(text) {
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
   } catch (error) {
-    console.error('Error decrypting:', error.message);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error decrypting: ${error.message}`);
     return null;
   }
 }
@@ -48,7 +48,7 @@ export async function getSMTPSettings() {
     }
     return result.rows[0];
   } catch (error) {
-    console.error('Error getting SMTP settings:', error);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error getting SMTP settings: ${error.message}`);
     return null;
   }
 }
@@ -66,6 +66,14 @@ export async function createTransporter() {
     host: settings.host,
     port: settings.port,
     secure: settings.secure,
+    // Allow self-signed/expired certificates for open relay servers
+    tls: {
+      rejectUnauthorized: false,
+    },
+    // Connection timeout settings
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
   };
 
   if (!settings.no_auth && settings.auth_user) {
@@ -84,7 +92,7 @@ export async function createTransporter() {
 export async function sendEmail({ to, subject, html, text }) {
   const transporter = await createTransporter();
   if (!transporter) {
-    console.log('[Email] SMTP not configured or disabled, skipping email');
+    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured or disabled, skipping email`);
     return { success: false, reason: 'SMTP not configured' };
   }
 
@@ -105,10 +113,10 @@ export async function sendEmail({ to, subject, html, text }) {
       VALUES ($1, $2, $3, 'sent')
     `, [to, subject, 'generic']);
 
-    console.log(`[Email] Sent to ${to}: ${subject}`);
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[EmailService]\x1b[0m Email sent to ${to}: ${subject}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[Email] Failed to send to ${to}:`, error.message);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Failed to send email to ${to}: ${error.message}`);
 
     // Log the failure
     await pool.query(`
@@ -169,7 +177,7 @@ async function getECONotificationRecipients(notificationType) {
     const result = await pool.query(query);
     return result.rows;
   } catch (error) {
-    console.error('Error getting ECO notification recipients:', error);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error getting ECO notification recipients: ${error.message}`);
     return [];
   }
 }
@@ -267,14 +275,14 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   // Check if SMTP is configured
   const settings = await getSMTPSettings();
   if (!settings || !settings.enabled) {
-    console.log('[Email] SMTP not configured, skipping ECO notification');
+    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured, skipping ECO notification`);
     return;
   }
 
   // Get recipients based on action type
   const recipients = await getECONotificationRecipients(actionType);
   if (recipients.length === 0) {
-    console.log('[Email] No recipients for ECO notification');
+    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No recipients for ECO notification`);
     return;
   }
 
@@ -305,7 +313,7 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   // Log results
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
-  console.log(`[Email] ECO ${actionType} notifications: ${successful} sent, ${failed} failed`);
+  console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[EmailService]\x1b[0m ECO ${actionType} notifications: ${successful} sent, ${failed} failed`);
 
   // Log to email_log with ECO reference
   for (const result of results) {

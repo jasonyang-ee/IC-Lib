@@ -16,12 +16,10 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
-});
-
+// Silent on connect - only log errors
+// Connection logging is handled by initialization service
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
+  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Unexpected error on idle client: ${err.message}`);
   process.exit(-1);
 });
 

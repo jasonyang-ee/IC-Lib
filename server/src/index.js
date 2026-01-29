@@ -38,11 +38,10 @@ import { initializeAuthentication, getAuthenticationStatus } from './services/in
 const app = express();
 const PORT = process.env.PORT || 3500;
 
-// Log API configuration status (for debugging)
-console.log('[info] [Config] API Configuration Status:');
-console.log('[info] [Config] DIGIKEY_CLIENT_ID:', process.env.DIGIKEY_CLIENT_ID ? 'Set' : 'Not set');
-console.log('[info] [Config] DIGIKEY_CLIENT_SECRET:', process.env.DIGIKEY_CLIENT_SECRET ? 'Set' : 'Not set');
-console.log('[info] [Config] MOUSER_API_KEY:', process.env.MOUSER_API_KEY ? 'Set' : 'Not set');
+// Environment variables
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const BASE_URL = process.env.BASE_URL || '';
+const BASE_DOMAIN = process.env.BASE_DOMAIN || 'http://localhost';
 
 // Middleware
 app.use(helmet());
@@ -51,12 +50,24 @@ app.use(cors({
   credentials: true,
 }));
 app.use(compression());
-app.use(morgan('dev'));
+
+// Custom morgan logger - silence health check and polling endpoints
+app.use(morgan('dev', {
+  skip: (req, _res) => {
+    const silentPaths = [
+      '/api/health',
+      '/api/database/status',
+      '/api/dashboard/stats'
+    ];
+    return silentPaths.some(p => req.originalUrl === p || req.originalUrl.startsWith(p + '?'));
+  }
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Health check endpoint
+// Health check endpoint (silent - no logging)
 app.get('/api/health', async (req, res) => {
   try {
     const authStatus = await getAuthenticationStatus();
@@ -94,11 +105,11 @@ app.use('/api/files', fileUploadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {
-  console.error(err.stack);
+  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m ${err.message}`);
   res.status(err.status || 500).json({
     error: {
       message: err.message || 'Internal Server Error',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+      ...(NODE_ENV === 'development' && { stack: err.stack }),
     },
   });
 });
@@ -108,21 +119,43 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (error) => {
+  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Unhandled Rejection: ${error.message}`);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Uncaught Exception: ${error.message}`);
+});
+
 // Initialize authentication and start server
 async function startServer() {
   try {
+    // Print ASCII banner
+    console.log('');
+    console.log(`\x1b[33m ,---.   ,-----. ,--.   ,--. ,-----.  \x1b[0m`);
+    console.log(`\x1b[33m|  .-'  /  .--./  |  |   |  ||  |) /_ \x1b[0m`);
+    console.log(`\x1b[33m|  \`-,  |  |      |  |   |  ||  .-.  \\\x1b[0m`);
+    console.log(`\x1b[33m|  .-'  '  '--'\\  |  '--.|  ||  '--' /\x1b[0m`);
+    console.log(`\x1b[33m\`--'     \`-----'  \`-----'\`--'\`------' \x1b[0m`);
+    console.log(`\x1b[36m        IC Component Library Manager\x1b[0m`);
+    console.log('');
+
     // Initialize authentication (check/create users table)
     await initializeAuthentication();
     
     // Start server
     app.listen(PORT, () => {
-      console.log(`[info] [Server] Running on port ${PORT}`);
-      console.log(`[info] [Server] Environment: ${process.env.NODE_ENV}`);
-      console.log(`[info] [Server] API: http://localhost:${PORT}/api`);
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Running on port ${PORT}`);
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Environment: ${NODE_ENV}`);
+      if (BASE_URL) {
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Base URL: ${BASE_URL}`);
+      }
       console.log('');
     });
   } catch (error) {
-    console.error('[error] [Server] Failed to start:', error);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Failed to start: ${error.message}`);
     process.exit(1);
   }
 }

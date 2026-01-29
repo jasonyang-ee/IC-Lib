@@ -1656,6 +1656,15 @@ export const updateComponentApproval = async (req, res, next) => {
         return res.status(400).json({ error: 'Invalid action. Must be approve, deny, send_to_review, or send_to_prototype' });
     }
 
+    // Update the component's approval status in the database
+    await pool.query(`
+      UPDATE components
+      SET approval_status = $1,
+          approval_user_id = $2,
+          approval_date = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [newApprovalStatus, user_id, id]);
+
     // Log approval action to activity_log
     const activityTypeMap = {
       'approve': 'approval_approved',
@@ -1699,7 +1708,7 @@ export const updateComponentApproval = async (req, res, next) => {
 
     res.json(fullComponent.rows[0]);
   } catch (error) {
-    console.error('Error in updateComponentApproval:', error);
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error in updateComponentApproval: ${error.message}`);
     next(error);
   }
 };
