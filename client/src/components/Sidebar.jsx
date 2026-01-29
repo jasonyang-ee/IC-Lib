@@ -146,7 +146,7 @@ const Sidebar = () => {
       {/* Footer */}
       <div className="p-4 border-t border-gray-700 shrink-0">
         <p className="text-xs text-gray-500 text-center">
-          IC Lib v{__APP_VERSION__} © 2025
+          Version {__APP_VERSION__}
         </p>
         <p className="text-xs text-gray-500 text-center mt-1">
           AGPL-3.0 License
