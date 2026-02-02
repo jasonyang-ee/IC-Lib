@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Package, AlertCircle, Search, Edit, Printer, Copy, Check, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera } from 'lucide-react';
+import { AlertCircle, Search, Edit, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';

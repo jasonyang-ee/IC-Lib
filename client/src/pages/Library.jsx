@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -2913,6 +2913,21 @@ const Library = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {isAddMode ? 'Add New Component' : 'Component Details'}
               </h3>
+			  {selectedComponent && !isAddMode && !isEditMode && (
+				<button
+				  onClick={() => {
+					const partUrl = `${window.location.origin}${window.location.pathname}?part=${selectedComponent.part_number}`;
+					navigator.clipboard.writeText(partUrl);
+					setAutoFillToast({ show: true, message: 'Component link copied to clipboard!', count: 1 });
+					setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
+				  }}
+				  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#333333] rounded transition-colors"
+				  title="Copy Component Link"
+				>
+				  <ExternalLink className="w-3.5 h-3.5" />
+				  <span>Copy Link</span>
+				</button>
+			  )}
             </div>
             {!isEditMode && !isAddMode && selectedComponent && (
               <div className="flex mb-4">
