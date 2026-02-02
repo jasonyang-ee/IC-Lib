@@ -3601,7 +3601,7 @@ const Library = () => {
                             {/* Alternative Parts Selection */}
                             {alternatives && alternatives.length > 0 && (
                               <div className="flex flex-wrap items-start gap-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-2">
                                   Alt Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ''}:
                                 </span>
                                 <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
@@ -3611,7 +3611,7 @@ const Library = () => {
                                       const alt = alternatives.find(a => a.id === e.target.value);
                                       setSelectedAlternative(alt);
                                     }}
-                                    className="flex-1 min-w-0 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm truncate"
+                                    className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm truncate"
                                   >
                                     {alternatives.map((alt) => (
                                       <option key={alt.id} value={alt.id}>
@@ -3682,7 +3682,7 @@ const Library = () => {
                               {/* Approval Status - single row */}
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approval Status:</span>
-                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                                <span className={`inline-block py-0.5 rounded text-xs font-semibold ${
                                   componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                                   componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                                   componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
@@ -3700,11 +3700,11 @@ const Library = () => {
                               {/* By / Date - single row */}
                               {(componentDetails.approval_user_name || componentDetails.approval_date) && (
                                 <div className="flex items-baseline gap-2">
-                                  <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approved:</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approver:</span>
                                   <span className="text-sm text-gray-700 dark:text-gray-300">
-                                    {componentDetails.approval_user_name && `By: ${componentDetails.approval_user_name}`}
+                                    {componentDetails.approval_user_name && `${componentDetails.approval_user_name}`}
                                     {componentDetails.approval_user_name && componentDetails.approval_date && ' • '}
-                                    {componentDetails.approval_date && `Date: ${new Date(componentDetails.approval_date).toLocaleDateString()}`}
+                                    {componentDetails.approval_date && `${new Date(componentDetails.approval_date).toLocaleDateString()}`}
                                   </span>
                                 </div>
                               )}
@@ -3790,7 +3790,7 @@ const Library = () => {
                   });
                   
                   return sortedDistributors.map((dist, index) => (
-                  <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-4 last:border-0">
+                  <div key={index} className="border-b border-gray-100 dark:border-[#3a3a3a] pb-2 last:border-0">
                     <div className="flex items-center gap-2 mb-2">
                       <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{dist.distributor_name}</p>
                       {dist.url && (
@@ -3798,7 +3798,7 @@ const Library = () => {
                           href={dist.url} 
                           target="_blank" 
                           rel="noopener noreferrer" 
-                          className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                          className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
                         >
                           Link
                         </a>
@@ -3822,11 +3822,11 @@ const Library = () => {
                     {dist.price_breaks && dist.price_breaks.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Price Breaks:</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
                           {dist.price_breaks.map((priceBreak, idx) => (
                             <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-[#333333] px-2 py-1 rounded">
                               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{priceBreak.quantity}+:</span>
-                              <span className="text-xs font-semibold text-green-600 dark:text-green-400">${Number(priceBreak.price).toFixed(4)}</span>
+                              <span className="text-xs font-semibold text-green-600 dark:text-green-400">${Number(priceBreak.price).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
