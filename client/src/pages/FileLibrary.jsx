@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -14,12 +15,12 @@ import {
   Zap, 
   FileCode, 
   ChevronRight,
-  FileText,
-  ExternalLink
+  FileText
 } from 'lucide-react';
 
 const FileLibrary = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const { canWrite } = useAuth();
   
@@ -310,15 +311,12 @@ const FileLibrary = () => {
                       {componentsData?.components?.map((component) => (
                         <tr key={component.id} className="hover:bg-gray-50 dark:hover:bg-[#333]">
                           <td className="px-3 py-2 text-sm font-medium text-primary-600 dark:text-primary-400">
-                            <a 
-                              href={`/library?part=${encodeURIComponent(component.part_number)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:underline flex items-center gap-1"
+                            <button
+                              onClick={() => navigate('/library', { state: { searchTerm: component.part_number } })}
+                              className="hover:underline text-left"
                             >
                               {component.part_number}
-                              <ExternalLink className="w-3 h-3 opacity-50" />
-                            </a>
+                            </button>
                           </td>
                           <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_pn}</td>
                           <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={component.description}>

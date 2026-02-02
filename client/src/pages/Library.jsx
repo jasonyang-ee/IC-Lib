@@ -1028,21 +1028,55 @@ const Library = () => {
         // Update component basic data
         await updateMutation.mutateAsync({ id: selectedComponent.id, data: componentData });
         
-        // Filter and update specifications (only non-empty values)
-        // Ensure we're sending category_spec_id and spec_value
-        const validSpecs = specifications?.filter(spec => 
-          spec.category_spec_id && spec.spec_value && spec.spec_value.trim() !== ''
-        ).map(spec => ({
-          category_spec_id: spec.category_spec_id,
-          spec_value: spec.spec_value
-        })) || [];
+        // Handle specifications - create custom specs first, then save all values
+        const allSpecs = [];
         
-        if (validSpecs.length > 0) {
-          await api.updateComponentSpecifications(selectedComponent.id, { specifications: validSpecs });
-        } else {
-          // If no valid specs, clear all specifications
-          await api.updateComponentSpecifications(selectedComponent.id, { specifications: [] });
+        for (const spec of (specifications || [])) {
+          // Skip specs without values
+          if (!spec.spec_value || spec.spec_value.trim() === '') continue;
+          
+          let categorySpecId = spec.category_spec_id;
+          
+          // For custom specs without category_spec_id, create the category spec first
+          if (!categorySpecId && spec.is_custom && spec.spec_name?.trim()) {
+            try {
+              // Get the component's category ID
+              const categoryId = componentData.category_id || selectedComponent?.category_id;
+              if (categoryId) {
+                const createResponse = await api.createCategorySpecification(categoryId, {
+                  spec_name: spec.spec_name.trim(),
+                  unit: spec.unit || '',
+                  mapping_spec_names: spec.mapping_spec_names || [],
+                  is_required: false
+                });
+                categorySpecId = createResponse.data.id;
+              }
+            } catch (error) {
+              // If creation fails (e.g., duplicate), try to find existing spec
+              console.error('Error creating custom spec, attempting to find existing:', error);
+              try {
+                const categoryId = componentData.category_id || selectedComponent?.category_id;
+                const existingSpecs = await api.getCategorySpecifications(categoryId);
+                const existing = existingSpecs.data?.find(s => s.spec_name === spec.spec_name.trim());
+                if (existing) {
+                  categorySpecId = existing.id;
+                }
+              } catch (findError) {
+                console.error('Could not find existing spec:', findError);
+              }
+            }
+          }
+          
+          if (categorySpecId) {
+            allSpecs.push({
+              category_spec_id: categorySpecId,
+              spec_value: spec.spec_value
+            });
+          }
         }
+        
+        // Update all specifications (or clear if none)
+        await api.updateComponentSpecifications(selectedComponent.id, { specifications: allSpecs });
         
         // Filter and update distributors (only with valid distributor_id and sku/url)
         // IMPORTANT: We send all valid distributors to the backend
@@ -1862,17 +1896,52 @@ const Library = () => {
         const response = await addMutation.mutateAsync(componentData);
         const newComponentId = response.data?.id;
         
-        // Filter and add specifications (only non-empty values)
-        // Ensure we're sending category_spec_id and spec_value
-        const validSpecs = specifications?.filter(spec => 
-          spec.category_spec_id && spec.spec_value && spec.spec_value.trim() !== ''
-        ).map(spec => ({
-          category_spec_id: spec.category_spec_id,
-          spec_value: spec.spec_value
-        })) || [];
-        
-        if (newComponentId && validSpecs.length > 0) {
-          await api.updateComponentSpecifications(newComponentId, { specifications: validSpecs });
+        // Handle specifications - create custom specs first, then save all values
+        if (newComponentId) {
+          const allSpecs = [];
+          
+          for (const spec of (specifications || [])) {
+            // Skip specs without values
+            if (!spec.spec_value || spec.spec_value.trim() === '') continue;
+            
+            let categorySpecId = spec.category_spec_id;
+            
+            // For custom specs without category_spec_id, create the category spec first
+            if (!categorySpecId && spec.is_custom && spec.spec_name?.trim()) {
+              try {
+                const createResponse = await api.createCategorySpecification(componentData.category_id, {
+                  spec_name: spec.spec_name.trim(),
+                  unit: spec.unit || '',
+                  mapping_spec_names: spec.mapping_spec_names || [],
+                  is_required: false
+                });
+                categorySpecId = createResponse.data.id;
+              } catch (error) {
+                // If creation fails (e.g., duplicate), try to find existing spec
+                console.error('Error creating custom spec, attempting to find existing:', error);
+                try {
+                  const existingSpecs = await api.getCategorySpecifications(componentData.category_id);
+                  const existing = existingSpecs.data?.find(s => s.spec_name === spec.spec_name.trim());
+                  if (existing) {
+                    categorySpecId = existing.id;
+                  }
+                } catch (findError) {
+                  console.error('Could not find existing spec:', findError);
+                }
+              }
+            }
+            
+            if (categorySpecId) {
+              allSpecs.push({
+                category_spec_id: categorySpecId,
+                spec_value: spec.spec_value
+              });
+            }
+          }
+          
+          if (allSpecs.length > 0) {
+            await api.updateComponentSpecifications(newComponentId, { specifications: allSpecs });
+          }
         }
         
         // Filter and add distributors (only with valid distributor_id and sku)
@@ -1999,10 +2068,26 @@ const Library = () => {
       updateCount++;
     }
 
-    // Fill Package
-    if (vendorData.packageType && vendorData.packageType !== 'N/A') {
-      updates.package = vendorData.packageType;
-      updates.package_size = vendorData.packageType; // Some forms use package_size
+    // Fill Package - use "Package / Case" from specifications (same logic as vendor search)
+    let packageValue = '';
+    if (vendorData.specifications) {
+      // Look for "Package / Case" parameter in specifications
+      const packageSpec = Object.entries(vendorData.specifications).find(
+        ([key]) => key === 'Package / Case' || key === 'Package'
+      );
+      if (packageSpec && packageSpec[1]?.value) {
+        packageValue = packageSpec[1].value;
+      } else if (typeof vendorData.specifications['Package / Case'] === 'string') {
+        packageValue = vendorData.specifications['Package / Case'];
+      }
+    }
+    // Fallback to packageType if no specification found
+    if (!packageValue && vendorData.packageType && vendorData.packageType !== 'N/A') {
+      packageValue = vendorData.packageType;
+    }
+    if (packageValue) {
+      updates.package = packageValue;
+      updates.package_size = packageValue; // Some forms use package_size
       updateCount++;
     }
 
@@ -2133,7 +2218,7 @@ const Library = () => {
   };
 
   const handleAddMapping = async (vendorFieldName) => {
-    if (!mappingModal.spec || !mappingModal.spec.category_spec_id) return;
+    if (!mappingModal.spec) return;
     
     try {
       // Get current mappings
@@ -2150,11 +2235,14 @@ const Library = () => {
       // Add new mapping to array
       const updatedMappings = [...currentMappings, vendorFieldName.trim()];
       
-      // Update on server - API signature is (id, data)
-      await api.updateCategorySpecification(
-        mappingModal.spec.category_spec_id,
-        { mapping_spec_names: updatedMappings }
-      );
+      // Only update server if spec already exists (has category_spec_id)
+      if (mappingModal.spec.category_spec_id) {
+        // Update on server - API signature is (id, data)
+        await api.updateCategorySpecification(
+          mappingModal.spec.category_spec_id,
+          { mapping_spec_names: updatedMappings }
+        );
+      }
       
       // Update local state
       const updatedSpecs = [...editData.specifications];
@@ -2167,7 +2255,7 @@ const Library = () => {
       // Show success message
       setAutoFillToast({ 
         show: true, 
-        message: `Added mapping "${vendorFieldName}" to ${mappingModal.spec.spec_name}`, 
+        message: `Added mapping "${vendorFieldName}" to ${mappingModal.spec.spec_name || 'specification'}`, 
         count: 1 
       });
       setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
@@ -2400,7 +2488,7 @@ const Library = () => {
             <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] shrink-0">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">Category</h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 pt-3 custom-scrollbar space-y-2">
+            <div className="flex-1 overflow-y-auto p-4 pt-3 custom-scrollbar">
               <button
                 onClick={() => setSelectedCategory('')}
                 className={`w-full text-left px-3 py-2 rounded ${
@@ -2444,7 +2532,7 @@ const Library = () => {
                     e.target.select();
                   }
                 }}
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                className="w-full pl-10 pr-10 py-1 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
               />
               {searchTerm && (
                 <button
@@ -2469,7 +2557,7 @@ const Library = () => {
                 <button
                   onClick={handlePreviousPart}
                   disabled={parsePartNumber(searchTerm)?.number <= 1}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-1 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                   title="Previous part number"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -2477,7 +2565,7 @@ const Library = () => {
                 </button>
                 <button
                   onClick={handleNextPart}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-1 bg-gray-100 dark:bg-[#333333] hover:bg-gray-200 dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 rounded-md transition-colors text-sm font-medium"
                   title="Next part number"
                 >
                   Next
@@ -2493,7 +2581,7 @@ const Library = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                  className="flex-1 px-3 py-1 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
                 >
                   <option value="part_number">Part Number</option>
                   <option value="manufacturer_pn">MFG Part Number</option>
@@ -2539,7 +2627,7 @@ const Library = () => {
                 <select
                   value={selectedApprovalStatus}
                   onChange={(e) => setSelectedApprovalStatus(e.target.value)}
-                  className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+                  className="flex-1 px-3 py-1 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
                 >
                   <option value="">All Status</option>
                   <option value="new">New</option>
@@ -2794,14 +2882,14 @@ const Library = () => {
         {/* Right Sidebar - Component Details, Distributor Info & Specifications */}
         <div className="space-y-4 xl:min-w-100 overflow-y-auto custom-scrollbar" data-panel>
           {/* Component Details - Always Shown */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-3 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {isAddMode ? 'Add New Component' : 'Component Details'}
               </h3>
             </div>
             {!isEditMode && !isAddMode && selectedComponent && (
-              <div className="flex gap-2 mb-4">
+              <div className="flex mb-4">
                 <button
                   onClick={() => jumpToInventory(selectedComponent.id)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors"
@@ -3433,23 +3521,23 @@ const Library = () => {
                 <>
                   {selectedComponent && componentDetails ? (
                     <>
-                      {/* Helper component for copyable text */}
+                      {/* Helper component for copyable text with aligned labels */}
                       {(() => {
                         const CopyableField = ({ label, value, isLink }) => (
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{label}:</span>
+                          <div className="flex items-baseline gap-2 pb-2">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">{label}:</span>
                             {isLink ? (
                               <a 
                                 href={value} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
                               >
                                 {value}
                               </a>
                             ) : (
                               <span 
-                                className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors truncate"
+                                className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors truncate flex-1"
                                 onClick={() => handleCopyToClipboard(value, label)}
                                 title="Click to copy"
                               >
@@ -3460,76 +3548,67 @@ const Library = () => {
                         );
 
                         return (
-                          <div className="space-y-1.5">
-                            {/* Row 1: Part Number, Part Type */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <CopyableField label="Part Number" value={componentDetails.part_number} />
-                              <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
-                            </div>
+                          <div className="col-span-2 space-y-1">
+                            {/* Each field in its own row with aligned labels */}
+                            <CopyableField label="Part Number" value={componentDetails.part_number} />
+                            <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
+                            <CopyableField label="Value" value={componentDetails.value} />
+                            <CopyableField label="Package" value={componentDetails.package_size} />
 
-                            {/* Row 2: Value, Package */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <CopyableField label="Value" value={componentDetails.value} />
-                              <CopyableField label="Package" value={componentDetails.package_size} />
-                            </div>
-
-                            {/* Row 3: Alternative Parts Selection */}
+                            {/* Alternative Parts Selection */}
                             {alternatives && alternatives.length > 0 && (
-                              <div className="border-b border-gray-200 dark:border-[#444444] pb-2 mb-2">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    Alternative Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ':'}
-                                  </span>
+                              <div className="flex flex-wrap items-start gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-1">
+                                  Alt Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ''}:
+                                </span>
+                                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
+                                  <select
+                                    value={selectedAlternative?.id || ''}
+                                    onChange={(e) => {
+                                      const alt = alternatives.find(a => a.id === e.target.value);
+                                      setSelectedAlternative(alt);
+                                    }}
+                                    className="flex-1 min-w-0 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm truncate"
+                                  >
+                                    {alternatives.map((alt) => (
+                                      <option key={alt.id} value={alt.id}>
+                                        {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
+                                        {alt.is_primary ? ' (Primary)' : ''}
+                                      </option>
+                                    ))}
+                                  </select>
                                   {canWrite() && (
                                     <button
                                       onClick={() => {
                                         sessionStorage.setItem('libraryPartNumberForAlternative', selectedComponent.part_number);
                                         navigate('/vendor-search');
                                       }}
-                                      className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                      className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0"
                                       title="Search for alternative parts"
                                     >
                                       <Search className="w-3 h-3" />
-                                      <span>Search</span>
                                     </button>
                                   )}
                                 </div>
-                                <select
-                                  value={selectedAlternative?.id || ''}
-                                  onChange={(e) => {
-                                    const alt = alternatives.find(a => a.id === e.target.value);
-                                    setSelectedAlternative(alt);
-                                  }}
-                                  className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                                >
-                                  {alternatives.map((alt) => (
-                                    <option key={alt.id} value={alt.id}>
-                                      {alt.manufacturer_name || 'Unknown Mfg'} - {alt.manufacturer_pn}
-                                      {alt.is_primary ? ' (Primary)' : ''}
-                                    </option>
-                                  ))}
-                                </select>
                               </div>
                             )}
 
-                            {/* Row 4: Manufacturer, MFG Part Number */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <CopyableField 
-                                label="Manufacturer" 
-                                value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
-                              />
-                              <CopyableField 
-                                label="MFG Part Number" 
-                                value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
-                              />
-                            </div>
+                            {/* Manufacturer and MFG Part Number - each in own row */}
+                            <CopyableField 
+                              label="Manufacturer" 
+                              value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
+                            />
+                            <CopyableField 
+                              label="MFG Part Number" 
+                              value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
+                            />
 
-                            {/* Row 5: Description */}
+                            {/* Description */}
                             {componentDetails.description && (
-                              <div className="flex items-start gap-1">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Description:</span>
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-0.5">Description:</span>
                                 <p 
-                                  className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors"
+                                  className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors flex-1"
                                   onClick={() => handleCopyToClipboard(componentDetails.description, 'Description')}
                                   title="Click to copy"
                                 >
@@ -3538,105 +3617,96 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* Row 6: PCB Footprint, Schematic */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
-                              {componentDetails.schematic && (
-                                <CopyableField label="Schematic Symbol" value={componentDetails.schematic} />
-                              )}
-                            </div>
+                            {/* CAD Files - each in own row */}
+                            <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
+                            {componentDetails.schematic && (
+                              <CopyableField label="Schematic" value={componentDetails.schematic} />
+                            )}
+                            {componentDetails.step_model && (
+                              <CopyableField label="STEP 3D Model" value={componentDetails.step_model} />
+                            )}
+                            {componentDetails.pspice && (
+                              <CopyableField label="PSPICE Model" value={componentDetails.pspice} />
+                            )}
 
-                            {/* Row 7: STEP 3D Model, PSPICE */}
-                            <div className="grid grid-cols-2 gap-2">
-                              {componentDetails.step_model && (
-                                <CopyableField label="STEP 3D Model" value={componentDetails.step_model} />
-                              )}
-                              {componentDetails.pspice && (
-                                <CopyableField label="PSPICE Model" value={componentDetails.pspice} />
-                              )}
-                            </div>
-
-                            {/* Row 8: Datasheet URL */}
+                            {/* Datasheet URL */}
                             {componentDetails.datasheet_url && (
                               <CopyableField label="Datasheet URL" value={componentDetails.datasheet_url} isLink />
                             )}
 
                             {/* Approval Status Section */}
-                            <div className="border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Approval Status</h4>
-                              <div className="space-y-2">
-                                {/* Status Badge */}
-                                <div>
-                                    <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold w-full text-center ${
-                                      componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                                      componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                                      componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                                      componentDetails.approval_status === 'experimental' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                                      'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                    }`}>
-                                      {componentDetails.approval_status === 'approved' && 'Approved'}
-                                      {componentDetails.approval_status === 'archived' && 'Archived'}
-                                      {componentDetails.approval_status === 'pending review' && 'Pending Review'}
-                                      {componentDetails.approval_status === 'experimental' && 'Experimental'}
-                                      {componentDetails.approval_status === 'new' && 'New'}
-                                    </span>
-                                  </div>
+                            <div className="border-t border-gray-200 dark:border-[#444444] pt-3 mt-3 space-y-1">
+                              {/* Approval Status - single row */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approval Status:</span>
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                                  componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                  componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                  componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                                  componentDetails.approval_status === 'experimental' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                                  'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}>
+                                  {componentDetails.approval_status === 'approved' && 'Approved'}
+                                  {componentDetails.approval_status === 'archived' && 'Archived'}
+                                  {componentDetails.approval_status === 'pending review' && 'Pending Review'}
+                                  {componentDetails.approval_status === 'experimental' && 'Experimental'}
+                                  {componentDetails.approval_status === 'new' && 'New'}
+                                </span>
+                              </div>
 
-                                  {/* Approval Info */}
-                                  {(componentDetails.approval_user_name || componentDetails.approval_date) && (
-                                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                      {componentDetails.approval_user_name && (
-                                        <div>
-                                          <span className="font-medium">By:</span> {componentDetails.approval_user_name}
-                                        </div>
-                                      )}
-                                      {componentDetails.approval_date && (
-                                        <div>
-                                          <span className="font-medium">Date:</span> {new Date(componentDetails.approval_date).toLocaleDateString()}
-                                        </div>
-                                      )}
-                                    </div>
+                              {/* By / Date - single row */}
+                              {(componentDetails.approval_user_name || componentDetails.approval_date) && (
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approved:</span>
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                                    {componentDetails.approval_user_name && `By: ${componentDetails.approval_user_name}`}
+                                    {componentDetails.approval_user_name && componentDetails.approval_date && ' • '}
+                                    {componentDetails.approval_date && `Date: ${new Date(componentDetails.approval_date).toLocaleDateString()}`}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Approval Action Buttons - with label */}
+                              <div className="flex items-start gap-2 pt-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-2">Approval Action:</span>
+                                <div className="flex flex-wrap gap-2">
+                                  {canApprove() && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApprovalAction('approve')}
+                                        disabled={updatingApproval || componentDetails.approval_status === 'approved'}
+                                        className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        onClick={() => handleApprovalAction('deny')}
+                                        disabled={updatingApproval || componentDetails.approval_status === 'archived'}
+                                        className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                      >
+                                        Deny
+                                      </button>
+                                    </>
+                                  )}
+                                  {canWrite() && (
+                                    <>
+                                      <button
+                                        onClick={() => handleApprovalAction('send_to_review')}
+                                        disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
+                                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                      >
+                                        Review
+                                      </button>
+                                      <button
+                                        onClick={() => handleApprovalAction('send_to_prototype')}
+                                        disabled={updatingApproval || componentDetails.approval_status === 'experimental'}
+                                        className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+                                      >
+                                        Prototype
+                                      </button>
+                                    </>
                                   )}
                                 </div>
-
-                              {/* Action Buttons - Full Width Below Status */}
-                              <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
-                                {canApprove() && (
-                                  <>
-                                    <button
-                                      onClick={() => handleApprovalAction('approve')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'approved'}
-                                      className="flex-1 min-w-20 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                    >
-                                      Approve
-                                    </button>
-                                    <button
-                                      onClick={() => handleApprovalAction('deny')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'archived'}
-                                      className="flex-1 min-w-20 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                    >
-                                      Deny
-                                    </button>
-                                  </>
-                                )}
-                                {canWrite() && (
-                                  <>
-                                    <button
-                                      onClick={() => handleApprovalAction('send_to_review')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
-                                      className="flex-1 min-w-20 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                    >
-                                      Send to Review
-                                    </button>
-                                    <button
-                                      onClick={() => handleApprovalAction('send_to_prototype')}
-                                      disabled={updatingApproval || componentDetails.approval_status === 'experimental'}
-                                      className="flex-1 min-w-20 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-                                    >
-                                      Send to Prototype
-                                    </button>
-                                  </>
-                                )}
                               </div>
 
                               {updatingApproval && (
@@ -4240,26 +4310,6 @@ const Library = () => {
                         {editData._vendorSearchData.distributor.minimumOrderQuantity || '1'}
                       </span>
                     </div>
-                    {editData._vendorSearchData.distributor.pricing && editData._vendorSearchData.distributor.pricing.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-blue-100 dark:border-blue-900">
-                        <span className="text-blue-700 dark:text-blue-300 font-medium block mb-1 text-xs">Price Breaks:</span>
-                        <div className="space-y-1 pl-2">
-                          {editData._vendorSearchData.distributor.pricing.map((price, idx) => (
-                            <div 
-                              key={idx}
-                              onClick={() => handleCopyToClipboard(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
-                              className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                            >
-                              <span className="text-blue-800 dark:text-blue-200 text-xs font-medium">{price.quantity}+ units:</span>
-                              <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2">
-                                ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
-                                <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -4306,7 +4356,7 @@ const Library = () => {
 
                 {/* Datasheet */}
                 {editData._vendorSearchData.datasheet && (
-                  <div className="pt-2">
+                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
                     <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Documentation</p>
                     <div className="flex flex-col gap-1">
                       <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Datasheet URL:</span>
@@ -4318,6 +4368,28 @@ const Library = () => {
                       >
                         {editData._vendorSearchData.datasheet}
                       </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Price Breaks - Positioned at bottom */}
+                {editData._vendorSearchData.distributor?.pricing && editData._vendorSearchData.distributor.pricing.length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Price Breaks</p>
+                    <div className="space-y-1">
+                      {editData._vendorSearchData.distributor.pricing.map((price, idx) => (
+                        <div 
+                          key={idx}
+                          onClick={() => handleCopyToClipboard(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
+                          className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                        >
+                          <span className="text-blue-800 dark:text-blue-200 text-xs font-medium">{price.quantity}+ units:</span>
+                          <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2">
+                            ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
+                            <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -4548,14 +4620,15 @@ const Library = () => {
 
       {/* Add to Project Modal */}
       {showAddToProjectModal && selectedComponent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <FolderKanban className="w-5 h-5" />
                 Add to Project
               </h3>
               <button
+                type="button"
                 onClick={() => {
                   setShowAddToProjectModal(false);
                   setSelectedProjectId('');
@@ -4585,7 +4658,11 @@ const Library = () => {
                 </label>
                 <select
                   value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setSelectedProjectId(e.target.value);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 >
                   <option value="">-- Select a Project --</option>
@@ -4606,7 +4683,11 @@ const Library = () => {
                   type="number"
                   min="1"
                   value={projectQuantity}
-                  onChange={(e) => setProjectQuantity(e.target.value)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setProjectQuantity(e.target.value);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 />
               </div>
@@ -4614,6 +4695,7 @@ const Library = () => {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
+                type="button"
                 onClick={() => {
                   setShowAddToProjectModal(false);
                   setSelectedProjectId('');
@@ -4624,6 +4706,7 @@ const Library = () => {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleAddToProject}
                 disabled={!selectedProjectId || projectQuantity <= 0}
                 className="btn-primary disabled:bg-gray-400"
@@ -4716,8 +4799,15 @@ const Library = () => {
                         const isAlreadyMapped = mappingModal.spec.mapping_spec_names?.includes(fieldName);
                         return (
                           <button
+                            type="button"
                             key={idx}
-                            onClick={() => !isAlreadyMapped && handleAddMapping(fieldName)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!isAlreadyMapped) {
+                                handleAddMapping(fieldName);
+                              }
+                            }}
                             disabled={isAlreadyMapped}
                             className={`w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-[#444444] last:border-b-0 transition-colors ${
                               isAlreadyMapped
@@ -4750,6 +4840,7 @@ const Library = () => {
                       onChange={(e) => setMappingModal(prev => ({ ...prev, newMapping: e.target.value }))}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter' && mappingModal.newMapping.trim()) {
+                          e.preventDefault();
                           handleAddNewMapping();
                         }
                       }}
@@ -4757,7 +4848,12 @@ const Library = () => {
                       className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                     />
                     <button
-                      onClick={handleAddNewMapping}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAddNewMapping();
+                      }}
                       disabled={!mappingModal.newMapping.trim()}
                       className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm font-medium"
                     >

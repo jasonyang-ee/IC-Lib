@@ -50,9 +50,16 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_log_created ON user_activity_log(cr
 -- Insert default admin user
 -- Password: admin123 (CHANGE THIS IMMEDIATELY IN PRODUCTION!)
 -- This is bcrypt hash for "admin123" with salt rounds 10
-INSERT INTO users (username, password_hash, role, is_active) 
-VALUES ('admin', '$2a$10$4sJM12kg1BTeko3WljHm/OocI.OG/.1v9MkGTdfOgMBtIdOIfOXKi', 'admin', true)
+INSERT INTO users (username, password_hash, role, display_name, is_active) 
+VALUES ('admin', '$2a$10$4sJM12kg1BTeko3WljHm/OocI.OG/.1v9MkGTdfOgMBtIdOIfOXKi', 'admin', 'Administrator', true)
 ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+
+-- Insert default guest user
+-- Password: guest123 (Read-only access for viewing)
+-- This is bcrypt hash for "guest123" with salt rounds 10
+INSERT INTO users (username, password_hash, role, display_name, is_active) 
+VALUES ('guest', '$2a$10$G8viUMs5vl8vvm6EOLaoFutUTyqabBRcLYB4c8TcmDBe7mAmxQyra', 'read-only', 'Guest User', true)
+ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'read-only';
 
 -- Add activity types for user management
 INSERT INTO activity_types (type_name, description) 
