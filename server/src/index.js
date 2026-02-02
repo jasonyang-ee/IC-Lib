@@ -57,10 +57,10 @@ app.use(morgan('dev', {
     const silentPaths = [
       '/api/health',
       '/api/database/status',
-      '/api/dashboard/stats'
+      '/api/dashboard/stats',
     ];
     return silentPaths.some(p => req.originalUrl === p || req.originalUrl.startsWith(p + '?'));
-  }
+  },
 }));
 
 app.use(express.json());
@@ -134,12 +134,12 @@ async function startServer() {
   try {
     // Print ASCII banner
     console.log('');
-    console.log(`\x1b[33m ,---.   ,-----. ,--.   ,--. ,-----.  \x1b[0m`);
-    console.log(`\x1b[33m|  .-'  /  .--./  |  |   |  ||  |) /_ \x1b[0m`);
-    console.log(`\x1b[33m|  \`-,  |  |      |  |   |  ||  .-.  \\\x1b[0m`);
-    console.log(`\x1b[33m|  .-'  '  '--'\\  |  '--.|  ||  '--' /\x1b[0m`);
-    console.log(`\x1b[33m\`--'     \`-----'  \`-----'\`--'\`------' \x1b[0m`);
-    console.log(`\x1b[36m        IC Component Library Manager\x1b[0m`);
+    console.log('\x1b[33m ,---.   ,-----. ,--.   ,--. ,-----.  \x1b[0m');
+    console.log('\x1b[33m|  .-\'  /  .--./  |  |   |  ||  |) /_ \x1b[0m');
+    console.log('\x1b[33m|  `-,  |  |      |  |   |  ||  .-.  \\\x1b[0m');
+    console.log('\x1b[33m|  .-\'  \'  \'--\'\\  |  \'--.|  ||  \'--\' /\x1b[0m');
+    console.log('\x1b[33m`--\'     `-----\'  `-----\'`--\'`------\' \x1b[0m');
+    console.log('\x1b[36m        IC Component Library Manager\x1b[0m');
     console.log('');
 
     // Initialize authentication (check/create users table)

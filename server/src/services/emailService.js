@@ -92,7 +92,7 @@ export async function createTransporter() {
 export async function sendEmail({ to, subject, html, text }) {
   const transporter = await createTransporter();
   if (!transporter) {
-    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured or disabled, skipping email`);
+    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured or disabled, skipping email');
     return { success: false, reason: 'SMTP not configured' };
   }
 
@@ -275,14 +275,14 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   // Check if SMTP is configured
   const settings = await getSMTPSettings();
   if (!settings || !settings.enabled) {
-    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured, skipping ECO notification`);
+    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured, skipping ECO notification');
     return;
   }
 
   // Get recipients based on action type
   const recipients = await getECONotificationRecipients(actionType);
   if (recipients.length === 0) {
-    console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No recipients for ECO notification`);
+    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No recipients for ECO notification');
     return;
   }
 

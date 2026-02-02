@@ -459,28 +459,20 @@ const Projects = () => {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <FolderKanban className="w-8 h-8" />
-          Projects
-        </h1>
-        {canWrite() && (
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            New Project
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 overflow-hidden">
         {/* Projects List */}
         <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-4 flex flex-col overflow-hidden">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 shrink-0">
-            All Projects ({projects?.length || 0})
-          </h2>
+		  <div className="flex justify-between items-center mb-6 shrink-0">
+			{canWrite() && (
+			<button
+				onClick={() => setShowCreateModal(true)}
+				className="btn-primary flex items-center gap-2"
+			>
+				<Plus className="w-5 h-5" />
+				New Project
+			</button>
+			)}
+		  </div>
           <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1">
             {projects?.map((project) => (
               <div
@@ -537,7 +529,7 @@ const Projects = () => {
         </div>
 
         {/* Project Details */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 flex flex-col overflow-hidden">
+        <div className="lg:col-span-4 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 flex flex-col overflow-hidden">
           {selectedProject ? (
             <>
               <div className="flex justify-between items-start mb-6 shrink-0">
