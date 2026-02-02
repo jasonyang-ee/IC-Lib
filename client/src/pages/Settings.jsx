@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail, Download, Upload } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
@@ -18,6 +18,7 @@ const UserManagement = () => {
     password: '',
     role: 'read-only'
   });
+  const fileInputRef = useRef(null);
 
   // Fetch all users
   const { data: users, isLoading } = useQuery({
@@ -78,6 +79,84 @@ const UserManagement = () => {
     },
   });
 
+  // Export users handler
+  const handleExportUsers = async () => {
+    if (!users || users.length === 0) {
+      showError('No users to export');
+      return;
+    }
+    
+    try {
+      const response = await api.exportUsers();
+      const result = response.data;
+      
+      if (!result.success) {
+        showError('Export failed');
+        return;
+      }
+      
+      // Download the JSON file to user
+      const dataStr = JSON.stringify(result.data.users, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `users-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('Users exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      showError('Failed to export users');
+    }
+  };
+
+  // Import users handler
+  const handleImportUsers = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const importedUsers = JSON.parse(e.target.result);
+        
+        if (!Array.isArray(importedUsers)) {
+          showError('Invalid file format. Expected an array of users.');
+          return;
+        }
+
+        // Validate required fields
+        for (const user of importedUsers) {
+          if (!user.username || !user.role) {
+            showError(`Invalid user data: each user must have username and role`);
+            return;
+          }
+        }
+
+        const response = await api.importUsers(importedUsers);
+        const result = response.data;
+        
+        if (result.success) {
+          queryClient.invalidateQueries(['users']);
+          const stats = result.results;
+          showSuccess(`Import complete: ${stats.created} created, ${stats.updated} updated, ${stats.deactivated} deactivated`);
+        } else {
+          showError('Import failed');
+        }
+      } catch (error) {
+        console.error('Import error:', error);
+        showError('Failed to import users: ' + (error.response?.data?.error || error.message));
+      }
+    };
+    reader.readAsText(file);
+    // Reset file input
+    event.target.value = '';
+  };
+
   const handleCreateUser = () => {
     if (!formData.username || !formData.password) {
       showError('Username and password are required');
@@ -128,13 +207,36 @@ const UserManagement = () => {
           <Users className="w-6 h-6 text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">User Management</h2>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create User
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportUsers}
+            disabled={!users || users.length === 0}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          
+          <label className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
+            <Upload className="w-4 h-4" />
+            Import
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json"
+              onChange={handleImportUsers}
+              className="hidden"
+            />
+          </label>
+          
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create User
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -414,6 +516,7 @@ const CategorySpecificationsManager = () => {
   const [newMappingInput, setNewMappingInput] = useState('');
   const [editMappingInput, setEditMappingInput] = useState('');
   const [draggedSpec, setDraggedSpec] = useState(null);
+  const categoryFileInputRef = useRef(null);
 
   // Fetch categories
   const { data: categories } = useQuery({
@@ -482,6 +585,86 @@ const CategorySpecificationsManager = () => {
       showError(`Error updating specification order: ${errorMsg}`);
     },
   });
+
+  // Export categories with specifications handler
+  const handleExportCategories = async () => {
+    if (!categories || categories.length === 0) {
+      showError('No categories to export');
+      return;
+    }
+    
+    try {
+      const response = await api.exportCategories();
+      const result = response.data;
+      
+      if (!result.success) {
+        showError('Export failed');
+        return;
+      }
+      
+      // Download the JSON file to user
+      const dataStr = JSON.stringify(result.data.categories, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `categories-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('Categories exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      showError('Failed to export categories');
+    }
+  };
+
+  // Import categories with specifications handler
+  const handleImportCategories = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const importedCategories = JSON.parse(e.target.result);
+        
+        if (!Array.isArray(importedCategories)) {
+          showError('Invalid file format. Expected an array of categories.');
+          return;
+        }
+
+        // Validate required fields
+        for (const cat of importedCategories) {
+          if (!cat.name || !cat.prefix) {
+            showError(`Invalid category data: each category must have name and prefix`);
+            return;
+          }
+        }
+
+        const response = await api.importCategories(importedCategories);
+        const result = response.data;
+        
+        if (result.success) {
+          queryClient.invalidateQueries(['categories']);
+          queryClient.invalidateQueries(['categorySpecifications']);
+          const catStats = result.results.categories;
+          const specStats = result.results.specifications;
+          showSuccess(`Import complete: ${catStats.created} categories created, ${catStats.updated} updated; ${specStats.created} specs created, ${specStats.updated} updated, ${specStats.deleted} deleted`);
+        } else {
+          showError('Import failed');
+        }
+      } catch (error) {
+        console.error('Import error:', error);
+        showError('Failed to import categories: ' + (error.response?.data?.error || error.message));
+      }
+    };
+    reader.readAsText(file);
+    // Reset file input
+    event.target.value = '';
+  };
 
   // Drag and drop handlers for specification reordering
   const handleDragStartSpec = (spec) => {
@@ -555,12 +738,38 @@ const CategorySpecificationsManager = () => {
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-        Category Specifications
-      </h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Manage specification fields for each category. All components in a category will use these specifications.
-      </p>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Category Specifications
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Manage specification fields for each category. All components in a category will use these specifications.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCategories}
+            disabled={!categories || categories.length === 0}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+          
+          <label className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
+            <Upload className="w-4 h-4" />
+            Import
+            <input
+              type="file"
+              ref={categoryFileInputRef}
+              accept=".json"
+              onChange={handleImportCategories}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
 
       {/* Category Selector */}
       <div className="mb-4">

@@ -227,6 +227,14 @@ export const api = {
   updateSpecificationTemplate: (id, data) => apiClient.put(`/specification-templates/${id}`, data),
   deleteSpecificationTemplate: (id) => apiClient.delete(`/specification-templates/${id}`),
   
+  // Export/Import Settings
+  exportAllSettings: () => apiClient.post('/settings/export'),
+  importAllSettings: (data) => apiClient.post('/settings/import', { data }),
+  exportUsers: () => apiClient.post('/settings/export/users'),
+  importUsers: (users) => apiClient.post('/settings/import/users', { users }),
+  exportCategories: () => apiClient.post('/settings/export/categories'),
+  importCategories: (categories) => apiClient.post('/settings/import/categories', { categories }),
+  
   // Database Management (Silent Mode API - No User Prompts)
   getDatabaseStatus: () => apiClient.get('/settings/database/status'),
   clearDatabase: () => apiClient.post('/settings/database/clear'),

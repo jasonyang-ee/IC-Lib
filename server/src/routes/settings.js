@@ -18,6 +18,12 @@ import {
   deleteCategorySpecification,
   reorderCategorySpecifications,
   syncComponentsToInventory,
+  exportAllSettings,
+  importAllSettings,
+  exportUsers,
+  importUsers,
+  exportCategories,
+  importCategories,
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -25,6 +31,14 @@ const router = express.Router();
 // Application settings routes
 router.get('/', getSettings);
 router.put('/', updateSettings);
+
+// Export/Import routes
+router.post('/export', exportAllSettings);
+router.post('/import', importAllSettings);
+router.post('/export/users', exportUsers);
+router.post('/import/users', importUsers);
+router.post('/export/categories', exportCategories);
+router.post('/import/categories', importCategories);
 
 // Category configuration routes
 router.get('/categories', getCategoryConfigs);

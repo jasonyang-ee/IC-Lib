@@ -754,3 +754,671 @@ export const syncComponentsToInventory = async (req, res) => {
   }
 };
 
+// ============================================================================
+// Export/Import Settings Functions
+// ============================================================================
+
+/**
+ * POST /api/settings/export
+ * Export all admin settings including users, categories, and specifications
+ */
+export const exportAllSettings = async (req, res) => {
+  try {
+    // Get all users (excluding password hashes)
+    const usersResult = await pool.query(`
+      SELECT 
+        username, 
+        role, 
+        is_active,
+        created_at
+      FROM users
+      ORDER BY username
+    `);
+
+    // Get all categories
+    const categoriesResult = await pool.query(`
+      SELECT 
+        id,
+        name,
+        prefix,
+        leading_zeros,
+        display_order
+      FROM component_categories
+      ORDER BY display_order, name
+    `);
+
+    // Get all category specifications
+    const specificationsResult = await pool.query(`
+      SELECT 
+        cs.id,
+        cs.category_id,
+        cc.name as category_name,
+        cs.spec_name,
+        cs.unit,
+        cs.mapping_spec_names,
+        cs.display_order,
+        cs.is_required
+      FROM category_specifications cs
+      JOIN component_categories cc ON cs.category_id = cc.id
+      ORDER BY cc.display_order, cs.display_order
+    `);
+
+    // Get application settings
+    const settings = await readSettings();
+
+    const exportData = {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      exportedBy: req.user?.username || 'unknown',
+      data: {
+        users: usersResult.rows,
+        categories: categoriesResult.rows.map(cat => ({
+          ...cat,
+          specifications: specificationsResult.rows
+            .filter(spec => spec.category_id === cat.id)
+            .map(({ category_id, category_name, ...spec }) => spec),
+        })),
+        settings: settings,
+      },
+    };
+
+    res.json({
+      success: true,
+      data: exportData,
+    });
+  } catch (error) {
+    console.error('Error exporting settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to export settings',
+      message: error.message, 
+    });
+  }
+};
+
+/**
+ * POST /api/settings/import
+ * Import admin settings - overwrites existing data
+ * Specs not in import will be deleted from database
+ */
+export const importAllSettings = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ error: 'Import data is required' });
+    }
+
+    const results = {
+      users: { created: 0, updated: 0, deactivated: 0, errors: [] },
+      categories: { created: 0, updated: 0, errors: [] },
+      specifications: { created: 0, updated: 0, deleted: 0, errors: [] },
+      settings: { updated: false },
+    };
+
+    await client.query('BEGIN');
+
+    // ============================================================
+    // Step 1: Import Users
+    // ============================================================
+    if (data.users && Array.isArray(data.users)) {
+      const importedUsernames = new Set(data.users.map(u => u.username));
+      
+      for (const user of data.users) {
+        if (!user.username || !user.role) {
+          results.users.errors.push(`Invalid user data: ${JSON.stringify(user)}`);
+          continue;
+        }
+
+        try {
+          // Check if user exists
+          const existing = await client.query(
+            'SELECT id FROM users WHERE username = $1',
+            [user.username],
+          );
+
+          if (existing.rows.length > 0) {
+            // Update existing user (don't change password)
+            await client.query(`
+              UPDATE users 
+              SET role = $1, is_active = $2
+              WHERE username = $3
+            `, [user.role, user.is_active !== false, user.username]);
+            results.users.updated++;
+          } else {
+            // Create new user with default password (they should change it)
+            const bcrypt = await import('bcryptjs');
+            const defaultPasswordHash = await bcrypt.hash('changeme123', 10);
+            
+            await client.query(`
+              INSERT INTO users (username, password_hash, role, is_active, created_by)
+              VALUES ($1, $2, $3, $4, $5)
+            `, [user.username, defaultPasswordHash, user.role, user.is_active !== false, req.user?.userId]);
+            results.users.created++;
+          }
+        } catch (userError) {
+          results.users.errors.push(`User ${user.username}: ${userError.message}`);
+        }
+      }
+
+      // Deactivate users not in import (except admin to prevent lockout)
+      const existingUsers = await client.query(
+        'SELECT username FROM users WHERE username != $1',
+        ['admin'],
+      );
+      
+      for (const existingUser of existingUsers.rows) {
+        if (!importedUsernames.has(existingUser.username)) {
+          await client.query(
+            'UPDATE users SET is_active = false WHERE username = $1',
+            [existingUser.username],
+          );
+          results.users.deactivated++;
+        }
+      }
+    }
+
+    // ============================================================
+    // Step 2: Import Categories and Specifications
+    // ============================================================
+    if (data.categories && Array.isArray(data.categories)) {
+      const importedCategoryIds = new Set();
+      const categoryNameToId = new Map();
+
+      for (const category of data.categories) {
+        if (!category.name || !category.prefix) {
+          results.categories.errors.push(`Invalid category data: ${JSON.stringify(category)}`);
+          continue;
+        }
+
+        try {
+          // Check if category exists by name
+          const existing = await client.query(
+            'SELECT id FROM component_categories WHERE name = $1',
+            [category.name],
+          );
+
+          let categoryId;
+
+          if (existing.rows.length > 0) {
+            // Update existing category
+            categoryId = existing.rows[0].id;
+            await client.query(`
+              UPDATE component_categories 
+              SET prefix = $1, leading_zeros = $2, display_order = $3
+              WHERE id = $4
+            `, [category.prefix, category.leading_zeros || 5, category.display_order || 0, categoryId]);
+            results.categories.updated++;
+          } else {
+            // Create new category
+            const newCat = await client.query(`
+              INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
+              VALUES ($1, $2, $3, $4)
+              RETURNING id
+            `, [category.name, category.prefix, category.leading_zeros || 5, category.display_order || 0]);
+            categoryId = newCat.rows[0].id;
+            results.categories.created++;
+          }
+
+          importedCategoryIds.add(categoryId);
+          categoryNameToId.set(category.name, categoryId);
+
+          // ============================================================
+          // Step 3: Import Specifications for this category
+          // ============================================================
+          if (category.specifications && Array.isArray(category.specifications)) {
+            const importedSpecNames = new Set();
+
+            for (const spec of category.specifications) {
+              if (!spec.spec_name) continue;
+              
+              importedSpecNames.add(spec.spec_name);
+
+              try {
+                // Check if spec exists
+                const existingSpec = await client.query(
+                  'SELECT id FROM category_specifications WHERE category_id = $1 AND spec_name = $2',
+                  [categoryId, spec.spec_name],
+                );
+
+                if (existingSpec.rows.length > 0) {
+                  // Update existing spec
+                  await client.query(`
+                    UPDATE category_specifications 
+                    SET unit = $1, mapping_spec_names = $2, display_order = $3, is_required = $4, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $5
+                  `, [
+                    spec.unit || null,
+                    JSON.stringify(spec.mapping_spec_names || []),
+                    spec.display_order || 0,
+                    spec.is_required || false,
+                    existingSpec.rows[0].id,
+                  ]);
+                  results.specifications.updated++;
+                } else {
+                  // Create new spec
+                  await client.query(`
+                    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                  `, [
+                    categoryId,
+                    spec.spec_name,
+                    spec.unit || null,
+                    JSON.stringify(spec.mapping_spec_names || []),
+                    spec.display_order || 0,
+                    spec.is_required || false,
+                  ]);
+                  results.specifications.created++;
+                }
+              } catch (specError) {
+                results.specifications.errors.push(`Spec ${spec.spec_name}: ${specError.message}`);
+              }
+            }
+
+            // Delete specs not in import for this category
+            const existingSpecs = await client.query(
+              'SELECT id, spec_name FROM category_specifications WHERE category_id = $1',
+              [categoryId],
+            );
+
+            for (const existingSpec of existingSpecs.rows) {
+              if (!importedSpecNames.has(existingSpec.spec_name)) {
+                // Delete spec and its values (cascade)
+                await client.query(
+                  'DELETE FROM category_specifications WHERE id = $1',
+                  [existingSpec.id],
+                );
+                results.specifications.deleted++;
+              }
+            }
+          }
+        } catch (catError) {
+          results.categories.errors.push(`Category ${category.name}: ${catError.message}`);
+        }
+      }
+    }
+
+    // ============================================================
+    // Step 4: Import Application Settings
+    // ============================================================
+    if (data.settings) {
+      try {
+        await writeSettings(data.settings);
+        results.settings.updated = true;
+      } catch (settingsError) {
+        console.error('Error updating settings:', settingsError);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Log activity
+    try {
+      await pool.query(
+        `INSERT INTO user_activity_log (type_name, description, user_id)
+         VALUES ('settings_import', $1, $2)`,
+        [
+          `Imported settings: ${results.users.created + results.users.updated} users, ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs`,
+          req.user?.userId,
+        ],
+      );
+    } catch (logError) {
+      console.error('Failed to log settings import:', logError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Settings imported successfully',
+      results,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error importing settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to import settings',
+      message: error.message, 
+    });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * POST /api/settings/export/users
+ * Export only users
+ */
+export const exportUsers = async (req, res) => {
+  try {
+    const usersResult = await pool.query(`
+      SELECT 
+        username, 
+        role, 
+        is_active,
+        created_at
+      FROM users
+      ORDER BY username
+    `);
+
+    const exportData = {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      exportedBy: req.user?.username || 'unknown',
+      users: usersResult.rows,
+    };
+
+    res.json({
+      success: true,
+      data: exportData,
+    });
+  } catch (error) {
+    console.error('Error exporting users:', error);
+    res.status(500).json({ 
+      error: 'Failed to export users',
+      message: error.message, 
+    });
+  }
+};
+
+/**
+ * POST /api/settings/import/users
+ * Import only users - overwrites existing
+ */
+export const importUsers = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { users } = req.body;
+    
+    if (!users || !Array.isArray(users)) {
+      return res.status(400).json({ error: 'Users array is required' });
+    }
+
+    const results = { created: 0, updated: 0, deactivated: 0, errors: [] };
+    const importedUsernames = new Set(users.map(u => u.username));
+
+    await client.query('BEGIN');
+
+    for (const user of users) {
+      if (!user.username || !user.role) {
+        results.errors.push(`Invalid user data: ${JSON.stringify(user)}`);
+        continue;
+      }
+
+      try {
+        const existing = await client.query(
+          'SELECT id FROM users WHERE username = $1',
+          [user.username],
+        );
+
+        if (existing.rows.length > 0) {
+          await client.query(`
+            UPDATE users 
+            SET role = $1, is_active = $2
+            WHERE username = $3
+          `, [user.role, user.is_active !== false, user.username]);
+          results.updated++;
+        } else {
+          const bcrypt = await import('bcryptjs');
+          const defaultPasswordHash = await bcrypt.hash('changeme123', 10);
+          
+          await client.query(`
+            INSERT INTO users (username, password_hash, role, is_active, created_by)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [user.username, defaultPasswordHash, user.role, user.is_active !== false, req.user?.userId]);
+          results.created++;
+        }
+      } catch (userError) {
+        results.errors.push(`User ${user.username}: ${userError.message}`);
+      }
+    }
+
+    // Deactivate users not in import (except admin)
+    const existingUsers = await client.query(
+      'SELECT username FROM users WHERE username != $1',
+      ['admin'],
+    );
+    
+    for (const existingUser of existingUsers.rows) {
+      if (!importedUsernames.has(existingUser.username)) {
+        await client.query(
+          'UPDATE users SET is_active = false WHERE username = $1',
+          [existingUser.username],
+        );
+        results.deactivated++;
+      }
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Users imported successfully',
+      results,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error importing users:', error);
+    res.status(500).json({ 
+      error: 'Failed to import users',
+      message: error.message, 
+    });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * POST /api/settings/export/categories
+ * Export categories with specifications
+ */
+export const exportCategories = async (req, res) => {
+  try {
+    const categoriesResult = await pool.query(`
+      SELECT 
+        id,
+        name,
+        prefix,
+        leading_zeros,
+        display_order
+      FROM component_categories
+      ORDER BY display_order, name
+    `);
+
+    const specificationsResult = await pool.query(`
+      SELECT 
+        cs.id,
+        cs.category_id,
+        cc.name as category_name,
+        cs.spec_name,
+        cs.unit,
+        cs.mapping_spec_names,
+        cs.display_order,
+        cs.is_required
+      FROM category_specifications cs
+      JOIN component_categories cc ON cs.category_id = cc.id
+      ORDER BY cc.display_order, cs.display_order
+    `);
+
+    const exportData = {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      exportedBy: req.user?.username || 'unknown',
+      categories: categoriesResult.rows.map(cat => ({
+        name: cat.name,
+        prefix: cat.prefix,
+        leading_zeros: cat.leading_zeros,
+        display_order: cat.display_order,
+        specifications: specificationsResult.rows
+          .filter(spec => spec.category_id === cat.id)
+          .map(({ id, category_id, category_name, ...spec }) => spec),
+      })),
+    };
+
+    res.json({
+      success: true,
+      data: exportData,
+    });
+  } catch (error) {
+    console.error('Error exporting categories:', error);
+    res.status(500).json({ 
+      error: 'Failed to export categories',
+      message: error.message, 
+    });
+  }
+};
+
+/**
+ * POST /api/settings/import/categories
+ * Import categories with specifications - overwrites existing, deletes missing specs
+ */
+export const importCategories = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { categories } = req.body;
+    
+    if (!categories || !Array.isArray(categories)) {
+      return res.status(400).json({ error: 'Categories array is required' });
+    }
+
+    const results = {
+      categories: { created: 0, updated: 0, errors: [] },
+      specifications: { created: 0, updated: 0, deleted: 0, errors: [] },
+    };
+
+    await client.query('BEGIN');
+
+    for (const category of categories) {
+      if (!category.name || !category.prefix) {
+        results.categories.errors.push(`Invalid category data: ${JSON.stringify(category)}`);
+        continue;
+      }
+
+      try {
+        const existing = await client.query(
+          'SELECT id FROM component_categories WHERE name = $1',
+          [category.name],
+        );
+
+        let categoryId;
+
+        if (existing.rows.length > 0) {
+          categoryId = existing.rows[0].id;
+          await client.query(`
+            UPDATE component_categories 
+            SET prefix = $1, leading_zeros = $2, display_order = $3
+            WHERE id = $4
+          `, [category.prefix, category.leading_zeros || 5, category.display_order || 0, categoryId]);
+          results.categories.updated++;
+        } else {
+          const newCat = await client.query(`
+            INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+          `, [category.name, category.prefix, category.leading_zeros || 5, category.display_order || 0]);
+          categoryId = newCat.rows[0].id;
+          results.categories.created++;
+        }
+
+        // Process specifications
+        if (category.specifications && Array.isArray(category.specifications)) {
+          const importedSpecNames = new Set();
+
+          for (const spec of category.specifications) {
+            if (!spec.spec_name) continue;
+            
+            importedSpecNames.add(spec.spec_name);
+
+            try {
+              const existingSpec = await client.query(
+                'SELECT id FROM category_specifications WHERE category_id = $1 AND spec_name = $2',
+                [categoryId, spec.spec_name],
+              );
+
+              if (existingSpec.rows.length > 0) {
+                await client.query(`
+                  UPDATE category_specifications 
+                  SET unit = $1, mapping_spec_names = $2, display_order = $3, is_required = $4, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = $5
+                `, [
+                  spec.unit || null,
+                  JSON.stringify(spec.mapping_spec_names || []),
+                  spec.display_order || 0,
+                  spec.is_required || false,
+                  existingSpec.rows[0].id,
+                ]);
+                results.specifications.updated++;
+              } else {
+                await client.query(`
+                  INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required)
+                  VALUES ($1, $2, $3, $4, $5, $6)
+                `, [
+                  categoryId,
+                  spec.spec_name,
+                  spec.unit || null,
+                  JSON.stringify(spec.mapping_spec_names || []),
+                  spec.display_order || 0,
+                  spec.is_required || false,
+                ]);
+                results.specifications.created++;
+              }
+            } catch (specError) {
+              results.specifications.errors.push(`Spec ${spec.spec_name}: ${specError.message}`);
+            }
+          }
+
+          // Delete specs not in import
+          const existingSpecs = await client.query(
+            'SELECT id, spec_name FROM category_specifications WHERE category_id = $1',
+            [categoryId],
+          );
+
+          for (const existingSpec of existingSpecs.rows) {
+            if (!importedSpecNames.has(existingSpec.spec_name)) {
+              await client.query(
+                'DELETE FROM category_specifications WHERE id = $1',
+                [existingSpec.id],
+              );
+              results.specifications.deleted++;
+            }
+          }
+        }
+      } catch (catError) {
+        results.categories.errors.push(`Category ${category.name}: ${catError.message}`);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Log activity
+    try {
+      await pool.query(
+        `INSERT INTO user_activity_log (type_name, description, user_id)
+         VALUES ('categories_import', $1, $2)`,
+        [
+          `Imported: ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs created/updated, ${results.specifications.deleted} specs deleted`,
+          req.user?.userId,
+        ],
+      );
+    } catch (logError) {
+      console.error('Failed to log categories import:', logError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Categories imported successfully',
+      results,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error importing categories:', error);
+    res.status(500).json({ 
+      error: 'Failed to import categories',
+      message: error.message, 
+    });
+  } finally {
+    client.release();
+  }
+};
+
