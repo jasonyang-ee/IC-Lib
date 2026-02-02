@@ -128,18 +128,24 @@ export const testSMTP = async (req, res) => {
 };
 
 /**
- * Send a test email to the current user
+ * Send a test email to a specified address or the current user
  */
 export const sendTestEmail = async (req, res) => {
   try {
-    // Get user email
-    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.id]);
-    if (userResult.rows.length === 0 || !userResult.rows[0].email) {
-      return res.status(400).json({ error: 'No email address configured for your account' });
+    // Use provided recipient or fall back to user's email
+    let recipientEmail = req.body.recipient_email;
+    
+    if (!recipientEmail) {
+      // Get user email as fallback
+      const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.id]);
+      if (userResult.rows.length === 0 || !userResult.rows[0].email) {
+        return res.status(400).json({ error: 'No email address provided and no email configured for your account. Please enter a recipient email address.' });
+      }
+      recipientEmail = userResult.rows[0].email;
     }
 
     const result = await sendEmail({
-      to: userResult.rows[0].email,
+      to: recipientEmail,
       subject: 'IC Library Test Email',
       html: `
         <h2>Test Email from IC Library</h2>

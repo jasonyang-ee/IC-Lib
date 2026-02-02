@@ -160,6 +160,7 @@ export const api = {
   // Categories
   getCategories: () => apiClient.get('/categories'),
   getCategoryById: (id) => apiClient.get(`/categories/${id}`),
+  getNextPartNumber: (categoryId) => apiClient.get(`/categories/${categoryId}/next-part-number`),
   createCategory: (data) => apiClient.post('/categories', data),
   updateCategory: (id, data) => apiClient.put(`/categories/${id}`, data),
   deleteCategory: (id) => apiClient.delete(`/categories/${id}`),
@@ -278,7 +279,7 @@ export const api = {
     get: () => apiClient.get('/smtp'),
     post: (data) => apiClient.post('/smtp', data),
     test: (data) => apiClient.post('/smtp/test', data),
-    testEmail: () => apiClient.post('/smtp/test-email'),
+    testEmail: (data) => apiClient.post('/smtp/test-email', data),
   },
   
   // File Upload

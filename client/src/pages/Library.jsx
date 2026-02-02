@@ -447,6 +447,24 @@ const Library = () => {
     }
   }, []);
 
+  // Handle URL query parameters (e.g., ?part=IC-00001)
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const partParam = searchParams.get('part');
+    
+    if (partParam) {
+      setSearchTerm(partParam);
+      // Clear the query parameter from URL without reload
+      navigate(location.pathname, { replace: true });
+      // Select text after setting search term
+      setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.select();
+        }
+      }, 0);
+    }
+  }, [location.search, navigate]);
+
   // Handle incoming search term from Inventory page
   useEffect(() => {
     if (location.state?.searchUuid) {
@@ -1704,9 +1722,17 @@ const Library = () => {
       }
     }
     
-    if (isAddMode) {
-      const nextPartNumber = generateNextPartNumber(categoryId);
-      handleFieldChange('part_number', nextPartNumber);
+    if (isAddMode && categoryId) {
+      // Use API to get next part number (checks across ALL categories with same prefix)
+      try {
+        const partNumberResp = await api.getNextPartNumber(categoryId);
+        handleFieldChange('part_number', partNumberResp.data.next_part_number);
+      } catch (error) {
+        console.error('Error getting next part number:', error);
+        // Fallback to client-side generation if API fails
+        const nextPartNumber = generateNextPartNumber(categoryId);
+        handleFieldChange('part_number', nextPartNumber);
+      }
       
       // Auto-fill value field based on category and vendor specifications
       if (editData.vendorSpecifications && Object.keys(editData.vendorSpecifications).length > 0) {

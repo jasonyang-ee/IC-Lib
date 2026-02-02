@@ -23,6 +23,8 @@ export default function SMTPSettings() {
     from_name: 'IC-Lib System',
     enabled: true
   });
+  
+  const [testEmailRecipient, setTestEmailRecipient] = useState('');
 
   // Load existing settings
   useEffect(() => {
@@ -34,9 +36,18 @@ export default function SMTPSettings() {
       const response = await api.smtp.get();
       if (response.data.configured) {
         setConfigured(true);
+        // Backend returns settings at top level with configured flag
+        const { configured, ...settings } = response.data;
         setFormData({
-          ...response.data.settings,
-          auth_password: '' // Don't show password
+          host: settings.host || '',
+          port: settings.port || 587,
+          secure: settings.secure || false,
+          no_auth: settings.no_auth || false,
+          auth_user: settings.auth_user || '',
+          auth_password: '', // Don't show password
+          from_address: settings.from_address || '',
+          from_name: settings.from_name || 'IC-Lib System',
+          enabled: settings.enabled !== false
         });
       }
     } catch (error) {
@@ -110,12 +121,16 @@ export default function SMTPSettings() {
   };
 
   const handleSendTestEmail = async () => {
+    if (!testEmailRecipient) {
+      showError('Please enter a recipient email address');
+      return;
+    }
     setSendingTest(true);
     try {
-      const response = await api.smtp.testEmail();
+      const response = await api.smtp.testEmail({ recipient_email: testEmailRecipient });
       showSuccess(response.data.message);
     } catch (error) {
-      showError(error.response?.data?.details || 'Failed to send test email');
+      showError(error.response?.data?.error || error.response?.data?.details || 'Failed to send test email');
     } finally {
       setSendingTest(false);
     }
@@ -305,10 +320,22 @@ export default function SMTPSettings() {
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Send a test email to verify the configuration
           </p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Recipient Email *
+              </label>
+              <input
+                type="email"
+                value={testEmailRecipient}
+                onChange={(e) => setTestEmailRecipient(e.target.value)}
+                placeholder="test@example.com"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-lg bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100"
+              />
+            </div>
             <button
               onClick={handleSendTestEmail}
-              disabled={sendingTest}
+              disabled={sendingTest || !testEmailRecipient}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2"
             >
               {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

@@ -107,3 +107,53 @@ export const getComponentsByCategory = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get next available part number for a category
+ * Checks ALL categories that share the same prefix to avoid duplicates
+ */
+export const getNextPartNumber = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get the category to find its prefix and leading_zeros
+    const categoryResult = await pool.query(
+      'SELECT prefix, leading_zeros FROM component_categories WHERE id = $1',
+      [id]
+    );
+
+    if (categoryResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    const { prefix, leading_zeros = 5 } = categoryResult.rows[0];
+
+    // Find the maximum number used across ALL components with this prefix
+    // This ensures unique part numbers even when multiple categories share a prefix
+    const maxResult = await pool.query(`
+      SELECT MAX(
+        CAST(
+          SUBSTRING(part_number FROM '^${prefix}-(\\d+)$')
+          AS INTEGER
+        )
+      ) as max_number
+      FROM components
+      WHERE part_number ~ '^${prefix}-\\d+$'
+    `);
+
+    const maxNumber = maxResult.rows[0].max_number || 0;
+    const nextNumber = maxNumber + 1;
+    const paddedNumber = String(nextNumber).padStart(leading_zeros, '0');
+    const nextPartNumber = `${prefix}-${paddedNumber}`;
+
+    res.json({
+      prefix,
+      leading_zeros,
+      next_number: nextNumber,
+      next_part_number: nextPartNumber
+    });
+  } catch (error) {
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[CategoryController]\x1b[0m Error getting next part number: ${error.message}`);
+    next(error);
+  }
+};
