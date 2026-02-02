@@ -288,6 +288,13 @@ export const api = {
     apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
   getFileDownloadUrl: (category, mfgPartNumber, filename) => 
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
+    
+  // File Library (CAD file management)
+  getFileTypeStats: () => apiClient.get('/file-library/stats'),
+  getFilesByType: (type) => apiClient.get(`/file-library/type/${type}`),
+  getComponentsByFile: (type, fileName) => apiClient.get(`/file-library/type/${type}/components`, { params: { fileName } }),
+  massRenameFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename`, data),
+  searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
 };
 
 export default apiClient;

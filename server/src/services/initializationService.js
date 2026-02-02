@@ -8,6 +8,87 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
+ * Run all pending migrations from the migrations folder
+ */
+async function runMigrations() {
+  const client = await pool.connect();
+  
+  try {
+    // Create migrations tracking table if it doesn't exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) UNIQUE NOT NULL,
+        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    
+    // Get list of already executed migrations
+    const executedResult = await client.query('SELECT filename FROM schema_migrations');
+    const executedMigrations = new Set(executedResult.rows.map(r => r.filename));
+    
+    // Get all migration files
+    const migrationsPath = path.resolve(__dirname, '../../../database/migrations');
+    
+    if (!fs.existsSync(migrationsPath)) {
+      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Migration]\x1b[0m No migrations folder found');
+      return true;
+    }
+    
+    const migrationFiles = fs.readdirSync(migrationsPath)
+      .filter(f => f.endsWith('.sql'))
+      .sort(); // Sort to ensure execution order
+    
+    if (migrationFiles.length === 0) {
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m No migration files found');
+      return true;
+    }
+    
+    // Run pending migrations
+    let migrationsRun = 0;
+    for (const filename of migrationFiles) {
+      if (executedMigrations.has(filename)) {
+        continue;
+      }
+      
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Running migration: ${filename}`);
+      
+      const filePath = path.join(migrationsPath, filename);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      
+      try {
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query(
+          'INSERT INTO schema_migrations (filename) VALUES ($1)',
+          [filename]
+        );
+        await client.query('COMMIT');
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);
+        migrationsRun++;
+      } catch (migrationError) {
+        await client.query('ROLLBACK');
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} failed: ${migrationError.message}`);
+        // Continue with other migrations - some might still succeed
+      }
+    }
+    
+    if (migrationsRun > 0) {
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m ${migrationsRun} migration(s) executed`);
+    } else {
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m All migrations already applied');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Error running migrations: ${error.message}`);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Check if main parts database tables exist
  */
 async function checkPartsTablesExist() {
@@ -338,6 +419,10 @@ export async function initializeAuthentication() {
     } else {
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema verified');
     }
+    
+    // Run any pending migrations
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');
+    await runMigrations();
     
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[InitService]\x1b[0m Database initialization complete');
     

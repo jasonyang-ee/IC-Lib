@@ -13,6 +13,7 @@ import Audit from './pages/Audit'
 import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
+import FileLibrary from './pages/FileLibrary'
 
 function App() {
   // Check if ECO feature is enabled from environment variable
@@ -35,6 +36,7 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="library" element={<Library />} />
+          <Route path="file-library" element={<FileLibrary />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="projects" element={<Projects />} />
           <Route path="vendor-search" element={<VendorSearch />} />

@@ -31,6 +31,7 @@ import projectRoutes from './routes/projects.js';
 import ecoRoutes from './routes/eco.js';
 import smtpRoutes from './routes/smtp.js';
 import fileUploadRoutes from './routes/fileUpload.js';
+import fileLibraryRoutes from './routes/fileLibrary.js';
 
 // Import initialization service
 import { initializeAuthentication, getAuthenticationStatus } from './services/initializationService.js';
@@ -102,6 +103,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/eco', ecoRoutes);
 app.use('/api/smtp', smtpRoutes);
 app.use('/api/files', fileUploadRoutes);
+app.use('/api/file-library', fileLibraryRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {

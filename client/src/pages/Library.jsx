@@ -2390,7 +2390,7 @@ const Library = () => {
       <div 
         className={`page-click-handler grid grid-cols-1 gap-4 flex-1 overflow-hidden ${
         (isEditMode || isAddMode) 
-          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.5fr)_minmax(350px,1.2fr)]'
+          ? 'xl:grid-cols-[minmax(250px,250px)_minmax(500px,2fr)_minmax(550px,2.5fr)_minmax(350px,1.2fr)]'
           : 'xl:grid-cols-[minmax(250px,250px)_minmax(550px,2.5fr)_minmax(400px,2fr)_minmax(350px,1.2fr)]'
       }`}>
         {/* Left Sidebar - Filters */}
@@ -3435,53 +3435,62 @@ const Library = () => {
                     <>
                       {/* Helper component for copyable text */}
                       {(() => {
-                        const CopyableField = ({ label, value }) => (
-                          <div>
-                            <span className="text-gray-600 dark:text-gray-400">{label}:</span>
-                            <p 
-                              className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                              onClick={() => handleCopyToClipboard(value, label)}
-                              title="Click to copy"
-                            >
-                              {value || 'N/A'}
-                            </p>
+                        const CopyableField = ({ label, value, isLink }) => (
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{label}:</span>
+                            {isLink ? (
+                              <a 
+                                href={value} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
+                              >
+                                {value}
+                              </a>
+                            ) : (
+                              <span 
+                                className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors truncate"
+                                onClick={() => handleCopyToClipboard(value, label)}
+                                title="Click to copy"
+                              >
+                                {value || 'N/A'}
+                              </span>
+                            )}
                           </div>
                         );
 
                         return (
-                          <>
+                          <div className="space-y-1.5">
                             {/* Row 1: Part Number, Part Type */}
-                            <CopyableField label="Part Number" value={componentDetails.part_number} />
-                            <div className="col-span-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <CopyableField label="Part Number" value={componentDetails.part_number} />
                               <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} />
                             </div>
 
                             {/* Row 2: Value, Package */}
-                            <CopyableField label="Value" value={componentDetails.value} />
-                            <div className="col-span-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <CopyableField label="Value" value={componentDetails.value} />
                               <CopyableField label="Package" value={componentDetails.package_size} />
                             </div>
 
                             {/* Row 3: Alternative Parts Selection */}
                             {alternatives && alternatives.length > 0 && (
-                              <div className="col-span-2 border-b border-gray-200 dark:border-[#444444] pb-3 mb-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-gray-600 dark:text-gray-400">
+                              <div className="border-b border-gray-200 dark:border-[#444444] pb-2 mb-2">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
                                     Alternative Parts{alternatives.length > 1 ? ` (${alternatives.length})` : ':'}
                                   </span>
                                   {canWrite() && (
                                     <button
                                       onClick={() => {
-                                        // Cache the part number in sessionStorage
                                         sessionStorage.setItem('libraryPartNumberForAlternative', selectedComponent.part_number);
-                                        // Navigate to vendor search
                                         navigate('/vendor-search');
                                       }}
-                                      className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                      className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
                                       title="Search for alternative parts"
                                     >
                                       <Search className="w-3 h-3" />
-                                      <span>Search Alternative</span>
+                                      <span>Search</span>
                                     </button>
                                   )}
                                 </div>
@@ -3491,7 +3500,7 @@ const Library = () => {
                                     const alt = alternatives.find(a => a.id === e.target.value);
                                     setSelectedAlternative(alt);
                                   }}
-                                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                                  className="w-full px-2 py-1.5 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                                 >
                                   {alternatives.map((alt) => (
                                     <option key={alt.id} value={alt.id}>
@@ -3503,12 +3512,12 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* Row 4: Manufacturer, MFG Part Number (from selected alternative) */}
-                            <CopyableField 
-                              label="Manufacturer" 
-                              value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
-                            />
-                            <div className="col-span-2">
+                            {/* Row 4: Manufacturer, MFG Part Number */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <CopyableField 
+                                label="Manufacturer" 
+                                value={selectedAlternative?.manufacturer_name || componentDetails.manufacturer_name} 
+                              />
                               <CopyableField 
                                 label="MFG Part Number" 
                                 value={selectedAlternative?.manufacturer_pn || componentDetails.manufacturer_pn} 
@@ -3517,10 +3526,10 @@ const Library = () => {
 
                             {/* Row 5: Description */}
                             {componentDetails.description && (
-                              <div className="col-span-2">
-                                <span className="text-gray-600 dark:text-gray-400">Description:</span>
+                              <div className="flex items-start gap-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Description:</span>
                                 <p 
-                                  className="font-medium text-gray-900 dark:text-gray-100 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors"
+                                  className="text-sm text-gray-900 dark:text-gray-100 cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-1 rounded transition-colors"
                                   onClick={() => handleCopyToClipboard(componentDetails.description, 'Description')}
                                   title="Click to copy"
                                 >
@@ -3529,75 +3538,35 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* Row 6: PCB Footprint */}
-                            <div className="col-span-2">
+                            {/* Row 6: PCB Footprint, Schematic */}
+                            <div className="grid grid-cols-2 gap-2">
                               <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
+                              {componentDetails.schematic && (
+                                <CopyableField label="Schematic Symbol" value={componentDetails.schematic} />
+                              )}
                             </div>
 
-                            {/* Row 7: Schematic Symbol */}
-                            {componentDetails.schematic && (
-                              <div className="col-span-2">
-                                <span className="text-gray-600 dark:text-gray-400">Schematic Symbol:</span>
-                                <p 
-                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                                  onClick={() => handleCopyToClipboard(componentDetails.schematic, 'Schematic')}
-                                  title="Click to copy"
-                                >
-                                  {componentDetails.schematic}
-                                </p>
-                              </div>
-                            )}
+                            {/* Row 7: STEP 3D Model, PSPICE */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {componentDetails.step_model && (
+                                <CopyableField label="STEP 3D Model" value={componentDetails.step_model} />
+                              )}
+                              {componentDetails.pspice && (
+                                <CopyableField label="PSPICE Model" value={componentDetails.pspice} />
+                              )}
+                            </div>
 
-                            {/* Row 8: STEP 3D Model */}
-                            {componentDetails.step_model && (
-                              <div className="col-span-2">
-                                <span className="text-gray-600 dark:text-gray-400">STEP 3D Model:</span>
-                                <p 
-                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                                  onClick={() => handleCopyToClipboard(componentDetails.step_model, 'STEP Model')}
-                                  title="Click to copy"
-                                >
-                                  {componentDetails.step_model}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Row 9: PSPICE Model */}
-                            {componentDetails.pspice && (
-                              <div className="col-span-2">
-                                <span className="text-gray-600 dark:text-gray-400">PSPICE Model:</span>
-                                <p 
-                                  className="font-medium text-gray-900 dark:text-gray-100 text-xs break-all cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] px-2 py-1 rounded transition-colors inline-block"
-                                  onClick={() => handleCopyToClipboard(componentDetails.pspice, 'PSPICE Model')}
-                                  title="Click to copy"
-                                >
-                                  {componentDetails.pspice}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Row 10: Datasheet URL */}
+                            {/* Row 8: Datasheet URL */}
                             {componentDetails.datasheet_url && (
-                              <div className="col-span-2">
-                                <span className="text-gray-600 dark:text-gray-400">Datasheet URL:</span>
-                                <a 
-                                  href={componentDetails.datasheet_url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-xs break-all block"
-                                >
-                                  {componentDetails.datasheet_url}
-                                </a>
-                              </div>
+                              <CopyableField label="Datasheet URL" value={componentDetails.datasheet_url} isLink />
                             )}
 
-                            {/* Row 11: Approval Status Section */}
-                            <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-4">
-                              <div>
-                                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h4>
-                                <div className="space-y-3">
-                                  {/* Status Badge */}
-                                  <div>
+                            {/* Approval Status Section */}
+                            <div className="border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Approval Status</h4>
+                              <div className="space-y-2">
+                                {/* Status Badge */}
+                                <div>
                                     <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-semibold w-full text-center ${
                                       componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                                       componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
@@ -3629,7 +3598,6 @@ const Library = () => {
                                     </div>
                                   )}
                                 </div>
-                              </div>
 
                               {/* Action Buttons - Full Width Below Status */}
                               <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
@@ -3675,7 +3643,7 @@ const Library = () => {
                                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">Processing...</p>
                               )}
                             </div>
-                          </>
+                          </div>
                         );
                       })()}
                     </>
@@ -3764,10 +3732,10 @@ const Library = () => {
 
         {/* Fourth Column - Specifications & Alternative Parts (Edit/Add Mode Only) */}
         {(isEditMode || isAddMode) && (
-          <div className="space-y-4 xl:min-w-100 overflow-y-auto custom-scrollbar" data-panel>
+          <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar" data-panel>
             {/* Specifications Panel - For inputting values */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+              <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Specifications</h3>
                 <button
                   type="button"
@@ -3777,22 +3745,31 @@ const Library = () => {
                       spec_name: '',
                       spec_value: '',
                       unit: '',
+                      mapping_spec_names: [],
                       is_required: false,
                       is_custom: true // Mark as custom spec
                     };
                     handleFieldChange('specifications', [...(editData.specifications || []), newSpec]);
                   }}
-                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
+                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-medium flex items-center gap-1 px-2 py-1 border border-primary-600 dark:border-primary-400 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3 h-3" />
                   <span>Add Spec</span>
                 </button>
               </div>
               <div className="text-sm">
                 {(editData.specifications || []).length > 0 ? (
-                  <>
+                  <div className="space-y-2">
+                    {/* Header row */}
+                    <div className="grid grid-cols-[minmax(100px,1fr)_minmax(100px,1.5fr)_minmax(50px,0.5fr)_minmax(150px,2fr)_auto] gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium px-1">
+                      <span>Spec Name</span>
+                      <span>Value</span>
+                      <span>Unit</span>
+                      <span>Keywords (Vendor Mapping)</span>
+                      <span></span>
+                    </div>
                     {(editData.specifications || []).map((spec, index) => (
-                      <div key={index} className="grid grid-cols-[2fr_2fr_1fr_auto] gap-2 mb-2 items-center">
+                      <div key={index} className="grid grid-cols-[minmax(100px,1fr)_minmax(100px,1.5fr)_minmax(50px,0.5fr)_minmax(150px,2fr)_auto] gap-2 items-start">
                         {/* Spec Name - Editable for custom specs, read-only for template specs */}
                         {spec.is_custom ? (
                           <input
@@ -3804,11 +3781,11 @@ const Library = () => {
                               handleFieldChange('specifications', newSpecs);
                             }}
                             placeholder="Spec Name"
-                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                           />
                         ) : (
-                          <div className="flex items-center">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                          <div className="flex items-center py-1">
+                            <span className="text-xs text-gray-700 dark:text-gray-300">
                               {spec.spec_name}
                               {spec.is_required && <span className="text-red-500 ml-1">*</span>}
                             </span>
@@ -3822,7 +3799,8 @@ const Library = () => {
                             newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
                             handleFieldChange('specifications', newSpecs);
                           }}
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                          placeholder="Value"
+                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
                         {/* Unit field - Editable for custom specs */}
                         {spec.is_custom ? (
@@ -3835,25 +3813,47 @@ const Library = () => {
                               handleFieldChange('specifications', newSpecs);
                             }}
                             placeholder="Unit"
-                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-sm bg-white dark:bg-[#333333] dark:text-gray-100"
+                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                           />
                         ) : (
-                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                            {spec.unit || ''}
+                          <div className="flex items-center py-1 text-xs text-gray-500 dark:text-gray-400">
+                            {spec.unit || '-'}
                           </div>
                         )}
-                        {/* Action buttons container */}
-                        <div className="flex items-center gap-1">
-                          {editData._vendorSearchData && editData._vendorSearchData.specifications && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenMappingModal(index, spec)}
-                              className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-1"
-                              title="Add vendor field mapping"
+                        {/* Keywords column - Shows current mappings and allows adding more */}
+                        <div className="flex flex-wrap gap-1 items-center min-h-[26px]">
+                          {(spec.mapping_spec_names || []).map((keyword, keywordIndex) => (
+                            <span
+                              key={keywordIndex}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs"
                             >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          )}
+                              {keyword}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newSpecs = [...(editData.specifications || [])];
+                                  const newMappings = (spec.mapping_spec_names || []).filter((_, ki) => ki !== keywordIndex);
+                                  newSpecs[index] = { ...newSpecs[index], mapping_spec_names: newMappings };
+                                  handleFieldChange('specifications', newSpecs);
+                                }}
+                                className="ml-0.5 text-blue-500 dark:text-blue-400 hover:text-red-500 dark:hover:text-red-400"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMappingModal(index, spec)}
+                            className="text-xs px-1.5 py-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-dashed border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-0.5"
+                            title="Add keyword mapping"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add</span>
+                          </button>
+                        </div>
+                        {/* Action buttons container */}
+                        <div className="flex items-center">
                           {/* Remove button - only for custom specs or non-required specs */}
                           {(spec.is_custom || !spec.is_required) && (
                             <button
@@ -3871,7 +3871,7 @@ const Library = () => {
                         </div>
                       </div>
                     ))}
-                  </>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {isAddMode ? 'Select a category to see available specifications, or add custom specs' : 'No specifications defined. Click "Add Spec" to add custom specifications.'}
