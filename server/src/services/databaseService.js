@@ -359,7 +359,7 @@ export const getDatabaseStatus = async () => {
         counts.rows.forEach(row => {
           status.recordCounts[row.table_name] = parseInt(row.count);
         });
-      } catch (_error) {
+      } catch {
         // Tables might not exist yet
         status.errors.push('Could not fetch record counts');
       }

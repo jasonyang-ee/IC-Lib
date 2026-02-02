@@ -42,7 +42,7 @@ const PORT = process.env.PORT || 3500;
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const BASE_URL = process.env.BASE_URL || '';
-const BASE_DOMAIN = process.env.BASE_DOMAIN || 'http://localhost';
+const _BASE_DOMAIN = process.env.BASE_DOMAIN || 'http://localhost';
 
 // Middleware
 app.use(helmet());

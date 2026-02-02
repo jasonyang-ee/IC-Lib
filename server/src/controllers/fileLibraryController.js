@@ -13,7 +13,7 @@ export const getFilesByType = async (req, res) => {
       'footprint': 'pcb_footprint',
       'schematic': 'schematic',
       'step': 'step_model',
-      'pspice': 'pspice'
+      'pspice': 'pspice',
     };
     
     const columnName = columnMap[type];
@@ -39,10 +39,10 @@ export const getFilesByType = async (req, res) => {
     res.json({
       type,
       column: columnName,
-      files: result.rows
+      files: result.rows,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:`, error.message);
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:', error.message);
     res.status(500).json({ error: 'Failed to fetch files' });
   }
 };
@@ -67,10 +67,10 @@ export const getFileTypeStats = async (req, res) => {
       footprint: parseInt(result.rows[0].footprint_count) || 0,
       schematic: parseInt(result.rows[0].schematic_count) || 0,
       step: parseInt(result.rows[0].step_count) || 0,
-      pspice: parseInt(result.rows[0].pspice_count) || 0
+      pspice: parseInt(result.rows[0].pspice_count) || 0,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:`, error.message);
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:', error.message);
     res.status(500).json({ error: 'Failed to fetch file type statistics' });
   }
 };
@@ -92,7 +92,7 @@ export const getComponentsByFile = async (req, res) => {
       'footprint': 'pcb_footprint',
       'schematic': 'schematic',
       'step': 'step_model',
-      'pspice': 'pspice'
+      'pspice': 'pspice',
     };
     
     const columnName = columnMap[type];
@@ -127,10 +127,10 @@ export const getComponentsByFile = async (req, res) => {
       fileName,
       type,
       column: columnName,
-      components: result.rows
+      components: result.rows,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:`, error.message);
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:', error.message);
     res.status(500).json({ error: 'Failed to fetch components' });
   }
 };
@@ -152,7 +152,7 @@ export const massUpdateFileName = async (req, res) => {
       'footprint': 'pcb_footprint',
       'schematic': 'schematic',
       'step': 'step_model',
-      'pspice': 'pspice'
+      'pspice': 'pspice',
     };
     
     const columnName = columnMap[type];
@@ -190,10 +190,10 @@ export const massUpdateFileName = async (req, res) => {
     res.json({
       success: true,
       updatedCount: result.rowCount,
-      updatedComponents: result.rows
+      updatedComponents: result.rows,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error mass updating file name:`, error.message);
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error mass updating file name:', error.message);
     res.status(500).json({ error: 'Failed to update file name' });
   }
 };
@@ -217,7 +217,7 @@ export const searchFiles = async (req, res) => {
         'footprint': 'pcb_footprint',
         'schematic': 'schematic',
         'step': 'step_model',
-        'pspice': 'pspice'
+        'pspice': 'pspice',
       };
       const columnName = columnMap[type];
       if (columnName) {
@@ -261,10 +261,10 @@ export const searchFiles = async (req, res) => {
     
     res.json({
       searchQuery,
-      results: result.rows
+      results: result.rows,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error searching files:`, error.message);
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error searching files:', error.message);
     res.status(500).json({ error: 'Failed to search files' });
   }
 };

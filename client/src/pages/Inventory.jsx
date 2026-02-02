@@ -454,6 +454,7 @@ const Inventory = () => {
         scannerRef.current.stop().catch(err => console.error('Cleanup error:', err));
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCameraScanner, selectedCamera]);
 
   // Initialize edited items when entering edit mode
@@ -1135,7 +1136,7 @@ const Inventory = () => {
       <div className="flex gap-4 flex-1 overflow-hidden">
 
       {/* Left Sidebar - Controls */}
-      <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
+      <div className="w-80 shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
 
         {/* Category Filter */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
@@ -1200,7 +1201,7 @@ const Inventory = () => {
           {/* Sorting Controls */}
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Sort:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400 w-13">Sort:</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -1217,7 +1218,7 @@ const Inventory = () => {
             
             {/* Sort Order Toggle */}
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-600 dark:text-gray-400 w-[52px]">Order:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400 w-13">Order:</label>
               <div className="flex-1 flex items-center gap-2 border border-gray-300 dark:border-[#444444] rounded-md p-1">
                 <button
                   onClick={() => setSortOrder('asc')}
@@ -1354,7 +1355,7 @@ const Inventory = () => {
 
       {/* Right Side - Inventory Table */}
       <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between flex-shrink-0">
+        <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Inventory Items ({sortedInventory?.length || 0})
           </h3>

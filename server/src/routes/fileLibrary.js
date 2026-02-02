@@ -5,7 +5,7 @@ import {
   getFileTypeStats,
   getComponentsByFile,
   massUpdateFileName,
-  searchFiles
+  searchFiles,
 } from '../controllers/fileLibraryController.js';
 
 const router = express.Router();

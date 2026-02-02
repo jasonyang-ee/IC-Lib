@@ -119,7 +119,7 @@ export const getNextPartNumber = async (req, res, next) => {
     // Get the category to find its prefix and leading_zeros
     const categoryResult = await pool.query(
       'SELECT prefix, leading_zeros FROM component_categories WHERE id = $1',
-      [id]
+      [id],
     );
 
     if (categoryResult.rows.length === 0) {
@@ -150,7 +150,7 @@ export const getNextPartNumber = async (req, res, next) => {
       prefix,
       leading_zeros,
       next_number: nextNumber,
-      next_part_number: nextPartNumber
+      next_part_number: nextPartNumber,
     });
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[CategoryController]\x1b[0m Error getting next part number: ${error.message}`);

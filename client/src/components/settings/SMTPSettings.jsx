@@ -37,7 +37,7 @@ export default function SMTPSettings() {
       if (response.data.configured) {
         setConfigured(true);
         // Backend returns settings at top level with configured flag
-        const { configured, ...settings } = response.data;
+        const { configured: _configured, ...settings } = response.data;
         setFormData({
           host: settings.host || '',
           port: settings.port || 587,

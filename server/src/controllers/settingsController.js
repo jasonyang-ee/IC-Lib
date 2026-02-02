@@ -23,7 +23,7 @@ const DEFAULT_SETTINGS = {
 const ensureSettingsFile = async () => {
   try {
     await fs.access(SETTINGS_FILE);
-  } catch (_error) {
+  } catch {
     // File doesn't exist, create it with defaults
     const dir = path.dirname(SETTINGS_FILE);
     await fs.mkdir(dir, { recursive: true });
@@ -816,7 +816,7 @@ export const exportAllSettings = async (req, res) => {
           ...cat,
           specifications: specificationsResult.rows
             .filter(spec => spec.category_id === cat.id)
-            .map(({ category_id, category_name, ...spec }) => spec),
+            .map(({ category_id: _category_id, category_name: _category_name, ...spec }) => spec),
         })),
         settings: settings,
       },
@@ -1251,7 +1251,7 @@ export const exportCategories = async (req, res) => {
         display_order: cat.display_order,
         specifications: specificationsResult.rows
           .filter(spec => spec.category_id === cat.id)
-          .map(({ id, category_id, category_name, ...spec }) => spec),
+          .map(({ id: _id, category_id: _category_id, category_name: _category_name, ...spec }) => spec),
       })),
     };
 

@@ -463,6 +463,7 @@ const Library = () => {
         }
       }, 0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, navigate]);
 
   // Handle incoming search term from Inventory page
@@ -514,6 +515,7 @@ const Library = () => {
         setIsAddMode(false);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, components]);
 
   // Handle refresh requests from vendor search (after appending distributors or alternatives)
@@ -3932,7 +3934,7 @@ const Library = () => {
                           </div>
                         )}
                         {/* Keywords column - Shows current mappings and allows adding more */}
-                        <div className="flex flex-wrap gap-1 items-center min-h-[26px]">
+                        <div className="flex flex-wrap gap-1 items-center min-h-6.5">
                           {(spec.mapping_spec_names || []).map((keyword, keywordIndex) => (
                             <span
                               key={keywordIndex}

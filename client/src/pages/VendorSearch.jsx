@@ -103,6 +103,7 @@ const VendorSearch = () => {
       // Clear the state to prevent re-searching on subsequent renders
       window.history.replaceState({}, document.title);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   // Helper to toggle part selection
@@ -249,6 +250,7 @@ const VendorSearch = () => {
       
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorBarcode]);
 
   const handleVendorBarcodeScan = () => {
@@ -345,6 +347,7 @@ const VendorSearch = () => {
         scannerRef.current.stop().catch(err => console.error('Cleanup error:', err));
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCameraScanner, selectedCamera]);
 
   const searchMutation = useMutation({

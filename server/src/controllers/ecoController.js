@@ -376,7 +376,7 @@ export const approveECO = async (req, res) => {
       if (typeof priceBreaks === 'string') {
         try {
           priceBreaks = JSON.parse(priceBreaks);
-        } catch (_error) {
+        } catch {
           priceBreaks = [];
         }
       }

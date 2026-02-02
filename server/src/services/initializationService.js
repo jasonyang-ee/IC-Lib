@@ -61,7 +61,7 @@ async function runMigrations() {
         await client.query(sql);
         await client.query(
           'INSERT INTO schema_migrations (filename) VALUES ($1)',
-          [filename]
+          [filename],
         );
         await client.query('COMMIT');
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);
