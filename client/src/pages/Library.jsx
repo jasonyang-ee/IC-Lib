@@ -1547,8 +1547,13 @@ const Library = () => {
       }
       
       // Track deleted alternative parts
+      // Note: 'alternatives' state includes the primary (id: 'primary') which should be excluded
+      // Only check actual alternatives from components_alternative table (have valid UUIDs)
       if (alternatives) {
         for (const oldAlt of alternatives) {
+          // Skip the primary entry (it's not a real alternative)
+          if (oldAlt.id === 'primary' || oldAlt.is_primary) continue;
+          
           const stillExists = editData.alternatives?.find(a => a.id === oldAlt.id);
           if (!stillExists) {
             alternativesParts.push({
