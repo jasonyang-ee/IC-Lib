@@ -331,8 +331,10 @@ export const getCategoryConfigs = async (req, res) => {
 
 /**
  * PUT /api/settings/categories/:id - Update category configuration
+ * Automatically updates all part numbers when prefix or leading_zeros changes
  */
 export const updateCategoryConfig = async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { prefix, leading_zeros } = req.body;
@@ -346,50 +348,117 @@ export const updateCategoryConfig = async (req, res) => {
       return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
     }
 
-    // Build dynamic update query
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
-
-    if (prefix !== undefined) {
-      updates.push(`prefix = $${paramCount}`);
-      values.push(prefix);
-      paramCount++;
-    }
-    
-    if (leading_zeros !== undefined) {
-      updates.push(`leading_zeros = $${paramCount}`);
-      values.push(leading_zeros);
-      paramCount++;
-    }
-
-    if (updates.length === 0) {
+    if (prefix === undefined && leading_zeros === undefined) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    values.push(id);
+    await client.query('BEGIN');
 
-    const result = await pool.query(`
-      UPDATE component_categories
-      SET ${updates.join(', ')}
-      WHERE id = $${paramCount}
-      RETURNING id, name, prefix, leading_zeros
-    `, values);
+    // Get current category configuration
+    const currentResult = await client.query(
+      'SELECT id, name, prefix, leading_zeros FROM component_categories WHERE id = $1',
+      [id],
+    );
 
-    if (result.rows.length === 0) {
+    if (currentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Category not found' });
     }
 
+    const currentCategory = currentResult.rows[0];
+    const oldPrefix = currentCategory.prefix;
+    const oldLeadingZeros = currentCategory.leading_zeros || 5;
+    const newPrefix = prefix !== undefined ? prefix : oldPrefix;
+    const newLeadingZeros = leading_zeros !== undefined ? leading_zeros : oldLeadingZeros;
+
+    const prefixChanged = newPrefix !== oldPrefix;
+    const leadingZerosChanged = newLeadingZeros !== oldLeadingZeros;
+
+    // If prefix or leading_zeros changed, we need to update all part numbers
+    let updatedComponents = [];
+    if (prefixChanged || leadingZerosChanged) {
+      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}`);
+
+      // Get all components in this category, ordered by their current numeric value
+      const componentsResult = await client.query(
+        'SELECT id, part_number FROM components WHERE category_id = $1 ORDER BY part_number',
+        [id],
+      );
+
+      for (const comp of componentsResult.rows) {
+        // Extract the numeric part from the current part number
+        const match = comp.part_number.match(new RegExp(`^${oldPrefix}-(\\d+)$`));
+        if (match) {
+          const numericPart = parseInt(match[1], 10);
+          const paddedNumber = String(numericPart).padStart(newLeadingZeros, '0');
+          const newPartNumber = `${newPrefix}-${paddedNumber}`;
+
+          // Update the component's part number
+          await client.query(
+            'UPDATE components SET part_number = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [newPartNumber, comp.id],
+          );
+
+          // Update alternative parts references (they use part_number as FK)
+          await client.query(
+            'UPDATE components_alternative SET part_number = $1 WHERE part_number = $2',
+            [newPartNumber, comp.part_number],
+          );
+
+          updatedComponents.push({
+            old_part_number: comp.part_number,
+            new_part_number: newPartNumber,
+          });
+        }
+      }
+
+      console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Updated ${updatedComponents.length} part numbers for category ${currentCategory.name}`);
+    }
+
+    // Update the category configuration
+    await client.query(
+      'UPDATE component_categories SET prefix = $1, leading_zeros = $2 WHERE id = $3',
+      [newPrefix, newLeadingZeros, id],
+    );
+
+    // Log activity if parts were updated
+    if (updatedComponents.length > 0) {
+      await client.query(`
+        INSERT INTO user_activity_log (type_name, description, user_id)
+        VALUES ('category_config_updated', $1, $2)
+      `, [
+        `Updated category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}, updated ${updatedComponents.length} part numbers`,
+        req.user?.userId || null,
+      ]);
+    }
+
+    await client.query('COMMIT');
+
     res.json({
       success: true,
-      category: result.rows[0],
+      category: {
+        id,
+        name: currentCategory.name,
+        prefix: newPrefix,
+        leading_zeros: newLeadingZeros,
+      },
+      prefix_changed: prefixChanged,
+      leading_zeros_changed: leadingZerosChanged,
+      updated_part_count: updatedComponents.length,
+      updated_parts: updatedComponents.length > 0 ? updatedComponents.slice(0, 10) : [], // Return first 10 as sample
+      message: updatedComponents.length > 0 
+        ? `Updated ${updatedComponents.length} part numbers` 
+        : 'Category updated, no part numbers needed updating',
     });
   } catch (error) {
-    console.error('Error updating category config:', error);
+    await client.query('ROLLBACK');
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Error updating category config: ${error.message}`);
     res.status(500).json({ 
       error: 'Failed to update category configuration',
       message: error.message, 
     });
+  } finally {
+    client.release();
   }
 };
 

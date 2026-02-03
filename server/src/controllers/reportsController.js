@@ -128,19 +128,3 @@ export const getLowStockReport = async (req, res, next) => {
     next(error);
   }
 };
-
-export const customReport = async (req, res, next) => {
-  try {
-    const { query, params } = req.body;
-
-    // Basic security: only allow SELECT statements
-    if (!query.trim().toUpperCase().startsWith('SELECT')) {
-      return res.status(400).json({ error: 'Only SELECT queries are allowed' });
-    }
-
-    const result = await pool.query(query, params || []);
-    res.json(result.rows);
-  } catch (error) {
-    next(error);
-  }
-};

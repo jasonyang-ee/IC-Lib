@@ -31,9 +31,7 @@ const UserSettings = () => {
     eco_submitted: true,
     eco_approved: true,
     eco_rejected: true,
-    eco_assigned: true,
-    component_updated: false,
-    low_stock: false
+    eco_assigned: true
   });
 
   // Load profile data on mount
@@ -50,9 +48,7 @@ const UserSettings = () => {
           eco_submitted: true,
           eco_approved: true,
           eco_rejected: true,
-          eco_assigned: true,
-          component_updated: false,
-          low_stock: false
+          eco_assigned: true
         });
       } catch (error) {
         console.error('Failed to load profile:', error);
@@ -330,7 +326,7 @@ const UserSettings = () => {
                 </label>
               </div>
 
-              <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-[#3a3a3a]">
+              <div className="flex items-center justify-between py-2">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">ECO Assigned</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Notify when assigned as an ECO approver</p>
@@ -340,38 +336,6 @@ const UserSettings = () => {
                     type="checkbox"
                     checked={notificationPreferences.eco_assigned}
                     onChange={() => handleNotificationChange('eco_assigned')}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-[#3a3a3a]">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Component Updated</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when a component you follow is updated</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationPreferences.component_updated}
-                    onChange={() => handleNotificationChange('component_updated')}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Low Stock Alert</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when inventory falls below threshold</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notificationPreferences.low_stock}
-                    onChange={() => handleNotificationChange('low_stock')}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
@@ -489,17 +453,6 @@ const UserSettings = () => {
                 </button>
               </div>
             </form>
-          </div>
-
-          {/* Account Information Notice */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <div className="flex gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800 dark:text-blue-200">
-                <p className="font-medium mb-1">Need to update your account details?</p>
-                <p>Contact an administrator to modify your username or role permissions.</p>
-              </div>
-            </div>
           </div>
         </div>
       )}

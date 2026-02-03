@@ -209,9 +209,6 @@ const Dashboard = () => {
                   style={{ width: `${qualityPercentage}%` }} 
                 />
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {totalMissing.toLocaleString()} of {(totalComponents * 4).toLocaleString()} items have associated CAD files
-              </p>
             </div>
 
             <div className="space-y-3">

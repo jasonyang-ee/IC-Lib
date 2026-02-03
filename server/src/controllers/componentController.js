@@ -298,6 +298,21 @@ export const changeComponentCategory = async (req, res, next) => {
     console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Changing category for ${oldPartNumber}: ${oldCategoryId} -> ${new_category_id}`);
     console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m New part number: ${newPartNumber}`);
 
+    // Delete old specification values that belong to the old category
+    // These specs are not valid for the new category and would become orphan data
+    const deleteSpecsResult = await client.query(`
+      DELETE FROM component_specification_values
+      WHERE component_id = $1
+        AND category_spec_id IN (
+          SELECT id FROM category_specifications 
+          WHERE category_id = $2
+        )
+    `, [id, oldCategoryId]);
+
+    if (deleteSpecsResult.rowCount > 0) {
+      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Removed ${deleteSpecsResult.rowCount} old specification values`);
+    }
+
     // Update component with new category and part number
     // Also clear sub-categories since they may not be valid for new category
     await client.query(`

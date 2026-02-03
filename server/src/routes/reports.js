@@ -21,7 +21,4 @@ router.get('/manufacturers', reportsController.getManufacturerReport);
 // Low stock alert report
 router.get('/low-stock', reportsController.getLowStockReport);
 
-// Custom query report
-router.post('/custom', reportsController.customReport);
-
 export default router;

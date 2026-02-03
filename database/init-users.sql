@@ -10,9 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     "eco_submitted": true,
     "eco_approved": true,
     "eco_rejected": true,
-    "eco_assigned": true,
-    "component_updated": false,
-    "low_stock": false
+    "eco_assigned": true
   }'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   created_by INTEGER REFERENCES users(id),

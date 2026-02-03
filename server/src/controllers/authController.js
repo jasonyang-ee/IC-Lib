@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import pool from '../config/database.js';
 import { generateToken } from '../middleware/auth.js';
+import { sendEmail } from '../services/emailService.js';
 
 const SALT_ROUNDS = 10;
 
@@ -170,12 +172,12 @@ export const getAllUsers = async (req, res) => {
  */
 export const createUser = async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, role, display_name, email } = req.body;
 
     // Validation
-    if (!username || !password || !role) {
+    if (!username || !role) {
       return res.status(400).json({ 
-        error: 'Username, password, and role are required', 
+        error: 'Username and role are required', 
       });
     }
 
@@ -191,7 +193,21 @@ export const createUser = async (req, res) => {
       });
     }
 
-    if (password.length < 6) {
+    // Validate email format if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ 
+        error: 'Invalid email format', 
+      });
+    }
+
+    // Generate password if not provided, otherwise validate length
+    let userPassword = password;
+    let passwordWasGenerated = false;
+    if (!password) {
+      // Generate random 8 character alphanumeric password
+      userPassword = crypto.randomBytes(6).toString('base64').slice(0, 8);
+      passwordWasGenerated = true;
+    } else if (password.length < 6) {
       return res.status(400).json({ 
         error: 'Password must be at least 6 characters', 
       });
@@ -210,14 +226,14 @@ export const createUser = async (req, res) => {
     }
 
     // Hash password
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const password_hash = await bcrypt.hash(userPassword, SALT_ROUNDS);
 
     // Create user
     const result = await pool.query(
-      `INSERT INTO users (username, password_hash, role, created_by)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, role, created_at, is_active`,
-      [username, password_hash, role, req.user.userId],
+      `INSERT INTO users (username, password_hash, role, display_name, email, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, username, role, display_name, email, created_at, is_active`,
+      [username, password_hash, role, display_name || null, email || null, req.user.userId],
     );
 
     const newUser = result.rows[0];
@@ -233,7 +249,42 @@ export const createUser = async (req, res) => {
       console.error('Failed to log user creation:', logError);
     }
 
-    res.status(201).json(newUser);
+    // Send welcome email if email is provided
+    if (email) {
+      try {
+        const loginUrl = process.env.APP_URL || 'http://localhost:3000';
+        await sendEmail({
+          to: email,
+          subject: 'Welcome to IC-Lib - Your Account Has Been Created',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2563eb;">Welcome to IC-Lib!</h2>
+              <p>Hello${display_name ? ` ${display_name}` : ''},</p>
+              <p>Your account has been created with the following credentials:</p>
+              <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p style="margin: 4px 0;"><strong>Username:</strong> ${username}</p>
+                ${passwordWasGenerated ? `<p style="margin: 4px 0;"><strong>Password:</strong> ${userPassword}</p>` : '<p style="margin: 4px 0;"><strong>Password:</strong> (as provided by administrator)</p>'}
+                <p style="margin: 4px 0;"><strong>Role:</strong> ${role}</p>
+              </div>
+              ${passwordWasGenerated ? '<p style="color: #dc2626;"><strong>Important:</strong> Please change your password after your first login.</p>' : ''}
+              <p>You can login at: <a href="${loginUrl}">${loginUrl}</a></p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+              <p style="color: #6b7280; font-size: 12px;">This is an automated message from IC-Lib. Please do not reply to this email.</p>
+            </div>
+          `,
+        });
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthController]\x1b[0m Welcome email sent to ${email}`);
+      } catch (emailError) {
+        console.error(`\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthController]\x1b[0m Failed to send welcome email: ${emailError.message}`);
+        // Don't fail the request if email fails
+      }
+    }
+
+    res.status(201).json({
+      ...newUser,
+      passwordGenerated: passwordWasGenerated,
+      emailSent: !!email,
+    });
   } catch (error) {
     console.error('Create user error:', error);
     res.status(500).json({ error: 'Failed to create user' });

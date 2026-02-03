@@ -37,7 +37,7 @@ const UserManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
       setShowCreateModal(false);
-      setFormData({ username: '', password: '', role: 'read-only' });
+      setFormData({ username: '', password: '', role: 'read-only', display_name: '', email: '' });
       showSuccess('User created successfully!');
     },
     onError: (error) => {
@@ -158,8 +158,8 @@ const UserManagement = () => {
   };
 
   const handleCreateUser = () => {
-    if (!formData.username || !formData.password) {
-      showError('Username and password are required');
+    if (!formData.username) {
+      showError('Username is required');
       return;
     }
     createUserMutation.mutate(formData);
@@ -327,15 +327,44 @@ const UserManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Password *
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.display_name || ''}
+                  onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                  placeholder="Full name (optional)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                  placeholder="Email (optional - for welcome notification)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password
                 </label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Leave blank to auto-generate"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  If left blank, a random password will be generated and sent via email
+                </p>
               </div>
 
               <div>
@@ -1263,10 +1292,15 @@ const Settings = () => {
       const response = await api.put(`/settings/categories/${id}`, config);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries(['categoryConfigs']);
+      queryClient.invalidateQueries(['components']); // Refresh components if part numbers changed
       setEditingCategory(null);
-      showSuccess('Category updated successfully!');
+      if (data.updated_part_count > 0) {
+        showSuccess(`Category updated! ${data.updated_part_count} part numbers updated.`);
+      } else {
+        showSuccess('Category updated successfully!');
+      }
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.message;

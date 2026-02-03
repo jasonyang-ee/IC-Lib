@@ -194,7 +194,7 @@ export const api = {
   getMissingFootprints: () => apiClient.get('/reports/missing-footprints'),
   getManufacturerReport: () => apiClient.get('/reports/manufacturers'),
   getLowStockReport: () => apiClient.get('/reports/low-stock'),
-  customReport: (data) => apiClient.post('/reports/custom', data),
+
 
   // Audit Log
   getAuditLog: () => apiClient.get('/dashboard/activities/all'),
