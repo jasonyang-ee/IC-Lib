@@ -107,9 +107,6 @@ const ECO = () => {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
           Engineer Change Orders (ECO)
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Review and approve component change requests
-        </p>
       </div>
 
       {/* Status Filter Tabs */}

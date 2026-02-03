@@ -250,3 +250,43 @@ export const getExtendedDashboardStats = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get database information
+ * Returns database name, host, and size
+ */
+export const getDatabaseInfo = async (req, res, next) => {
+  try {
+    // Get database name and version
+    const dbInfoResult = await pool.query(`
+      SELECT 
+        current_database() as database_name,
+        inet_server_addr() as host_ip,
+        inet_server_port() as host_port,
+        version() as pg_version
+    `);
+
+    // Get database size
+    const dbSizeResult = await pool.query(`
+      SELECT pg_size_pretty(pg_database_size(current_database())) as database_size
+    `);
+
+    const dbInfo = dbInfoResult.rows[0];
+    const dbSize = dbSizeResult.rows[0];
+
+    // Format host - use connection config if inet_server_addr returns null (e.g., local socket)
+    const host = dbInfo.host_ip 
+      ? `${dbInfo.host_ip}:${dbInfo.host_port}`
+      : process.env.DB_HOST || 'localhost';
+
+    res.json({
+      databaseName: dbInfo.database_name,
+      host: host,
+      size: dbSize.database_size,
+      version: dbInfo.pg_version.split(' ')[1] || dbInfo.pg_version,
+    });
+  } catch (error) {
+    console.error('Error fetching database info:', error);
+    next(error);
+  }
+};

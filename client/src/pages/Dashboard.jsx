@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Settings, AlertTriangle } from 'lucide-react';
+import { Settings, AlertTriangle, Database } from 'lucide-react';
 
 // Compact stat card component without icon
 const StatCard = ({ title, value, small = false }) => {
@@ -57,6 +57,12 @@ const Dashboard = () => {
   const { data: extendedStats } = useQuery({
     queryKey: ['extendedStats'],
     queryFn: async () => (await api.getExtendedDashboardStats()).data,
+    retry: false,
+  });
+
+  const { data: dbInfo } = useQuery({
+    queryKey: ['databaseInfo'],
+    queryFn: async () => (await api.getDatabaseInfo()).data,
     retry: false,
   });
 
@@ -173,6 +179,30 @@ const Dashboard = () => {
               {categoryBreakdown?.slice(0, 12).map((cat, i) => (
                 <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
               ))}
+            </div>
+          </div>
+
+          {/* Database Info Section */}
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="w-5 h-5 text-primary-600" />
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                Database Info
+              </h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Database Name</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.databaseName || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Host</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.host || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Database Size</span>
+                <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{dbInfo?.size || '-'}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -21,4 +21,7 @@ router.get('/category-breakdown', dashboardController.getCategoryBreakdown);
 // Get extended dashboard statistics
 router.get('/extended-stats', dashboardController.getExtendedDashboardStats);
 
+// Get database information
+router.get('/db-info', dashboardController.getDatabaseInfo);
+
 export default router;

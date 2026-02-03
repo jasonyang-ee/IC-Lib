@@ -54,6 +54,7 @@ export const getAllECOs = async (req, res) => {
     let query = `
       SELECT 
         eo.*,
+        created_at(eo.id) as created_at,
         u1.username as initiated_by_name,
         u2.username as approved_by_name,
         c.part_number as component_part_number,
@@ -74,7 +75,7 @@ export const getAllECOs = async (req, res) => {
       params.push(status);
     }
     
-    query += ' ORDER BY eo.created_at DESC';
+    query += ' ORDER BY eo.id DESC';
     
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -94,6 +95,7 @@ export const getECOById = async (req, res) => {
     const ecoResult = await client.query(`
       SELECT 
         eo.*,
+        created_at(eo.id) as created_at,
         u1.username as initiated_by_name,
         u2.username as approved_by_name,
         c.part_number as component_part_number,
@@ -117,7 +119,7 @@ export const getECOById = async (req, res) => {
     
     // Get all changes
     const changesResult = await client.query(`
-      SELECT * FROM eco_changes WHERE eco_id = $1 ORDER BY created_at
+      SELECT * FROM eco_changes WHERE eco_id = $1 ORDER BY id
     `, [id]);
     
     // Get all distributor changes
@@ -132,7 +134,7 @@ export const getECOById = async (req, res) => {
       LEFT JOIN components_alternative ca ON ed.alternative_id = ca.id
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
       WHERE ed.eco_id = $1
-      ORDER BY ed.created_at
+      ORDER BY ed.id
     `, [id]);
     
     // Get all alternative parts changes
@@ -145,7 +147,7 @@ export const getECOById = async (req, res) => {
       LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
       LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
       WHERE ea.eco_id = $1
-      ORDER BY ea.created_at
+      ORDER BY ea.id
     `, [id]);
     
     // Get all specification changes

@@ -125,6 +125,7 @@ export const api = {
   getRecentActivities: () => apiClient.get('/dashboard/recent-activities'),
   getCategoryBreakdown: () => apiClient.get('/dashboard/category-breakdown'),
   getExtendedDashboardStats: () => apiClient.get('/dashboard/extended-stats'),
+  getDatabaseInfo: () => apiClient.get('/dashboard/db-info'),
 
   // Components
   getComponents: (params) => apiClient.get('/components', { params }),
