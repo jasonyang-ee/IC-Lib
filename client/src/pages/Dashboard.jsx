@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { 
   Package, Database, AlertTriangle, TrendingUp, Box, Layers, Settings, 
-  Edit, Trash2, Minus, MapPin, Users, Building2, Briefcase, FileText, Link2 
+  Edit, Trash2, Minus, MapPin, Building2, Briefcase, FileText, Link2, 
+  File, BoxSelect, Zap 
 } from 'lucide-react';
 
 // Compact stat card component
@@ -178,108 +179,88 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Primary Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <StatCard title="Components" value={stats?.totalComponents || 0} icon={Package} color="bg-blue-500" />
-        <StatCard title="Categories" value={stats?.totalCategories || 0} icon={Layers} color="bg-green-500" />
-        <StatCard title="Inventory" value={stats?.totalInventoryItems || 0} icon={Box} color="bg-purple-500" />
-        <StatCard title="Users" value={extendedStats?.totalUsers || 0} icon={Users} color="bg-cyan-500" />
-        <StatCard title="Manufacturers" value={extendedStats?.totalManufacturers || 0} icon={Building2} color="bg-teal-500" />
-        <StatCard title="Projects" value={extendedStats?.totalProjects || 0} icon={Briefcase} color="bg-indigo-500" />
+      {/* Library Status Section */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+          Library Status
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard title="Components" value={stats?.totalComponents || 0} icon={Package} color="bg-blue-500" />
+          <StatCard title="Categories" value={stats?.totalCategories || 0} icon={Layers} color="bg-green-500" />
+          <StatCard title="Manufacturers" value={extendedStats?.totalManufacturers || 0} icon={Building2} color="bg-teal-500" />
+          <StatCard title="Projects" value={extendedStats?.totalProjects || 0} icon={Briefcase} color="bg-indigo-500" />
+          <StatCard title="Distributors" value={extendedStats?.totalDistributors || 0} icon={Building2} color="bg-amber-500" />
+        </div>
       </div>
 
-      {/* Secondary Stats + Approval Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Alert Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard small title="Missing Footprints" value={stats?.missingFootprints || 0} icon={AlertTriangle} color="bg-orange-500" />
-          <StatCard small title="Low Stock" value={stats?.lowStockAlerts || 0} icon={TrendingUp} color="bg-red-500" />
-          <StatCard small title="Total Qty" value={stats?.totalInventoryQuantity || 0} icon={Database} color="bg-violet-500" />
-          <StatCard small title="With Specs" value={extendedStats?.componentsWithSpecs || 0} icon={FileText} color="bg-emerald-500" />
-          <StatCard small title="With Alts" value={extendedStats?.componentsWithAlternatives || 0} icon={Link2} color="bg-pink-500" />
-          <StatCard small title="Distributors" value={extendedStats?.totalDistributors || 0} icon={Building2} color="bg-amber-500" />
-        </div>
-
-        {/* Approval Status */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Approval Status</h2>
-          <div className="grid grid-cols-5 gap-2">
-            <StatusBadge label="New" value={stats?.approvalStatus?.new || 0} bgColor="bg-gray-100 dark:bg-gray-800" />
-            <StatusBadge label="Pending" value={stats?.approvalStatus?.pending_review || 0} bgColor="bg-yellow-50 dark:bg-yellow-900/20" />
-            <StatusBadge label="Approved" value={stats?.approvalStatus?.approved || 0} bgColor="bg-green-50 dark:bg-green-900/20" />
-            <StatusBadge label="Experimental" value={stats?.approvalStatus?.experimental || 0} bgColor="bg-purple-50 dark:bg-purple-900/20" />
-            <StatusBadge label="Archived" value={stats?.approvalStatus?.archived || 0} bgColor="bg-red-50 dark:bg-red-900/20" />
+      {/* Approval Status - Prominent Section */}
+	  <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+      {/* <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800 p-6"> */}
+        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+          Component Approval Status
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-gray-200 dark:border-gray-700 text-center">
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.new || 0}</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">New</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-yellow-300 dark:border-yellow-700 text-center">
+            <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{stats?.approvalStatus?.pending_review || 0}</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Pending</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-green-300 dark:border-green-700 text-center">
+            <p className="text-3xl font-bold text-green-700 dark:text-green-400">{stats?.approvalStatus?.approved || 0}</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Approved</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-purple-300 dark:border-purple-700 text-center">
+            <p className="text-3xl font-bold text-purple-700 dark:text-purple-400">{stats?.approvalStatus?.experimental || 0}</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Experimental</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-red-300 dark:border-red-700 text-center">
+            <p className="text-3xl font-bold text-red-700 dark:text-red-400">{stats?.approvalStatus?.archived || 0}</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Archived</p>
           </div>
         </div>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Category Distribution */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Categories</h2>
-          <div className="space-y-2">
-            {categoryBreakdown?.slice(0, 10).map((cat, i) => (
+      {/* Secondary Stats Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Stock Status Section */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            Stock Status
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard small title="Low Stock" value={stats?.lowStockAlerts || 0} icon={AlertTriangle} color="bg-red-500" />
+            <StatCard small title="Total Qty" value={stats?.totalInventoryQuantity || 0} icon={Database} color="bg-violet-500" />
+            <StatCard small title="Inventory" value={stats?.totalInventoryItems || 0} icon={Box} color="bg-purple-500" />
+          </div>
+        </div>
+
+        {/* Library Quality Section */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            Library Quality
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard small title="Missing Footprints" value={stats?.missingFootprints || 0} icon={File} color="bg-orange-500" />
+            <StatCard small title="Missing Schematic" value={0} icon={FileText} color="bg-yellow-500" />
+            <StatCard small title="Missing 3D Model" value={0} icon={BoxSelect} color="bg-amber-500" />
+            <StatCard small title="Missing Pspice" value={0} icon={Zap} color="bg-red-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Category Distribution */}
+      <div className="max-w-2xl">
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            Category Distribution
+          </h2>
+          <div className="space-y-2.5">
+            {categoryBreakdown?.slice(0, 12).map((cat, i) => (
               <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
             ))}
-          </div>
-        </div>
-
-        {/* Recent Activities */}
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Recent Activity</h2>
-          <div className="space-y-0">
-            {recentActivities?.slice(0, 8).map((activity, i) => (
-              <ActivityItem key={i} activity={activity} />
-            )) || <p className="text-xs text-gray-500">No recent activity</p>}
-          </div>
-        </div>
-
-        {/* Quick Info Panels */}
-        <div className="space-y-4">
-          {/* Project Overview */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Projects</h2>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{extendedStats?.activeProjects || 0}</p>
-                <p className="text-xs text-gray-500">Active</p>
-              </div>
-              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded">
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{extendedStats?.totalProjectComponents || 0}</p>
-                <p className="text-xs text-gray-500">Parts</p>
-              </div>
-              <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{extendedStats?.avgComponentsPerProject || 0}</p>
-                <p className="text-xs text-gray-500">Avg/Proj</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Top Locations */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Top Locations</h2>
-            <div className="space-y-1">
-              {extendedStats?.topLocations?.slice(0, 4).map((loc, i) => (
-                <ListItem key={i} icon={MapPin} primary={loc.location || 'Unknown'} trailing={`${loc.count}`} />
-              )) || <p className="text-xs text-gray-500">No locations</p>}
-            </div>
-          </div>
-
-          {/* Recent Users */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Recent Users</h2>
-            <div className="space-y-1">
-              {extendedStats?.recentLogins?.slice(0, 4).map((user, i) => (
-                <ListItem 
-                  key={i} 
-                  icon={Users} 
-                  primary={user.username} 
-                  secondary={user.role}
-                  trailing={user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'} 
-                />
-              )) || <p className="text-xs text-gray-500">No users</p>}
-            </div>
           </div>
         </div>
       </div>
