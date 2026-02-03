@@ -117,9 +117,25 @@ export const getECOById = async (req, res) => {
     
     const eco = ecoResult.rows[0];
     
-    // Get all changes
+    // Get all changes (with category name resolution for category_id changes)
     const changesResult = await client.query(`
-      SELECT * FROM eco_changes WHERE eco_id = $1 ORDER BY id
+      SELECT 
+        ec.*,
+        CASE WHEN ec.field_name = 'category_id' THEN 
+          (SELECT name FROM component_categories WHERE id::text = ec.old_value)
+        END as old_category_name,
+        CASE WHEN ec.field_name = 'category_id' THEN 
+          (SELECT name FROM component_categories WHERE id::text = ec.new_value)
+        END as new_category_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN 
+          (SELECT name FROM manufacturers WHERE id::text = ec.old_value)
+        END as old_manufacturer_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN 
+          (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+        END as new_manufacturer_name
+      FROM eco_changes ec 
+      WHERE eco_id = $1 
+      ORDER BY id
     `, [id]);
     
     // Get all distributor changes

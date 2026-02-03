@@ -24,6 +24,9 @@ import {
   importUsers,
   exportCategories,
   importCategories,
+  getECOSettings,
+  updateECOSettings,
+  previewECONumber,
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -31,6 +34,11 @@ const router = express.Router();
 // Application settings routes
 router.get('/', getSettings);
 router.put('/', updateSettings);
+
+// ECO settings routes
+router.get('/eco', getECOSettings);
+router.put('/eco', updateECOSettings);
+router.get('/eco/preview', previewECONumber);
 
 // Export/Import routes
 router.post('/export', exportAllSettings);

@@ -1427,12 +1427,12 @@ const Library = () => {
       const distributors = [];
       const alternativesParts = [];
 
-      // Track component field changes
+      // Track component field changes (including category_id for category changes via ECO)
       const fieldsToTrack = [
         'description', 'value', 'pcb_footprint', 'package_size',
         'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
         'schematic', 'step_model', 'pspice', 'datasheet_url',
-        'manufacturer_id', 'manufacturer_pn'
+        'manufacturer_id', 'manufacturer_pn', 'category_id'
       ];
 
       for (const field of fieldsToTrack) {
@@ -1448,41 +1448,72 @@ const Library = () => {
         }
       }
 
-      // Track specification changes
+      // Track specification changes - compare by category_spec_id
       if (editData.specifications) {
         for (const spec of editData.specifications) {
-          const oldSpec = componentDetails?.specifications?.find(s => s.id === spec.id);
-          if (oldSpec && oldSpec.spec_value !== spec.spec_value) {
+          // Find old spec by category_spec_id (spec has category_spec_id from category specs)
+          const oldSpec = componentDetails?.specifications?.find(s => s.category_spec_id === spec.category_spec_id);
+          const oldValue = oldSpec?.spec_value || '';
+          const newValue = spec.spec_value || '';
+          
+          // Track if value changed (including new specs with no old value)
+          if (oldValue !== newValue) {
             specifications.push({
-              category_spec_id: spec.id,
-              old_value: oldSpec.spec_value || '',
-              new_value: spec.spec_value || ''
+              category_spec_id: spec.category_spec_id,
+              old_value: oldValue,
+              new_value: newValue
             });
           }
         }
       }
 
-      // Track distributor changes (simplified - tracks adds/updates)
+      // Track distributor changes - ONLY track SKU/URL changes (not price/stock)
       if (editData.distributors) {
         for (const dist of editData.distributors) {
+          // Skip distributors without a SKU (nothing meaningful to track)
+          if (!dist.sku && !dist.url) continue;
+          
           const oldDist = componentDetails?.distributors?.find(d => 
             d.distributor_id === dist.distributor_id && 
             d.alternative_id === dist.alternative_id
           );
           
-          distributors.push({
-            alternative_id: dist.alternative_id || null,
-            distributor_id: dist.distributor_id,
-            action: oldDist ? 'update' : 'add',
-            sku: dist.sku,
-            url: dist.url,
-            currency: dist.currency || 'USD',
-            in_stock: dist.in_stock || false,
-            stock_quantity: dist.stock_quantity || 0,
-            minimum_order_quantity: dist.minimum_order_quantity || 1,
-            packaging: dist.packaging,
-            price_breaks: dist.price_breaks || []
-          });
+          // Only record if SKU or URL changed
+          const skuChanged = (oldDist?.sku || '') !== (dist.sku || '');
+          const urlChanged = (oldDist?.url || '') !== (dist.url || '');
+          
+          if (skuChanged || urlChanged || !oldDist) {
+            distributors.push({
+              alternative_id: dist.alternative_id || null,
+              distributor_id: dist.distributor_id,
+              action: oldDist ? 'update' : 'add',
+              sku: dist.sku || '',
+              url: dist.url || ''
+            });
+          }
+        }
+        
+        // Check for deleted distributors (had SKU before, now empty or removed)
+        if (componentDetails?.distributors) {
+          for (const oldDist of componentDetails.distributors) {
+            if (!oldDist.sku) continue; // Skip if old dist had no SKU
+            
+            const newDist = editData.distributors?.find(d => 
+              d.distributor_id === oldDist.distributor_id && 
+              d.alternative_id === oldDist.alternative_id
+            );
+            
+            // If not found in new data or SKU is now empty, it's a delete
+            if (!newDist || !newDist.sku) {
+              distributors.push({
+                alternative_id: oldDist.alternative_id || null,
+                distributor_id: oldDist.distributor_id,
+                action: 'delete',
+                sku: oldDist.sku || '',
+                url: oldDist.url || ''
+              });
+            }
+          }
         }
       }
 

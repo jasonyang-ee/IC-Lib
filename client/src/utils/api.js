@@ -216,6 +216,11 @@ export const api = {
   getSettings: () => apiClient.get('/settings'),
   updateSettings: (data) => apiClient.put('/settings', data),
   
+  // ECO Settings
+  getECOSettings: () => apiClient.get('/settings/eco'),
+  updateECOSettings: (data) => apiClient.put('/settings/eco', data),
+  previewECONumber: () => apiClient.get('/settings/eco/preview'),
+  
   // Category Specifications (New Schema)
   getCategorySpecifications: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
   createCategorySpecification: (categoryId, data) => apiClient.post(`/settings/categories/${categoryId}/specifications`, data),

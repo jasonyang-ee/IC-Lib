@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail, Download, Upload } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Edit, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, User, Users, Key, RefreshCw, Package, GripVertical, Mail, Download, Upload, Settings as SettingsIcon } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
@@ -1222,6 +1222,229 @@ const CategorySpecificationsManager = () => {
   );
 };
 
+// ECO Settings Component
+const ECOSettings = () => {
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotification();
+  const [formData, setFormData] = useState({
+    prefix: 'ECO-',
+    leading_zeros: 6,
+    next_number: 1
+  });
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Fetch ECO settings
+  const { data: ecoSettings, isLoading } = useQuery({
+    queryKey: ['ecoSettings'],
+    queryFn: async () => {
+      const response = await api.getECOSettings();
+      return response.data;
+    }
+  });
+
+  // Fetch preview
+  const { data: previewData, refetch: refetchPreview } = useQuery({
+    queryKey: ['ecoPreview', formData],
+    queryFn: async () => {
+      const response = await api.previewECONumber();
+      return response.data;
+    },
+    enabled: !hasChanges // Only auto-fetch when no changes pending
+  });
+
+  // Update form when settings are loaded
+  useEffect(() => {
+    if (ecoSettings) {
+      setFormData({
+        prefix: ecoSettings.prefix || 'ECO-',
+        leading_zeros: ecoSettings.leading_zeros || 6,
+        next_number: ecoSettings.next_number || 1
+      });
+    }
+  }, [ecoSettings]);
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async (data) => {
+      return api.updateECOSettings(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['ecoSettings']);
+      queryClient.invalidateQueries(['ecoPreview']);
+      setHasChanges(false);
+      showSuccess('ECO settings saved successfully!');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.error || error.message;
+      showError(`Error saving ECO settings: ${errorMsg}`);
+    }
+  });
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    saveMutation.mutate({
+      prefix: formData.prefix,
+      leading_zeros: parseInt(formData.leading_zeros, 10),
+      next_number: parseInt(formData.next_number, 10)
+    });
+  };
+
+  const handleReset = () => {
+    if (ecoSettings) {
+      setFormData({
+        prefix: ecoSettings.prefix || 'ECO-',
+        leading_zeros: ecoSettings.leading_zeros || 6,
+        next_number: ecoSettings.next_number || 1
+      });
+      setHasChanges(false);
+    }
+  };
+
+  // Generate preview based on current form data
+  const getPreview = () => {
+    const paddedNumber = String(formData.next_number).padStart(formData.leading_zeros, '0');
+    return formData.prefix + paddedNumber;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+        <span className="ml-2 text-gray-600 dark:text-gray-400">Loading ECO settings...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+        ECO Number Settings
+      </h2>
+      
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
+        Configure how Engineering Change Order (ECO) numbers are generated.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        {/* Prefix */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Prefix
+          </label>
+          <input
+            type="text"
+            value={formData.prefix}
+            onChange={(e) => handleChange('prefix', e.target.value)}
+            maxLength={20}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+            placeholder="ECO-"
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Text that appears before the number (max 20 chars)
+          </p>
+        </div>
+
+        {/* Leading Zeros */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Number of Digits
+          </label>
+          <input
+            type="number"
+            value={formData.leading_zeros}
+            onChange={(e) => handleChange('leading_zeros', Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
+            min={1}
+            max={10}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Total digits with leading zeros (1-10)
+          </p>
+        </div>
+
+        {/* Next Number */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Next ECO Number
+          </label>
+          <input
+            type="number"
+            value={formData.next_number}
+            onChange={(e) => handleChange('next_number', Math.max(1, parseInt(e.target.value, 10) || 1))}
+            min={1}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            The next sequential number to be assigned
+          </p>
+        </div>
+      </div>
+
+      {/* Preview */}
+      <div className="mb-6 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Preview Next ECO Number
+        </label>
+        <div className="text-2xl font-mono font-bold text-primary-600 dark:text-primary-400">
+          {getPreview()}
+        </div>
+        {hasChanges && (
+          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+            * Preview shows what the next ECO will look like with your unsaved changes
+          </p>
+        )}
+        {!hasChanges && previewData?.preview && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Current setting: {previewData.preview}
+          </p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={handleSave}
+          disabled={!hasChanges || saveMutation.isPending}
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-2"
+        >
+          {saveMutation.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Check className="w-4 h-4" />
+              Save Changes
+            </>
+          )}
+        </button>
+        
+        {hasChanges && (
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          <strong>Note:</strong> Changes to the prefix or number of digits will only affect newly created ECOs. 
+          Existing ECO numbers will not be modified.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // Settings Page - Updated with Advanced Operations
 const Settings = () => {
   const queryClient = useQueryClient();
@@ -1740,6 +1963,7 @@ const Settings = () => {
           {[
             { id: 'users', label: 'User Management', icon: Users },
             { id: 'categories', label: 'Categories', icon: Database },
+            { id: 'eco', label: 'ECO Settings', icon: SettingsIcon },
             { id: 'smtp', label: 'Email Settings', icon: Mail },
             { id: 'auto-update', label: 'Auto Data Update', icon: RefreshCw },
             { id: 'database', label: 'Database Operations', icon: Database },
@@ -1775,6 +1999,11 @@ const Settings = () => {
       <div id="smtp" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <SMTPSettings />
       </div>
+      )}
+
+      {/* ECO Settings Section */}
+      {activeTab === 'eco' && (
+      <ECOSettings />
       )}
 
       {/* Category Configuration Section */}

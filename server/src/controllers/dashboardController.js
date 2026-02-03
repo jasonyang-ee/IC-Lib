@@ -261,8 +261,6 @@ export const getDatabaseInfo = async (req, res, next) => {
     const dbInfoResult = await pool.query(`
       SELECT 
         current_database() as database_name,
-        inet_server_addr() as host_ip,
-        inet_server_port() as host_port,
         version() as pg_version
     `);
 
@@ -274,14 +272,13 @@ export const getDatabaseInfo = async (req, res, next) => {
     const dbInfo = dbInfoResult.rows[0];
     const dbSize = dbSizeResult.rows[0];
 
-    // Format host - use connection config if inet_server_addr returns null (e.g., local socket)
-    const host = dbInfo.host_ip 
-      ? `${dbInfo.host_ip}:${dbInfo.host_port}`
-      : process.env.DB_HOST || 'localhost';
+    // Use environment variables for host info (as configured in .env)
+    const host = process.env.DB_HOST || 'localhost';
+    const port = process.env.DB_PORT || '5432';
 
     res.json({
       databaseName: dbInfo.database_name,
-      host: host,
+      host: `${host}:${port}`,
       size: dbSize.database_size,
       version: dbInfo.pg_version.split(' ')[1] || dbInfo.pg_version,
     });

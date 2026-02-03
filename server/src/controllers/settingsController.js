@@ -1489,3 +1489,126 @@ export const importCategories = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/settings/eco - Get ECO settings
+ */
+export const getECOSettings = async (req, res) => {
+  try {
+    // Ensure eco_settings table exists and has data
+    const result = await pool.query('SELECT * FROM eco_settings LIMIT 1');
+    
+    if (result.rows.length === 0) {
+      // Initialize with default values
+      const initResult = await pool.query(`
+        INSERT INTO eco_settings (prefix, leading_zeros, next_number)
+        VALUES ('ECO-', 6, 1)
+        RETURNING *
+      `);
+      return res.json(initResult.rows[0]);
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching ECO settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch ECO settings',
+      message: error.message, 
+    });
+  }
+};
+
+/**
+ * PUT /api/settings/eco - Update ECO settings
+ */
+export const updateECOSettings = async (req, res) => {
+  try {
+    const { prefix, leading_zeros, next_number } = req.body;
+    
+    // Validate inputs
+    if (prefix !== undefined && (typeof prefix !== 'string' || prefix.length > 20)) {
+      return res.status(400).json({ error: 'Prefix must be a string with max 20 characters' });
+    }
+    
+    if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
+      return res.status(400).json({ error: 'Leading zeros must be a number between 1 and 10' });
+    }
+    
+    if (next_number !== undefined && (typeof next_number !== 'number' || next_number < 1)) {
+      return res.status(400).json({ error: 'Next number must be a positive number' });
+    }
+    
+    // Build update query dynamically based on provided fields
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (prefix !== undefined) {
+      updates.push(`prefix = $${paramIndex++}`);
+      values.push(prefix);
+    }
+    
+    if (leading_zeros !== undefined) {
+      updates.push(`leading_zeros = $${paramIndex++}`);
+      values.push(leading_zeros);
+    }
+    
+    if (next_number !== undefined) {
+      updates.push(`next_number = $${paramIndex++}`);
+      values.push(next_number);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+    
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    
+    const result = await pool.query(`
+      UPDATE eco_settings
+      SET ${updates.join(', ')}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) {
+      // Table exists but no row - insert a new one
+      const insertResult = await pool.query(`
+        INSERT INTO eco_settings (prefix, leading_zeros, next_number)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [prefix || 'ECO-', leading_zeros || 6, next_number || 1]);
+      return res.json(insertResult.rows[0]);
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating ECO settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to update ECO settings',
+      message: error.message, 
+    });
+  }
+};
+
+/**
+ * GET /api/settings/eco/preview - Preview what the next ECO number would look like
+ */
+export const previewECONumber = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM eco_settings LIMIT 1');
+    
+    if (result.rows.length === 0) {
+      return res.json({ preview: 'ECO-000001' });
+    }
+    
+    const settings = result.rows[0];
+    const preview = settings.prefix + settings.next_number.toString().padStart(settings.leading_zeros, '0');
+    
+    res.json({ preview });
+  } catch (error) {
+    console.error('Error previewing ECO number:', error);
+    res.status(500).json({ 
+      error: 'Failed to preview ECO number',
+      message: error.message, 
+    });
+  }
+};
