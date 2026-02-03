@@ -19,6 +19,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 
 
+## [1.5.0] - 2026-02-02
+
+### Added
+
+- New Dashboard page with improved layout and approval statistics display
+  - Compact, componentized dashboard layout for better readability
+  - Approval stats shown on dashboard for quick ECO / change visibility
+- File Library page
+  - Dedicated page for managing and browsing CAD/CAD-related files
+- Import and export for settings, users, and categories
+  - Export/import utilities for easier migrations and backups
+- Guest user support
+  - Guest user account type and associated UX improvements
+- SMTP test message functionality and category next-part-number endpoint
+  - Admin SMTP test email sending for validation
+  - API to retrieve next part number for categories
+- Deep-linking / copy link via URL query
+  - Copy/share deep links to specific pages or views
+
+### Changed
+
+- Dashboard layout and UI refinements
+- Project page layout cleanup and minor UI polish
+- Server initialization and error handling refactor for more robust startup
+- Linting and code-style updates
+
+### Fixed
+
+- Miscellaneous UI and layout issues discovered during dashboard and page updates
+- Minor linting-related fixes
+
+
 ## [1.4.1] - 2026-01-05
 
 ### Added
