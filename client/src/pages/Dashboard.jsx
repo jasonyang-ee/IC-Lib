@@ -54,12 +54,6 @@ const Dashboard = () => {
     retry: false,
   });
 
-  const { data: recentActivities, error: activitiesError } = useQuery({
-    queryKey: ['recentActivities'],
-    queryFn: async () => (await api.getRecentActivities()).data,
-    retry: false,
-  });
-
   const { data: extendedStats } = useQuery({
     queryKey: ['extendedStats'],
     queryFn: async () => (await api.getExtendedDashboardStats()).data,
@@ -68,8 +62,7 @@ const Dashboard = () => {
 
   const isDatabaseNotInitialized = 
     statsError?.response?.status === 500 || 
-    categoryError?.response?.status === 500 || 
-    activitiesError?.response?.status === 500;
+    categoryError?.response?.status === 500;
 
   // Calculate library quality percentage
   const totalComponents = stats?.totalComponents || 0;
@@ -121,7 +114,6 @@ const Dashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Component library overview</p>
         </div>
       </div>
 
@@ -218,7 +210,7 @@ const Dashboard = () => {
                 />
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {totalMissing.toLocaleString()} of {(totalComponents * 4).toLocaleString()} items have associated metadata
+                {totalMissing.toLocaleString()} of {(totalComponents * 4).toLocaleString()} items have associated CAD files
               </p>
             </div>
 
