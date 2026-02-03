@@ -18,6 +18,9 @@ router.post('/', categoryController.createCategory);
 // Update category
 router.put('/:id', categoryController.updateCategory);
 
+// Update all part numbers in a category (for prefix change)
+router.post('/:id/update-part-numbers', categoryController.updateCategoryPartNumbers);
+
 // Delete category
 router.delete('/:id', categoryController.deleteCategory);
 

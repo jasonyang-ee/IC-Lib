@@ -13,7 +13,8 @@ export const getAllComponents = async (req, res, next) => {
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
         u.username as approval_user_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -50,7 +51,8 @@ export const getAllComponents = async (req, res, next) => {
             OR c.sub_category1 ILIKE $${paramIndex}
             OR c.sub_category2 ILIKE $${paramIndex}
             OR c.sub_category3 ILIKE $${paramIndex}
-            OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) ILIKE $${paramIndex}
+            OR c.sub_category4 ILIKE $${paramIndex}
+            OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) ILIKE $${paramIndex}
             OR cat.name ILIKE $${paramIndex}
             OR m.name ILIKE $${paramIndex}
             OR c.id::text = $${exactParamIndex}
@@ -82,7 +84,7 @@ export const getAllComponents = async (req, res, next) => {
       }
     }
 
-    query += ' ORDER BY c.created_at DESC';
+    query += ' ORDER BY c.id DESC';
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -103,7 +105,8 @@ export const getComponentById = async (req, res, next) => {
         m.name as manufacturer_name,
         m.website as manufacturer_website,
         u.username as approval_user_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -134,14 +137,13 @@ export const createComponent = async (req, res, next) => {
       sub_category1,
       sub_category2,
       sub_category3,
+      sub_category4,
       pcb_footprint,
       package_size,
       schematic,
       step_model,
       pspice,
       datasheet_url,
-      status,
-      notes,
       approval_status,
     } = req.body;
     
@@ -161,29 +163,37 @@ export const createComponent = async (req, res, next) => {
     const insertQuery = `
       INSERT INTO components (
         category_id, part_number, manufacturer_id, manufacturer_pn,
-        description, value, sub_category1, sub_category2, sub_category3,
+        description, value, sub_category1, sub_category2, sub_category3, sub_category4,
         pcb_footprint, package_size, schematic, step_model, pspice,
-        datasheet_url, status, notes, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        datasheet_url, approval_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `;
 
     const componentResult = await pool.query(insertQuery, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
-      description, value, sub_category1, sub_category2, sub_category3,
+      description, value, sub_category1, sub_category2, sub_category3, sub_category4,
       pcb_footprint, package_size, schematic, step_model, pspice,
-      datasheet_url, status || 'Active', notes,
-      approval_status || 'new',
+      datasheet_url, approval_status || 'new',
     ]);
 
     const component = componentResult.rows[0];
     
     // Log activity
+    const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
-      SELECT $1, $2, $3, cat.name, 'added'
-      FROM component_categories cat WHERE cat.id = $4
-    `, [component.id, component.part_number, component.description, validCategoryId]);
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'added', $3)
+    `, [
+      component.id, 
+      component.part_number, 
+      JSON.stringify({
+        description: component.description,
+        category_name: categoryResult.rows[0]?.name,
+        manufacturer_pn: mfrPartNumber,
+        value: value,
+      })
+    ]);
     
     // Auto-create inventory entry (backup in case trigger doesn't exist)
     await pool.query(`
@@ -199,7 +209,8 @@ export const createComponent = async (req, res, next) => {
         cat.name as category_name,
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -227,14 +238,13 @@ export const updateComponent = async (req, res, next) => {
       sub_category1,
       sub_category2,
       sub_category3,
+      sub_category4,
       pcb_footprint,
       package_size,
       schematic,
       step_model,
       pspice,
       datasheet_url,
-      status,
-      notes,
       approval_status,
       approval_user_id,
       approval_date,
@@ -265,35 +275,41 @@ export const updateComponent = async (req, res, next) => {
         sub_category1 = $7,
         sub_category2 = $8,
         sub_category3 = $9,
-        pcb_footprint = COALESCE($10, pcb_footprint),
-        package_size = COALESCE($11, package_size),
-        schematic = $12,
-        step_model = $13,
-        pspice = $14,
-        datasheet_url = COALESCE($15, datasheet_url),
-        status = COALESCE($16, status),
-        notes = COALESCE($17, notes),
-        approval_status = COALESCE($18, approval_status),
-        approval_user_id = $19,
-        approval_date = $20,
+        sub_category4 = $10,
+        pcb_footprint = COALESCE($11, pcb_footprint),
+        package_size = COALESCE($12, package_size),
+        schematic = $13,
+        step_model = $14,
+        pspice = $15,
+        datasheet_url = COALESCE($16, datasheet_url),
+        approval_status = COALESCE($17, approval_status),
+        approval_user_id = $18,
+        approval_date = $19,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $21
+      WHERE id = $20
       RETURNING *
     `, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
-      description, value, sub_category1, sub_category2, sub_category3,
+      description, value, sub_category1, sub_category2, sub_category3, sub_category4,
       pcb_footprint, package_size, schematic, step_model, pspice,
-      datasheet_url, status, notes,
-      approval_status, approval_user_id, approval_date,
+      datasheet_url, approval_status, approval_user_id, approval_date,
       id,
     ]);
 
-    // Log activity
+    // Log activity with details
+    const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [result.rows[0].category_id]);
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
-      SELECT $1, $2, $3, cat.name, 'updated'
-      FROM component_categories cat WHERE cat.id = $4
-    `, [id, result.rows[0].part_number, result.rows[0].description, result.rows[0].category_id]);
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'updated', $3)
+    `, [
+      id, 
+      result.rows[0].part_number, 
+      JSON.stringify({
+        description: result.rows[0].description,
+        category_name: categoryResult.rows[0]?.name,
+        updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
+      })
+    ]);
 
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
@@ -302,7 +318,8 @@ export const updateComponent = async (req, res, next) => {
         cat.name as category_name,
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
@@ -342,9 +359,16 @@ export const deleteComponent = async (req, res, next) => {
       
       // Log activity before deletion
       await client.query(`
-        INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type)
-        VALUES ($1, $2, $3, $4, 'deleted')
-      `, [component.id, component.part_number, component.description, component.category_name]);
+        INSERT INTO activity_log (component_id, part_number, activity_type, details)
+        VALUES ($1, $2, 'deleted', $3)
+      `, [
+        component.id, 
+        component.part_number, 
+        JSON.stringify({
+          description: component.description,
+          category_name: component.category_name,
+        })
+      ]);
       
       // Delete from related tables first (foreign key constraints)
       await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
@@ -594,15 +618,13 @@ export const updateDistributorInfo = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'distributor_updated', $3)
     `, [
       id,
       component?.part_number || '',
-      component?.description || 'Distributor info updated',
-      null,
-      'distributor_updated',
       JSON.stringify({
+        description: component?.description,
         distributor_count: distributorsWithPricing.length,
         distributors: distributorsWithPricing.map(d => ({
           distributor_id: d.distributor_id,
@@ -629,10 +651,10 @@ export const updateDistributorInfo = async (req, res, next) => {
 // Get unique sub-category values for a specific category
 export const getSubCategorySuggestions = async (req, res, next) => {
   try {
-    const { categoryId, level, subCat1, subCat2 } = req.query;
+    const { categoryId, level, subCat1, subCat2, subCat3 } = req.query;
     
-    if (!categoryId || !level || !['1', '2', '3'].includes(level)) {
-      return res.status(400).json({ error: 'categoryId and level (1, 2, or 3) are required' });
+    if (!categoryId || !level || !['1', '2', '3', '4'].includes(level)) {
+      return res.status(400).json({ error: 'categoryId and level (1, 2, 3, or 4) are required' });
     }
 
     const columnName = `sub_category${level}`;
@@ -666,6 +688,25 @@ export const getSubCategorySuggestions = async (req, res, next) => {
       if (subCat2) {
         query += ` AND sub_category2 = $${paramCount}`;
         params.push(subCat2);
+        paramCount++;
+      }
+    }
+    
+    // For level 4, filter by all previous subcategories
+    if (level === '4') {
+      if (subCat1) {
+        query += ` AND sub_category1 = $${paramCount}`;
+        params.push(subCat1);
+        paramCount++;
+      }
+      if (subCat2) {
+        query += ` AND sub_category2 = $${paramCount}`;
+        params.push(subCat2);
+        paramCount++;
+      }
+      if (subCat3) {
+        query += ` AND sub_category3 = $${paramCount}`;
+        params.push(subCat3);
         paramCount++;
       }
     }
@@ -737,6 +778,7 @@ export const getAlternatives = async (req, res, next) => {
         ca.*,
         m.name as manufacturer_name,
         m.website as manufacturer_website,
+        created_at(ca.id) as created_at,
         (
           SELECT json_agg(
             json_build_object(
@@ -761,7 +803,7 @@ export const getAlternatives = async (req, res, next) => {
       FROM components_alternative ca
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
       WHERE ca.part_number = $1
-      ORDER BY ca.created_at ASC
+      ORDER BY ca.id ASC
     `, [partNumber]);
     
     res.json(result.rows);
@@ -838,14 +880,11 @@ export const createAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'alternative_added', $3)
     `, [
       id,
       partNumber,
-      `Alternative part added: ${manufacturer_pn}`,
-      null,
-      'alternative_added',
       JSON.stringify({
         alternative_id: alternativeId,
         manufacturer_pn: manufacturer_pn,
@@ -953,14 +992,11 @@ export const updateAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'alternative_updated', $3)
     `, [
       id,
       partNumber,
-      `Alternative part updated: ${manufacturer_pn || result.rows[0].manufacturer_pn}`,
-      null,
-      'alternative_updated',
       JSON.stringify({
         alternative_id: altId,
         manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
@@ -1010,14 +1046,11 @@ export const deleteAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'alternative_deleted', $3)
     `, [
       id,
       partNumber,
-      `Alternative part deleted: ${alternativePn}`,
-      null,
-      'alternative_deleted',
       JSON.stringify({
         alternative_id: altId,
         manufacturer_pn: alternativePn,
@@ -1673,16 +1706,24 @@ export const updateComponentApproval = async (req, res, next) => {
       'send_to_prototype': 'approval_sent_to_prototype',
     };
 
-    await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      SELECT $1, c.part_number, c.description, cat.name, $2, $3
+    // Get component info for activity log
+    const componentInfo = await pool.query(`
+      SELECT c.part_number, c.description, cat.name as category_name
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       WHERE c.id = $1
+    `, [id]);
+
+    await pool.query(`
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       id,
+      componentInfo.rows[0]?.part_number,
       activityTypeMap[action],
       JSON.stringify({
+        description: componentInfo.rows[0]?.description,
+        category_name: componentInfo.rows[0]?.category_name,
         action: action,
         old_status: component.approval_status,
         new_status: newApprovalStatus,
@@ -1698,7 +1739,8 @@ export const updateComponentApproval = async (req, res, next) => {
         cat.prefix as category_prefix,
         m.name as manufacturer_name,
         u.username as approval_user_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
       FROM components c
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id

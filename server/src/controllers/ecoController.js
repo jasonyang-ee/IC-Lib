@@ -4,22 +4,20 @@ import { sendECONotification } from '../services/emailService.js';
 // Whitelist of valid component field names to prevent SQL injection
 const VALID_COMPONENT_FIELDS = [
   'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
-  'notes', 'status', 'approval_status', 'sub_category1', 'sub_category2', 
-  'sub_category3', 'schematic', 'step_model', 'pspice', 'manufacturer_id',
-  'manufacturer_pn', 'category_id', '_delete_component',
+  'approval_status', 'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
+  'schematic', 'step_model', 'pspice', 'manufacturer_id', 'manufacturer_pn',
+  'category_id', '_delete_component',
 ];
 
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
   try {
     await client.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       ecoOrder.component_id,
       ecoOrder.part_number,
-      `ECO ${ecoOrder.eco_number}: ${activityType}`,
-      null,
       activityType,
       JSON.stringify({ 
         eco_id: ecoOrder.id, 

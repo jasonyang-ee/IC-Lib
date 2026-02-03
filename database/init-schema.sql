@@ -3,10 +3,8 @@
 -- ============================================================================
 -- This schema uses a single components table instead of category-specific
 -- tables for simpler maintenance and better flexibility
+-- PostgreSQL 18+ with native uuidv7() support
 -- ============================================================================
-
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================================
 -- PART 1: REFERENCE TABLES
@@ -14,53 +12,48 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Table: component_categories
 -- Stores categories with part number configuration
+-- Now uses UUID primary key
 CREATE TABLE IF NOT EXISTS component_categories (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
     prefix VARCHAR(20) NOT NULL,
     leading_zeros INTEGER DEFAULT 5,
-    display_order INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    display_order INTEGER DEFAULT 0
 );
 
 -- Insert default categories
-INSERT INTO component_categories (id, name, description, prefix, leading_zeros, display_order) VALUES
-    (1, 'Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5, 1),
-    (2, 'Resistors', 'Resistors and resistor arrays', 'RES', 5, 2),
-    (3, 'Inductors', 'Inductors and coils', 'IND', 5, 3),
-    (4, 'Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5, 4),
-    (5, 'Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
-    (6, 'ICs', 'Integrated circuits', 'IC', 5, 6),
-    (7, 'Connectors', 'Connectors and headers', 'CONN', 5, 7),
-    (8, 'Switches', 'Switches and buttons', 'SW', 5, 8),
-    (10, 'Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
-    (11, 'MCU', 'Microcontroller', 'IC', 5, 10),
-	(12, 'Mechanical', 'Mechanical Parts', 'MECH', 5, 11),
-	(13, 'Misc', 'Miscellaneous Parts', 'MISC', 5, 12),
-	(14, 'Relays', 'Relays', 'RELAY', 5, 13),
-	(15, 'Transformers', 'Transformers', 'TRNS', 5, 14)
-ON CONFLICT (id) DO NOTHING;
-
--- Reset sequence to continue from 15 (highest id)
-SELECT setval('component_categories_id_seq', 15, true);
+INSERT INTO component_categories (name, description, prefix, leading_zeros, display_order) VALUES
+    ('Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5, 1),
+    ('Resistors', 'Resistors and resistor arrays', 'RES', 5, 2),
+    ('Inductors', 'Inductors and coils', 'IND', 5, 3),
+    ('Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5, 4),
+    ('Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
+    ('ICs', 'Integrated circuits', 'IC', 5, 6),
+    ('Connectors', 'Connectors and headers', 'CONN', 5, 7),
+    ('Switches', 'Switches and buttons', 'SW', 5, 8),
+    ('Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
+    ('MCU', 'Microcontroller', 'IC', 5, 10),
+    ('Mechanical', 'Mechanical Parts', 'MECH', 5, 11),
+    ('Misc', 'Miscellaneous Parts', 'MISC', 5, 12),
+    ('Relays', 'Relays', 'RELAY', 5, 13),
+    ('Transformers', 'Transformers', 'TRNS', 5, 14)
+ON CONFLICT (name) DO NOTHING;
 
 -- Table: manufacturers
 -- Stores manufacturer information
 CREATE TABLE IF NOT EXISTS manufacturers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(100) UNIQUE NOT NULL,
-    website VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    website VARCHAR(500)
 );
 
 -- Table: distributors
 -- Stores distributor information (Digikey, Mouser, etc.)
 CREATE TABLE IF NOT EXISTS distributors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(100) UNIQUE NOT NULL,
-    api_endpoint VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    api_endpoint VARCHAR(500)
 );
 
 -- Insert default distributors
@@ -76,9 +69,11 @@ ON CONFLICT (name) DO NOTHING;
 -- ============================================================================
 
 -- Table: components (Single unified component table)
+-- Removed: status, notes, created_at (uuidv7 contains timestamp)
+-- Added: sub_category4
 CREATE TABLE IF NOT EXISTS components (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    category_id INTEGER REFERENCES component_categories(id) ON DELETE SET NULL,
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    category_id UUID REFERENCES component_categories(id) ON DELETE SET NULL,
     part_number VARCHAR(100) UNIQUE NOT NULL,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200),
@@ -89,10 +84,11 @@ CREATE TABLE IF NOT EXISTS components (
     pcb_footprint VARCHAR(200),
     package_size VARCHAR(100),
     
-    -- Sub-categorization
+    -- Sub-categorization (expanded to 4 levels)
     sub_category1 VARCHAR(100),
     sub_category2 VARCHAR(100),
     sub_category3 VARCHAR(100),
+    sub_category4 VARCHAR(100),
     
     -- CAD files
     schematic VARCHAR(255),
@@ -101,22 +97,16 @@ CREATE TABLE IF NOT EXISTS components (
     
     -- Documentation
     datasheet_url VARCHAR(500),
-    notes TEXT,
-    
-    -- Status
-    status VARCHAR(50) DEFAULT 'Active',
     
     -- Approval Status (merged single status)
     approval_status VARCHAR(50) DEFAULT 'new',
     approval_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     approval_date TIMESTAMP,
     
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Only updated_at is needed (created_at extracted from uuidv7)
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    -- Indexes
-    CONSTRAINT check_status CHECK (status IN ('Active', 'Obsolete', 'NRND', 'Development')),
+    -- Constraints
     CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'approved', 'archived', 'pending review', 'experimental'))
 );
 
@@ -129,14 +119,13 @@ CREATE TABLE IF NOT EXISTS components (
 -- This defines what specifications are available for each category
 -- Managed in the Settings page
 CREATE TABLE IF NOT EXISTS category_specifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    category_id INTEGER REFERENCES component_categories(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    category_id UUID REFERENCES component_categories(id) ON DELETE CASCADE,
     spec_name VARCHAR(100) NOT NULL,
     unit VARCHAR(50),
-	mapping_spec_names JSONB DEFAULT '[]'::jsonb,
+    mapping_spec_names JSONB DEFAULT '[]'::jsonb,
     display_order INTEGER DEFAULT 0,
     is_required BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(category_id, spec_name)
 );
@@ -146,11 +135,10 @@ CREATE TABLE IF NOT EXISTS category_specifications (
 -- Links to category_specifications for the spec definition
 -- Each component stores its own values, but all use the same spec names from their category
 CREATE TABLE IF NOT EXISTS component_specification_values (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     category_spec_id UUID REFERENCES category_specifications(id) ON DELETE CASCADE,
     spec_value VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(component_id, category_spec_id)
 );
@@ -161,11 +149,10 @@ CREATE TABLE IF NOT EXISTS component_specification_values (
 -- Distributor info links to these alternatives instead of the parent component
 -- Note: The primary variant is the one stored in components table itself
 CREATE TABLE IF NOT EXISTS components_alternative (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(part_number, manufacturer_id, manufacturer_pn)
 );
@@ -174,13 +161,11 @@ CREATE TABLE IF NOT EXISTS components_alternative (
 -- Stores inventory tracking for alternative parts
 -- Each alternative part can have its own location and quantity
 CREATE TABLE IF NOT EXISTS inventory_alternative (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
     location VARCHAR(200),
     quantity INTEGER DEFAULT 0,
     min_quantity INTEGER DEFAULT 0,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(alternative_id)
 );
@@ -189,7 +174,7 @@ CREATE TABLE IF NOT EXISTS inventory_alternative (
 -- Stores pricing and availability from different distributors
 -- Now links to components_alternative instead of components directly
 CREATE TABLE IF NOT EXISTS distributor_info (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
     distributor_id UUID REFERENCES distributors(id) ON DELETE CASCADE,
@@ -213,28 +198,26 @@ CREATE TABLE IF NOT EXISTS distributor_info (
 -- Table: inventory
 -- Tracks physical component inventory
 CREATE TABLE IF NOT EXISTS inventory (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     location VARCHAR(200),
     quantity INTEGER DEFAULT 0,
     minimum_quantity INTEGER DEFAULT 0,
     last_counted TIMESTAMP,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(component_id)
 );
 
 -- Table: footprint_sources
 -- Tracks footprint files and their sources
 CREATE TABLE IF NOT EXISTS footprint_sources (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     source VARCHAR(100),
     footprint_path VARCHAR(500),
     symbol_path VARCHAR(500),
     model_3d_path VARCHAR(500),
-    downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    notes TEXT
+    downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================================
@@ -242,15 +225,14 @@ CREATE TABLE IF NOT EXISTS footprint_sources (
 -- ============================================================================
 
 -- Components table indexes
+CREATE INDEX IF NOT EXISTS idx_components_id ON components(id);
 CREATE INDEX IF NOT EXISTS idx_components_category ON components(category_id);
 CREATE INDEX IF NOT EXISTS idx_components_manufacturer ON components(manufacturer_id);
 CREATE INDEX IF NOT EXISTS idx_components_part_number ON components(part_number);
-CREATE INDEX IF NOT EXISTS idx_components_status ON components(status);
--- Note: part_type index removed as column is no longer generated
+CREATE INDEX IF NOT EXISTS idx_components_approval_status ON components(approval_status);
 
 -- Category specifications indexes
 CREATE INDEX IF NOT EXISTS idx_category_specs_category ON category_specifications(category_id);
-CREATE INDEX IF NOT EXISTS idx_category_specs_display_order ON category_specifications(display_order);
 
 -- Component specification values indexes
 CREATE INDEX IF NOT EXISTS idx_comp_spec_values_component ON component_specification_values(component_id);
@@ -260,7 +242,6 @@ CREATE INDEX IF NOT EXISTS idx_comp_spec_values_category_spec ON component_speci
 CREATE INDEX IF NOT EXISTS idx_distributor_info_component ON distributor_info(component_id);
 CREATE INDEX IF NOT EXISTS idx_distributor_info_alternative ON distributor_info(alternative_id);
 CREATE INDEX IF NOT EXISTS idx_distributor_info_distributor ON distributor_info(distributor_id);
-CREATE INDEX IF NOT EXISTS idx_distributor_info_sku ON distributor_info(sku);
 
 -- Components alternative indexes
 CREATE INDEX IF NOT EXISTS idx_components_alternative_part_number ON components_alternative(part_number);
@@ -268,7 +249,6 @@ CREATE INDEX IF NOT EXISTS idx_components_alternative_manufacturer ON components
 
 -- Inventory indexes
 CREATE INDEX IF NOT EXISTS idx_inventory_component ON inventory(component_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_location ON inventory(location);
 
 -- Footprint sources indexes
 CREATE INDEX IF NOT EXISTS idx_footprint_sources_component ON footprint_sources(component_id);
@@ -286,27 +266,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_components_updated_at
+CREATE OR REPLACE TRIGGER update_components_updated_at
     BEFORE UPDATE ON components
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_inventory_updated_at
+CREATE OR REPLACE TRIGGER update_inventory_updated_at
     BEFORE UPDATE ON inventory
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_category_specs_updated_at
+CREATE OR REPLACE TRIGGER update_category_specs_updated_at
     BEFORE UPDATE ON category_specifications
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_components_alternative_updated_at
+CREATE OR REPLACE TRIGGER update_components_alternative_updated_at
     BEFORE UPDATE ON components_alternative
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_component_spec_values_updated_at
+CREATE OR REPLACE TRIGGER update_component_spec_values_updated_at
     BEFORE UPDATE ON component_specification_values
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
@@ -351,7 +331,6 @@ SELECT
     csv.spec_value,
     cs.is_required,
     cs.display_order,
-    csv.created_at,
     csv.updated_at
 FROM component_specification_values csv
 JOIN category_specifications cs ON csv.category_spec_id = cs.id
@@ -360,17 +339,17 @@ JOIN component_categories cat ON c.category_id = cat.id
 ORDER BY csv.component_id, cs.display_order;
 
 -- ============================================================================
--- PART 6: HELPER FUNCTION FOR PART_TYPE
+-- PART 7: HELPER FUNCTION FOR PART_TYPE
 -- ============================================================================
 
 -- Function to generate part_type string from category and subcategories
--- This replaces the generated column which cannot use subqueries
--- Automatically ignores empty subcategories (NULL or empty string)
+-- Now includes sub_category4
 CREATE OR REPLACE FUNCTION get_part_type(
-    p_category_id INTEGER,
+    p_category_id UUID,
     p_sub_category1 VARCHAR,
     p_sub_category2 VARCHAR,
-    p_sub_category3 VARCHAR
+    p_sub_category3 VARCHAR,
+    p_sub_category4 VARCHAR DEFAULT NULL
 ) RETURNS VARCHAR AS $$
 DECLARE
     v_category_name VARCHAR;
@@ -393,6 +372,10 @@ BEGIN
                 
                 IF p_sub_category3 IS NOT NULL AND TRIM(p_sub_category3) <> '' THEN
                     v_part_type := v_part_type || '/' || p_sub_category3;
+                    
+                    IF p_sub_category4 IS NOT NULL AND TRIM(p_sub_category4) <> '' THEN
+                        v_part_type := v_part_type || '/' || p_sub_category4;
+                    END IF;
                 END IF;
             END IF;
         END IF;
@@ -408,7 +391,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 CREATE OR REPLACE VIEW active_parts AS
 SELECT 
     c.*,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3) as part_type,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
     m.name AS manufacturer_name,
     cat.name AS category_name,
     u.username AS approval_user_name
@@ -437,111 +420,124 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT INTO schema_version (version, description) VALUES
-    ('2.0.0', 'Simplified single-table architecture')
+    ('3.0.0', 'UUID v7 migration, removed status/notes, added sub_category4')
 ON CONFLICT (version) DO NOTHING;
 
 -- ============================================================================
 -- Sample Category Specifications (Master Spec Definitions)
 -- ============================================================================
 
--- Capacitors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
-    (1, 'Capacitance', 'F', '["Capacitance"]'::jsonb, 1, false),
-    (1, 'Voltage Rating', 'V', '["Voltage - Rated"]'::jsonb, 2, false),
-    (1, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
-    (1, 'Temperature Coefficient', '', '["Temperature Coefficient"]'::jsonb, 4, false),
-    (1, 'ESR', 'Ohms', '["ESR"]'::jsonb, 5, false),
-    (1, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 6, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
+-- Get category IDs for spec insertion
+DO $$
+DECLARE
+    cap_id UUID;
+    res_id UUID;
+    ind_id UUID;
+    dio_id UUID;
+    tra_id UUID;
+BEGIN
+    SELECT id INTO cap_id FROM component_categories WHERE name = 'Capacitors';
+    SELECT id INTO res_id FROM component_categories WHERE name = 'Resistors';
+    SELECT id INTO ind_id FROM component_categories WHERE name = 'Inductors';
+    SELECT id INTO dio_id FROM component_categories WHERE name = 'Diodes';
+    SELECT id INTO tra_id FROM component_categories WHERE name = 'Transistors';
 
--- Resistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
-    (2, 'Resistance', 'Ohms', '["Resistance"]'::jsonb, 1, false),
-    (2, 'Power', 'W', '["Power (Watts)"]'::jsonb, 2, false),
-    (2, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
-    (2, 'Temperature Coefficient', 'ppm/°C', '["Temperature Coefficient"]'::jsonb, 4, false),
-    (2, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 5, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
+    -- Capacitors specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (cap_id, 'Capacitance', 'F', '["Capacitance"]'::jsonb, 1, false),
+        (cap_id, 'Voltage Rating', 'V', '["Voltage - Rated"]'::jsonb, 2, false),
+        (cap_id, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+        (cap_id, 'Temperature Coefficient', '', '["Temperature Coefficient"]'::jsonb, 4, false),
+        (cap_id, 'ESR', 'Ohms', '["ESR"]'::jsonb, 5, false),
+        (cap_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 6, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Inductors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
-    (3, 'Inductance', 'H', '["Inductance"]'::jsonb, 1, false),
-    (3, 'Current Rating', 'A', '["Current Rating (Amps)"]'::jsonb, 2, false),
-    (3, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
-    (3, 'DC Resistance', 'Ω', '["DC Resistance (DCR)"]'::jsonb, 4, false),
-    (3, 'Saturation Current', 'A', '["Current - Saturation (Isat)"]'::jsonb, 5, false),
-    (3, 'Self-Resonant Frequency', 'Hz', '["Frequency - Self Resonant"]'::jsonb, 6, false),
-    (2, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 7, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
+    -- Resistors specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (res_id, 'Resistance', 'Ohms', '["Resistance"]'::jsonb, 1, false),
+        (res_id, 'Power', 'W', '["Power (Watts)"]'::jsonb, 2, false),
+        (res_id, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+        (res_id, 'Temperature Coefficient', 'ppm/°C', '["Temperature Coefficient"]'::jsonb, 4, false),
+        (res_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 5, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Diodes specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
-    (4, 'Forward Voltage', '', '["Voltage - Forward (Vf) (Max) @ If"]'::jsonb, 1, false),
-    (4, 'Reverse Voltage', 'V', '["Voltage - DC Reverse (Vr) (Max)"]'::jsonb, 2, false),
-    (4, 'Current Rectified', 'A', '["Current - Average Rectified (Io)"]'::jsonb, 3, true),
-	(4, 'Reverse Leakage Current', '', '["Current - Reverse Leakage @ Vr"]'::jsonb, 4, false),
-	(4, 'Technology', '', '["Technology"]'::jsonb, 5, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
+    -- Inductors specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (ind_id, 'Inductance', 'H', '["Inductance"]'::jsonb, 1, false),
+        (ind_id, 'Current Rating', 'A', '["Current Rating (Amps)"]'::jsonb, 2, false),
+        (ind_id, 'Tolerance', '%', '["Tolerance"]'::jsonb, 3, false),
+        (ind_id, 'DC Resistance', 'Ω', '["DC Resistance (DCR)"]'::jsonb, 4, false),
+        (ind_id, 'Saturation Current', 'A', '["Current - Saturation (Isat)"]'::jsonb, 5, false),
+        (ind_id, 'Self-Resonant Frequency', 'Hz', '["Frequency - Self Resonant"]'::jsonb, 6, false),
+        (ind_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 7, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
 
--- Transistors specifications
-INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
-    (5, 'Transistor Type', '', '["Configuration"]'::jsonb, 1, false),
-    (5, 'Vdss', 'V', '["Drain to Source Voltage (Vdss)"]'::jsonb, 2, false),
-    (5, 'Id', 'A', '["Current - Continuous Drain (Id) @ 25°C"]'::jsonb, 3, false),
-    (5, 'Rds On', '', '["Rds On (Max) @ Id, Vgs"]'::jsonb, 4, false),
-    (5, 'Vgs(th)', '', '["Vgs(th) (Max) @ Id"]'::jsonb, 5, false),
-    (5, 'Gate Charge (Qg)', '', '["Gate Charge (Qg) (Max) @ Vgs"]'::jsonb, 6, false),
-	(5, 'Input Capacitance (Ciss)', '', '["nput Capacitance (Ciss) (Max) @ Vds"]'::jsonb, 7, false),
-	(5, 'Power', 'W', '["Power - Max"]'::jsonb, 8, false),
-	(5, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 9, false)
-ON CONFLICT (category_id, spec_name) DO NOTHING;
+    -- Diodes specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (dio_id, 'Forward Voltage', '', '["Voltage - Forward (Vf) (Max) @ If"]'::jsonb, 1, false),
+        (dio_id, 'Reverse Voltage', 'V', '["Voltage - DC Reverse (Vr) (Max)"]'::jsonb, 2, false),
+        (dio_id, 'Current Rectified', 'A', '["Current - Average Rectified (Io)"]'::jsonb, 3, true),
+        (dio_id, 'Reverse Leakage Current', '', '["Current - Reverse Leakage @ Vr"]'::jsonb, 4, false),
+        (dio_id, 'Technology', '', '["Technology"]'::jsonb, 5, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+    -- Transistors specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (tra_id, 'Transistor Type', '', '["Configuration"]'::jsonb, 1, false),
+        (tra_id, 'Vdss', 'V', '["Drain to Source Voltage (Vdss)"]'::jsonb, 2, false),
+        (tra_id, 'Id', 'A', '["Current - Continuous Drain (Id) @ 25°C"]'::jsonb, 3, false),
+        (tra_id, 'Rds On', '', '["Rds On (Max) @ Id, Vgs"]'::jsonb, 4, false),
+        (tra_id, 'Vgs(th)', '', '["Vgs(th) (Max) @ Id"]'::jsonb, 5, false),
+        (tra_id, 'Gate Charge (Qg)', '', '["Gate Charge (Qg) (Max) @ Vgs"]'::jsonb, 6, false),
+        (tra_id, 'Input Capacitance (Ciss)', '', '["Input Capacitance (Ciss) (Max) @ Vds"]'::jsonb, 7, false),
+        (tra_id, 'Power', 'W', '["Power - Max"]'::jsonb, 8, false),
+        (tra_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 9, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
+END $$;
 
 -- ============================================================================
--- PART 5: ACTIVITY LOG
+-- PART 8: ACTIVITY LOG (Audit Trail)
 -- ============================================================================
 
 -- Table: activity_log
 -- Stores component activity history for dashboard
+-- Simplified: removed description and category_name, added flexible details JSONB
 CREATE TABLE IF NOT EXISTS activity_log (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE SET NULL,
     part_number VARCHAR(100) NOT NULL,
-    description TEXT,
-    category_name VARCHAR(100),
-    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted', 'inventory_updated', 'inventory_consumed', 'location_updated'
-    change_details JSONB, -- Store old/new values for inventory operations
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted', 'inventory_updated', 'inventory_consumed', 'location_updated', etc.
+    details JSONB NOT NULL DEFAULT '{}'::jsonb -- Flexible JSON for all change details
 );
 
--- Index for faster queries
-CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
+-- Index for faster queries (using uuidv7 for ordering by time)
+CREATE INDEX IF NOT EXISTS idx_activity_log_id ON activity_log(id DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
+CREATE INDEX IF NOT EXISTS idx_activity_log_component ON activity_log(component_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_part_number ON activity_log(part_number);
 
 -- ============================================================================
--- PART 6: PROJECTS
+-- PART 9: PROJECTS
 -- ============================================================================
 
 -- Table: projects
 -- Stores project information
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     status VARCHAR(50) DEFAULT 'active', -- 'active', 'completed', 'archived'
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Table: project_components
 -- Links components to projects with quantity used
 CREATE TABLE IF NOT EXISTS project_components (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
     quantity INTEGER NOT NULL DEFAULT 1,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- Ensure only one of component_id or alternative_id is set
     CHECK (
@@ -578,7 +574,7 @@ CREATE TRIGGER trigger_update_project_component_timestamp
     EXECUTE FUNCTION update_project_timestamp();
 
 -- ============================================================================
--- PART 7: TRIGGERS FOR AUTO-SYNC
+-- PART 10: TRIGGERS FOR AUTO-SYNC
 -- ============================================================================
 
 -- Function: Auto-create inventory entry when component is added
@@ -601,20 +597,8 @@ CREATE TRIGGER trigger_create_inventory
     FOR EACH ROW
     EXECUTE FUNCTION create_inventory_entry();
 
--- Add unique constraint to inventory to prevent duplicates
--- Drop constraint if exists, then add it
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'unique_inventory_component'
-    ) THEN
-        ALTER TABLE inventory ADD CONSTRAINT unique_inventory_component UNIQUE (component_id);
-    END IF;
-END $$;
-
 -- ============================================================================
--- PART 7: BACKFILL INVENTORY FOR EXISTING COMPONENTS
+-- PART 11: BACKFILL INVENTORY FOR EXISTING COMPONENTS
 -- ============================================================================
 
 -- Create inventory entries for any existing components that don't have one
@@ -631,14 +615,14 @@ WHERE NOT EXISTS (
 ON CONFLICT (component_id) DO NOTHING;
 
 -- ============================================================================
--- PART 8: ENGINEER CHANGE ORDER (ECO) TABLES
+-- PART 12: ENGINEER CHANGE ORDER (ECO) TABLES
 -- ============================================================================
 
 -- Table: eco_orders
 -- Stores ECO header information
 -- Note: User IDs are INTEGER (not UUID) to match users table definition
 CREATE TABLE IF NOT EXISTS eco_orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_number VARCHAR(20) UNIQUE NOT NULL, -- Format: ECO-XXXXXX (6 digit sequential)
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
@@ -648,7 +632,6 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     approved_at TIMESTAMP,
     rejection_reason TEXT,
     notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_status CHECK (status IN ('pending', 'approved', 'rejected'))
 );
@@ -656,18 +639,17 @@ CREATE TABLE IF NOT EXISTS eco_orders (
 -- Table: eco_changes
 -- Stores the buffered component field changes
 CREATE TABLE IF NOT EXISTS eco_changes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
     field_name VARCHAR(100) NOT NULL, -- e.g., 'description', 'value', 'pcb_footprint', etc.
     old_value TEXT,
-    new_value TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    new_value TEXT
 );
 
 -- Table: eco_distributors
 -- Stores buffered distributor information changes
 CREATE TABLE IF NOT EXISTS eco_distributors (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE, -- NULL for primary component
     distributor_id UUID REFERENCES distributors(id) ON DELETE CASCADE,
@@ -680,46 +662,43 @@ CREATE TABLE IF NOT EXISTS eco_distributors (
     minimum_order_quantity INTEGER DEFAULT 1,
     packaging VARCHAR(100),
     price_breaks JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_dist_action CHECK (action IN ('add', 'update', 'delete'))
 );
 
 -- Table: eco_alternative_parts
 -- Stores buffered alternative parts changes
 CREATE TABLE IF NOT EXISTS eco_alternative_parts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE, -- NULL for new alternatives
     action VARCHAR(20) NOT NULL, -- 'add', 'update', 'delete'
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_alt_action CHECK (action IN ('add', 'update', 'delete'))
 );
 
 -- Table: eco_specifications
 -- Stores buffered specification changes
 CREATE TABLE IF NOT EXISTS eco_specifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
     category_spec_id UUID REFERENCES category_specifications(id) ON DELETE CASCADE,
     old_value VARCHAR(500),
-    new_value VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    new_value VARCHAR(500)
 );
 
 -- Indexes for ECO tables
 CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_eco_number ON eco_orders(eco_number);
-CREATE INDEX IF NOT EXISTS idx_eco_orders_created_at ON eco_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_id ON eco_orders(id DESC);
 CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
 
 -- Trigger to update eco_orders updated_at timestamp
-CREATE TRIGGER update_eco_orders_updated_at
+CREATE OR REPLACE TRIGGER update_eco_orders_updated_at
     BEFORE UPDATE ON eco_orders
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
@@ -760,5 +739,34 @@ LEFT JOIN users u2 ON eo.approved_by = u2.id
 LEFT JOIN components c ON eo.component_id = c.id
 LEFT JOIN component_categories cc ON c.category_id = cc.id
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-ORDER BY eo.created_at DESC;
+ORDER BY eo.id DESC;
+
+-- ============================================================================
+-- PART 13: HELPER FUNCTION TO EXTRACT TIMESTAMP FROM UUIDV7
+-- ============================================================================
+
+-- Function to extract timestamp from uuidv7
+-- This allows querying by creation time without storing created_at
+CREATE OR REPLACE FUNCTION extract_timestamp_from_uuidv7(uuid_val UUID)
+RETURNS TIMESTAMP WITH TIME ZONE AS $$
+DECLARE
+    hex_str TEXT;
+    unix_ms BIGINT;
+BEGIN
+    -- Convert UUID to hex string and extract first 12 characters (48 bits for timestamp)
+    hex_str := REPLACE(uuid_val::TEXT, '-', '');
+    unix_ms := ('x' || SUBSTRING(hex_str FROM 1 FOR 12))::bit(48)::bigint;
+    
+    -- Convert milliseconds to timestamp
+    RETURN to_timestamp(unix_ms / 1000.0) AT TIME ZONE 'UTC';
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Alias function for easier use
+CREATE OR REPLACE FUNCTION created_at(uuid_val UUID)
+RETURNS TIMESTAMP WITH TIME ZONE AS $$
+BEGIN
+    RETURN extract_timestamp_from_uuidv7(uuid_val);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
 

@@ -16,18 +16,23 @@
  * - Provides detailed logging and error reporting
  *
  * Usage:
- *   node import-csv-to-db.js                    # Import all CSV files
- *   node import-csv-to-db.js --dry-run          # Test without inserting
- *   node import-csv-to-db.js --file Diodes      # Import specific category
- *   node import-csv-to-db.js --help             # Show help
+ *   node import.js                    # Import all CSV files
+ *   node import.js --dry-run          # Test without inserting
+ *   node import.js --file Diodes      # Import specific category
+ *   node import.js --help             # Show help
  */
 
-const fs = require('fs');
-const path = require('path');
-const { parse } = require('csv-parse/sync');
-const { Pool } = require('pg');
+import fs from 'fs';
+import path from 'path';
+import { parse } from 'csv-parse/sync';
+import { Pool } from 'pg';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 // Database configuration
 const pool = new Pool({
@@ -38,23 +43,41 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-// Category mapping: CSV filename prefix -> Database category ID
-const CATEGORY_MAP = {
-  Capacitors: 1,
-  Resistors: 2,
-  Inductors: 3,
-  Diodes: 4,
-  Transistors: 5,
-  ICs: 6,
-  Connectors: 7,
-  Switches: 8,
-  Crystals: 10,
-  Oscillators: 10,
-  Mechanical: 12,
-  Misc: 13,
-  Relays: 14,
-  Transformers: 15,
-};
+// Category cache - populated dynamically from database
+const categoryCache = new Map();
+
+/**
+ * Get category ID by name from database
+ * Uses caching to avoid repeated queries
+ */
+async function getCategoryIdByName(categoryName) {
+  if (!categoryName) return null;
+
+  // Check cache first
+  if (categoryCache.has(categoryName)) {
+    return categoryCache.get(categoryName);
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT id FROM component_categories WHERE name = $1',
+      [categoryName],
+    );
+
+    if (result.rows.length > 0) {
+      const categoryId = result.rows[0].id;
+      categoryCache.set(categoryName, categoryId);
+      return categoryId;
+    }
+
+    // Cache miss - store null to avoid repeated queries
+    categoryCache.set(categoryName, null);
+    return null;
+  } catch (error) {
+    console.error(`Error looking up category "${categoryName}": ${error.message}`);
+    return null;
+  }
+}
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -69,7 +92,7 @@ if (showHelp) {
 CSV Import Script for Legacy CIS Database
 
 Usage:
-  node import-csv-to-db.js [options]
+  node import.js [options]
 
 Options:
   --dry-run           Test run without inserting data
@@ -77,9 +100,9 @@ Options:
   --help, -h          Show this help message
 
 Examples:
-  node import-csv-to-db.js
-  node import-csv-to-db.js --dry-run
-  node import-csv-to-db.js --file=Diodes
+  node import.js
+  node import.js --dry-run
+  node import.js --file=Diodes
   `);
   process.exit(0);
 }
@@ -241,7 +264,7 @@ async function getOrCreateManufacturer(client, manufacturerName) {
 async function importCSVFile(filePath) {
   const filename = path.basename(filePath);
   const categoryName = getCategoryFromFilename(filename);
-  const categoryId = CATEGORY_MAP[categoryName];
+  const categoryId = await getCategoryIdByName(categoryName);
 
   console.log(`\n${'='.repeat(80)}`);
   console.log(`Importing: ${filename}`);
@@ -310,6 +333,7 @@ async function importCSVFile(filePath) {
         const subCategory1 = partTypeParts[0] || null;
         const subCategory2 = partTypeParts[1] || null;
         const subCategory3 = partTypeParts[2] || null;
+        const subCategory4 = partTypeParts[3] || null;
 
         // Build component data
         const componentData = {
@@ -325,9 +349,9 @@ async function importCSVFile(filePath) {
           sub_category1: subCategory1,
           sub_category2: subCategory2,
           sub_category3: subCategory3,
+          sub_category4: subCategory4,
           datasheet_url: record.Datasheet || null,
           step_model: record.STEP_MODEL || null,
-          status: 'Active',
         };
 
         if (isDryRun) {
@@ -350,7 +374,7 @@ async function importCSVFile(filePath) {
             `INSERT INTO components (
               category_id, part_number, manufacturer_id, manufacturer_pn,
               description, value, pcb_footprint, schematic, package_size,
-              sub_category1, sub_category2, sub_category3, datasheet_url, step_model, status
+              sub_category1, sub_category2, sub_category3, sub_category4, datasheet_url, step_model
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (part_number) DO UPDATE SET
               description = EXCLUDED.description,
@@ -360,6 +384,7 @@ async function importCSVFile(filePath) {
               sub_category1 = EXCLUDED.sub_category1,
               sub_category2 = EXCLUDED.sub_category2,
               sub_category3 = EXCLUDED.sub_category3,
+              sub_category4 = EXCLUDED.sub_category4,
               updated_at = CURRENT_TIMESTAMP
             RETURNING id`,
             [
@@ -375,9 +400,9 @@ async function importCSVFile(filePath) {
               componentData.sub_category1,
               componentData.sub_category2,
               componentData.sub_category3,
+              componentData.sub_category4,
               componentData.datasheet_url,
               componentData.step_model,
-              componentData.status,
             ],
           );
 
@@ -514,7 +539,7 @@ async function main() {
 }
 
 // Run the script
-if (require.main === module) {
+if (__filename === process.argv[1]) {
   main().catch((error) => {
     console.error('\n✗ Fatal error:', error);
     pool.end();
@@ -522,4 +547,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { importCSVFile, getCategoryFromFilename };
+export { importCSVFile, getCategoryFromFilename };

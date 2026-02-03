@@ -44,12 +44,15 @@ const Library = () => {
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
   const [subCat2Suggestions, setSubCat2Suggestions] = useState([]);
   const [subCat3Suggestions, setSubCat3Suggestions] = useState([]);
+  const [subCat4Suggestions, setSubCat4Suggestions] = useState([]);
   const [subCat1Open, setSubCat1Open] = useState(false);
   const [subCat2Open, setSubCat2Open] = useState(false);
   const [subCat3Open, setSubCat3Open] = useState(false);
+  const [subCat4Open, setSubCat4Open] = useState(false);
   const subCat1Ref = useRef(null);
   const subCat2Ref = useRef(null);
   const subCat3Ref = useRef(null);
+  const subCat4Ref = useRef(null);
   
   // Package, Footprint, Symbol suggestions and dropdown states
   const [packageSuggestions, setPackageSuggestions] = useState([]);
@@ -116,6 +119,9 @@ const Library = () => {
       }
       if (subCat3Ref.current && !subCat3Ref.current.contains(event.target)) {
         setSubCat3Open(false);
+      }
+      if (subCat4Ref.current && !subCat4Ref.current.contains(event.target)) {
+        setSubCat4Open(false);
       }
       if (packageRef.current && !packageRef.current.contains(event.target)) {
         setPackageOpen(false);
@@ -870,6 +876,16 @@ const Library = () => {
           setSubCat3Suggestions(sub3.data || []);
         }
         
+        // Load sub-category 4 suggestions if sub-category 3 exists
+        if (componentDetails.sub_category1 && componentDetails.sub_category2 && componentDetails.sub_category3) {
+          const sub4 = await api.getSubCategorySuggestions(componentDetails.category_id, 4, { 
+            subCat1: componentDetails.sub_category1,
+            subCat2: componentDetails.sub_category2,
+            subCat3: componentDetails.sub_category3
+          });
+          setSubCat4Suggestions(sub4.data || []);
+        }
+        
         // Load package, footprint, symbol, step, and pspice suggestions
         const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
           api.getFieldSuggestions(componentDetails.category_id, 'package_size'),
@@ -1409,8 +1425,8 @@ const Library = () => {
       // Track component field changes
       const fieldsToTrack = [
         'description', 'value', 'pcb_footprint', 'package_size',
-        'sub_category1', 'sub_category2', 'sub_category3',
-        'schematic', 'step_model', 'pspice', 'datasheet_url', 'notes',
+        'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
+        'schematic', 'step_model', 'pspice', 'datasheet_url',
         'manufacturer_id', 'manufacturer_pn'
       ];
 
@@ -1631,6 +1647,7 @@ const Library = () => {
       sub_category1: '',
       sub_category2: '',
       sub_category3: '',
+      sub_category4: '',
       pcb_footprint: '',
       package_size: '',
       schematic: '',
@@ -1809,10 +1826,12 @@ const Library = () => {
   const handleSubCat1Change = async (value) => {
     handleFieldChange('sub_category1', value);
     
-    // Clear sub-category 2 and 3
+    // Clear sub-category 2, 3, and 4
     handleFieldChange('sub_category2', '');
     handleFieldChange('sub_category3', '');
+    handleFieldChange('sub_category4', '');
     setSubCat3Suggestions([]);
+    setSubCat4Suggestions([]);
     
     // Load sub-category 2 suggestions filtered by sub-category 1
     if (editData.category_id && value) {
@@ -1832,8 +1851,10 @@ const Library = () => {
   const handleSubCat2Change = async (value) => {
     handleFieldChange('sub_category2', value);
     
-    // Clear sub-category 3
+    // Clear sub-category 3 and 4
     handleFieldChange('sub_category3', '');
+    handleFieldChange('sub_category4', '');
+    setSubCat4Suggestions([]);
     
     // Load sub-category 3 suggestions filtered by sub-category 1 and 2
     if (editData.category_id && editData.sub_category1 && value) {
@@ -1849,6 +1870,31 @@ const Library = () => {
       }
     } else {
       setSubCat3Suggestions([]);
+    }
+  };
+
+  // Load sub-category 4 suggestions when sub-category 3 changes
+  const handleSubCat3Change = async (value) => {
+    handleFieldChange('sub_category3', value);
+    
+    // Clear sub-category 4
+    handleFieldChange('sub_category4', '');
+    
+    // Load sub-category 4 suggestions filtered by sub-category 1, 2, and 3
+    if (editData.category_id && editData.sub_category1 && editData.sub_category2 && value) {
+      try {
+        const sub4 = await api.getSubCategorySuggestions(editData.category_id, 4, { 
+          subCat1: editData.sub_category1, 
+          subCat2: editData.sub_category2,
+          subCat3: value 
+        });
+        setSubCat4Suggestions(sub4.data || []);
+      } catch (error) {
+        console.error('Error loading sub-category 4 suggestions:', error);
+        setSubCat4Suggestions([]);
+      }
+    } else {
+      setSubCat4Suggestions([]);
     }
   };
 
@@ -3278,7 +3324,7 @@ const Library = () => {
                         type="text"
                         value={editData.sub_category3 || ''}
                         onChange={(e) => {
-                          handleFieldChange('sub_category3', e.target.value);
+                          handleSubCat3Change(e.target.value);
                           setSubCat3Open(true);
                         }}
                         onFocus={() => editData.sub_category2 && setSubCat3Open(true)}
@@ -3304,8 +3350,58 @@ const Library = () => {
                             <div
                               key={idx}
                               onClick={() => {
-                                handleFieldChange('sub_category3', suggestion);
+                                handleSubCat3Change(suggestion);
                                 setSubCat3Open(false);
+                              }}
+                              className="px-3 py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-900 dark:text-gray-100 text-sm border-b border-gray-100 dark:border-[#3a3a3a] last:border-b-0"
+                            >
+                              {suggestion}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div ref={subCat4Ref} className="relative">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">
+                      Sub-Category 4
+                    </label>
+                    {!editData.sub_category3 && (
+                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 3 first)</div>
+                    )}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={editData.sub_category4 || ''}
+                        onChange={(e) => {
+                          handleFieldChange('sub_category4', e.target.value);
+                          setSubCat4Open(true);
+                        }}
+                        onFocus={() => editData.sub_category3 && setSubCat4Open(true)}
+                        disabled={!editData.sub_category3}
+                        placeholder={editData.sub_category3 ? "Type or select..." : ""}
+                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
+                      />
+                      {editData.sub_category3 && (
+                        <button
+                          type="button"
+                          onClick={() => setSubCat4Open(!subCat4Open)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${subCat4Open ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                    {subCat4Open && editData.sub_category3 && subCat4Suggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#333333] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                        {subCat4Suggestions
+                          .filter(s => !editData.sub_category4 || s.toLowerCase().includes(editData.sub_category4.toLowerCase()))
+                          .map((suggestion, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                handleFieldChange('sub_category4', suggestion);
+                                setSubCat4Open(false);
                               }}
                               className="px-3 py-2 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 text-gray-900 dark:text-gray-100 text-sm border-b border-gray-100 dark:border-[#3a3a3a] last:border-b-0"
                             >

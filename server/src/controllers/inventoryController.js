@@ -140,15 +140,18 @@ export const updateInventory = async (req, res, next) => {
     // Log activity based on what changed
     if (location !== undefined && location !== oldItem.location) {
       await pool.query(`
-        INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO activity_log (component_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4)
       `, [
         oldItem.component_id,
         oldItem.part_number,
-        oldItem.description,
-        oldItem.category_name,
         'location_updated',
-        JSON.stringify({ old_location: oldItem.location, new_location: location }),
+        JSON.stringify({ 
+          description: oldItem.description,
+          category_name: oldItem.category_name,
+          old_location: oldItem.location, 
+          new_location: location,
+        }),
       ]);
     }
 
@@ -156,15 +159,19 @@ export const updateInventory = async (req, res, next) => {
       // Determine if this is a quantity set or consume operation
       const activityType = quantity < oldItem.quantity ? 'inventory_consumed' : 'inventory_updated';
       await pool.query(`
-        INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO activity_log (component_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4)
       `, [
         oldItem.component_id,
         oldItem.part_number,
-        oldItem.description,
-        oldItem.category_name,
         activityType,
-        JSON.stringify({ old_quantity: oldItem.quantity, new_quantity: quantity, change: quantity - oldItem.quantity }),
+        JSON.stringify({ 
+          description: oldItem.description,
+          category_name: oldItem.category_name,
+          old_quantity: oldItem.quantity, 
+          new_quantity: quantity, 
+          change: quantity - oldItem.quantity,
+        }),
       ]);
     }
 

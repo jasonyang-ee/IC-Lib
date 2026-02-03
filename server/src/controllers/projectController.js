@@ -104,13 +104,11 @@ export const createProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       null,
       '',
-      `Project created: ${name}`,
-      null,
       'project_created',
       JSON.stringify({
         project_id: project.id,
@@ -150,13 +148,11 @@ export const updateProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       null,
       '',
-      `Project updated: ${project.name}`,
-      null,
       'project_updated',
       JSON.stringify({
         project_id: id,
@@ -196,13 +192,11 @@ export const deleteProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       null,
       '',
-      `Project deleted: ${projectName}`,
-      null,
       'project_deleted',
       JSON.stringify({
         project_id: id,
@@ -271,13 +265,11 @@ export const addComponentToProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       component_id || null,
       componentInfo?.rows[0]?.part_number || '',
-      `Component added to project: ${projectInfo.rows[0]?.name || 'Unknown'}`,
-      null,
       'component_added_to_project',
       JSON.stringify({
         project_id: projectId,
@@ -322,13 +314,11 @@ export const updateProjectComponent = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       projectComponent.component_id || null,
       '',
-      `Project component updated in: ${projectInfo.rows[0]?.name || 'Unknown'}`,
-      null,
       'project_component_updated',
       JSON.stringify({
         project_id: projectId,
@@ -370,13 +360,11 @@ export const removeComponentFromProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, description, category_name, activity_type, change_details)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4)
     `, [
       componentResult.rows[0]?.component_id || null,
       '',
-      `Component removed from project: ${projectInfo.rows[0]?.name || 'Unknown'}`,
-      null,
       'component_removed_from_project',
       JSON.stringify({
         project_id: projectId,

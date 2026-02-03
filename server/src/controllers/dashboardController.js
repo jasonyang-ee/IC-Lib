@@ -97,13 +97,11 @@ export const getRecentActivities = async (req, res, next) => {
         id,
         component_id,
         part_number,
-        description,
-        category_name,
         activity_type,
-        change_details,
-        created_at
+        details,
+        created_at(id) as created_at
       FROM activity_log
-      ORDER BY created_at DESC
+      ORDER BY id DESC
       LIMIT $1
     `, [limit]);
 
@@ -120,13 +118,11 @@ export const getAllActivities = async (req, res, next) => {
         id,
         component_id,
         part_number,
-        description,
-        category_name,
         activity_type,
-        change_details,
-        created_at
+        details,
+        created_at(id) as created_at
       FROM activity_log
-      ORDER BY created_at DESC
+      ORDER BY id DESC
     `);
 
     res.json(result.rows);

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Download, Filter, Package, Edit, Trash2, TrendingUp, Minus, MapPin, Calendar } from 'lucide-react';
+import { Search, Download, Filter, Package, Edit, Trash2, TrendingUp, Minus, MapPin, Calendar, ChevronDown, ChevronRight, Shield, CheckCircle, XCircle } from 'lucide-react';
 
 const Audit = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,6 +9,7 @@ const Audit = () => {
   const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15); // Default to 15
+  const [expandedRows, setExpandedRows] = useState(new Set());
 
   const { data: auditData, isLoading } = useQuery({
     queryKey: ['auditLog'],
@@ -18,13 +19,26 @@ const Audit = () => {
     },
   });
 
+  // Toggle row expansion
+  const toggleRowExpansion = (id) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
   // Filter data based on search, activity type, and date
   const filteredData = auditData?.filter((item) => {
-    // Search filter
+    // Search filter - search in part_number and details JSON
+    const detailsStr = item.details ? JSON.stringify(item.details).toLowerCase() : '';
     const matchesSearch = searchTerm === '' || 
       item.part_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      detailsStr.includes(searchTerm.toLowerCase());
 
     // Activity type filter
     const matchesActivity = activityFilter === 'all' || item.activity_type === activityFilter;
@@ -75,27 +89,17 @@ const Audit = () => {
     }
 
     // Create CSV header
-    const headers = ['Timestamp', 'Part Number', 'Description', 'Category', 'Activity Type', 'Change Details'];
+    const headers = ['Timestamp', 'Part Number', 'Activity Type', 'Details'];
     
     // Create CSV rows
     const rows = filteredData.map(item => {
-      let changeDetails = '';
-      if (item.change_details) {
-        const details = item.change_details;
-        if (item.activity_type === 'inventory_updated' || item.activity_type === 'inventory_consumed') {
-          changeDetails = `Quantity: ${details.old_quantity} → ${details.new_quantity} (${details.change >= 0 ? '+' : ''}${details.change})`;
-        } else if (item.activity_type === 'location_updated') {
-          changeDetails = `Location: ${details.old_location || 'None'} → ${details.new_location}`;
-        }
-      }
+      const detailsStr = item.details ? JSON.stringify(item.details) : '';
 
       return [
         new Date(item.created_at).toLocaleString(),
         item.part_number || '',
-        (item.description || '').replace(/"/g, '""'), // Escape quotes
-        item.category_name || '',
         item.activity_type || '',
-        changeDetails
+        detailsStr.replace(/"/g, '""') // Escape quotes
       ];
     });
 
@@ -178,6 +182,12 @@ const Audit = () => {
       textColor: 'text-indigo-800 dark:text-indigo-200',
       label: 'Distributor Info Updated'
     },
+    approval_changed: {
+      icon: Shield,
+      bgColor: 'bg-yellow-100 dark:bg-yellow-900',
+      textColor: 'text-yellow-800 dark:text-yellow-200',
+      label: 'Approval Changed'
+    },
     project_created: {
       icon: Package,
       bgColor: 'bg-teal-100 dark:bg-teal-900',
@@ -213,7 +223,137 @@ const Audit = () => {
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
       label: 'Component Removed from Project'
+    },
+    eco_initiated: {
+      icon: Package,
+      bgColor: 'bg-amber-100 dark:bg-amber-900',
+      textColor: 'text-amber-800 dark:text-amber-200',
+      label: 'ECO Initiated'
+    },
+    eco_approved: {
+      icon: CheckCircle,
+      bgColor: 'bg-green-100 dark:bg-green-900',
+      textColor: 'text-green-800 dark:text-green-200',
+      label: 'ECO Approved'
+    },
+    eco_rejected: {
+      icon: XCircle,
+      bgColor: 'bg-red-100 dark:bg-red-900',
+      textColor: 'text-red-800 dark:text-red-200',
+      label: 'ECO Rejected'
     }
+  };
+
+  // Render details summary (compact view)
+  const renderDetailsSummary = (item) => {
+    if (!item.details) return '-';
+    
+    const details = item.details;
+    
+    // Handle different activity types
+    if (item.activity_type === 'inventory_updated' || item.activity_type === 'inventory_consumed') {
+      return `Qty: ${details.old_quantity} → ${details.new_quantity} (${details.change >= 0 ? '+' : ''}${details.change})`;
+    }
+    
+    if (item.activity_type === 'location_updated') {
+      return `${details.old_location || 'None'} → ${details.new_location}`;
+    }
+    
+    if (item.activity_type === 'approval_changed') {
+      return `${details.old_status || 'None'} → ${details.new_status}`;
+    }
+    
+    if (item.activity_type === 'updated' && details.changes) {
+      const changeCount = Object.keys(details.changes).length;
+      return `${changeCount} field${changeCount !== 1 ? 's' : ''} changed`;
+    }
+    
+    if (item.activity_type === 'added') {
+      return details.description ? details.description.substring(0, 40) + '...' : 'New component';
+    }
+    
+    // ECO activities
+    if (item.activity_type?.startsWith('eco_')) {
+      return details.eco_number ? `ECO: ${details.eco_number}` : 'ECO activity';
+    }
+    
+    // Default: show key count
+    const keyCount = Object.keys(details).length;
+    return `${keyCount} detail${keyCount !== 1 ? 's' : ''}`;
+  };
+
+  // Render expanded details panel
+  const renderExpandedDetails = (details) => {
+    if (!details || Object.keys(details).length === 0) {
+      return <span className="text-gray-500">No details available</span>;
+    }
+
+    // Helper to format key names
+    const formatKey = (key) => {
+      return key
+        .replace(/_/g, ' ')
+        .replace(/([A-Z])/g, ' $1')
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    };
+
+    // Helper to render value
+    const renderValue = (value, key) => {
+      if (value === null || value === undefined) return <span className="text-gray-400">null</span>;
+      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+          return (
+            <ul className="list-disc list-inside ml-2">
+              {value.map((item, idx) => (
+                <li key={idx} className="text-gray-700 dark:text-gray-300">
+                  {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        // For objects (like "changes"), render recursively
+        return (
+          <div className="ml-4 border-l-2 border-gray-200 dark:border-gray-600 pl-3">
+            {Object.entries(value).map(([k, v]) => (
+              <div key={k} className="py-1">
+                <span className="font-medium text-gray-600 dark:text-gray-400">{formatKey(k)}:</span>{' '}
+                {typeof v === 'object' && v !== null ? (
+                  <div className="ml-2">
+                    {v.old !== undefined && v.new !== undefined ? (
+                      <span className="text-gray-700 dark:text-gray-300">
+                        <span className="text-red-600 dark:text-red-400 line-through">{String(v.old || 'empty')}</span>
+                        {' → '}
+                        <span className="text-green-600 dark:text-green-400">{String(v.new || 'empty')}</span>
+                      </span>
+                    ) : (
+                      JSON.stringify(v)
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-gray-700 dark:text-gray-300">{String(v)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      return String(value);
+    };
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        {Object.entries(details).map(([key, value]) => (
+          <div key={key} className="py-1">
+            <span className="font-medium text-gray-600 dark:text-gray-400">{formatKey(key)}:</span>{' '}
+            <span className="text-gray-800 dark:text-gray-200">{renderValue(value, key)}</span>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -248,7 +388,7 @@ const Audit = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Part number, description..."
+              placeholder="Part number, details..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
@@ -271,9 +411,17 @@ const Audit = () => {
               <option value="added">Component Added</option>
               <option value="updated">Component Updated</option>
               <option value="deleted">Component Deleted</option>
+              <option value="approval_changed">Approval Changed</option>
               <option value="inventory_updated">Quantity Updated</option>
               <option value="inventory_consumed">Parts Consumed</option>
               <option value="location_updated">Location Updated</option>
+              <option value="alternative_added">Alternative Added</option>
+              <option value="alternative_updated">Alternative Updated</option>
+              <option value="alternative_deleted">Alternative Deleted</option>
+              <option value="distributor_updated">Distributor Updated</option>
+              <option value="eco_initiated">ECO Initiated</option>
+              <option value="eco_approved">ECO Approved</option>
+              <option value="eco_rejected">ECO Rejected</option>
             </select>
           </div>
 
@@ -337,55 +485,67 @@ const Audit = () => {
           <>
             <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-[#333333]">
+                <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
                   <tr>
+                    <th className="w-10 px-2 py-3"></th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Timestamp</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Activity</th>
-                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Details</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Summary</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedData.map((item) => {
                     const config = activityTypeConfig[item.activity_type] || activityTypeConfig.updated;
                     const IconComponent = config.icon;
-
-                    let changeDetails = '';
-                    if (item.change_details) {
-                      const details = item.change_details;
-                      if (item.activity_type === 'inventory_updated' || item.activity_type === 'inventory_consumed') {
-                        changeDetails = `${details.old_quantity} → ${details.new_quantity} (${details.change >= 0 ? '+' : ''}${details.change})`;
-                      } else if (item.activity_type === 'location_updated') {
-                        changeDetails = `${details.old_location || 'None'} → ${details.new_location}`;
-                      }
-                    }
+                    const isExpanded = expandedRows.has(item.id);
+                    const hasDetails = item.details && Object.keys(item.details).length > 0;
 
                     return (
-                      <tr key={item.id} className="border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333]">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                          {new Date(item.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {item.part_number}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                          {item.description?.substring(0, 50) || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                          {item.category_name || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${config.bgColor} ${config.textColor} text-xs font-medium`}>
-                            <IconComponent className="w-3 h-3" />
-                            {config.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                          {changeDetails || '-'}
-                        </td>
-                      </tr>
+                      <>
+                        <tr 
+                          key={item.id} 
+                          className={`border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${hasDetails ? 'cursor-pointer' : ''}`}
+                          onClick={() => hasDetails && toggleRowExpansion(item.id)}
+                        >
+                          <td className="px-2 py-3 text-center">
+                            {hasDetails && (
+                              <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                {isExpanded ? (
+                                  <ChevronDown className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                            {new Date(item.created_at).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {item.part_number || '-'}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${config.bgColor} ${config.textColor} text-xs font-medium`}>
+                              <IconComponent className="w-3 h-3" />
+                              {config.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {renderDetailsSummary(item)}
+                          </td>
+                        </tr>
+                        {isExpanded && hasDetails && (
+                          <tr key={`${item.id}-expanded`} className="bg-gray-50 dark:bg-[#252525]">
+                            <td colSpan={5} className="px-6 py-4">
+                              <div className="text-sm">
+                                <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Change Details</h4>
+                                {renderExpandedDetails(item.details)}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
