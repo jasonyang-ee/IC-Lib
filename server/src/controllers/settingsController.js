@@ -314,8 +314,7 @@ export const getCategoryConfigs = async (req, res) => {
         name,
         prefix,
         leading_zeros,
-        display_order,
-        created_at
+        display_order
       FROM component_categories
       ORDER BY display_order, name
     `);
@@ -374,7 +373,7 @@ export const updateCategoryConfig = async (req, res) => {
       UPDATE component_categories
       SET ${updates.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, name, prefix, leading_zeros, created_at
+      RETURNING id, name, prefix, leading_zeros
     `, values);
 
     if (result.rows.length === 0) {
@@ -426,7 +425,7 @@ export const createCategory = async (req, res) => {
     const result = await pool.query(`
       INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
       VALUES ($1, $2, $3, $4)
-      RETURNING id, name, prefix, leading_zeros, display_order, created_at
+      RETURNING id, name, prefix, leading_zeros, display_order
     `, [name.trim(), prefix.trim(), validLeadingZeros, nextDisplayOrder]);
 
     res.status(201).json({
@@ -508,7 +507,6 @@ export const getCategorySpecifications = async (req, res) => {
         mapping_spec_names,
         display_order,
         is_required,
-        created_at,
         updated_at
       FROM category_specifications
       WHERE category_id = $1

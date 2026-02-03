@@ -40,7 +40,6 @@ export const getProjectById = async (req, res) => {
       SELECT 
         pc.id,
         pc.quantity,
-        pc.notes,
         pc.component_id,
         pc.alternative_id,
         CASE 

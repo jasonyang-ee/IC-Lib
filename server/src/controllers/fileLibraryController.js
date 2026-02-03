@@ -107,7 +107,7 @@ export const getComponentsByFile = async (req, res) => {
         c.manufacturer_pn,
         c.description,
         c.value,
-        c.status,
+        c.approval_status,
         c.pcb_footprint,
         c.schematic,
         c.step_model,

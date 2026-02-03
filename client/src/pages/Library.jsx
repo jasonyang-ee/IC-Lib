@@ -4061,23 +4061,6 @@ const Library = () => {
                             <span>Add</span>
                           </button>
                         </div>
-                        {/* Action buttons container */}
-                        <div className="flex items-center">
-                          {/* Remove button - only for custom specs or non-required specs */}
-                          {(spec.is_custom || !spec.is_required) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newSpecs = (editData.specifications || []).filter((_, i) => i !== index);
-                                handleFieldChange('specifications', newSpecs);
-                              }}
-                              className="text-xs p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                              title="Remove specification"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
                       </div>
                     ))}
                   </div>

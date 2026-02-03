@@ -42,10 +42,10 @@ export const getDashboardStats = async (req, res, next) => {
       'SELECT COUNT(*) as count FROM inventory WHERE quantity <= minimum_quantity AND minimum_quantity > 0',
     );
 
-    // Get recently added components
+    // Get recently added components (extract timestamp from uuidv7 id)
     const recentComponentsResult = await pool.query(`
       SELECT COUNT(*) as count FROM components 
-      WHERE created_at >= NOW() - INTERVAL '30 days'
+      WHERE (uuid_extract_timestamp(id) AT TIME ZONE 'UTC') >= NOW() - INTERVAL '30 days'
     `);
 
     // Get approval status breakdown

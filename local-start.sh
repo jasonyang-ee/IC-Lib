@@ -5,53 +5,62 @@
 
 set -e
 
-echo ""
-echo "╭──────────────────────────────────────────╮"
-echo "│       IC Lib - Development Mode          │"
-echo "╰──────────────────────────────────────────╯"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Check if .env file exists
+echo "IC Lib - Local Development Mode"
+echo ""
+
+# Check and load .env
 if [ ! -f .env ]; then
-    echo "[error] .env file not found! Run: cp .env.example .env"
+    echo -e "${RED}ERROR: .env file not found${NC}"
+    echo "Create .env from .env.example and configure database settings"
     exit 1
 fi
 
-# Load environment variables from .env (silent)
 export $(grep -v '^#' .env | xargs)
 
-# Validate required environment variables
+# Validate required variables
 if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_NAME" ]; then
-    echo "[error] Missing database config in .env (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)"
+    echo -e "${RED}ERROR: Missing database configuration in .env${NC}"
     exit 1
 fi
 
-# Validate JWT_SECRET for authentication
 if [ -z "$JWT_SECRET" ]; then
-    echo "[warn] JWT_SECRET not set - auth may not work!"
+    echo -e "${RED}WARNING: JWT_SECRET not set - authentication will not work${NC}"
 fi
 
-echo ""
-echo "Config: ${DB_HOST}:${DB_PORT}/${DB_NAME} | Backend: ${PORT:-3500} | Frontend: 5173"
 
-# Check if node_modules exist (silent install if needed)
+
+
+echo "Database: ${DB_HOST}:${DB_PORT}/${DB_NAME}"
+echo "Backend: http://localhost:${PORT:-3500}"
+echo "Frontend: http://localhost:5173"
+
+echo ""
+echo "Starting Server..."
+
+
+
+
+# Check dependencies
 if [ ! -d "server/node_modules" ]; then
     echo "Installing backend dependencies..."
-    cd server && npm install --silent && cd ..
+    cd server && npm install && cd ..
 fi
 
 if [ ! -d "client/node_modules" ]; then
     echo "Installing frontend dependencies..."
-    cd client && npm install --silent && cd ..
+    cd client && npm install && cd ..
 fi
 
-echo "Starting servers..."
-
-# Function to handle cleanup
+# Cleanup function
 cleanup() {
     echo ""
     echo "Shutting down..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    [ ! -z "$BACKEND_PID" ] && kill $BACKEND_PID 2>/dev/null || true
+    [ ! -z "$FRONTEND_PID" ] && kill $FRONTEND_PID 2>/dev/null || true
     echo "Stopped."
     exit 0
 }
@@ -59,43 +68,41 @@ cleanup() {
 # Trap SIGTERM and SIGINT
 trap cleanup SIGTERM SIGINT
 
-# Start backend with hot reload (suppress npm output)
+
+# Start backend
 cd server
-npm run dev 2>&1 | grep -v "^>" | grep -v "^$" &
+npm run dev &
 BACKEND_PID=$!
 cd ..
-
 sleep 2
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "[error] Backend failed to start"
+    echo -e "${RED}ERROR: Backend failed to start${NC}"
     exit 1
 fi
+echo -e "${GREEN}✓${NC} Backend started (PID: $BACKEND_PID)"
 
-# Start frontend with hot reload (suppress verbose output)
+
+# Start frontend
 cd client
-npm run build 2>&1 | tail -3
-npm run dev 2>&1 | grep -v "^>" | grep -v "^$" &
+npm run build
+npm run dev &
 FRONTEND_PID=$!
 cd ..
-
 sleep 2
 if ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    echo "[error] Frontend failed to start"
+    echo -e "${RED}ERROR: Frontend failed to start${NC}"
     kill $BACKEND_PID 2>/dev/null || true
     exit 1
 fi
 
+echo -e "${GREEN}✓${NC} Frontend started (PID: $FRONTEND_PID)"
 echo ""
-echo "╭──────────────────────────────────────────╮"
-echo "│  ✓ Servers Ready                         │"
-echo "│                                          │"
-echo "│  Frontend:  http://localhost:5173        │"
-echo "│  Backend:   http://localhost:${PORT:-3500}/api    │"
-echo "│                                          │"
-echo "│  Default:   admin / admin123             │"
-echo "│  Press Ctrl+C to stop                    │"
-echo "╰──────────────────────────────────────────╯"
+echo -e "${GREEN}Servers running:${NC}"
+echo "  Frontend: http://localhost:5173"
+echo "  Backend:  http://localhost:${PORT:-3500}"
 echo ""
+
+
 
 # Wait for either process to exit
 wait -n $BACKEND_PID $FRONTEND_PID
@@ -104,9 +111,9 @@ wait -n $BACKEND_PID $FRONTEND_PID
 EXIT_CODE=$?
 
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "[error] Backend exited unexpectedly"
+    echo -e "${RED}ERROR: Backend exited unexpectedly${NC}"
 elif ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    echo "[error] Frontend exited unexpectedly"
+    echo -e "${RED}ERROR: Frontend exited unexpectedly${NC}"
 fi
 
 cleanup

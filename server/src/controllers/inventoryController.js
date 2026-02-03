@@ -14,7 +14,7 @@ export const getAllInventory = async (req, res, next) => {
       JOIN components c ON i.component_id = c.id
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-      ORDER BY i.created_at DESC
+      ORDER BY i.id DESC
     `);
 
     res.json(result.rows);
@@ -75,16 +75,15 @@ export const createInventory = async (req, res, next) => {
       quantity,
       minimum_quantity,
       last_counted,
-      notes,
     } = req.body;
 
     const result = await pool.query(`
       INSERT INTO inventory (
         component_id, location, quantity, minimum_quantity,
-        last_counted, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        last_counted
+      ) VALUES ($1, $2, $3, $4, $5)
       RETURNING *
-    `, [component_id, location, quantity, minimum_quantity, last_counted, notes]);
+    `, [component_id, location, quantity, minimum_quantity, last_counted]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -100,7 +99,6 @@ export const updateInventory = async (req, res, next) => {
       quantity,
       minimum_quantity,
       last_counted,
-      notes,
     } = req.body;
 
     // First, get the old values and component info for activity logging
@@ -129,11 +127,10 @@ export const updateInventory = async (req, res, next) => {
         quantity = COALESCE($2, quantity),
         minimum_quantity = COALESCE($3, minimum_quantity),
         last_counted = COALESCE($4, last_counted),
-        notes = COALESCE($5, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $5
       RETURNING *
-    `, [location, quantity, minimum_quantity, last_counted, notes, id]);
+    `, [location, quantity, minimum_quantity, last_counted, id]);
 
     const updatedItem = result.rows[0];
 
@@ -288,13 +285,12 @@ export const getAlternativeInventory = async (req, res, next) => {
         ia.location,
         ia.quantity,
         ia.min_quantity as minimum_quantity,
-        ia.notes,
         COALESCE(ia.id, NULL) as inventory_id
       FROM components_alternative ca
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
       LEFT JOIN inventory_alternative ia ON ca.id = ia.alternative_id
       WHERE ca.part_number = $1
-      ORDER BY ca.created_at ASC
+      ORDER BY ca.id ASC
     `, [partNumber]);
 
     res.json(result.rows);
@@ -307,7 +303,7 @@ export const getAlternativeInventory = async (req, res, next) => {
 export const updateAlternativeInventory = async (req, res, next) => {
   try {
     const { altId } = req.params;
-    const { location, quantity, min_quantity, notes } = req.body;
+    const { location, quantity, min_quantity } = req.body;
 
     // Check if inventory record exists
     const checkResult = await pool.query(
@@ -324,18 +320,17 @@ export const updateAlternativeInventory = async (req, res, next) => {
           location = COALESCE($1, location),
           quantity = COALESCE($2, quantity),
           min_quantity = COALESCE($3, min_quantity),
-          notes = COALESCE($4, notes),
           updated_at = CURRENT_TIMESTAMP
-        WHERE alternative_id = $5
+        WHERE alternative_id = $4
         RETURNING *
-      `, [location, quantity, min_quantity, notes, altId]);
+      `, [location, quantity, min_quantity, altId]);
     } else {
       // Insert new record
       result = await pool.query(`
-        INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity, notes)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
-      `, [altId, location || '', quantity || 0, min_quantity || 0, notes || '']);
+      `, [altId, location || '', quantity || 0, min_quantity || 0]);
     }
 
     res.json(result.rows[0]);
