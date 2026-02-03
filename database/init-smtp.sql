@@ -4,7 +4,7 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS smtp_settings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT uuidv7(),
   host VARCHAR(255) NOT NULL,
   port INTEGER NOT NULL DEFAULT 587,
   secure BOOLEAN DEFAULT false,
@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
   from_address VARCHAR(255) NOT NULL,
   from_name VARCHAR(100) DEFAULT 'IC Library System',
   enabled BOOLEAN DEFAULT false,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER REFERENCES users(id)
 );

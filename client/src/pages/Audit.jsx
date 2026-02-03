@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Search, Download, Filter, Package, Edit, Trash2, TrendingUp, Minus, MapPin, Calendar, ChevronDown, ChevronRight, Shield, CheckCircle, XCircle } from 'lucide-react';
@@ -502,9 +502,8 @@ const Audit = () => {
                     const hasDetails = item.details && Object.keys(item.details).length > 0;
 
                     return (
-                      <>
+                      <Fragment key={item.id}>
                         <tr 
-                          key={item.id} 
                           className={`border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${hasDetails ? 'cursor-pointer' : ''}`}
                           onClick={() => hasDetails && toggleRowExpansion(item.id)}
                         >
@@ -536,7 +535,7 @@ const Audit = () => {
                           </td>
                         </tr>
                         {isExpanded && hasDetails && (
-                          <tr key={`${item.id}-expanded`} className="bg-gray-50 dark:bg-[#252525]">
+                          <tr className="bg-gray-50 dark:bg-[#252525]">
                             <td colSpan={5} className="px-6 py-4">
                               <div className="text-sm">
                                 <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Change Details</h4>
@@ -545,7 +544,7 @@ const Audit = () => {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

@@ -5,17 +5,21 @@
 
 set -e
 
-echo ""
-echo "╭────────────────────────────────────╮"
-echo "│     IC Lib - Production Mode          │"
-echo "╰────────────────────────────────────╯"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Function to handle shutdown gracefully
+echo "IC Lib - Starting Services..."
+echo ""
+
+
+# Cleanup handler
 cleanup() {
-    echo ""
     echo "Shutting down..."
-    kill $BACKEND_PID $NGINX_PID 2>/dev/null || true
-    wait $BACKEND_PID $NGINX_PID 2>/dev/null || true
+    kill $BACKEND_PID 2>/dev/null || true
+    kill $NGINX_PID 2>/dev/null || true
+    wait $BACKEND_PID 2>/dev/null || true
+    wait $NGINX_PID 2>/dev/null || true
     echo "Stopped."
     exit 0
 }
@@ -23,22 +27,16 @@ cleanup() {
 # Trap SIGTERM and SIGINT
 trap cleanup SIGTERM SIGINT
 
-# Check required environment variables
+# Validate environment
 if [ -z "$DB_HOST" ]; then
-    echo "[error] DB_HOST not set. Set DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME"
+    echo "ERROR: DB_HOST not set"
     exit 1
 fi
 
-echo ""
-echo "Config: ${DB_HOST}:${DB_PORT}/${DB_NAME} | Backend: ${PORT} | Frontend: :80"
-
-# Wait for database to be ready
-echo "Connecting to database..."
+# Test for database
+cd /app/server
 MAX_RETRIES=30
 RETRY_COUNT=0
-
-cd /app/server
-
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     if node -e "
         import pg from 'pg';
@@ -66,52 +64,53 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     sleep 2
 done
 
-echo "Starting services..."
 
-# Start nginx in background
+
+# Start nginx
 nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
 NGINX_PID=$!
-
 sleep 2
+
 if ! kill -0 $NGINX_PID 2>/dev/null; then
-    echo "[error] Nginx failed to start"
+    echo "ERROR: nginx failed to start"
     exit 1
 fi
 
-echo "[info] [Nginx] Started (PID: $NGINX_PID)"
-
 # Start backend
-echo "[info] [Backend] Starting Express.js backend..."
 cd /app/server
 node src/index.js 2>&1 | sed 's/^/[backend] /' &
 BACKEND_PID=$!
-
 sleep 2
+
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "[error] Backend failed to start"
+    echo "ERROR: Backend failed to start"
     kill $NGINX_PID 2>/dev/null || true
     exit 1
 fi
 
-echo ""
-echo "╭────────────────────────────────────╮"
-echo "│  ✓ Services Ready                  │"
-echo "│                                    │"
-echo "│  Frontend:  http://localhost       │"
-echo "│  Backend:   http://localhost:3500  │"
-echo "│                                    │"
-echo "│  Default:   admin / admin123       │"
-echo "╰────────────────────────────────────╯"
-echo ""
+
+
+echo -e ""
+echo -e ""
+echo -e "${GREEN}✓${NC} nginx started (PID: $NGINX_PID)"
+echo -e "${GREEN}✓${NC} Backend started (PID: $BACKEND_PID)"
+echo -e "${GREEN}✓${NC} Services Running"
+echo -e "  ${GREEN}Database:${NC}      ${DB_HOST}:${DB_PORT:-5432}/${DB_NAME:-emd}"
+echo -e "  ${GREEN}Backend:${NC}       ${BASE_DOMAIN}${BASE_URL}/api"
+echo -e "  ${GREEN}Frontend:${NC}      ${BASE_DOMAIN}${BASE_URL}"
+echo -e "  ${GREEN}Default Login:${NC} admin/admin123"
+echo -e ""
 
 # Wait for either process to exit
 wait -n $BACKEND_PID $NGINX_PID
+
+# If we get here, one of the processes exited
 EXIT_CODE=$?
 
-if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "[error] Backend exited unexpectedly"
-elif ! kill -0 $NGINX_PID 2>/dev/null; then
-    echo "[error] Nginx exited unexpectedly"
+if ! kill -0 $NGINX_PID 2>/dev/null; then
+    echo "ERROR: nginx exited unexpectedly"
+elif ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "ERROR: Backend exited unexpectedly"
 fi
 
 cleanup

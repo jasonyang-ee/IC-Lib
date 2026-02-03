@@ -136,13 +136,15 @@ async function startServer() {
   try {
     // Print ASCII banner
     console.log('');
-    console.log('\x1b[33m ,---.   ,-----. ,--.   ,--. ,-----.  \x1b[0m');
-    console.log('\x1b[33m|  .-\'  /  .--./  |  |   |  ||  |) /_ \x1b[0m');
-    console.log('\x1b[33m|  `-,  |  |      |  |   |  ||  .-.  \\\x1b[0m');
-    console.log('\x1b[33m|  .-\'  \'  \'--\'\\  |  \'--.|  ||  \'--\' /\x1b[0m');
-    console.log('\x1b[33m`--\'     `-----\'  `-----\'`--\'`------\' \x1b[0m');
+    console.log('\x1b[33m    ,--. ,-----.    ,--.   ,--.,------.\x1b[0m');
+    console.log('\x1b[33m    |  |\'  .--./    |  |   |  ||  | ) /\x1b[0m');
+    console.log('\x1b[33m    |  ||  |        |  |   |  ||  .-. `\\\x1b[0m');
+    console.log('\x1b[33m    |  |\'  \'--\'\\    |  \'--.|  ||  \'--\' /\x1b[0m');
+    console.log('\x1b[33m    `--\' `-----\'    `-----\'`--\'`------\'\x1b[0m');
     console.log('\x1b[36m        IC Component Library Manager\x1b[0m');
     console.log('');
+
+
 
     // Initialize authentication (check/create users table)
     await initializeAuthentication();

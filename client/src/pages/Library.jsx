@@ -31,6 +31,7 @@ const Library = () => {
   const [ecoDeleteConfirmation, setEcoDeleteConfirmation] = useState({ show: false });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
+  const [categoryChangeConfirmation, setCategoryChangeConfirmation] = useState({ show: false, newCategoryId: null, newCategoryName: '' });
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
   const [copiedText, setCopiedText] = useState('');
@@ -1133,6 +1134,10 @@ const Library = () => {
         await api.updateComponentDistributors(selectedComponent.id, { distributors: validDistributors });
         
         // Update stock and pricing info from vendor APIs for all distributors with SKUs
+        // NOTE: This is a separate API call from handleEdit's searchAllVendors because:
+        // 1. handleEdit fetches specs/details for ONE distributor (reference display)
+        // 2. updateComponentStock fetches stock/pricing for ALL distributors
+        // 3. Stock data should be fresh at save time, not stale from edit time
         let _stockUpdateMessage = '';
         try {
           const distributorsWithSku = validDistributors.filter(d => d.sku?.trim());
@@ -1819,6 +1824,89 @@ const Library = () => {
         // Continue without templates if error occurs
         handleFieldChange('specifications', []);
       }
+    }
+  };
+
+  // Handle category change in edit mode (with confirmation and part number regeneration)
+  const handleEditModeCategoryChange = async (newCategoryId) => {
+    // Compare as strings to avoid type mismatch
+    if (!newCategoryId || String(newCategoryId) === String(editData.category_id)) return;
+    
+    const newCategory = categories?.find(cat => String(cat.id) === String(newCategoryId));
+    if (!newCategory) return;
+    
+    // Show confirmation modal
+    setCategoryChangeConfirmation({
+      show: true,
+      newCategoryId: newCategoryId,
+      newCategoryName: newCategory.name
+    });
+  };
+
+  // Execute category change after user confirms
+  const confirmCategoryChange = async () => {
+    const { newCategoryId, newCategoryName } = categoryChangeConfirmation;
+    setCategoryChangeConfirmation({ show: false, newCategoryId: null, newCategoryName: '' });
+    
+    try {
+      // Call API to change category and get new part number
+      const response = await api.changeComponentCategory(selectedComponent.id, newCategoryId);
+      
+      if (response.data.success) {
+        // Update editData with new category and part number
+        handleFieldChange('category_id', newCategoryId);
+        handleFieldChange('part_number', response.data.new_part_number);
+        
+        // Clear sub-categories since they are category-specific
+        handleFieldChange('sub_category1', '');
+        handleFieldChange('sub_category2', '');
+        handleFieldChange('sub_category3', '');
+        handleFieldChange('sub_category4', '');
+        
+        // Load new category's sub-category suggestions
+        const sub1 = await api.getSubCategorySuggestions(newCategoryId, 1);
+        setSubCat1Suggestions(sub1.data || []);
+        setSubCat2Suggestions([]);
+        setSubCat3Suggestions([]);
+        setSubCat4Suggestions([]);
+        
+        // Load package, footprint, symbol suggestions for new category
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+          api.getFieldSuggestions(newCategoryId, 'package_size'),
+          api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
+          api.getFieldSuggestions(newCategoryId, 'schematic'),
+          api.getFieldSuggestions(newCategoryId, 'step_model'),
+          api.getFieldSuggestions(newCategoryId, 'pspice')
+        ]);
+        setPackageSuggestions(packageResp.data || []);
+        setFootprintSuggestions(footprintResp.data || []);
+        setSymbolSuggestions(symbolResp.data || []);
+        setStepModelSuggestions(stepResp.data || []);
+        setPspiceSuggestions(pspiceResp.data || []);
+        
+        // Load new category's specifications
+        const specsResponse = await api.getCategorySpecifications(newCategoryId);
+        const categorySpecs = specsResponse.data || [];
+        const newSpecs = categorySpecs.map(spec => ({
+          category_spec_id: spec.id,
+          spec_name: spec.spec_name,
+          spec_value: '',
+          unit: spec.unit || '',
+          mapping_spec_names: spec.mapping_spec_names || [],
+          is_required: spec.is_required,
+          display_order: spec.display_order
+        }));
+        handleFieldChange('specifications', newSpecs);
+        
+        showSuccess(`Category changed to ${newCategoryName}. New part number: ${response.data.new_part_number}`);
+        
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries(['components']);
+        queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+      }
+    } catch (error) {
+      console.error('Error changing category:', error);
+      showError(error.response?.data?.error || 'Failed to change category');
     }
   };
 
@@ -3033,12 +3121,12 @@ const Library = () => {
                   <div>
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Part Type <span className="text-red-500">*</span>
+                      {isEditMode && <span className="text-xs text-gray-500 ml-1">(changes part number)</span>}
                     </label>
                     <select
                       value={editData.category_id || ''}
-                      onChange={(e) => isAddMode ? handleCategoryChange(e.target.value) : handleFieldChange('category_id', e.target.value)}
-					  disabled={isEditMode}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#2a2a2a] disabled:cursor-not-allowed"
+                      onChange={(e) => isAddMode ? handleCategoryChange(e.target.value) : handleEditModeCategoryChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
                     >
                       <option value="">Select type</option>
                       {categories?.map((cat) => (
@@ -4704,6 +4792,61 @@ const Library = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
                 </svg>
                 Promote
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Change Confirmation Modal */}
+      {categoryChangeConfirmation.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
+            {/* Icon */}
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
+              Change Category
+            </h3>
+            
+            {/* Warning Message */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-4 mb-6 border border-yellow-200 dark:border-yellow-800">
+              <p className="text-sm text-yellow-900 dark:text-yellow-100 mb-2">
+                <strong>This action will:</strong>
+              </p>
+              <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-disc list-inside">
+                <li>Change category to <strong>{categoryChangeConfirmation.newCategoryName}</strong></li>
+                <li>Generate a new part number with the new category prefix</li>
+                <li>Clear all sub-categories (they are category-specific)</li>
+                <li>Reset specifications to the new category&apos;s template</li>
+              </ul>
+            </div>
+            
+            {/* Current Part Number Display */}
+            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">Current Part Number</p>
+              <p className="text-lg font-mono font-semibold text-gray-900 dark:text-gray-100">
+                {editData.part_number}
+              </p>
+            </div>
+            
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCategoryChangeConfirmation({ show: false, newCategoryId: null, newCategoryName: '' })}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCategoryChange}
+                className="flex-1 px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Change Category
               </button>
             </div>
           </div>

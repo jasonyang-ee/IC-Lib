@@ -224,6 +224,145 @@ export const createComponent = async (req, res, next) => {
   }
 };
 
+/**
+ * Change component category and update part number
+ * Generates a new part number based on the new category's prefix
+ * Handles collision detection automatically
+ */
+export const changeComponentCategory = async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { new_category_id } = req.body;
+
+    if (!new_category_id) {
+      return res.status(400).json({ error: 'new_category_id is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Get current component info
+    const componentResult = await client.query(
+      'SELECT id, part_number, category_id FROM components WHERE id = $1',
+      [id]
+    );
+
+    if (componentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Component not found' });
+    }
+
+    const currentComponent = componentResult.rows[0];
+    const oldPartNumber = currentComponent.part_number;
+    const oldCategoryId = currentComponent.category_id;
+
+    // Check if category is actually changing
+    if (oldCategoryId === new_category_id) {
+      await client.query('ROLLBACK');
+      return res.json({ 
+        success: true, 
+        message: 'Category unchanged',
+        part_number: oldPartNumber 
+      });
+    }
+
+    // Get new category prefix and leading_zeros
+    const categoryResult = await client.query(
+      'SELECT id, name, prefix, leading_zeros FROM component_categories WHERE id = $1',
+      [new_category_id]
+    );
+
+    if (categoryResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'New category not found' });
+    }
+
+    const { prefix, leading_zeros = 5, name: categoryName } = categoryResult.rows[0];
+
+    // Find the next available part number for this prefix
+    const maxResult = await client.query(`
+      SELECT MAX(
+        CAST(
+          SUBSTRING(part_number FROM '^${prefix}-(\\d+)$')
+          AS INTEGER
+        )
+      ) as max_number
+      FROM components
+      WHERE part_number ~ '^${prefix}-\\d+$'
+    `);
+
+    const maxNumber = maxResult.rows[0].max_number || 0;
+    const nextNumber = maxNumber + 1;
+    const newPartNumber = `${prefix}-${String(nextNumber).padStart(leading_zeros, '0')}`;
+
+    console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Changing category for ${oldPartNumber}: ${oldCategoryId} -> ${new_category_id}`);
+    console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m New part number: ${newPartNumber}`);
+
+    // Update component with new category and part number
+    // Also clear sub-categories since they may not be valid for new category
+    await client.query(`
+      UPDATE components SET
+        category_id = $1,
+        part_number = $2,
+        sub_category1 = NULL,
+        sub_category2 = NULL,
+        sub_category3 = NULL,
+        sub_category4 = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [new_category_id, newPartNumber, id]);
+
+    // Log activity
+    await client.query(`
+      INSERT INTO activity_log (component_id, part_number, activity_type, details)
+      VALUES ($1, $2, 'category_changed', $3)
+    `, [
+      id, 
+      newPartNumber, 
+      JSON.stringify({
+        old_part_number: oldPartNumber,
+        new_part_number: newPartNumber,
+        old_category_id: oldCategoryId,
+        new_category_id: new_category_id,
+        new_category_name: categoryName
+      })
+    ]);
+
+    await client.query('COMMIT');
+
+    // Fetch updated component
+    const fullComponent = await pool.query(`
+      SELECT 
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.id = $1
+    `, [id]);
+
+    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Category changed: ${oldPartNumber} -> ${newPartNumber}`);
+
+    res.json({
+      success: true,
+      old_part_number: oldPartNumber,
+      new_part_number: newPartNumber,
+      component: fullComponent.rows[0]
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error changing category: ${error.message}`);
+    next(error);
+  } finally {
+    client.release();
+  }
+};
+
 export const updateComponent = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1275,7 +1414,10 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
     const { limit } = req.query;
     const maxLimit = limit ? parseInt(limit) : null;
 
-    // Get all components that have distributor SKUs
+    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Starting bulk specification update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
+
+    // Get all components that have distributor SKUs but NO specifications yet
+    // Skip components that already have at least one specification value
     let query = `
       SELECT DISTINCT
         c.id as component_id,
@@ -1289,6 +1431,10 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       WHERE di.sku IS NOT NULL
       AND di.sku != ''
       AND c.category_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM component_specification_values csv 
+        WHERE csv.component_id = c.id
+      )
       ORDER BY c.part_number
     `;
 
@@ -1297,21 +1443,30 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
     }
 
     const componentsResult = await pool.query(query);
+    const totalComponents = componentsResult.rows.length;
+    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Found ${totalComponents} components without specifications to process`);
 
     let updatedCount = 0;
     let skippedCount = 0;
     const errors = [];
 
     // Update each component
-    for (const comp of componentsResult.rows) {
+    for (let i = 0; i < componentsResult.rows.length; i++) {
+      const comp = componentsResult.rows[i];
+      const progress = Math.round(((i + 1) / totalComponents) * 100);
+      
       try {
+        console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m [${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number}`);
+        
         let vendorData = null;
 
         // Fetch from appropriate vendor
         if (comp.distributor_name.toLowerCase() === 'digikey') {
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Searching Digikey for: ${comp.sku}`);
           const result = await digikeyService.searchPart(comp.sku);
           vendorData = result.results?.[0];
         } else if (comp.distributor_name.toLowerCase() === 'mouser') {
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Searching Mouser for: ${comp.sku}`);
           const result = await mouserService.searchPart(comp.sku);
           vendorData = result.results?.[0];
         }
@@ -1388,11 +1543,14 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
           if (specsUpdated) {
             updatedCount++;
+            console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Updated specifications for ${comp.part_number}`);
           } else {
             skippedCount++;
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   No spec mappings matched for ${comp.part_number}`);
           }
         } else {
           skippedCount++;
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   No vendor data found for ${comp.part_number}`);
         }
 
         // Add delay to avoid rate limiting (Digikey: 1000 calls/day = ~40/hour = 1.5s per call safe)
@@ -1401,6 +1559,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       } catch (error) {
         // Check for rate limit error
         if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
           return res.status(429).json({
             success: false,
             error: 'RATE_LIMIT_EXCEEDED',
@@ -1411,6 +1570,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           });
         }
         
+        console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Error processing ${comp.part_number}: ${error.message}`);
         errors.push({
           partNumber: comp.part_number,
           sku: comp.sku,
@@ -1420,6 +1580,8 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
         skippedCount++;
       }
     }
+
+    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,
@@ -1442,7 +1604,10 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     const { limit } = req.query;
     const maxLimit = limit ? parseInt(limit) : null;
 
-    // Get all components with manufacturer part numbers
+    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Starting bulk distributor update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
+
+    // Get all components with manufacturer part numbers that DON'T already have distributor info
+    // Skip components that already have at least one distributor entry
     let query = `
       SELECT 
         c.id as component_id,
@@ -1453,6 +1618,12 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
       WHERE c.manufacturer_pn IS NOT NULL
       AND c.manufacturer_pn != ''
+      AND NOT EXISTS (
+        SELECT 1 FROM distributor_info di 
+        WHERE di.component_id = c.id 
+        AND di.sku IS NOT NULL 
+        AND di.sku != ''
+      )
       ORDER BY c.part_number
     `;
 
@@ -1461,6 +1632,8 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     }
 
     const componentsResult = await pool.query(query);
+    const totalComponents = componentsResult.rows.length;
+    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Found ${totalComponents} components to process`);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -1476,13 +1649,19 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     });
 
     // Update each component
-    for (const comp of componentsResult.rows) {
+    for (let i = 0; i < componentsResult.rows.length; i++) {
+      const comp = componentsResult.rows[i];
+      const progress = Math.round(((i + 1) / totalComponents) * 100);
+      
       try {
+        console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m [${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number} (${comp.manufacturer_pn})`);
+        
         // Search all vendors for this manufacturer part number
         const allResults = [];
 
         // Search Digikey
         try {
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Searching Digikey for: ${comp.manufacturer_pn}`);
           const digikeyResult = await digikeyService.searchPart(comp.manufacturer_pn);
           if (digikeyResult.results && digikeyResult.results.length > 0) {
             // Filter for exact manufacturer part number match
@@ -1490,6 +1669,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: ${digikeyResult.results.length} results, ${exactMatches.length} exact matches`);
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'digikey',
@@ -1499,17 +1679,23 @@ export const bulkUpdateDistributors = async (req, res, next) => {
                 stock: result.stock || 0,
               });
             });
+          } else if (digikeyResult.error) {
+            console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey API error: ${digikeyResult.error}`);
+          } else {
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: No results found`);
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation
           if (error.message === 'RATE_LIMIT_EXCEEDED') {
+            console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
             throw error;
           }
-          console.log(`Digikey search failed for ${comp.manufacturer_pn}:`, error.message);
+          console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey search failed: ${error.message}`);
         }
 
         // Search Mouser
         try {
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Searching Mouser for: ${comp.manufacturer_pn}`);
           const mouserResult = await mouserService.searchPart(comp.manufacturer_pn);
           if (mouserResult.results && mouserResult.results.length > 0) {
             // Filter for exact manufacturer part number match
@@ -1517,6 +1703,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: ${mouserResult.results.length} results, ${exactMatches.length} exact matches`);
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'mouser',
@@ -1526,19 +1713,25 @@ export const bulkUpdateDistributors = async (req, res, next) => {
                 stock: result.stock || 0,
               });
             });
+          } else if (mouserResult.error) {
+            console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser API error: ${mouserResult.error}`);
+          } else {
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: No results found`);
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation
           if (error.message === 'RATE_LIMIT_EXCEEDED') {
+            console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
             throw error;
           }
-          console.log(`Mouser search failed for ${comp.manufacturer_pn}:`, error.message);
+          console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser search failed: ${error.message}`);
         }
 
         // If we have results, pick the best one per distributor (lowest MOQ)
         if (allResults.length > 0) {
+          console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Found ${allResults.length} distributor entries for ${comp.part_number}`);
           // Group by source
-          const bySource = {};
+          const bySource = {};;
           allResults.forEach(result => {
             if (!bySource[result.source]) {
               bySource[result.source] = [];
@@ -1581,11 +1774,14 @@ export const bulkUpdateDistributors = async (req, res, next) => {
 
           if (distributorsUpdated) {
             updatedCount++;
+            console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Updated distributors for ${comp.part_number}`);
           } else {
             skippedCount++;
+            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   No distributor updates for ${comp.part_number}`);
           }
         } else {
           skippedCount++;
+          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   No vendor matches found for ${comp.part_number}`);
         }
 
         // Add delay to avoid rate limiting (Mouser: ~30 calls/min)
@@ -1594,6 +1790,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       } catch (error) {
         // Check for rate limit error
         if (error.message === 'RATE_LIMIT_EXCEEDED') {
+          console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
           return res.status(429).json({
             success: false,
             error: 'RATE_LIMIT_EXCEEDED',
@@ -1604,6 +1801,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
           });
         }
         
+        console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Error processing ${comp.part_number}: ${error.message}`);
         errors.push({
           partNumber: comp.part_number,
           manufacturerPn: comp.manufacturer_pn,
@@ -1612,6 +1810,8 @@ export const bulkUpdateDistributors = async (req, res, next) => {
         skippedCount++;
       }
     }
+
+    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,

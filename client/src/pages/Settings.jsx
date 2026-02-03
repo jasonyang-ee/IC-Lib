@@ -1212,8 +1212,6 @@ const Settings = () => {
   const [isUpdatingSpecs, setIsUpdatingSpecs] = useState(false);
   const [isUpdatingDistributors, setIsUpdatingDistributors] = useState(false);
   const [stockProgress, setStockProgress] = useState(0);
-  const [specsProgress, setSpecsProgress] = useState(0);
-  const [distributorsProgress, setDistributorsProgress] = useState(0);
   const [updateToast, setUpdateToast] = useState({ show: false, message: '', type: 'success' });
   const [bulkUpdateStockConfirm, setBulkUpdateStockConfirm] = useState(false);
   const [bulkUpdateSpecsConfirm, setBulkUpdateSpecsConfirm] = useState(false);
@@ -1496,21 +1494,10 @@ const Settings = () => {
   const handleBulkUpdateSpecifications = async () => {
     setBulkUpdateSpecsConfirm(false);
     setIsUpdatingSpecs(true);
-    setSpecsProgress(0);
-    setUpdateToast({ show: true, message: 'Starting bulk specification update...', type: 'info' });
-    
-    // Simulate progress animation
-    const progressInterval = setInterval(() => {
-      setSpecsProgress(prev => {
-        if (prev >= 90) return 90; // Cap at 90% until complete
-        return prev + Math.random() * 3;
-      });
-    }, 2000);
+    setUpdateToast({ show: true, message: 'Starting bulk specification update... (only parts without specs)', type: 'info' });
     
     try {
       const result = await api.bulkUpdateSpecifications();
-      clearInterval(progressInterval);
-      setSpecsProgress(100);
       setUpdateToast({ 
         show: true, 
         message: `Specification update complete: ${result.data.updatedCount} parts updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
@@ -1524,11 +1511,8 @@ const Settings = () => {
       // Hide toast after 5 seconds
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
-        setSpecsProgress(0);
       }, 5000);
     } catch (error) {
-      clearInterval(progressInterval);
-      setSpecsProgress(0);
       console.error('Error updating specifications:', error);
       
       // Check for rate limit error
@@ -1558,21 +1542,10 @@ const Settings = () => {
   const handleBulkUpdateDistributors = async () => {
     setBulkUpdateDistributorsConfirm(false);
     setIsUpdatingDistributors(true);
-    setDistributorsProgress(0);
-    setUpdateToast({ show: true, message: 'Starting bulk distributor update...', type: 'info' });
-    
-    // Simulate progress animation
-    const progressInterval = setInterval(() => {
-      setDistributorsProgress(prev => {
-        if (prev >= 90) return 90; // Cap at 90% until complete
-        return prev + Math.random() * 3;
-      });
-    }, 2000);
+    setUpdateToast({ show: true, message: 'Starting bulk distributor update... (only parts without distributors)', type: 'info' });
     
     try {
       const result = await api.bulkUpdateDistributors();
-      clearInterval(progressInterval);
-      setDistributorsProgress(100);
       setUpdateToast({ 
         show: true, 
         message: `Distributor update complete: ${result.data.updatedCount} distributors updated, ${result.data.skippedCount} skipped, ${result.data.errors?.length || 0} errors`, 
@@ -1586,11 +1559,8 @@ const Settings = () => {
       // Hide toast after 5 seconds
       setTimeout(() => {
         setUpdateToast({ show: false, message: '', type: 'success' });
-        setDistributorsProgress(0);
       }, 5000);
     } catch (error) {
-      clearInterval(progressInterval);
-      setDistributorsProgress(0);
       console.error('Error updating distributors:', error);
       
       // Check for rate limit error
@@ -2279,7 +2249,7 @@ const Settings = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Parts Specifications</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
-              Auto-fill component specifications from distributor data using mapped specification names. Preserves existing values.
+              Auto-fill component specifications from distributor data using mapped specification names. <strong>Only updates parts without any specifications.</strong> Parts with existing specs are skipped.
             </p>
             <button
               onClick={() => setBulkUpdateSpecsConfirm(true)}
@@ -2289,7 +2259,7 @@ const Settings = () => {
               {isUpdatingSpecs ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating... {Math.round(specsProgress)}%
+                  Updating... (check server logs for progress)
                 </>
               ) : (
                 <>
@@ -2307,7 +2277,7 @@ const Settings = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Distributors</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
-              Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches. Operation has 2 seconds delay between parts to avoid API rate limits.
+              Search and update distributor SKUs and URLs by matching manufacturer part numbers. Picks lowest MOQ if multiple matches. <strong>Only updates parts without any distributor info.</strong> Operation has 2 seconds delay between parts to avoid API rate limits.
             </p>
             <button
               onClick={() => setBulkUpdateDistributorsConfirm(true)}
@@ -2317,7 +2287,7 @@ const Settings = () => {
               {isUpdatingDistributors ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Updating... {Math.round(distributorsProgress)}%
+                  Updating... (check server logs for progress)
                 </>
               ) : (
                 <>

@@ -64,4 +64,7 @@ router.post('/:id/approval', authenticate, componentController.updateComponentAp
 // Update stock info for a single component (primary + alternatives)
 router.post('/:id/update-stock', componentController.updateComponentStock);
 
+// Change component category (admin only - regenerates part number)
+router.put('/:id/change-category', authenticate, canWrite, componentController.changeComponentCategory);
+
 export default router;

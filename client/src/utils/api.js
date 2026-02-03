@@ -266,6 +266,9 @@ export const api = {
   bulkUpdateSpecifications: (limit) => apiClient.post('/components/bulk/update-specifications', {}, { params: { limit } }),
   bulkUpdateDistributors: (limit) => apiClient.post('/components/bulk/update-distributors', {}, { params: { limit } }),
   
+  // Category Change (Admin only - regenerates part number)
+  changeComponentCategory: (id, newCategoryId) => apiClient.put(`/components/${id}/change-category`, { new_category_id: newCategoryId }),
+  
   // ECO (Engineer Change Order)
   getECOs: (params) => apiClient.get('/eco', { params }),
   getECOById: (id) => apiClient.get(`/eco/${id}`),

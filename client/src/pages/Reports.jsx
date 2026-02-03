@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { FileText, Download, PieChart, BarChart3 } from 'lucide-react';
+import { useNotification } from '../contexts/NotificationContext';
 
 const Reports = () => {
   const [activeReport, setActiveReport] = useState('component-summary');
+  const { showSuccess, showError } = useNotification();
 
   const reports = [
     { id: 'component-summary', name: 'Component Summary', icon: PieChart },
@@ -208,6 +210,120 @@ const Reports = () => {
     }
   };
 
+  // Export report data to CSV
+  const exportToCSV = () => {
+    if (!reportData || reportData.length === 0) {
+      showError('No data to export');
+      return;
+    }
+
+    try {
+      // Define column headers based on report type
+      let headers = [];
+      let rows = [];
+
+      switch (activeReport) {
+        case 'component-summary':
+          headers = ['Category', 'Total Components', 'With Footprint', 'With Symbol'];
+          rows = reportData.map(row => [
+            row.category,
+            row.total_components,
+            row.with_footprint,
+            row.with_symbol
+          ]);
+          break;
+
+        case 'category-distribution':
+          headers = ['Category', 'Count', 'Percentage'];
+          rows = reportData.map(row => [
+            row.category,
+            row.count,
+            `${row.percentage}%`
+          ]);
+          break;
+
+        case 'inventory-value':
+          headers = ['Category', 'Total Value', 'Total Quantity', 'Unique Components'];
+          rows = reportData.map(row => [
+            row.category,
+            `$${parseFloat(row.total_value || 0).toFixed(2)}`,
+            row.total_quantity || 0,
+            row.unique_components || 0
+          ]);
+          break;
+
+        case 'missing-footprints':
+          headers = ['Part Number', 'MFR Part Number', 'Category', 'Manufacturer'];
+          rows = reportData.map(row => [
+            row.part_number,
+            row.manufacturer_part_number || 'N/A',
+            row.category_name,
+            row.manufacturer_name || 'N/A'
+          ]);
+          break;
+
+        case 'manufacturer':
+          headers = ['Manufacturer', 'Component Count', 'Category Count'];
+          rows = reportData.map(row => [
+            row.manufacturer,
+            row.component_count,
+            row.category_count
+          ]);
+          break;
+
+        case 'low-stock':
+          headers = ['Part Number', 'Category', 'Current Stock', 'Minimum Stock', 'Shortage', 'Location'];
+          rows = reportData.map(row => [
+            row.part_number,
+            row.category,
+            row.current_stock,
+            row.minimum_stock,
+            row.shortage,
+            row.location || 'N/A'
+          ]);
+          break;
+
+        default:
+          showError('Export not supported for this report type');
+          return;
+      }
+
+      // Build CSV content
+      const escapeCSV = (value) => {
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvContent = [
+        headers.map(escapeCSV).join(','),
+        ...rows.map(row => row.map(escapeCSV).join(','))
+      ].join('\n');
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      
+      const reportName = reports.find(r => r.id === activeReport)?.name || 'report';
+      const timestamp = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `${reportName.replace(/\s+/g, '_')}_${timestamp}.csv`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showSuccess(`Exported ${rows.length} rows to CSV`);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      showError('Failed to export CSV');
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
@@ -241,7 +357,11 @@ const Reports = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {reports.find((r) => r.id === activeReport)?.name}
               </h3>
-              <button className="btn-primary flex items-center gap-2">
+              <button 
+                onClick={exportToCSV}
+                disabled={!reportData || reportData.length === 0}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Download className="w-4 h-4" />
                 Export CSV
               </button>
