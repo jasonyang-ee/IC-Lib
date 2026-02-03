@@ -63,8 +63,11 @@ export const authenticate = (req, res, next) => {
       });
     }
 
-    // Attach user info to request
-    req.user = decoded;
+    // Attach user info to request (map userId to id for consistency)
+    req.user = {
+      ...decoded,
+      id: decoded.userId,  // Map userId to id for compatibility
+    };
     next();
   } catch (error) {
     console.error('Authentication error:', error);

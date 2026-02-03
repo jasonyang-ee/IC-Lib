@@ -358,7 +358,81 @@ export const approveECO = async (req, res) => {
       WHERE eco_id = $1 AND field_name NOT IN ('delete_component', '_delete_component')
     `, [id]);
     
-    if (changesResult.rows.length > 0) {
+    // Check if there's a category_id change - needs special handling
+    const categoryChange = changesResult.rows.find(c => c.field_name === 'category_id');
+    let newPartNumber = null;
+    
+    if (categoryChange) {
+      // Get the new category's prefix
+      const categoryResult = await client.query(
+        'SELECT prefix FROM component_categories WHERE id = $1',
+        [categoryChange.new_value]
+      );
+      
+      if (categoryResult.rows.length > 0) {
+        const newPrefix = categoryResult.rows[0].prefix;
+        
+        // Get the next sequence number for this prefix
+        const seqResult = await client.query(`
+          SELECT MAX(CAST(SUBSTRING(part_number FROM LENGTH($1) + 2) AS INTEGER)) as max_seq
+          FROM components
+          WHERE part_number LIKE $1 || '-%'
+        `, [newPrefix]);
+        
+        const nextSeq = (seqResult.rows[0].max_seq || 0) + 1;
+        newPartNumber = `${newPrefix}-${String(nextSeq).padStart(5, '0')}`;
+        
+        // Update the component with new category, new part_number, and clear sub-categories
+        // MUST be done BEFORE updating alternatives (FK constraint requires part_number to exist)
+        const otherChanges = changesResult.rows.filter(c => 
+          c.field_name !== 'category_id' && 
+          !c.field_name.startsWith('sub_category')
+        );
+        
+        const updateFields = [
+          'category_id = $1',
+          'part_number = $2',
+          'sub_category1 = NULL',
+          'sub_category2 = NULL',
+          'sub_category3 = NULL',
+          'sub_category4 = NULL',
+        ];
+        const updateValues = [categoryChange.new_value, newPartNumber];
+        let paramIndex = 3;
+        
+        // Add other non-category changes
+        for (const change of otherChanges) {
+          if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) {
+            console.error(`Skipping invalid field name in ECO: ${change.field_name}`);
+            continue;
+          }
+          updateFields.push(`${change.field_name} = $${paramIndex}`);
+          updateValues.push(change.new_value);
+          paramIndex++;
+        }
+        
+        updateValues.push(eco.component_id);
+        await client.query(`
+          UPDATE components 
+          SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $${paramIndex}
+        `, updateValues);
+        
+        // Now update alternatives to reference the new part_number (component already has new part_number)
+        await client.query(`
+          UPDATE components_alternative
+          SET part_number = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE part_number = $2
+        `, [newPartNumber, eco.part_number]);
+        
+        // Clear specifications for this component (new category may have different specs)
+        await client.query(
+          'DELETE FROM component_specification_values WHERE component_id = $1',
+          [eco.component_id]
+        );
+      }
+    } else if (changesResult.rows.length > 0) {
+      // Normal update without category change
       const updateFields = [];
       const updateValues = [];
       let paramIndex = 1;
@@ -468,13 +542,15 @@ export const approveECO = async (req, res) => {
     }
     
     // Apply alternative parts changes
+    // Use the new part_number if a category change occurred, otherwise use the ECO's part_number
+    const partNumberForAlternatives = newPartNumber || eco.part_number;
     const alternativesResult = await client.query('SELECT * FROM eco_alternative_parts WHERE eco_id = $1', [id]);
     for (const alt of alternativesResult.rows) {
       if (alt.action === 'add') {
         await client.query(`
           INSERT INTO components_alternative (part_number, manufacturer_id, manufacturer_pn)
           VALUES ($1, $2, $3)
-        `, [eco.part_number, alt.manufacturer_id, alt.manufacturer_pn]);
+        `, [partNumberForAlternatives, alt.manufacturer_id, alt.manufacturer_pn]);
       } else if (alt.action === 'update') {
         await client.query(`
           UPDATE components_alternative
@@ -486,15 +562,17 @@ export const approveECO = async (req, res) => {
       }
     }
     
-    // Apply specification changes
-    const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
-    for (const spec of specificationsResult.rows) {
-      await client.query(`
-        INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (component_id, category_spec_id)
-        DO UPDATE SET spec_value = $3, updated_at = CURRENT_TIMESTAMP
-      `, [eco.component_id, spec.category_spec_id, spec.new_value]);
+    // Apply specification changes (skip if category changed - specs were already cleared)
+    if (!categoryChange) {
+      const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
+      for (const spec of specificationsResult.rows) {
+        await client.query(`
+          INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (component_id, category_spec_id)
+          DO UPDATE SET spec_value = $3, updated_at = CURRENT_TIMESTAMP
+        `, [eco.component_id, spec.category_spec_id, spec.new_value]);
+      }
     }
     
     // Update ECO order status
@@ -505,13 +583,16 @@ export const approveECO = async (req, res) => {
       WHERE id = $2
     `, [req.user.id, id]);
 
-    // Log ECO approval activity
+    // Log ECO approval activity with category change info if applicable
+    const specificationsApplied = categoryChange ? 0 : (await client.query('SELECT COUNT(*) FROM eco_specifications WHERE eco_id = $1', [id])).rows[0].count;
     await logECOActivity(client, eco, 'eco_approved', {
       approved_by: req.user.id,
       changes_applied: changesResult.rows.length,
       distributors_applied: distributorsResult.rows.length,
       alternatives_applied: alternativesResult.rows.length,
-      specifications_applied: specificationsResult.rows.length,
+      specifications_applied: specificationsApplied,
+      category_changed: !!categoryChange,
+      new_part_number: newPartNumber,
     }, req.user.id);
     
     await client.query('COMMIT');

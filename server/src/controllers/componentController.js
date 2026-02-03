@@ -313,6 +313,18 @@ export const changeComponentCategory = async (req, res, next) => {
       console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Removed ${deleteSpecsResult.rowCount} old specification values`);
     }
 
+    // Update alternative parts to reference the new part number FIRST
+    // (Before updating the main component to avoid FK violation)
+    const updateAltsResult = await client.query(`
+      UPDATE components_alternative 
+      SET part_number = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE part_number = $2
+    `, [newPartNumber, oldPartNumber]);
+
+    if (updateAltsResult.rowCount > 0) {
+      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Updated ${updateAltsResult.rowCount} alternative parts to new part number`);
+    }
+
     // Update component with new category and part number
     // Also clear sub-categories since they may not be valid for new category
     await client.query(`

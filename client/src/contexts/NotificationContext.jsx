@@ -35,7 +35,11 @@ export const NotificationProvider = ({ children }) => {
   }, [showNotification]);
 
   const showError = useCallback((message, duration = 5000) => {
-    showNotification(message, 'error', duration);
+    // Ensure message is a string (handle cases where error objects are passed)
+    const messageStr = typeof message === 'object' 
+      ? (message?.message || message?.error || JSON.stringify(message))
+      : String(message);
+    showNotification(messageStr, 'error', duration);
   }, [showNotification]);
 
   const showInfo = useCallback((message, duration = 5000) => {

@@ -1517,17 +1517,47 @@ const Library = () => {
         }
       }
 
-      // Track alternative parts changes (simplified)
+      // Track alternative parts changes
       if (editData.alternatives) {
         for (const alt of editData.alternatives) {
           const oldAlt = alternatives?.find(a => a.id === alt.id);
           
-          alternativesParts.push({
-            alternative_id: alt.id || null,
-            action: oldAlt ? 'update' : 'add',
-            manufacturer_id: alt.manufacturer_id,
-            manufacturer_pn: alt.manufacturer_pn
-          });
+          if (oldAlt) {
+            // Check if anything actually changed
+            const mfgChanged = oldAlt.manufacturer_id !== alt.manufacturer_id;
+            const pnChanged = oldAlt.manufacturer_pn !== alt.manufacturer_pn;
+            if (mfgChanged || pnChanged) {
+              alternativesParts.push({
+                alternative_id: alt.id,
+                action: 'update',
+                manufacturer_id: alt.manufacturer_id,
+                manufacturer_pn: alt.manufacturer_pn
+              });
+            }
+          } else {
+            // New alternative
+            alternativesParts.push({
+              alternative_id: null,
+              action: 'add',
+              manufacturer_id: alt.manufacturer_id,
+              manufacturer_pn: alt.manufacturer_pn
+            });
+          }
+        }
+      }
+      
+      // Track deleted alternative parts
+      if (alternatives) {
+        for (const oldAlt of alternatives) {
+          const stillExists = editData.alternatives?.find(a => a.id === oldAlt.id);
+          if (!stillExists) {
+            alternativesParts.push({
+              alternative_id: oldAlt.id,
+              action: 'delete',
+              manufacturer_id: oldAlt.manufacturer_id,
+              manufacturer_pn: oldAlt.manufacturer_pn
+            });
+          }
         }
       }
 
@@ -1880,7 +1910,57 @@ const Library = () => {
     setCategoryChangeConfirmation({ show: false, newCategoryId: null, newCategoryName: '' });
     
     try {
-      // Call API to change category and get new part number
+      // In ECO mode, DON'T apply category change immediately - just stage it
+      if (isECOMode) {
+        // Update editData with new category (will be tracked as a change when ECO is submitted)
+        handleFieldChange('category_id', newCategoryId);
+        
+        // Clear sub-categories since they are category-specific
+        handleFieldChange('sub_category1', '');
+        handleFieldChange('sub_category2', '');
+        handleFieldChange('sub_category3', '');
+        handleFieldChange('sub_category4', '');
+        
+        // Load new category's sub-category suggestions
+        const sub1 = await api.getSubCategorySuggestions(newCategoryId, 1);
+        setSubCat1Suggestions(sub1.data || []);
+        setSubCat2Suggestions([]);
+        setSubCat3Suggestions([]);
+        setSubCat4Suggestions([]);
+        
+        // Load package, footprint, symbol suggestions for new category
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+          api.getFieldSuggestions(newCategoryId, 'package_size'),
+          api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
+          api.getFieldSuggestions(newCategoryId, 'schematic'),
+          api.getFieldSuggestions(newCategoryId, 'step_model'),
+          api.getFieldSuggestions(newCategoryId, 'pspice')
+        ]);
+        setPackageSuggestions(packageResp.data || []);
+        setFootprintSuggestions(footprintResp.data || []);
+        setSymbolSuggestions(symbolResp.data || []);
+        setStepModelSuggestions(stepResp.data || []);
+        setPspiceSuggestions(pspiceResp.data || []);
+        
+        // Load new category's specifications (user will fill these in for ECO)
+        const specsResponse = await api.getCategorySpecifications(newCategoryId);
+        const categorySpecs = specsResponse.data || [];
+        const newSpecs = categorySpecs.map(spec => ({
+          category_spec_id: spec.id,
+          spec_name: spec.spec_name,
+          spec_value: '',
+          unit: spec.unit || '',
+          mapping_spec_names: spec.mapping_spec_names || [],
+          is_required: spec.is_required,
+          display_order: spec.display_order
+        }));
+        handleFieldChange('specifications', newSpecs);
+        
+        showInfo(`Category change to "${newCategoryName}" staged for ECO approval. The new part number will be assigned when the ECO is approved.`);
+        return;
+      }
+      
+      // Non-ECO mode: Call API to change category immediately and get new part number
       const response = await api.changeComponentCategory(selectedComponent.id, newCategoryId);
       
       if (response.data.success) {
@@ -4840,21 +4920,35 @@ const Library = () => {
             
             {/* Title */}
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
-              Change Category
+              {isECOMode ? 'Stage Category Change' : 'Change Category'}
             </h3>
             
             {/* Warning Message */}
-            <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-4 mb-6 border border-yellow-200 dark:border-yellow-800">
-              <p className="text-sm text-yellow-900 dark:text-yellow-100 mb-2">
-                <strong>This action will:</strong>
-              </p>
-              <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-disc list-inside">
-                <li>Change category to <strong>{categoryChangeConfirmation.newCategoryName}</strong></li>
-                <li>Generate a new part number with the new category prefix</li>
-                <li>Clear all sub-categories (they are category-specific)</li>
-                <li>Reset specifications to the new category&apos;s template</li>
-              </ul>
-            </div>
+            {isECOMode ? (
+              <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-900 dark:text-blue-100 mb-2">
+                  <strong>ECO Mode - Change will be staged:</strong>
+                </p>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+                  <li>Category change to <strong>{categoryChangeConfirmation.newCategoryName}</strong> will be staged</li>
+                  <li>New part number will be assigned upon ECO approval</li>
+                  <li>Sub-categories and specifications will be reset upon approval</li>
+                  <li>Change takes effect only after ECO is approved</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-4 mb-6 border border-yellow-200 dark:border-yellow-800">
+                <p className="text-sm text-yellow-900 dark:text-yellow-100 mb-2">
+                  <strong>This action will:</strong>
+                </p>
+                <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-disc list-inside">
+                  <li>Change category to <strong>{categoryChangeConfirmation.newCategoryName}</strong></li>
+                  <li>Generate a new part number with the new category prefix</li>
+                  <li>Clear all sub-categories (they are category-specific)</li>
+                  <li>Reset specifications to the new category&apos;s template</li>
+                </ul>
+              </div>
+            )}
             
             {/* Current Part Number Display */}
             <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 text-center">
@@ -4862,6 +4956,11 @@ const Library = () => {
               <p className="text-lg font-mono font-semibold text-gray-900 dark:text-gray-100">
                 {editData.part_number}
               </p>
+              {isECOMode && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  New part number will be assigned upon approval
+                </p>
+              )}
             </div>
             
             {/* Buttons */}
@@ -4874,10 +4973,14 @@ const Library = () => {
               </button>
               <button
                 onClick={confirmCategoryChange}
-                className="flex-1 px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center justify-center gap-2"
+                className={`flex-1 px-4 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+                  isECOMode 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-yellow-600 hover:bg-yellow-700'
+                }`}
               >
                 <Check className="w-4 h-4" />
-                Change Category
+                {isECOMode ? 'Stage Change' : 'Change Category'}
               </button>
             </div>
           </div>
