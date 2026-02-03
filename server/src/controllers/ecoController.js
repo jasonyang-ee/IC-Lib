@@ -366,7 +366,7 @@ export const approveECO = async (req, res) => {
       // Get the new category's prefix
       const categoryResult = await client.query(
         'SELECT prefix FROM component_categories WHERE id = $1',
-        [categoryChange.new_value]
+        [categoryChange.new_value],
       );
       
       if (categoryResult.rows.length > 0) {
@@ -386,7 +386,7 @@ export const approveECO = async (req, res) => {
         // MUST be done BEFORE updating alternatives (FK constraint requires part_number to exist)
         const otherChanges = changesResult.rows.filter(c => 
           c.field_name !== 'category_id' && 
-          !c.field_name.startsWith('sub_category')
+          !c.field_name.startsWith('sub_category'),
         );
         
         const updateFields = [
@@ -428,7 +428,7 @@ export const approveECO = async (req, res) => {
         // Clear specifications for this component (new category may have different specs)
         await client.query(
           'DELETE FROM component_specification_values WHERE component_id = $1',
-          [eco.component_id]
+          [eco.component_id],
         );
       }
     } else if (changesResult.rows.length > 0) {
@@ -445,7 +445,7 @@ export const approveECO = async (req, res) => {
         }
         updateFields.push(`${change.field_name} = $${paramIndex}`);
         updateValues.push(change.new_value);
-        paramIndex++;
+        paramIndex++;;
       }
       
       if (updateFields.length > 0) {

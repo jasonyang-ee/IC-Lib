@@ -375,7 +375,7 @@ export const updateCategoryConfig = async (req, res) => {
     const leadingZerosChanged = newLeadingZeros !== oldLeadingZeros;
 
     // If prefix or leading_zeros changed, we need to update all part numbers
-    let updatedComponents = [];
+    const updatedComponents = [];
     if (prefixChanged || leadingZerosChanged) {
       console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}`);
 

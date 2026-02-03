@@ -28,7 +28,7 @@ const ECO = () => {
   }, []);
 
   // Fetch ECO orders
-  const { data: ecoOrders = [], isLoading, refetch: refetchECOs } = useQuery({
+  const { data: ecoOrders = [], isLoading } = useQuery({
     queryKey: ['ecos', selectedStatus],
     queryFn: async () => {
       const response = await api.getECOs({ status: selectedStatus });
@@ -114,15 +114,6 @@ const ECO = () => {
 
   const toggleExpanded = (ecoId) => {
     setExpandedECO(expandedECO === ecoId ? null : ecoId);
-  };
-
-  const clearAllFilters = () => {
-    setSearchTerm('');
-    setEcoNumberFilter('');
-    setInitiatedByFilter('');
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
   };
 
   const getStatusBadge = (status) => {

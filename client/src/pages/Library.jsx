@@ -12,7 +12,7 @@ const Library = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canWrite, canApprove, user } = useAuth();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showInfo } = useNotification();
   
   // Check if ECO feature is enabled from environment variable
   const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';

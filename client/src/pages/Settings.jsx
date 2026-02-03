@@ -1243,7 +1243,7 @@ const ECOSettings = () => {
   });
 
   // Fetch preview
-  const { data: previewData, refetch: refetchPreview } = useQuery({
+  const { data: previewData } = useQuery({
     queryKey: ['ecoPreview', formData],
     queryFn: async () => {
       const response = await api.previewECONumber();
