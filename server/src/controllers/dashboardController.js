@@ -22,6 +22,21 @@ export const getDashboardStats = async (req, res, next) => {
       "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''",
     );
 
+    // Get components without schematic symbols
+    const missingSchematicResult = await pool.query(
+      "SELECT COUNT(*) as count FROM components WHERE schematic IS NULL OR schematic = ''",
+    );
+
+    // Get components without 3D models
+    const missing3DModelResult = await pool.query(
+      "SELECT COUNT(*) as count FROM components WHERE step_model IS NULL OR step_model = ''",
+    );
+
+    // Get components without Pspice models
+    const missingPspiceResult = await pool.query(
+      "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = ''",
+    );
+
     // Get low stock count
     const lowStockResult = await pool.query(
       'SELECT COUNT(*) as count FROM inventory WHERE quantity <= minimum_quantity AND minimum_quantity > 0',
@@ -54,6 +69,9 @@ export const getDashboardStats = async (req, res, next) => {
       totalInventoryItems: parseInt(totalInventoryResult.rows[0].count),
       totalInventoryQuantity: parseInt(totalInventoryResult.rows[0].total_quantity || 0),
       missingFootprints: parseInt(missingFootprintsResult.rows[0].count),
+      missingSchematic: parseInt(missingSchematicResult.rows[0].count),
+      missing3DModel: parseInt(missing3DModelResult.rows[0].count),
+      missingPspice: parseInt(missingPspiceResult.rows[0].count),
       lowStockAlerts: parseInt(lowStockResult.rows[0].count),
       recentlyAdded: parseInt(recentComponentsResult.rows[0].count),
       approvalStatus: {
