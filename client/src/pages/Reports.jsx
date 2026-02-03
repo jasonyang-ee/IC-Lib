@@ -353,7 +353,7 @@ const Reports = () => {
         {/* Report Content */}
         <div className="col-span-9 flex flex-col overflow-hidden">
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden h-full">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center flex-shrink-0">
+            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {reports.find((r) => r.id === activeReport)?.name}
               </h3>

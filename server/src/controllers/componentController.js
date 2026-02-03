@@ -192,7 +192,7 @@ export const createComponent = async (req, res, next) => {
         category_name: categoryResult.rows[0]?.name,
         manufacturer_pn: mfrPartNumber,
         value: value,
-      })
+      }),
     ]);
     
     // Auto-create inventory entry (backup in case trigger doesn't exist)
@@ -244,7 +244,7 @@ export const changeComponentCategory = async (req, res, next) => {
     // Get current component info
     const componentResult = await client.query(
       'SELECT id, part_number, category_id FROM components WHERE id = $1',
-      [id]
+      [id],
     );
 
     if (componentResult.rows.length === 0) {
@@ -262,14 +262,14 @@ export const changeComponentCategory = async (req, res, next) => {
       return res.json({ 
         success: true, 
         message: 'Category unchanged',
-        part_number: oldPartNumber 
+        part_number: oldPartNumber, 
       });
     }
 
     // Get new category prefix and leading_zeros
     const categoryResult = await client.query(
       'SELECT id, name, prefix, leading_zeros FROM component_categories WHERE id = $1',
-      [new_category_id]
+      [new_category_id],
     );
 
     if (categoryResult.rows.length === 0) {
@@ -324,8 +324,8 @@ export const changeComponentCategory = async (req, res, next) => {
         new_part_number: newPartNumber,
         old_category_id: oldCategoryId,
         new_category_id: new_category_id,
-        new_category_name: categoryName
-      })
+        new_category_name: categoryName,
+      }),
     ]);
 
     await client.query('COMMIT');
@@ -351,7 +351,7 @@ export const changeComponentCategory = async (req, res, next) => {
       success: true,
       old_part_number: oldPartNumber,
       new_part_number: newPartNumber,
-      component: fullComponent.rows[0]
+      component: fullComponent.rows[0],
     });
 
   } catch (error) {
@@ -447,7 +447,7 @@ export const updateComponent = async (req, res, next) => {
         description: result.rows[0].description,
         category_name: categoryResult.rows[0]?.name,
         updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
-      })
+      }),
     ]);
 
     // Fetch the complete component with joined data
@@ -506,7 +506,7 @@ export const deleteComponent = async (req, res, next) => {
         JSON.stringify({
           description: component.description,
           category_name: component.category_name,
-        })
+        }),
       ]);
       
       // Delete from related tables first (foreign key constraints)
@@ -1682,7 +1682,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
           } else if (digikeyResult.error) {
             console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey API error: ${digikeyResult.error}`);
           } else {
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: No results found`);
+            console.log('\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: No results found');
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation
@@ -1716,7 +1716,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
           } else if (mouserResult.error) {
             console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser API error: ${mouserResult.error}`);
           } else {
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: No results found`);
+            console.log('\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: No results found');
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation

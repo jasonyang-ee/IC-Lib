@@ -145,7 +145,6 @@ async function startServer() {
     console.log('');
 
 
-
     // Initialize authentication (check/create users table)
     await initializeAuthentication();
     

@@ -300,7 +300,7 @@ const Audit = () => {
     };
 
     // Helper to render value
-    const renderValue = (value, key) => {
+    const renderValue = (value) => {
       if (value === null || value === undefined) return <span className="text-gray-400">null</span>;
       if (typeof value === 'boolean') return value ? 'Yes' : 'No';
       if (typeof value === 'object') {
@@ -359,7 +359,7 @@ const Audit = () => {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+      <div className="flex items-center justify-between mb-6 shrink-0">
         
         <button
           onClick={exportToCSV}
@@ -372,7 +372,7 @@ const Audit = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 flex-shrink-0">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 shrink-0">
         {/* All filters in one row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
@@ -553,7 +553,7 @@ const Audit = () => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-4 py-3 border-t border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between flex-shrink-0">
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-gray-700 dark:text-gray-300">
                     Page {currentPage} of {totalPages}

@@ -198,7 +198,7 @@ const Dashboard = () => {
             </h2>
             
             {/* Quality Percentage Display */}
-            <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="mb-4 p-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Completion Rate</span>
                 <span className="text-2xl font-bold text-green-700 dark:text-green-400">{qualityPercentage}%</span>
