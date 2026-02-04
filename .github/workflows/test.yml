@@ -2,15 +2,6 @@ name: 'Test'
 
 on:
   push:
-    branches:
-      - main
-      - develop
-      - test-*
-      - 'feature/**'
-  pull_request:
-    branches:
-      - main
-      - develop
   workflow_dispatch:
 
 jobs:
@@ -23,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,7 +46,7 @@ jobs:
         working-directory: ./server
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -72,6 +65,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -101,16 +96,18 @@ jobs:
           flags: server
           fail_ci_if_error: false
 
-  docker-build-test:
-    name: Docker Build Test (test-* branches)
+  build:
+    name: Build Test Docker Image
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/test-')
+    if: startsWith(github.ref, 'refs/heads/test') || startsWith(github.ref, 'refs/heads/feat')
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Docker meta
         id: meta
@@ -119,7 +116,7 @@ jobs:
           images: |
             ${{ secrets.USERNAME_DOCKERHUB }}/iclib
             ghcr.io/${{ github.actor }}/iclib
-          tags: type=ref,event=branch
+          tags: type=raw,value=test
           flavor: onlatest=false
 
       - name: Login to Docker Hub
