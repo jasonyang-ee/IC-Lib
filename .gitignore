@@ -13,13 +13,9 @@ build/
 
 # IDE
 .vscode/
-.idea/
-*.swp
-*.swo
 
 # Downloads
 download/
-downloads/
 import/
 
 # Temporary files
@@ -32,3 +28,5 @@ temp/
 *.md
 !README.md
 !CHANGELOG.md
+!Agent.md
+!plan.md
