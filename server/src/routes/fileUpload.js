@@ -151,6 +151,32 @@ function extractSmartZip(zipPath, mfgPartNumber) {
 
   console.log(`[FileUpload] Detected ZIP source: ${source}`);
 
+  // ── SamacSys Capture XML → OLB conversion ──
+  // Find and process Capture/*.xml entries to generate OLB schematic symbol files
+  if (source === 'samacsys') {
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
+      const lowerPath = entry.entryName.toLowerCase();
+      if (lowerPath.includes('capture/') && lowerPath.endsWith('.xml')) {
+        try {
+          const xmlContent = entry.getData().toString('utf8');
+          const symbolDir = ensureDir(path.join(LIBRARY_BASE, 'symbol', sanitizedPN));
+          const result = convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: true });
+          extractedFiles.push({
+            category: 'symbol',
+            filename: result.olbFilename,
+            path: result.olbPath,
+            source,
+            generated: 'olb-from-capture-xml',
+          });
+          console.log(`[FileUpload] SamacSys Capture XML → OLB: ${result.olbFilename} (${result.componentData.pins.length} pins)`);
+        } catch (err) {
+          console.error(`[FileUpload] Failed to convert Capture XML to OLB:`, err.message);
+        }
+      }
+    }
+  }
+
   // File extensions that are valid EDA files (used to filter path-based matches)
   const validEDAExtensions = new Set([
     '.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra',
@@ -170,7 +196,10 @@ function extractSmartZip(zipPath, mfgPartNumber) {
 
     // Skip hidden files, macOS metadata, and non-EDA files (scripts, docs, etc.)
     if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
-    if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
+    if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin'].includes(ext)) continue;
+
+    // Skip .xml files (already handled above for SamacSys Capture XML; other XML files are not useful)
+    if (ext === '.xml') continue;
 
     // Determine category based on extension
     let category = getFileCategory(filename);
@@ -235,7 +264,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
     
     for (const file of req.files) {
       const ext = path.extname(file.originalname).toLowerCase();
-      
+
       // Handle ZIP files
       if (ext === '.zip') {
         try {
@@ -255,6 +284,41 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
             type: 'library',
             path: targetPath,
             error: 'Could not extract, saved as library file',
+          });
+        }
+      } else if (ext === '.xml') {
+        // Handle XML files: auto-convert SamacSys Capture XML to OLB
+        try {
+          const xmlContent = fs.readFileSync(file.path, 'utf8');
+          if (isCaptureXML(xmlContent)) {
+            const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+            const symbolDir = ensureDir(path.join(LIBRARY_BASE, 'symbol', sanitizedPN));
+            const result = convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: false });
+            // Delete the temp XML file
+            fs.unlinkSync(file.path);
+            results.push({
+              originalName: file.originalname,
+              type: 'symbol',
+              filename: result.olbFilename,
+              path: result.olbPath,
+              converted: 'capture-xml-to-olb',
+              pins: result.componentData.pins.length,
+            });
+            console.log(`[FileUpload] Direct XML → OLB: ${result.olbFilename}`);
+          } else {
+            // Not a Capture XML, skip
+            fs.unlinkSync(file.path);
+            results.push({
+              originalName: file.originalname,
+              error: 'Not a recognized OrCAD Capture XML file',
+            });
+          }
+        } catch (error) {
+          console.error('Error processing XML file:', error);
+          fs.unlinkSync(file.path);
+          results.push({
+            originalName: file.originalname,
+            error: 'Failed to convert XML to OLB: ' + error.message,
           });
         }
       } else {
