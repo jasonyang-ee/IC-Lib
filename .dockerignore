@@ -59,6 +59,10 @@ docs/
 library/
 download/
 
+# OrCAD DLLs and tools (use volume mount instead)
+example/olb/
+orcad/
+
 # Database files (use external database, but keep SQL schemas)
 # Allow .sql files for initialization
 *.db

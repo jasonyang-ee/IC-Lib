@@ -12,7 +12,7 @@ services:
     environment:
       # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
-      
+
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
       - DB_HOST=localhost
@@ -20,7 +20,15 @@ services:
       - DB_USER=iclib
       - DB_PASSWORD=123456
       - DB_NAME=iclib
-      
+
+      # Library Base Path (for OrCAD CIS file linking)
+      - LIBRARY_BASE_PATH=/app/library
+
+      # OrCAD OLB Conversion (tclsh.exe + DLLs via Wine64)
+      # Mount your OrCAD DLLs directory to /app/orcad (see volumes below)
+      - ORCAD_TCLSH_PATH=/app/orcad/tclsh.exe
+      - ORCAD_DLL_DIR=/app/orcad
+
       # Optional: API Keys for vendor integrations
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
@@ -32,7 +40,13 @@ services:
       - ./iclib/library/symbol:/app/library/symbol
       - ./iclib/library/pad:/app/library/pad
       - ./iclib/library/pspice:/app/library/pspice
-  
+      - ./iclib/library/model:/app/library/model
+      # OrCAD DLLs + tclsh.exe for OLB conversion (optional)
+      # Place all required files in ./orcad/ directory:
+      #   tclsh.exe, tcl86.dll, orDb_Dll_Tcl64.dll, orDb_Dll64.dll,
+      #   and all Cadence/VC++ runtime DLLs
+      - ./orcad:/app/orcad
+
   iclib-db:
     image: postgres:18
     container_name: iclib-db

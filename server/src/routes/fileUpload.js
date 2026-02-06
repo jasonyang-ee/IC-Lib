@@ -132,7 +132,7 @@ function moveToCategory(sourcePath, category, mfgPartNumber) {
 /**
  * Detect and extract ZIP file from popular EDA tool providers
  */
-function extractSmartZip(zipPath, mfgPartNumber) {
+async function extractSmartZip(zipPath, mfgPartNumber) {
   const zip = new AdmZip(zipPath);
   const entries = zip.getEntries();
   const extractedFiles = [];
@@ -163,17 +163,19 @@ function extractSmartZip(zipPath, mfgPartNumber) {
         try {
           const xmlContent = entry.getData().toString('utf8');
           const symbolDir = ensureDir(path.join(LIBRARY_BASE, 'symbol', sanitizedPN));
-          const result = convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: true });
+          const result = await convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: true });
+          const filename = result.olbFilename || result.tclFilename;
+          const filePath = result.olbPath || result.tclPath;
           extractedFiles.push({
             category: 'symbol',
-            filename: result.olbFilename,
-            path: result.olbPath,
+            filename,
+            path: filePath,
             source,
-            generated: 'olb-from-capture-xml',
+            generated: result.method === 'tcl' ? 'olb-from-capture-xml' : 'tcl-script-from-capture-xml',
           });
-          console.log(`[FileUpload] SamacSys Capture XML → OLB: ${result.olbFilename} (${result.componentData.pins.length} pins)`);
+          console.log(`[FileUpload] SamacSys Capture XML → ${result.method}: ${filename} (${result.componentData.pins.length} pins)`);
         } catch (err) {
-          console.error(`[FileUpload] Failed to convert Capture XML to OLB:`, err.message);
+          console.error('[FileUpload] Failed to convert Capture XML to OLB:', err.message);
         }
       }
     }
@@ -270,7 +272,7 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
       // Handle ZIP files
       if (ext === '.zip') {
         try {
-          const extractedFiles = extractSmartZip(file.path, mfgPartNumber);
+          const extractedFiles = await extractSmartZip(file.path, mfgPartNumber);
           results.push({
             originalName: file.originalname,
             type: 'archive',
@@ -295,18 +297,20 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
           if (isCaptureXML(xmlContent)) {
             const sanitizedPN = sanitizePartNumber(mfgPartNumber);
             const symbolDir = ensureDir(path.join(LIBRARY_BASE, 'symbol', sanitizedPN));
-            const result = convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: false });
+            const result = await convertCaptureXmlToOlb(xmlContent, symbolDir, null, { keepXml: false });
             // Delete the temp XML file
             fs.unlinkSync(file.path);
+            const outFilename = result.olbFilename || result.tclFilename;
+            const outPath = result.olbPath || result.tclPath;
             results.push({
               originalName: file.originalname,
               type: 'symbol',
-              filename: result.olbFilename,
-              path: result.olbPath,
-              converted: 'capture-xml-to-olb',
+              filename: outFilename,
+              path: outPath,
+              converted: result.method === 'tcl' ? 'capture-xml-to-olb' : 'capture-xml-to-tcl-script',
               pins: result.componentData.pins.length,
             });
-            console.log(`[FileUpload] Direct XML → OLB: ${result.olbFilename}`);
+            console.log(`[FileUpload] Direct XML → ${result.method}: ${outFilename}`);
           } else {
             // Not a Capture XML, skip
             fs.unlinkSync(file.path);
@@ -392,7 +396,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
       // Handle ZIP files
       if (ext === '.zip') {
         try {
-          const extractedFiles = extractSmartZip(file.path, sharedId);
+          const extractedFiles = await extractSmartZip(file.path, sharedId);
           results.push({
             originalName: file.originalname,
             type: 'archive',

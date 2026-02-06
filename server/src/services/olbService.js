@@ -1,31 +1,47 @@
 /**
  * SamacSys OLB Generator Service
  *
- * Parses SamacSys Capture XML files and generates OrCAD OLB (OLE2 compound) files.
+ * Converts SamacSys Capture XML files to OrCAD OLB library files using
+ * the OrCAD Dbo TCL API. Generates a TCL script matching the XMATIC format
+ * and executes it via tclsh with the OrCAD Dbo DLLs.
  *
- * The Capture XML (found in SamacSys ZIPs at Capture/<PartName>.xml) is a complete
- * XML serialization of an OrCAD OLB library conforming to Cadence's olb.xsd schema.
- * It contains all pin definitions, symbol graphics, component properties, and
- * physical pin-to-pad mappings.
+ * Environment variables:
+ *   ORCAD_TCLSH_PATH  - Path to tclsh.exe (defaults to example/olb/tcltk/tcltk/bin/tclsh.exe)
+ *   ORCAD_DLL_DIR     - Directory containing orDb_Dll_Tcl64.dll and orDb_Dll64.dll
  *
- * The OLB format is an OLE2 (COM Structured Storage) compound file with these streams:
- *   - Library:          Header "OrCAD Windows Library" + font/config data
- *   - Cache:            10 bytes of zeros
- *   - NetBundleMapData: 4 bytes (LE uint32 = 2)
- *   - Directory streams: Magic 7f1f8569 + entry count + null-terminated entry names
- *   - Packages/<name>:  Binary-encoded package data (pins, graphics, properties)
- *   - Storage folders:  Cells/, Parts/, Views/, Symbols/, Graphics/, Packages/, ExportBlocks/
+ * Platform support:
+ *   - Windows: Runs tclsh.exe directly with OrCAD DLLs
+ *   - Linux/Docker: Runs tclsh.exe via Wine64, paths converted to Wine Z: drive
  *
- * Three output modes are supported:
- *   1. OLB binary (best-effort, may need TCL fallback for full compatibility)
- *   2. TCL script (uses OrCAD's Dbo API - guaranteed compatible when run in OrCAD)
- *   3. XML preservation (OrCAD can import XML directly via File > Import Library)
+ * Two execution modes:
+ *   1. TCL execution (reliable): Generates TCL script, runs via tclsh + Dbo DLLs
+ *   2. TCL script only (fallback): Generates TCL script for manual execution in OrCAD Capture
  */
 
 import { XMLParser } from 'fast-xml-parser';
-import CFB from 'cfb';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const execFileAsync = promisify(execFile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ─── Platform Detection ─────────────────────────────────────────────────────
+
+const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Convert a native path to a Wine-compatible path (Z: drive prefix).
+ * On Windows, returns the path unchanged.
+ */
+function toWinePath(nativePath) {
+  if (IS_WINDOWS) return nativePath;
+  // Wine maps Z: to the Linux root filesystem
+  return 'Z:' + nativePath;
+}
 
 // ─── XML Parser Configuration ───────────────────────────────────────────────
 
@@ -37,18 +53,23 @@ const xmlParser = new XMLParser({
   trimValues: true,
 });
 
-// ─── OLB Binary Constants ───────────────────────────────────────────────────
+// ─── OrCAD Tools Path Resolution ────────────────────────────────────────────
 
-// Directory stream magic bytes
-const DIR_MAGIC = Buffer.from([0x7f, 0x1f, 0x85, 0x69]);
+const EXAMPLE_OLB_DIR = path.resolve(__dirname, '../../../example/olb');
 
-// Standard Library stream header
-const OLB_LIBRARY_HEADER = (() => {
-  const header = Buffer.alloc(32, 0x20);
-  header.write('OrCAD Windows Library', 0, 'ascii');
-  header[31] = 0x00;
-  return header;
-})();
+function getOrcadToolPaths() {
+  const dllDir = process.env.ORCAD_DLL_DIR || EXAMPLE_OLB_DIR;
+
+  // Look for tclsh.exe in order: env var, alongside DLLs, nested tcltk dir
+  let tclshPath = process.env.ORCAD_TCLSH_PATH;
+  if (!tclshPath) {
+    const flatPath = path.join(dllDir, 'tclsh.exe');
+    const nestedPath = path.join(EXAMPLE_OLB_DIR, 'tcltk', 'tcltk', 'bin', 'tclsh.exe');
+    tclshPath = fs.existsSync(flatPath) ? flatPath : nestedPath;
+  }
+
+  return { tclshPath, dllDir };
+}
 
 // ─── XML Parsing ────────────────────────────────────────────────────────────
 
@@ -101,6 +122,11 @@ export function parseCaptureXML(xmlContent) {
           italic: getAttr(font, 'italic') ?? 0,
           escapement: getAttr(font, 'escapement') ?? 0,
           orientation: getAttr(font, 'orientation') ?? 0,
+          charSet: getAttr(font, 'charSet') ?? 0,
+          outPrecision: getAttr(font, 'outPrecision') ?? 7,
+          clipPrecision: getAttr(font, 'clipPrecision') ?? 0,
+          quality: getAttr(font, 'quality') ?? 1,
+          pitchAndFamily: getAttr(font, 'pitchAndFamily') ?? 16,
         });
       }
     }
@@ -116,6 +142,11 @@ export function parseCaptureXML(xmlContent) {
       italic: 0,
       escapement: 0,
       orientation: 0,
+      charSet: 0,
+      outPrecision: 7,
+      clipPrecision: 0,
+      quality: 1,
+      pitchAndFamily: 16,
     });
   }
 
@@ -131,6 +162,8 @@ export function parseCaptureXML(xmlContent) {
         locY: getAttr(prop, 'locY') ?? 0,
         rotation: getAttr(prop, 'rotation') ?? 0,
         textJustification: getAttr(prop, 'textJustification') ?? 0,
+        color: getAttr(prop, 'color') ?? 48,
+        displayType: getAttr(prop, 'displayType') ?? 1,
       });
     }
   }
@@ -217,7 +250,6 @@ export function parseCaptureXML(xmlContent) {
         startY: getAttr(pin, 'startY') ?? 0,
         type: getAttr(pin, 'type') ?? 0,
         visible: getAttr(pin, 'visible') ?? 1,
-        // All 9 pin flags from XSD
         isLong: getBoolChild(pin, 'IsLong'),
         isClock: getBoolChild(pin, 'IsClock'),
         isDot: getBoolChild(pin, 'IsDot'),
@@ -289,448 +321,440 @@ function getBoolChild(pin, childName, defaultVal = false) {
   return val === 1 || val === '1' || val === true;
 }
 
-/** Get val attribute from a nested element like <SymbolColor><Defn val="48"/></SymbolColor> */
 function getNestedVal(parent, childName) {
   const child = parent?.[childName];
   if (!child) return undefined;
   return getAttr(child, 'val');
 }
 
-/** Get name attribute from a nested element like <PartValue><Defn name="FT260S-R"/></PartValue> */
 function getNestedName(parent, childName) {
   const child = parent?.[childName];
   if (!child) return undefined;
   return getAttr(child, 'name');
 }
 
-// ─── OLB Binary Generation ─────────────────────────────────────────────────
-
 /**
- * Build a directory stream buffer
- * Format: 4-byte magic + 2-byte LE count + null-terminated entry names
+ * Escape a string for TCL brace quoting.
+ * Uses {string} syntax which handles most special chars except unbalanced braces.
  */
-function buildDirectoryStream(entryNames) {
-  const parts = [DIR_MAGIC];
-  const countBuf = Buffer.alloc(2);
-  countBuf.writeUInt16LE(entryNames.length, 0);
-  parts.push(countBuf);
-  for (const name of entryNames) {
-    parts.push(Buffer.from(name + '\0', 'ascii'));
+function tclStr(str) {
+  const s = String(str);
+  // If the string has unbalanced braces, use double-quote escaping instead
+  const openCount = (s.match(/\{/g) || []).length;
+  const closeCount = (s.match(/\}/g) || []).length;
+  if (openCount !== closeCount) {
+    return '"' + s.replace(/[\\"$[\]]/g, '\\$&') + '"';
   }
-  return Buffer.concat(parts);
+  return '{' + s + '}';
 }
 
-/**
- * Build the Library stream: header + font config + page settings
- */
-function buildLibraryStream(componentData) {
-  const parts = [];
-
-  // Header: "OrCAD Windows Library"
-  parts.push(OLB_LIBRARY_HEADER);
-
-  // Version/config block
-  const configBlock = Buffer.alloc(16, 0);
-  configBlock.writeUInt32LE(0x00010004, 0); // version marker
-  configBlock.writeUInt32LE(componentData.defaultFonts.length, 4); // font count
-  parts.push(configBlock);
-
-  // Font definitions from XML DefaultValues
-  for (const font of componentData.defaultFonts) {
-    const entry = Buffer.alloc(44, 0);
-    entry.writeUInt32LE(font.index, 0);
-    entry.write(font.name.substring(0, 31), 4, 'ascii');
-    entry.writeInt32LE(font.height, 36);
-    entry.writeUInt32LE(font.weight, 40);
-    parts.push(entry);
-  }
-
-  // Page settings block
-  const pageBlock = Buffer.alloc(48, 0);
-  pageBlock.writeUInt32LE(1100, 0);
-  pageBlock.writeUInt32LE(800, 4);
-  parts.push(pageBlock);
-
-  return Buffer.concat(parts);
-}
+// ─── TCL Script Generation (XMATIC-compatible) ─────────────────────────────
 
 /**
- * Encode a string as length-prefixed binary (2-byte LE length + ascii + null)
- */
-function encodeString(str) {
-  const strBuf = Buffer.from(str + '\0', 'ascii');
-  const lenBuf = Buffer.alloc(2);
-  lenBuf.writeUInt16LE(strBuf.length, 0);
-  return Buffer.concat([lenBuf, strBuf]);
-}
-
-/**
- * Build the Package data stream for a component.
- * Binary format (best-effort reverse engineering):
- *   header(16) + name + footprint + refdes + bbox(16) + lines + pins + pinNumbers + userProps
- */
-function buildPackageStream(componentData) {
-  const parts = [];
-
-  // Package header
-  const headerFlags = Buffer.alloc(16, 0);
-  headerFlags.writeUInt32LE(0x01, 0);
-  headerFlags.writeUInt32LE(componentData.pins.length, 4);
-  headerFlags.writeUInt32LE(1, 8);
-  headerFlags.writeUInt32LE(0, 12);
-  parts.push(headerFlags);
-
-  // Package name, PCB footprint, reference designator prefix
-  parts.push(encodeString(componentData.name));
-  parts.push(encodeString(componentData.pcbFootprint));
-  parts.push(encodeString(componentData.refdesPrefix));
-
-  // Symbol bounding box
-  const bboxBuf = Buffer.alloc(16);
-  bboxBuf.writeInt32LE(componentData.symbolBBox.x1, 0);
-  bboxBuf.writeInt32LE(componentData.symbolBBox.y1, 4);
-  bboxBuf.writeInt32LE(componentData.symbolBBox.x2, 8);
-  bboxBuf.writeInt32LE(componentData.symbolBBox.y2, 12);
-  parts.push(bboxBuf);
-
-  // Graphic lines (including lines derived from Rect elements)
-  const allLines = [...componentData.lines];
-  // Convert rects to 4 lines each
-  for (const rect of componentData.rects) {
-    allLines.push({ x1: rect.x1, y1: rect.y1, x2: rect.x2, y2: rect.y1, lineStyle: rect.lineStyle, lineWidth: rect.lineWidth });
-    allLines.push({ x1: rect.x2, y1: rect.y1, x2: rect.x2, y2: rect.y2, lineStyle: rect.lineStyle, lineWidth: rect.lineWidth });
-    allLines.push({ x1: rect.x2, y1: rect.y2, x2: rect.x1, y2: rect.y2, lineStyle: rect.lineStyle, lineWidth: rect.lineWidth });
-    allLines.push({ x1: rect.x1, y1: rect.y2, x2: rect.x1, y2: rect.y1, lineStyle: rect.lineStyle, lineWidth: rect.lineWidth });
-  }
-
-  const lineCountBuf = Buffer.alloc(4);
-  lineCountBuf.writeUInt32LE(allLines.length, 0);
-  parts.push(lineCountBuf);
-
-  for (const line of allLines) {
-    const lineBuf = Buffer.alloc(24);
-    lineBuf.writeInt32LE(line.x1, 0);
-    lineBuf.writeInt32LE(line.y1, 4);
-    lineBuf.writeInt32LE(line.x2, 8);
-    lineBuf.writeInt32LE(line.y2, 12);
-    lineBuf.writeUInt32LE(line.lineStyle ?? 0, 16);
-    lineBuf.writeUInt32LE(line.lineWidth ?? 0, 20);
-    parts.push(lineBuf);
-  }
-
-  // Pin count + pin data
-  const pinCountBuf = Buffer.alloc(4);
-  pinCountBuf.writeUInt32LE(componentData.pins.length, 0);
-  parts.push(pinCountBuf);
-
-  for (const pin of componentData.pins) {
-    parts.push(encodeString(pin.name));
-    const pinBuf = Buffer.alloc(32);
-    pinBuf.writeInt32LE(pin.hotptX, 0);
-    pinBuf.writeInt32LE(pin.hotptY, 4);
-    pinBuf.writeInt32LE(pin.startX, 8);
-    pinBuf.writeInt32LE(pin.startY, 12);
-    pinBuf.writeUInt32LE(pin.type, 16);
-    pinBuf.writeUInt32LE(pin.position, 20);
-    // Pin flags bitmap: visible(0), isClock(1), isDot(2), isLong(3),
-    // isLeftPointing(4), isRightPointing(5), isNetStyle(6),
-    // isNoConnect(7), isGlobal(8), isNumberVisible(9)
-    let flags = 0;
-    if (pin.visible) flags |= 0x001;
-    if (pin.isClock) flags |= 0x002;
-    if (pin.isDot) flags |= 0x004;
-    if (pin.isLong) flags |= 0x008;
-    if (pin.isLeftPointing) flags |= 0x010;
-    if (pin.isRightPointing) flags |= 0x020;
-    if (pin.isNetStyle) flags |= 0x040;
-    if (pin.isNoConnect) flags |= 0x080;
-    if (pin.isGlobal) flags |= 0x100;
-    if (pin.isNumberVisible) flags |= 0x200;
-    pinBuf.writeUInt32LE(flags, 24);
-    pinBuf.writeUInt32LE(0, 28); // reserved
-    parts.push(pinBuf);
-  }
-
-  // Pin number mapping
-  const pnCountBuf = Buffer.alloc(4);
-  pnCountBuf.writeUInt32LE(componentData.pinNumbers.length, 0);
-  parts.push(pnCountBuf);
-
-  for (const pn of componentData.pinNumbers) {
-    parts.push(encodeString(String(pn.number)));
-    const posBuf = Buffer.alloc(4);
-    posBuf.writeUInt32LE(pn.position, 0);
-    parts.push(posBuf);
-  }
-
-  // User properties
-  const propEntries = Object.entries(componentData.userProps);
-  const propCountBuf = Buffer.alloc(4);
-  propCountBuf.writeUInt32LE(propEntries.length, 0);
-  parts.push(propCountBuf);
-
-  for (const [key, value] of propEntries) {
-    parts.push(encodeString(key));
-    parts.push(encodeString(String(value)));
-  }
-
-  return Buffer.concat(parts);
-}
-
-/**
- * Generate an OLB (OLE2 compound file) from parsed component data.
+ * Generate a TCL script that uses OrCAD's Dbo API to create an OLB.
+ * The output follows the exact same API call patterns as the XMATIC tool
+ * used by SamacSys (reference: ft260s-r.tcl).
+ *
+ * Can be executed either:
+ *   - Standalone via tclsh.exe after loading orDb_Dll_Tcl64.dll
+ *   - In OrCAD Capture: Tools > TCL/Tk > Execute Script
  *
  * @param {Object} componentData - Output from parseCaptureXML()
- * @returns {Buffer} OLB file content
- */
-export function generateOLB(componentData) {
-  const partName = componentData.name;
-
-  // Create new OLE2 compound file
-  const cfbFile = CFB.utils.cfb_new();
-
-  // Add storage directories
-  CFB.utils.cfb_add(cfbFile, '/Cells', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/Parts', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/Views', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/Symbols', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/Graphics', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/Packages', null, { type: 1 });
-  CFB.utils.cfb_add(cfbFile, '/ExportBlocks', null, { type: 1 });
-
-  // Add Library stream
-  CFB.utils.cfb_add(cfbFile, '/Library', buildLibraryStream(componentData));
-
-  // Add Cache stream (10 bytes of zeros)
-  CFB.utils.cfb_add(cfbFile, '/Cache', Buffer.alloc(10, 0));
-
-  // Add NetBundleMapData (4 bytes, LE uint32 = 2)
-  const netMapBuf = Buffer.alloc(4);
-  netMapBuf.writeUInt32LE(2, 0);
-  CFB.utils.cfb_add(cfbFile, '/NetBundleMapData', netMapBuf);
-
-  // Add directory streams
-  const cellName = componentData.cellName || partName;
-  const normalName = cellName + (componentData.viewSuffix || '.Normal');
-  CFB.utils.cfb_add(cfbFile, '/Cells Directory', buildDirectoryStream([cellName]));
-  CFB.utils.cfb_add(cfbFile, '/Parts Directory', buildDirectoryStream([normalName]));
-  CFB.utils.cfb_add(cfbFile, '/Views Directory', buildDirectoryStream([]));
-  CFB.utils.cfb_add(cfbFile, '/Symbols Directory', buildDirectoryStream([]));
-  CFB.utils.cfb_add(cfbFile, '/Graphics Directory', buildDirectoryStream([]));
-  CFB.utils.cfb_add(cfbFile, '/Packages Directory', buildDirectoryStream([partName]));
-  CFB.utils.cfb_add(cfbFile, '/ExportBlocks Directory', buildDirectoryStream([]));
-
-  // Add $Types$ streams (empty)
-  CFB.utils.cfb_add(cfbFile, '/Graphics/$Types$', Buffer.alloc(0));
-  CFB.utils.cfb_add(cfbFile, '/Symbols/$Types$', Buffer.alloc(0));
-
-  // Add Package data stream
-  CFB.utils.cfb_add(cfbFile, '/Packages/' + partName, buildPackageStream(componentData));
-
-  // Write to buffer
-  return Buffer.from(CFB.write(cfbFile, { type: 'buffer' }));
-}
-
-// ─── TCL Script Generation ──────────────────────────────────────────────────
-
-/**
- * Generate a TCL script that uses OrCAD's Dbo API to create an OLB from parsed
- * component data. This is the reliable path for OLB creation - the generated
- * script can be executed in OrCAD Capture (Tools > TCL/Tk > Execute Script)
- * and will produce a guaranteed-valid OLB file.
- *
- * The output follows the same structure as the reference ft260s-r.tcl from
- * SamacSys's XMATIC tool.
- *
- * @param {Object} componentData - Output from parseCaptureXML()
- * @param {string} outputOlbPath - Target OLB file path (for the TCL to save to)
+ * @param {string} outputOlbPath - Target OLB file path
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.standalone=false] - Include DLL load for standalone execution
  * @returns {string} TCL script content
  */
-export function generateTCL(componentData, outputOlbPath) {
+export function generateTCL(componentData, outputOlbPath, options = {}) {
+  const { standalone = false } = options;
   const olbPath = outputOlbPath.replace(/\\/g, '/');
+  const olbPathUpper = olbPath.toUpperCase();
   const L = []; // lines
-
-  L.push('# Auto-generated TCL script for OrCAD Capture OLB creation');
-  L.push('# Run in OrCAD Capture: Tools > TCL/Tk > Execute Script');
-  L.push(`# Component: ${componentData.name}`);
-  L.push(`# Pins: ${componentData.pins.length}`);
-  L.push(`# PCB Footprint: ${componentData.pcbFootprint}`);
-  L.push('');
-  L.push('proc ::orTransformStrOut {str} { return $str }');
-  L.push('');
-
-  // Create library session
-  L.push('set mSession [DboTclHelper_sCreateSession]');
-  L.push(`set mLibPath [DboTclHelper_sMakeCString "${olbPath}"]`);
-  L.push('set mLib [$mSession OpenLib $mLibPath $mStatus]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} {');
-  L.push('  set mLib [$mSession CreateLib $mStatus $mLibPath]');
-  L.push('  set mStatusVal [$mStatus Failed]');
-  L.push('  if {$mStatusVal == 1} { puts "ERROR: Failed to create library"; exit }');
-  L.push('}');
-  L.push('');
-
-  // Set fonts
-  for (const font of componentData.defaultFonts) {
-    L.push(`set mFontName [DboTclHelper_sMakeCString "${font.name}"]`);
-    L.push(`set mStatus [$mLib SetDefaultFont ${font.index} $mFontName ${font.height} ${font.width} ${font.italic} ${font.weight}]`);
-  }
-  L.push('');
-
-  // Create Package
   const pkgName = componentData.name;
-  L.push(`puts "Creating Package: ${pkgName}"`);
-  L.push(`set lPackageName [DboTclHelper_sMakeCString "${pkgName}"]`);
-  L.push(`set lRefDes [DboTclHelper_sMakeCString "${componentData.refdesPrefix}"]`);
-  L.push(`set lPCBFoot [DboTclHelper_sMakeCString "${componentData.pcbFootprint}"]`);
-  L.push(`set mPackage [$mLib NewPackage $mStatus $lPackageName $lRefDes 0 0 $lPCBFoot]`);
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('');
-
-  // Create Cell and Symbol
   const cellName = componentData.cellName || pkgName;
-  L.push(`set lCellName [DboTclHelper_sMakeCString "${cellName}"]`);
-  L.push(`set mCell [$mPackage NewCell $mStatus $lCellName]`);
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('');
-
   const normalName = pkgName + (componentData.viewSuffix || '.Normal');
-  L.push(`set lSymName [DboTclHelper_sMakeCString "${normalName}"]`);
-  L.push('set mLibPart [$mCell NewPart $mStatus $lSymName]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('set mSymbol [$mLibPart NewSymbol $mStatus 0]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('');
 
-  // Set symbol bounding box
-  const bb = componentData.symbolBBox;
-  L.push(`set mStatus [$mSymbol SetBBox [DboTclHelper_sMakeCRect ${bb.x1} ${bb.y1} ${bb.x2} ${bb.y2}]]`);
-  L.push('');
+  // ── String transform proc (matches XMATIC) ──
+  L.push('  proc orTransformStrOut { pString } {');
+  L.push('\tset pString [string map {__cdsOpenBrac__ \\{ } $pString]');
+  L.push('\tset pString [string map {__cdsCloseBrac__ \\} } $pString]');
+  L.push('\tset pString [string map {__cdsNewLine__ \\r\\n } $pString]');
+  L.push('\tset pString [string map {__cdsSlashAtLast__ \\\\ } $pString]');
+  L.push('\treturn $pString');
+  L.push(' }');
 
-  // Display properties (Part Reference, Value)
-  for (const dp of componentData.displayProps) {
-    L.push(`set lPropName [DboTclHelper_sMakeCString "${dp.name}"]`);
-    L.push(`set pLoc [DboTclHelper_sMakeCPoint ${dp.locX} ${dp.locY}]`);
-    L.push(`set mStatus [$mSymbol NewSymbolDisplayProp $mStatus $lPropName $pLoc ${dp.rotation}]`);
-    L.push('set mStatusVal [$mStatus Failed]');
-    L.push('if {$mStatusVal == 1} exit');
-  }
-  L.push('');
-
-  // User properties
-  for (const [key, value] of Object.entries(componentData.userProps)) {
-    const safeVal = String(value).replace(/"/g, '\\"');
-    L.push(`set lPropName [DboTclHelper_sMakeCString "${key}"]`);
-    L.push(`set lPropVal [DboTclHelper_sMakeCString "${safeVal}"]`);
-    L.push('set mStatus [$mSymbol NewSymbolUserProp $mStatus $lPropName $lPropVal]');
-    L.push('set mStatusVal [$mStatus Failed]');
-    L.push('if {$mStatusVal == 1} exit');
-  }
-  L.push('');
-
-  // Lines (symbol body)
-  for (const line of componentData.lines) {
-    L.push(`set pStart [DboTclHelper_sMakeCPoint ${line.x1} ${line.y1}]`);
-    L.push(`set pEnd [DboTclHelper_sMakeCPoint ${line.x2} ${line.y2}]`);
-    L.push(`set mStatus [$mSymbol NewSymbolLine $mStatus $pStart $pEnd ${line.lineStyle ?? 0} ${line.lineWidth ?? 0}]`);
-    L.push('set mStatusVal [$mStatus Failed]');
-    L.push('if {$mStatusVal == 1} exit');
-  }
-
-  // Rects
-  for (const rect of componentData.rects) {
-    L.push(`set pTL [DboTclHelper_sMakeCPoint ${rect.x1} ${rect.y1}]`);
-    L.push(`set pBR [DboTclHelper_sMakeCPoint ${rect.x2} ${rect.y2}]`);
-    L.push(`set mStatus [$mSymbol NewSymbolRect $mStatus $pTL $pBR ${rect.fillStyle ?? 0} ${rect.hatchStyle ?? 0} ${rect.lineStyle ?? 0} ${rect.lineWidth ?? 0}]`);
-    L.push('set mStatusVal [$mStatus Failed]');
-    L.push('if {$mStatusVal == 1} exit');
-  }
-  L.push('');
-
-  // Pins
-  for (const pin of componentData.pins) {
-    const safeName = pin.name.replace(/"/g, '\\"');
-    L.push(`puts "Writing PinScalar..${pin.name}"`);
-    L.push(`set lPinName [DboTclHelper_sMakeCString [::orTransformStrOut {${safeName}}]]`);
-    L.push(`set pStart [DboTclHelper_sMakeCPoint ${pin.startX} ${pin.startY}]`);
-    L.push(`set pHotPoint [DboTclHelper_sMakeCPoint ${pin.hotptX} ${pin.hotptY}]`);
-    L.push(`set mPin [$mSymbol NewSymbolPinScalar $mStatus $lPinName ${pin.type} $pStart $pHotPoint ${pin.visible} ${pin.position}]`);
-    L.push('set mStatusVal [$mStatus Failed]');
-    L.push('if {$mStatusVal == 1} exit');
-    // Pin flags
-    L.push(`  set mStatus [$mPin SetIsLong ${pin.isLong ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsClock ${pin.isClock ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsDot ${pin.isDot ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsLeftPointing ${pin.isLeftPointing ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsRightPointing ${pin.isRightPointing ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsNetStyle ${pin.isNetStyle ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsNoConnect ${pin.isNoConnect ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsGlobal ${pin.isGlobal ? 1 : 0}]`);
-    L.push(`  set mStatus [$mPin SetIsNumberVisible ${pin.isNumberVisible ? 1 : 0}]`);
+  // ── Standalone DLL loading ──
+  if (standalone) {
     L.push('');
+    L.push('  # Load OrCAD Dbo DLL for standalone execution');
+    L.push('  set dllPath [file join [pwd] orDb_Dll_Tcl64.dll]');
+    L.push('  load $dllPath DboTclWriteBasic');
   }
 
-  // Save part
-  L.push('set mStatus [$mLib SavePart $mLibPart]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('');
+  // ── Session creation ──
+  L.push('  set mSession [DboTclHelper_sCreateSession]');
+  L.push('  set mStatus [DboState]');
 
-  // Physical part (device) with pin number mapping
-  L.push('set lDesignator [DboTclHelper_sMakeCString ""]');
-  L.push('set mDevice [$mPackage NewDevice $lDesignator 0 $mCell $mStatus]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
+  // Try to get/open existing then create (matches XMATIC pattern)
+  L.push(`  set lName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(olbPath.toLowerCase())}]]`);
+  L.push('  $mSession GetLib $lName $mStatus');
+  L.push(`  set lName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(olbPathUpper)}]]`);
+  L.push('  set mLib [$mSession GetLib $lName $mStatus]');
+  L.push(`  set lName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(olbPathUpper)}]]`);
+  L.push('  set mLib [$mSession CreateLib $lName $mStatus]');
+  L.push('  ');
+  L.push(`  puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Creating Library..' + olbPathUpper)}]`);
+  L.push('  set mStatusVal [$mStatus Failed]');
+  L.push('  if {$mStatusVal == 1} exit');
+
+  // ── Set 24 default fonts ──
+  for (const font of componentData.defaultFonts) {
+    const f = font;
+    L.push(`      set pFont [DboTclHelper_sMakeLOGFONT [::orTransformStrOut ${tclStr(f.name)}] ${f.height} ${f.width} ${f.escapement} ${f.orientation} ${f.weight} ${f.italic} 0 ${f.charSet} ${f.outPrecision} ${f.clipPrecision} 0 ${f.quality} ${f.pitchAndFamily}]`);
+    L.push(`      $mLib SetDefaultFont ${f.index} $pFont`);
+    L.push('      set mStatusVal [$mStatus Failed]');
+    L.push('      if {$mStatusVal == 1} exit');
+  }
+
+  // ── Library settings ──
+  L.push('      set mStatusVal [$mStatus Failed]');
+  L.push('      if {$mStatusVal == 1} exit');
+  L.push('      $mLib SetDefaultPlacedInstIsPrimitive 0');
+  L.push('      set mStatusVal [$mStatus Failed]');
+  L.push('      if {$mStatusVal == 1} exit');
+  L.push('      $mLib SetDefaultDrawnInstIsPrimitive 0');
+  L.push('      set mStatusVal [$mStatus Failed]');
+  L.push('      if {$mStatusVal == 1} exit');
+
+  // ── Part field mappings (standard OrCAD defaults) ──
+  const fieldMappings = [
+    '1ST PART FIELD', '2ND PART FIELD', '3RD PART FIELD',
+    '4TH PART FIELD', '5TH PART FIELD', '6TH PART FIELD',
+    '7TH PART FIELD', 'PCB Footprint',
+  ];
+  for (let i = 0; i < fieldMappings.length; i++) {
+    L.push(`      set lStr [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(fieldMappings[i])}]]`);
+    L.push(`      $mLib SetPartFieldMapping ${i + 1} $lStr`);
+    L.push('      set mStatusVal [$mStatus Failed]');
+    L.push('      if {$mStatusVal == 1} exit');
+  }
+
+  // ── Package creation ──
+  L.push('    ');
+  L.push(`    puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Writing package..' + pkgName)}]`);
+  L.push(`    set lPackageName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(pkgName)}]]`);
+  L.push(`    set lSourceLibName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr('')}]]`);
+  L.push('    set mPackage [$mLib NewPackage $lPackageName $mStatus]');
+  L.push('    set mSourceLibName $lSourceLibName');
+  L.push('    set mStatusVal [$mStatus Failed]');
+  L.push('    if {$mStatusVal == 1} exit');
+
+  // Set reference template and PCB footprint separately (matches XMATIC)
+  L.push(`    set lRefDesPrefix [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(componentData.refdesPrefix)}]]`);
+  L.push('    set mStatus [$mPackage SetReferenceTemplate $lRefDesPrefix]');
+  L.push(`    set lPCBLib [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr('')}]]`);
+  L.push('    set mStatus [$mPackage SetPCBLib $lPCBLib]');
+  L.push(`    set lPCBFootprint [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(componentData.pcbFootprint)}]]`);
+  L.push('    set mStatus [$mPackage SetPCBFootprint $lPCBFootprint]');
+  L.push('    set mStatusVal [$mStatus Failed]');
+  L.push('    if {$mStatusVal == 1} exit');
+
+  // ── Cell creation ──
+  L.push(`      set lPackageName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(pkgName)}]]`);
+  L.push('      $mPackage GetName $lPackageName');
+  L.push(`      set mCellName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(cellName)}]]`);
+  L.push('      set mCell [$mLib NewCell $mCellName $mStatus]');
+  L.push('      set mStatusVal [$mStatus Failed]');
+  L.push('      if {$mStatusVal == 1} exit');
+
+  // ── Part/Symbol creation ──
+  L.push(`        set lName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(normalName)}]]`);
+  L.push('        set mSymbol [$mLib NewPart $lName $mStatus]');
+  L.push('        set lLibPart $mSymbol');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+  L.push('        set mStatus [$mCell AddPart $mSymbol]');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+
+  // Initial bounding box (small, then updated after content)
+  L.push('        set BodyRect [DboTclHelper_sMakeCRect 0 0 50 50 ]');
+  L.push('        set mStatus [$mSymbol SetBoundingBox $BodyRect]');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+
+  // Set reference on LibPart
+  L.push(`        set lRef [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(componentData.refdesPrefix)}]]`);
+  L.push('        $mPackage GetReferenceTemplate $lRef');
+  L.push('        set mStatus [$mSymbol SetReference $lRef]');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+
+  // Set cell/package pointers
+  L.push('        $lLibPart SetCellPtr $mCell');
+  L.push('        $lLibPart SetPackagePtr $mPackage');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+
+  // ── Display properties (Part Reference, Value) ──
+  for (const dp of componentData.displayProps) {
+    L.push('          ');
+    L.push(`          puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Writing SymbolDisplayProp..' + dp.name)}]`);
+    L.push(`          set lPropName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(dp.name)}]]`);
+    L.push(`          set pLocation [DboTclHelper_sMakeCPoint ${dp.locX} ${dp.locY}]`);
+    // Font used for display prop creation (uses prop name as face, then overridden)
+    L.push(`          set pFont [DboTclHelper_sMakeLOGFONT [::orTransformStrOut ${tclStr(dp.name)}] 8 0 0 0 400 0 0 0 0 7 0 1 16]`);
+    L.push(`          set mProp [$mSymbol NewDisplayProp $mStatus $lPropName $pLocation ${dp.rotation} $pFont ${dp.color}]`);
+    if (dp.textJustification) {
+      L.push(`          $mProp SetHorizontalTextJustification ${dp.textJustification}`);
+    }
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
+    // Set actual font (Arial) and formatting
+    L.push('            set pFont [DboTclHelper_sMakeLOGFONT [::orTransformStrOut {Arial}] -9 4 0 0 400 0 0 0 0 7 0 1 16]');
+    L.push('            set mStatus [$mProp SetFont $pFont]');
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mProp SetColor ${dp.color}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mProp SetDisplayType ${dp.displayType}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+  }
+
+  // ── User properties ──
+  for (const [key, value] of Object.entries(componentData.userProps)) {
+    L.push('          ');
+    L.push(`          puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..' + key)}]`);
+    L.push(`          set lPropName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(key)}]]`);
+    L.push(`          set lPropValue [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(String(value))}]]`);
+    L.push('          $mSymbol NewUserProp $lPropName $lPropValue $mStatus');
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
+  }
+
+  // ── Symbol color and final bounding box ──
+  L.push(`          set mStatus [$mSymbol SetColor ${componentData.symbolColor}]`);
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  const bb = componentData.symbolBBox;
+  L.push(`          set pRect [DboTclHelper_sMakeCRect ${bb.x1} ${bb.y1} ${bb.x2} ${bb.y2} ]`);
+  L.push('          set mStatus [$mSymbol SetBoundingBox $pRect]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+
+  // ── Visibility flags ──
+  L.push(`          set mStatus [$lLibPart SetPinNumbersAreVisible ${componentData.isPinNumbersVisible}]`);
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  L.push(`          set mStatus [$lLibPart SetPinNamesAreRotated ${componentData.isPinNamesRotated}]`);
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  L.push(`          set mStatus [$lLibPart SetPinNamesAreVisible ${componentData.isPinNamesVisible}]`);
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+
+  // ── Contents lib/view settings ──
+  L.push('          set lLibPart [DboSymbolToDboLibPart $mSymbol]');
+  L.push(`          set lContentsLibName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr('')}]]`);
+  L.push('          set mStatus [$lLibPart SetContentsLibName $lContentsLibName]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  L.push('          set lLibPart [DboSymbolToDboLibPart $mSymbol]');
+  L.push(`          set lContentsViewName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr('')}]]`);
+  L.push('          set mStatus [$lLibPart SetContentsViewName $lContentsViewName]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  L.push('          set lLibPart [DboSymbolToDboLibPart $mSymbol]');
+  L.push('          set mStatus [$lLibPart SetContentsViewType 0]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+
+  // ── Part value and reference ──
+  L.push('          set lLibPart [DboSymbolToDboLibPart $mSymbol]');
+  L.push(`          set lPartValueName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(componentData.partValue)}]]`);
+  L.push('          set mStatus [$lLibPart SetPartValue $lPartValueName]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+  L.push('          set lLibPart [DboSymbolToDboLibPart $mSymbol]');
+  L.push(`          set lReferenceName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(componentData.reference)}]]`);
+  L.push('          set mStatus [$lLibPart SetReference $lReferenceName]');
+  L.push('          set mStatusVal [$mStatus Failed]');
+  L.push('          if {$mStatusVal == 1} exit');
+
+  // ── Lines (symbol body) ──
+  for (const line of componentData.lines) {
+    L.push(`          set pStart [DboTclHelper_sMakeCPoint ${line.x1} ${line.y1}]`);
+    L.push(`          set pEnd [DboTclHelper_sMakeCPoint ${line.x2} ${line.y2}]`);
+    L.push(`          $mSymbol NewLine $mStatus $pStart $pEnd ${line.lineStyle ?? 0} ${line.lineWidth ?? 0}`);
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
+  }
+
+  // ── Rectangles ──
+  for (const rect of componentData.rects) {
+    L.push(`          set pTL [DboTclHelper_sMakeCPoint ${rect.x1} ${rect.y1}]`);
+    L.push(`          set pBR [DboTclHelper_sMakeCPoint ${rect.x2} ${rect.y2}]`);
+    L.push(`          $mSymbol NewRect $mStatus $pTL $pBR ${rect.fillStyle ?? 0} ${rect.hatchStyle ?? 0} ${rect.lineStyle ?? 0} ${rect.lineWidth ?? 0}`);
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
+  }
+
+  // ── Pins ──
+  for (const pin of componentData.pins) {
+    L.push('          ');
+    L.push(`          puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..' + pin.name)}]`);
+    L.push(`          set lPinName [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(pin.name)}]]`);
+    L.push(`          set pStart [DboTclHelper_sMakeCPoint ${pin.startX} ${pin.startY}]`);
+    L.push(`          set pHotPoint [DboTclHelper_sMakeCPoint ${pin.hotptX} ${pin.hotptY}]`);
+    L.push(`          set mPin [$mSymbol NewSymbolPinScalar $mStatus $lPinName ${pin.type} $pStart $pHotPoint ${pin.visible} ${pin.position}]`);
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
+    // Pin flags (each with status check, matching XMATIC)
+    L.push(`            set mStatus [$mPin SetIsLong ${pin.isLong ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsClock ${pin.isClock ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsDot ${pin.isDot ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsLeftPointing ${pin.isLeftPointing ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsRightPointing ${pin.isRightPointing ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsNetStyle ${pin.isNetStyle ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsNoConnect ${pin.isNoConnect ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsGlobal ${pin.isGlobal ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+    L.push(`            set mStatus [$mPin SetIsNumberVisible ${pin.isNumberVisible ? 1 : 0}]`);
+    L.push('            set mStatusVal [$mStatus Failed]');
+    L.push('            if {$mStatusVal == 1} exit');
+  }
+
+  // ── Save part ──
+  L.push('        set mStatus [$mLib SavePart $lLibPart]');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
+
+  // ── Physical part (device) with pin number mapping ──
+  L.push(`        set lDesignator [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr('')}]]`);
+  L.push('        set mDevice [$mPackage NewDevice $lDesignator 0 $mCell $mStatus]');
+  L.push('        set mStatusVal [$mStatus Failed]');
+  L.push('        if {$mStatusVal == 1} exit');
 
   for (const pn of componentData.pinNumbers) {
-    L.push(`  set lPinNum [DboTclHelper_sMakeCString "${pn.number}"]`);
-    L.push(`  set pPosition [DboTclHelper_sMakeInt ${pn.position}]`);
-    L.push('  set mStatus [$mDevice NewPinNumber $lPinNum $pPosition]');
-    L.push('  set mStatusVal [$mStatus Failed]');
-    L.push('  if {$mStatusVal == 1} exit');
+    L.push(`          set lPinNum [DboTclHelper_sMakeCString [::orTransformStrOut ${tclStr(pn.number)}]]`);
+    L.push(`          set pPosition [DboTclHelper_sMakeInt ${pn.position}]`);
+    L.push('          set mStatus [$mDevice NewPinNumber $lPinNum $pPosition]');
+    L.push('          set mStatusVal [$mStatus Failed]');
+    L.push('          if {$mStatusVal == 1} exit');
   }
-  L.push('');
 
-  // Save package and library
-  L.push('set mStatus [$mLib SavePackageAll $mPackage]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('');
-  L.push(`puts "Saving Library: ${olbPath}"`);
-  L.push('set mStatus [$mSession SaveLib $mLib]');
-  L.push('set mStatusVal [$mStatus Failed]');
-  L.push('if {$mStatusVal == 1} exit');
-  L.push('DboTclHelper_sDeleteSession $mSession');
-  L.push('puts "Done."');
+  // ── Save package and library ──
+  L.push('    set mStatus [$mLib SavePackageAll $mPackage]');
+  L.push('    set mStatusVal [$mStatus Failed]');
+  L.push('    if {$mStatusVal == 1} exit');
+  L.push('  ');
+  L.push(`  puts [::orTransformStrOut ${tclStr('INFO(ORDBDLL-1229): XMATIC : Saving Library..' + olbPathUpper)}]`);
+  L.push('  set mStatus [$mSession SaveLib $mLib]');
+  L.push('  set mStatusVal [$mStatus Failed]');
+  L.push('  if {$mStatusVal == 1} exit');
+  L.push('  DboTclHelper_sDeleteSession $mSession');
+  L.push('  ');
 
   return L.join('\n');
+}
+
+// ─── TCL Execution ──────────────────────────────────────────────────────────
+
+/**
+ * Execute a TCL script using tclsh + OrCAD Dbo DLLs to generate an OLB file.
+ * On Linux, uses Wine64 to run the Windows tclsh.exe.
+ *
+ * @param {string} tclScript - TCL script content
+ * @param {string} tclFilePath - Path to save the temporary TCL script
+ * @param {number} [timeoutMs=30000] - Execution timeout in milliseconds
+ * @returns {Promise<{stdout: string, stderr: string}>}
+ */
+async function executeTCL(tclScript, tclFilePath, timeoutMs = 30000) {
+  const { tclshPath, dllDir } = getOrcadToolPaths();
+
+  // Verify tclsh exists
+  if (!fs.existsSync(tclshPath)) {
+    throw new Error(`tclsh not found at: ${tclshPath}. Set ORCAD_TCLSH_PATH env variable.`);
+  }
+
+  // Write tcl script
+  fs.writeFileSync(tclFilePath, tclScript, 'utf8');
+
+  // Build environment
+  const env = { ...process.env };
+
+  try {
+    let stdout, stderr;
+
+    if (IS_WINDOWS) {
+      // Windows: run tclsh.exe directly, add DLL dir to PATH
+      env.PATH = dllDir + ';' + (env.PATH || '');
+      ({ stdout, stderr } = await execFileAsync(tclshPath, [tclFilePath], {
+        env,
+        timeout: timeoutMs,
+        cwd: dllDir,
+      }));
+    } else {
+      // Linux: run tclsh.exe via Wine64
+      env.WINEPREFIX = process.env.WINEPREFIX || '/tmp/wine-orcad';
+      env.WINEDEBUG = process.env.WINEDEBUG || '-all';
+      // Add DLL dir to Wine's PATH so Windows DLL loader finds dependencies
+      env.WINEPATH = dllDir;
+      // Set TCL_LIBRARY for flat directory layout (lib/tcl8.6 alongside tclsh.exe)
+      const tclLibDir = path.join(path.dirname(tclshPath), 'lib', 'tcl8.6');
+      if (fs.existsSync(tclLibDir)) {
+        env.TCL_LIBRARY = toWinePath(tclLibDir);
+      }
+
+      ({ stdout, stderr } = await execFileAsync('wine64', [tclshPath, tclFilePath], {
+        env,
+        timeout: timeoutMs,
+        cwd: dllDir,
+      }));
+    }
+
+    return { stdout, stderr };
+  } finally {
+    // Clean up TCL script
+    try { fs.unlinkSync(tclFilePath); } catch { /* ignore */ }
+  }
 }
 
 // ─── High-Level API ─────────────────────────────────────────────────────────
 
 /**
- * Convert a SamacSys Capture XML string to OLB + XML files.
+ * Convert a SamacSys Capture XML string to an OLB file.
  *
- * Outputs:
- *   - <partName>.olb  - Binary OLB (OLE2 compound file)
- *   - <partName>.xml  - Original XML (OrCAD can import directly as fallback)
+ * Attempts TCL-based conversion first (using tclsh + Dbo DLLs).
+ * Falls back to generating just the TCL script + XML for manual conversion.
  *
  * @param {string} xmlContent - Raw XML string from Capture/<part>.xml
  * @param {string} targetDir - Directory to save the generated files
  * @param {string} [partName] - Override part name (defaults to name from XML)
  * @param {Object} [options] - Options
  * @param {boolean} [options.keepXml=true] - Whether to save the XML alongside
- * @returns {Object} { olbPath, olbFilename, tclPath, xmlPath, componentData }
+ * @returns {Object} { olbPath, olbFilename, xmlPath, tclPath, componentData, method }
  */
-export function convertCaptureXmlToOlb(xmlContent, targetDir, partName, options = {}) {
+export async function convertCaptureXmlToOlb(xmlContent, targetDir, partName, options = {}) {
   const { keepXml = true } = options;
 
-  // Parse XML
   const componentData = parseCaptureXML(xmlContent);
   const safeName = partName || componentData.name || 'UNKNOWN';
 
@@ -741,19 +765,57 @@ export function convertCaptureXmlToOlb(xmlContent, targetDir, partName, options 
     fs.writeFileSync(xmlPath, xmlContent, 'utf8');
   }
 
-  // Generate and save OLB binary
-  const olbBuffer = generateOLB(componentData);
   const olbPath = path.join(targetDir, safeName + '.olb');
-  fs.writeFileSync(olbPath, olbBuffer);
+  const tclPath = path.join(targetDir, safeName + '.tcl');
 
-  console.log(`[OLB] Generated: ${safeName}.olb (${olbBuffer.length}b), ${keepXml ? '.xml' : 'no xml'} | ${componentData.pins.length} pins`);
+  // Generate TCL script with Wine-compatible paths on Linux
+  // (tclsh.exe under Wine sees Windows paths via the Z: drive mapping)
+  const tclOlbPath = toWinePath(olbPath);
+  const tclScript = generateTCL(componentData, tclOlbPath, { standalone: true });
 
-  return {
-    olbPath,
-    olbFilename: safeName + '.olb',
-    xmlPath,
-    componentData,
-  };
+  // Try TCL-based conversion
+  try {
+    const { stdout, stderr } = await executeTCL(tclScript, tclPath);
+    if (stderr) {
+      console.warn('[OLB] TCL stderr:', stderr);
+    }
+
+    if (fs.existsSync(olbPath)) {
+      const olbSize = fs.statSync(olbPath).size;
+      console.log(`[OLB] TCL conversion: ${safeName}.olb (${olbSize}b) | ${componentData.pins.length} pins`);
+      if (stdout) {
+        console.log('[OLB] TCL output:', stdout.trim().split('\n').slice(-3).join(' | '));
+      }
+      return {
+        olbPath,
+        olbFilename: safeName + '.olb',
+        xmlPath,
+        tclPath: null,
+        componentData,
+        method: 'tcl',
+      };
+    }
+
+    throw new Error('OLB file was not created by TCL script');
+  } catch (err) {
+    console.warn(`[OLB] TCL conversion failed: ${err.message}. Saving TCL script for manual use.`);
+
+    // Save TCL script for user to run manually in OrCAD Capture
+    const manualTcl = generateTCL(componentData, olbPath);
+    fs.writeFileSync(tclPath, manualTcl, 'utf8');
+
+    console.log(`[OLB] Fallback: saved ${safeName}.tcl for manual conversion | ${componentData.pins.length} pins`);
+
+    return {
+      olbPath: null,
+      olbFilename: null,
+      tclPath,
+      tclFilename: safeName + '.tcl',
+      xmlPath,
+      componentData,
+      method: 'tcl-script',
+    };
+  }
 }
 
 /**
