@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.6.0] - 2026-02-05
+
+### Added
+
 - Unified `check.sh` script combining lint and test into a single workflow
   - Supports `--lint-only`, `--test-only`, `--coverage`, and `--watch` flags
   - `npm run check`, `npm run check:lint`, `npm run check:test`, `npm run check:coverage`
@@ -33,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Eliminates need for ON UPDATE CASCADE when part numbers change
   - Simplifies all alternative-related queries across 6 controllers
   - Removed redundant part_number update queries in category change, ECO approval, and settings flows
+  - User database using uuid v7
 
 ### Fixed
 
