@@ -9,15 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- **File renaming support** for CAD files (footprint, symbol, pspice)
+  - Inline rename with sanitization (special chars/spaces replaced with underscores)
+  - Quick "MPN" button to apply manufacturer part number as filename, preserving density suffixes (-M, -L, -m, -l)
+  - Server-side `PUT /files/rename` endpoint with validation and conflict detection
+  - Pad files excluded from renaming per design convention
+- **ECO settings table** (`eco_settings`) added to database schema with singleton pattern for ECO number formatting (prefix, leading zeros, next number)
+- **SMTP tables** (`smtp_settings`, `email_notification_preferences`, `email_log`) embedded into init-schema.sql so they are created during reset
+- **IC and MCU specification definitions** added to init-schema.sql (Supply Voltage, Clock Speed, Flash Memory, RAM, Operating Temperature, etc.)
+- **Table existence check** in sample data loading - verifies required tables exist before attempting to load, with clear error message
+- **SamacSys Capture XML research** - documented that `Capture/*.xml` files in SamacSys ZIPs contain complete OrCAD OLB-equivalent symbol data parseable without OrCAD installation
 
 ### Changed
 
-- 
+- **Dashboard UI overhaul**
+  - Removed background colors from approval status boxes, keeping only colored indicator circles
+  - Made Library Status and Approval Status sections use consistent card styles
+  - Category Distribution and Database Info now share one row instead of stacking vertically
+  - Removed unused `StatusBadge` component
+- **Default theme** changed to dark mode for new installations (no saved preference)
+- **Database operations UI** simplified: removed "Initialize Database" button and API (redundant since server auto-initializes on startup); kept only "Load Sample Data", "Verify Schema", and "Full Reset"
+  - Removed `initDatabase` from settings controller, routes, and client API
+  - Grid layout changed from 3-column to 2-column
+- **File delete confirmation** replaced browser `confirm()` dialog with app-consistent `ConfirmationModal` for file deletion in ComponentFiles
+- **Verify schema** expected tables list updated with all current tables (31 tables including ECO, SMTP, activity, projects, alternatives)
+- **Sample data SQL** completely rewritten for UUID v7 schema compatibility
+  - Integer category IDs replaced with UUID subqueries
+  - Removed `status` column (now `approval_status` with default)
+  - Replaced `price` column with `price_breaks` JSONB
+  - Fixed spec name mismatches and ON CONFLICT targets
+  - Updated part numbers to 5-digit format
 
 ### Fixed
 
-- 
+- **`column "created_at" does not exist`** errors in authController.js after UUIDv7 migration
+  - Fixed in `getAllUsers`, `createUser`, `updateUser`, and `getProfile` by using `created_at(id) as created_at` function
+- **`relation "eco_settings" does not exist`** - table was referenced in settingsController but never defined in any init SQL
+- **`relation "smtp_settings" does not exist`** after database reset - SMTP tables were in a separate SQL file not loaded during init/reset
+- **`activity_log_user_id_fkey` constraint violation** causing 500 errors on component create/update/delete after database reset
+  - Wrapped all activity_log inserts (10 locations in componentController.js) in try-catch blocks so stale JWT tokens don't crash main operations
+- **Unwanted border line** above CAD Files section in view mode removed (was caused by `border-t` class on wrapper div)
 
 ## [1.6.0] - 2026-02-05
 

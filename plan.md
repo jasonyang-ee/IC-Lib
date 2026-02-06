@@ -1,13 +1,7 @@
-## Continue
-- You are stopped before you can finish your work. You have stopped at updating dashboard. Please continue to complete the task defined in your todo list. Then please consider the below new informatino and make update todo list and finish all implementation.
+For the xml to olb convertion, I have gathered more information to help with the implementation. Please refer to the `example/olb` directory for sample OLB files generated from the provided XML files using OrCAD, in the process, it seems to have used tcl scripts to do the conversion, so I have also included "output" of tcl file from OrCAD, then there is a reference to the actual script setting saved as .xsd file, which I have also included in the `example/olb` directory. The .xsd file contains the structure and rules for the OLB file format, which should be helpful in understanding how to generate valid OLB files from the XML data.
 
-## SamacSys schematic symbol processing
-- https://www.samacsys.com/epw-file/
-- https://github.com/olback/library-loader
-- https://www.samacsys.com/orcad-allegro-libraries/
-- https://github.com/Werni2A/OpenOrCadParser
-- I have now realized that .xml file from samcsys must be processed by OrCAD to generate .olb file which contains the actual symbol data. Please use those above links as information to see if you can help use to auto process the .xml files to generate .olb files which we can then parse to extract symbol data. We want to automate this process as much as possible since we have a large number of .xml files from samacsys.
+Please refine your implementation plan based on this new information, and let me know if you have any questions or need further clarification.
 
-## Minor mantainance
-- Please update CHANGELOG.md with the latest changes and features added to the project. This will help us keep track of the project's progress and provide a clear history of updates for users and contributors. Please added in the ## [Unreleased] section with the date and a brief description of the changes made.
+Please also include new feature to auto parse .xml file if user is uploading those directly without .zip file. Those .xml file should auto converted to .olb file and stored in the library, and the original .xml file should be deleted after conversion.
 
+If you may, please do a test run of the conversion process using the provided XML files and the OrCAD software to ensure that the generated OLB files are valid and can be imported back into OrCAD without issues. This will help identify any potential issues in the conversion process and allow for adjustments to be made before implementing the feature in the application.
