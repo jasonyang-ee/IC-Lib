@@ -414,6 +414,75 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
 });
 
 /**
+ * Rename a file
+ */
+router.put('/rename', authenticate, canWrite, async (req, res) => {
+  try {
+    const { category, mfgPartNumber, oldFilename, newFilename } = req.body;
+
+    if (!category || !mfgPartNumber || !oldFilename || !newFilename) {
+      return res.status(400).json({ error: 'Category, part number, old filename, and new filename are required' });
+    }
+
+    // Validate category
+    const config = FILE_CATEGORIES[category];
+    if (!config) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
+
+    // Pad files cannot be renamed per requirements
+    if (category === 'pad') {
+      return res.status(400).json({ error: 'Pad files cannot be renamed' });
+    }
+
+    // Sanitize new filename: replace special chars and spaces with underscores, preserve extension
+    const oldExt = path.extname(oldFilename).toLowerCase();
+    const newExt = path.extname(newFilename).toLowerCase();
+
+    // Ensure the extension is preserved (use old extension if new one differs or is missing)
+    const finalExt = (newExt && config.extensions.includes(newExt)) ? newExt : oldExt;
+    const newBaseName = path.basename(newFilename, newExt || oldExt)
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    if (!newBaseName) {
+      return res.status(400).json({ error: 'Invalid filename after sanitization' });
+    }
+
+    const sanitizedNewFilename = newBaseName + finalExt;
+    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+    const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
+    const oldPath = path.join(dirPath, oldFilename);
+    const newPath = path.join(dirPath, sanitizedNewFilename);
+
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (oldFilename === sanitizedNewFilename) {
+      return res.json({ message: 'No changes needed', filename: sanitizedNewFilename });
+    }
+
+    if (fs.existsSync(newPath)) {
+      return res.status(409).json({ error: 'A file with that name already exists' });
+    }
+
+    fs.renameSync(oldPath, newPath);
+
+    res.json({
+      message: 'File renamed successfully',
+      oldFilename,
+      newFilename: sanitizedNewFilename,
+    });
+  } catch (error) {
+    console.error('Error renaming file:', error);
+    res.status(500).json({ error: 'Failed to rename file' });
+  }
+});
+
+/**
  * Delete a file
  */
 router.delete('/delete', authenticate, canWrite, async (req, res) => {

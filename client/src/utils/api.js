@@ -310,8 +310,10 @@ export const api = {
     }),
   listComponentFiles: (mfgPartNumber) => 
     apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
-  deleteComponentFile: (category, mfgPartNumber, filename) => 
+  deleteComponentFile: (category, mfgPartNumber, filename) =>
     apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
+  renameComponentFile: (category, mfgPartNumber, oldFilename, newFilename) =>
+    apiClient.put('/files/rename', { category, mfgPartNumber, oldFilename, newFilename }),
   getFileDownloadUrl: (category, mfgPartNumber, filename) =>
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
   getFileExportUrl: (mfgPartNumber) =>

@@ -1,3 +1,6 @@
+## Continue
+- You are stopped before you can finish your work. You have stopped at updating dashboard. Please continue to complete the task defined in your todo list. Then please consider the below new informatino and make update todo list and finish all implementation.
+
 ## SamacSys schematic symbol processing
 - https://www.samacsys.com/epw-file/
 - https://github.com/olback/library-loader
@@ -7,3 +10,4 @@
 
 ## Minor mantainance
 - Please update CHANGELOG.md with the latest changes and features added to the project. This will help us keep track of the project's progress and provide a clear history of updates for users and contributors. Please added in the ## [Unreleased] section with the date and a brief description of the changes made.
+

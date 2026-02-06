@@ -14,6 +14,26 @@ const CATEGORY_LABELS = {
   libraries: 'Library Archive',
 };
 
+// Categories that support renaming (pad files are excluded)
+const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'pspice'];
+
+// Density suffixes that should be preserved when applying MPN as filename
+const DENSITY_SUFFIXES = ['-M', '-L', '-m', '-l'];
+
+/**
+ * Extract density suffix from filename if present
+ */
+function extractDensitySuffix(filename) {
+  const ext = filename.substring(filename.lastIndexOf('.'));
+  const baseName = filename.substring(0, filename.lastIndexOf('.'));
+  for (const suffix of DENSITY_SUFFIXES) {
+    if (baseName.endsWith(suffix)) {
+      return { base: baseName.substring(0, baseName.length - suffix.length), suffix, ext };
+    }
+  }
+  return { base: baseName, suffix: '', ext };
+}
+
 /**
  * Component file upload and listing section
  * Shows below distributor info in component detail view
@@ -24,6 +44,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, category: '', filename: '' });
+  const [renaming, setRenaming] = useState({ category: '', filename: '', newName: '' });
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -85,6 +106,21 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
     },
   });
 
+  // Rename mutation
+  const renameMutation = useMutation({
+    mutationFn: async ({ category, oldFilename, newFilename }) => {
+      return api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename);
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      showSuccess(`Renamed to ${response.data.newFilename}`);
+      setRenaming({ category: '', filename: '', newName: '' });
+    },
+    onError: (error) => {
+      showError('Rename failed: ' + (error.response?.data?.error || error.message));
+    },
+  });
+
   const handleFiles = useCallback((files) => {
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -114,6 +150,48 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
     handleFiles(e.target.files);
     e.target.value = ''; // Reset input
   }, [handleFiles]);
+
+  const startRename = (category, filename) => {
+    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+    setRenaming({ category, filename, newName: nameWithoutExt });
+  };
+
+  const submitRename = () => {
+    if (!renaming.newName.trim()) return;
+    const ext = renaming.filename.substring(renaming.filename.lastIndexOf('.'));
+    renameMutation.mutate({
+      category: renaming.category,
+      oldFilename: renaming.filename,
+      newFilename: renaming.newName + ext,
+    });
+  };
+
+  const applyMpnAsFilename = (category, filename) => {
+    const { suffix, ext } = extractDensitySuffix(filename);
+    const sanitizedMpn = mfgPartNumber
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .replace(/\s+/g, '_');
+    const newFilename = sanitizedMpn + suffix + ext;
+
+    if (newFilename === filename) {
+      showSuccess('Filename already matches MPN');
+      return;
+    }
+
+    renameMutation.mutate({
+      category,
+      oldFilename: filename,
+      newFilename,
+    });
+  };
+
+  const cancelRename = () => {
+    setRenaming({ category: '', filename: '', newName: '' });
+  };
+
+  const isRenaming = (category, filename) => {
+    return renaming.category === category && renaming.filename === filename;
+  };
 
   const files = filesData?.files || {};
   const hasFiles = Object.keys(files).length > 0;
@@ -147,31 +225,88 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
                 {CATEGORY_LABELS[category] || category}
               </p>
               {categoryFiles.map((file) => (
-                <div
-                  key={file.name}
-                  className="flex items-center justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333] mb-1"
-                >
-                  <a
-                    href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
-                    title={file.name}
-                  >
-                    {file.name}
-                  </a>
-                  <span className="text-gray-400 dark:text-gray-500 shrink-0">
-                    {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
-                  </span>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirm({ show: true, category, filename: file.name })}
-                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 shrink-0 text-xs"
-                      title="Delete file"
-                    >
-                      x
-                    </button>
+                <div key={file.name} className="mb-1">
+                  {isRenaming(category, file.name) ? (
+                    /* Inline rename form */
+                    <div className="flex items-center gap-1 py-1 px-2 rounded text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <input
+                        type="text"
+                        value={renaming.newName}
+                        onChange={(e) => setRenaming(prev => ({ ...prev, newName: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') submitRename();
+                          if (e.key === 'Escape') cancelRename();
+                        }}
+                        className="flex-1 px-1.5 py-0.5 border border-gray-300 dark:border-[#444] rounded text-xs bg-white dark:bg-[#2a2a2a] dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        autoFocus
+                      />
+                      <span className="text-gray-400 dark:text-gray-500 text-xs">
+                        {file.name.substring(file.name.lastIndexOf('.'))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={submitRename}
+                        disabled={renameMutation.isPending}
+                        className="px-1.5 py-0.5 bg-primary-600 hover:bg-primary-700 text-white rounded text-xs disabled:opacity-50"
+                      >
+                        {renameMutation.isPending ? '...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelRename}
+                        className="px-1.5 py-0.5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    /* Normal file row */
+                    <div className="flex items-center justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
+                      <a
+                        href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
+                        title={file.name}
+                      >
+                        {file.name}
+                      </a>
+                      <span className="text-gray-400 dark:text-gray-500 shrink-0">
+                        {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                      </span>
+                      {canEdit && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {RENAMEABLE_CATEGORIES.includes(category) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => applyMpnAsFilename(category, file.name)}
+                                className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1"
+                                title="Apply MPN as filename"
+                              >
+                                MPN
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => startRename(category, file.name)}
+                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1"
+                                title="Rename file"
+                              >
+                                Rename
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirm({ show: true, category, filename: file.name })}
+                            className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs px-1"
+                            title="Delete file"
+                          >
+                            x
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}

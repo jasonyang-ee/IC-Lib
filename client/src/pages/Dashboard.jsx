@@ -17,14 +17,6 @@ const StatCard = ({ title, value, small = false }) => {
   );
 };
 
-// Status badge component
-const StatusBadge = ({ label, value, bgColor }) => (
-  <div className={`flex items-center justify-between p-2 ${bgColor} rounded-lg`}>
-    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</span>
-    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{value}</span>
-  </div>
-);
-
 // Category bar chart component
 const CategoryBar = ({ name, count, total }) => {
   const percentage = total > 0 ? (count / total) * 100 : 0;
@@ -66,17 +58,17 @@ const Dashboard = () => {
     retry: false,
   });
 
-  const isDatabaseNotInitialized = 
-    statsError?.response?.status === 500 || 
+  const isDatabaseNotInitialized =
+    statsError?.response?.status === 500 ||
     categoryError?.response?.status === 500;
 
   // Calculate library quality percentage
   const totalComponents = stats?.totalComponents || 0;
-  const totalMissing = (stats?.missingFootprints || 0) + 
-                      (stats?.missingSchematic || 0) + 
-                      (stats?.missing3DModel || 0) + 
+  const totalMissing = (stats?.missingFootprints || 0) +
+                      (stats?.missingSchematic || 0) +
+                      (stats?.missing3DModel || 0) +
                       (stats?.missingPspice || 0);
-  const qualityPercentage = totalComponents > 0 
+  const qualityPercentage = totalComponents > 0
     ? (100 - ((totalMissing / (totalComponents * 4)) * 100)).toFixed(1)
     : 0;
 
@@ -125,7 +117,7 @@ const Dashboard = () => {
 
       {/* Main Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Column - Library Status, Approval Status, Category Distribution */}
+        {/* Left Column - Library Status, Approval Status, Category Distribution + DB Info */}
         <div className="lg:col-span-2 space-y-4">
           {/* Library Status Section */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
@@ -141,67 +133,85 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Approval Status - Prominent Section */}
+          {/* Approval Status */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
               Component Approval Status
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-gray-200 dark:border-gray-700 text-center">
-                <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.new || 0}</p>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">New</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">New</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.new || 0}</p>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-yellow-300 dark:border-yellow-700 text-center">
-                <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{stats?.approvalStatus?.pending_review || 0}</p>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Pending</p>
+              <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pending</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.pending_review || 0}</p>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-green-300 dark:border-green-700 text-center">
-                <p className="text-3xl font-bold text-green-700 dark:text-green-400">{stats?.approvalStatus?.approved || 0}</p>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Approved</p>
+              <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.approved || 0}</p>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-purple-300 dark:border-purple-700 text-center">
-                <p className="text-3xl font-bold text-purple-700 dark:text-purple-400">{stats?.approvalStatus?.experimental || 0}</p>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Experimental</p>
+              <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Experimental</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.experimental || 0}</p>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-red-300 dark:border-red-700 text-center">
-                <p className="text-3xl font-bold text-red-700 dark:text-red-400">{stats?.approvalStatus?.archived || 0}</p>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mt-1">Archived</p>
+              <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Archived</p>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.archived || 0}</p>
               </div>
             </div>
           </div>
 
-          {/* Category Distribution */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
-              Category Distribution
-            </h2>
-            <div className="space-y-2.5">
-              {categoryBreakdown?.slice(0, 12).map((cat, i) => (
-                <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
-              ))}
-            </div>
-          </div>
-
-          {/* Database Info Section */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Database className="w-5 h-5 text-primary-600" />
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                Database Info
+          {/* Category Distribution + Database Info - Same Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Category Distribution */}
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
+                Category Distribution
               </h2>
+              <div className="space-y-2.5">
+                {categoryBreakdown?.slice(0, 12).map((cat, i) => (
+                  <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
+                ))}
+              </div>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Database Name</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.databaseName || '-'}</span>
+
+            {/* Database Info */}
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Database className="w-5 h-5 text-primary-600" />
+                <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                  Database Info
+                </h2>
               </div>
-              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Host</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.host || '-'}</span>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Database Size</span>
-                <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{dbInfo?.size || '-'}</span>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Database Name</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.databaseName || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Host</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.host || '-'}</span>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Database Size</span>
+                  <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{dbInfo?.size || '-'}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -226,7 +236,7 @@ const Dashboard = () => {
             <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
               Library Quality
             </h2>
-            
+
             {/* Quality Percentage Display */}
             <div className="mb-4 p-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <div className="flex items-baseline justify-between">
@@ -234,9 +244,9 @@ const Dashboard = () => {
                 <span className="text-2xl font-bold text-green-700 dark:text-green-400">{qualityPercentage}%</span>
               </div>
               <div className="mt-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full transition-all" 
-                  style={{ width: `${qualityPercentage}%` }} 
+                <div
+                  className="bg-green-600 h-2 rounded-full transition-all"
+                  style={{ width: `${qualityPercentage}%` }}
                 />
               </div>
             </div>
