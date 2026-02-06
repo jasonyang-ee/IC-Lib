@@ -313,8 +313,12 @@ const Audit = () => {
     }
 
     if (item.activity_type === 'updated' && details.updated_fields) {
-      const fieldCount = details.updated_fields.length;
-      return `${fieldCount} field${fieldCount !== 1 ? 's' : ''} changed`;
+      const fields = details.updated_fields
+        .filter(f => !['id', 'category_id', 'manufacturer_id'].includes(f))
+        .map(f => f.replace(/_/g, ' '));
+      return fields.length > 3
+        ? `${fields.slice(0, 3).join(', ')} +${fields.length - 3} more`
+        : fields.join(', ') || '1 field changed';
     }
 
     if (item.activity_type === 'added') {
@@ -357,9 +361,13 @@ const Audit = () => {
         .join(' ');
     };
 
-    const renderValue = (value) => {
+    const renderValue = (value, key) => {
       if (value === null || value === undefined) return <span className="text-gray-400">null</span>;
       if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+      // Render updated_fields as a compact comma-joined string
+      if (key === 'updated_fields' && Array.isArray(value)) {
+        return value.map(f => f.replace(/_/g, ' ')).join(', ');
+      }
       if (typeof value === 'object') {
         if (Array.isArray(value)) {
           return (

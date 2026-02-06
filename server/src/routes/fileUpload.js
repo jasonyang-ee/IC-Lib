@@ -12,8 +12,10 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Base library directory for CAD files (relative to server root)
-const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
+// Base library directory for CAD files
+// LIBRARY_BASE_PATH env var defines the path for OrCAD CIS file linking
+// Falls back to the local library directory relative to server root
+const LIBRARY_BASE = process.env.LIBRARY_BASE_PATH || path.resolve(__dirname, '../../../library');
 
 // File type categories and their subdirectories
 // IMPORTANT: Extensions must be unique across categories (except for ambiguous ones handled by path-based logic)
@@ -661,6 +663,15 @@ router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
     console.error('Error exporting files:', error);
     res.status(500).json({ error: 'Failed to export files' });
   }
+});
+
+/**
+ * Get library configuration (base path for file linking)
+ */
+router.get('/config', authenticate, (req, res) => {
+  res.json({
+    libraryBasePath: LIBRARY_BASE,
+  });
 });
 
 export default router;

@@ -318,6 +318,7 @@ export const api = {
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
   getFileExportUrl: (mfgPartNumber) =>
     `${API_BASE_URL}/files/export/${encodeURIComponent(mfgPartNumber)}`,
+  getFileConfig: () => apiClient.get('/files/config'),
     
   // File Library (CAD file management)
   getFileTypeStats: () => apiClient.get('/file-library/stats'),

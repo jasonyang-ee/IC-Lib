@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -335,6 +335,15 @@ const Library = () => {
     queryKey: ['distributors'],
     queryFn: async () => {
       const response = await api.getDistributors();
+      return response.data;
+    },
+  });
+
+  // Fetch library file config (base path for OrCAD CIS linking)
+  const { data: fileConfig } = useQuery({
+    queryKey: ['fileConfig'],
+    queryFn: async () => {
+      const response = await api.getFileConfig();
       return response.data;
     },
   });
@@ -2219,6 +2228,25 @@ const Library = () => {
     setEditData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Auto-fill CAD file path fields when files are uploaded/detected
+  const handleFilesChanged = useCallback((fileMap) => {
+    if (!fileMap || Object.keys(fileMap).length === 0) return;
+    const basePath = fileConfig?.libraryBasePath || '';
+    setEditData((prev) => {
+      const updates = {};
+      for (const [field, relativePath] of Object.entries(fileMap)) {
+        // Only auto-fill if the field is currently empty
+        if (!prev[field]) {
+          updates[field] = basePath
+            ? basePath.replace(/[\\/]+$/, '') + '/' + relativePath.replace(/^[\\/]+/, '')
+            : relativePath;
+        }
+      }
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
+    });
+  }, [fileConfig]);
+
   // Auto Fill from Vendor API Data
   const handleAutoFillFromVendorData = () => {
     if (!editData._vendorSearchData) {
@@ -3806,10 +3834,11 @@ const Library = () => {
                   </div>
 
                   {/* CAD Files Section */}
-                  {!isAddMode && editData.manufacturer_pn && (
+                  {editData.manufacturer_pn && (
                     <ComponentFiles
                       mfgPartNumber={editData.manufacturer_pn}
                       canEdit={true}
+                      onFilesChanged={handleFilesChanged}
                     />
                   )}
                 </>

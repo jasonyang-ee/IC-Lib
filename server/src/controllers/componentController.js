@@ -477,7 +477,6 @@ export const updateComponent = async (req, res, next) => {
         req.user.id,
         result.rows[0].part_number,
         JSON.stringify({
-          description: result.rows[0].description,
           category_name: categoryResult.rows[0]?.name,
           updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
         }),

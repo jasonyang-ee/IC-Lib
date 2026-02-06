@@ -209,8 +209,8 @@ async function validateUsersTableSchema() {
     `);
     
     const requiredColumns = [
-      'id', 'username', 'password_hash', 'role', 
-      'created_at', 'created_by', 'last_login', 'is_active',
+      'id', 'username', 'password_hash', 'role',
+      'created_by', 'last_login', 'is_active',
     ];
     
     const existingColumns = result.rows.map(row => row.column_name);

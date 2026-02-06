@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -34,11 +34,20 @@ function extractDensitySuffix(filename) {
   return { base: baseName, suffix: '', ext };
 }
 
+// Map file categories to component detail fields
+const CATEGORY_TO_FIELD = {
+  footprint: 'pcb_footprint',
+  symbol: 'schematic',
+  model: 'step_model',
+  pspice: 'pspice',
+  pad: 'pad_file',
+};
+
 /**
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
+const ComponentFiles = ({ mfgPartNumber, canEdit = false, onFilesChanged }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -55,6 +64,19 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
     },
     enabled: !!mfgPartNumber,
   });
+
+  // Notify parent when files change (for auto-filling CAD fields)
+  useEffect(() => {
+    if (!onFilesChanged || !filesData?.files) return;
+    const fileMap = {};
+    for (const [category, categoryFiles] of Object.entries(filesData.files)) {
+      const field = CATEGORY_TO_FIELD[category];
+      if (field && categoryFiles.length > 0) {
+        fileMap[field] = categoryFiles[0].path;
+      }
+    }
+    onFilesChanged(fileMap);
+  }, [filesData, onFilesChanged]);
 
   // Upload mutation
   const uploadMutation = useMutation({

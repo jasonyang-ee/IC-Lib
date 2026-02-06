@@ -714,12 +714,11 @@ export function generateTCL(componentData, outputOlbPath) {
 // ─── High-Level API ─────────────────────────────────────────────────────────
 
 /**
- * Convert a SamacSys Capture XML string to OLB + TCL + XML files.
+ * Convert a SamacSys Capture XML string to OLB + XML files.
  *
  * Outputs:
- *   - <partName>.olb  - Binary OLB (best-effort, may need TCL fallback)
- *   - <partName>.tcl  - TCL script for OrCAD (guaranteed compatible)
- *   - <partName>.xml  - Original XML (OrCAD can import directly)
+ *   - <partName>.olb  - Binary OLB (OLE2 compound file)
+ *   - <partName>.xml  - Original XML (OrCAD can import directly as fallback)
  *
  * @param {string} xmlContent - Raw XML string from Capture/<part>.xml
  * @param {string} targetDir - Directory to save the generated files
@@ -747,17 +746,11 @@ export function convertCaptureXmlToOlb(xmlContent, targetDir, partName, options 
   const olbPath = path.join(targetDir, safeName + '.olb');
   fs.writeFileSync(olbPath, olbBuffer);
 
-  // Generate and save TCL script
-  const tclContent = generateTCL(componentData, olbPath);
-  const tclPath = path.join(targetDir, safeName + '.tcl');
-  fs.writeFileSync(tclPath, tclContent, 'utf8');
-
-  console.log(`[OLB] Generated: ${safeName}.olb (${olbBuffer.length}b), .tcl, ${keepXml ? '.xml' : 'no xml'} | ${componentData.pins.length} pins`);
+  console.log(`[OLB] Generated: ${safeName}.olb (${olbBuffer.length}b), ${keepXml ? '.xml' : 'no xml'} | ${componentData.pins.length} pins`);
 
   return {
     olbPath,
     olbFilename: safeName + '.olb',
-    tclPath,
     xmlPath,
     componentData,
   };
