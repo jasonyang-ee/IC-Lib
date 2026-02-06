@@ -1,0 +1,42 @@
+INFO(ORDBDLL-1229): XMATIC : Creating Library..C:\USERS\SAMI\DESKTOP\FT260S-R.OLB
+INFO(ORDBDLL-1229): XMATIC : Writing package..FT260S-R
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolDisplayProp..Part Reference
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolDisplayProp..Value
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Manufacturer_Name
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Manufacturer_Part_Number
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Mouser Part Number
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Mouser Price/Stock
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Arrow Part Number
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Arrow Price/Stock
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Description
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Datasheet Link
+INFO(ORDBDLL-1229): XMATIC : Writing SymbolUserProp..Height
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..FSOURCE
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..VBUS_DET
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO12_(_BCD_DET/_RX_LED/_PWREN_N/__GPIOG_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO13_GPIOH/_DSRN
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DEBUGGER
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..STEST_RSTN
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..RESETN
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DCNF0
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DCNF1
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..VCCIO
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO0_(_TX_ACTIVE_/_TX_LED_/__GPIOA_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO1_(_GPIOB_/__RTSN_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO2_(_GPIOE_/__CTSN_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO3_(_RXD_/__GPIOC_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..AGND
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..VCCIN
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..VOUT3V3
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DP
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DM
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..GND
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO11_(_GPIO5/__RI_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO10_(_GPIO4_/__DCD_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO9_(_GPIOF_/__DTRN_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO8_(_INTRIN_/__WAKEUP_/_GPIO3_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO7_(_SUSPOUT_N_/_PWREN_N_/__GPIO2_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO6_(_SDA_/__GPIO1_)
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO5
+INFO(ORDBDLL-1229): XMATIC : Writing PinScalar..DIO4_(_TXD_/_GPIOD_)
+INFO(ORDBDLL-1229): XMATIC : Saving Library..C:\USERS\SAMI\DESKTOP\FT260S-R.OLB

@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { authenticate, canWrite } from '../middleware/auth.js';
+import { convertCaptureXmlToOlb, isCaptureXML } from '../services/olbService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

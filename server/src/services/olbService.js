@@ -427,42 +427,58 @@ export function generateOLB(componentData) {
 }
 
 /**
- * Process a SamacSys Capture XML file:
- * 1. Parse the XML to extract component data
- * 2. Generate an OLB file
- * 3. Save both XML and OLB to the target directory
+ * Convert a SamacSys Capture XML string to an OLB file.
+ * Generates the OLB binary and writes it to targetDir.
+ * The original XML is saved alongside as a fallback for OrCAD's native import.
  *
- * @param {string} xmlContent - Raw XML string
- * @param {string} targetDir - Directory to save the generated files
- * @param {string} partName - Component part name (for filename)
+ * @param {string} xmlContent - Raw XML string from Capture/<part>.xml
+ * @param {string} targetDir - Directory to save the generated OLB
+ * @param {string} [partName] - Override part name (defaults to name from XML)
+ * @param {Object} [options] - Options
+ * @param {boolean} [options.keepXml=true] - Whether to save the XML alongside the OLB
  * @returns {Object} { olbPath, xmlPath, componentData }
  */
-export function processCapturXML(xmlContent, targetDir, partName) {
+export function convertCaptureXmlToOlb(xmlContent, targetDir, partName, options = {}) {
+  const { keepXml = true } = options;
+
   // Parse XML
   const componentData = parseCaptureXML(xmlContent);
   const safeName = partName || componentData.name || 'UNKNOWN';
 
-  // Save the original XML (OrCAD can import this directly via File > Import)
-  const xmlPath = path.join(targetDir, safeName + '.xml');
-  fs.writeFileSync(xmlPath, xmlContent, 'utf8');
+  // Save the original XML as fallback (OrCAD can import this directly via File > Import)
+  let xmlPath = null;
+  if (keepXml) {
+    xmlPath = path.join(targetDir, safeName + '.xml');
+    fs.writeFileSync(xmlPath, xmlContent, 'utf8');
+  }
 
   // Generate and save OLB
   let olbPath = null;
-  try {
-    const olbBuffer = generateOLB(componentData);
-    olbPath = path.join(targetDir, safeName + '.olb');
-    fs.writeFileSync(olbPath, olbBuffer);
-    console.log(`[OLB] Generated OLB: ${olbPath} (${olbBuffer.length} bytes)`);
-  } catch (err) {
-    console.error(`[OLB] Failed to generate OLB for ${safeName}:`, err.message);
-    // XML is still saved as fallback
-  }
+  const olbBuffer = generateOLB(componentData);
+  olbPath = path.join(targetDir, safeName + '.olb');
+  fs.writeFileSync(olbPath, olbBuffer);
+  console.log(`[OLB] Generated OLB: ${olbPath} (${olbBuffer.length} bytes, ${componentData.pins.length} pins)`);
 
   return {
     olbPath,
+    olbFilename: safeName + '.olb',
     xmlPath,
     componentData,
   };
+}
+
+/**
+ * Check if an XML string is a valid SamacSys Capture XML (has <Lib> root with <Package>)
+ * @param {string} xmlContent - Raw XML string
+ * @returns {boolean}
+ */
+export function isCaptureXML(xmlContent) {
+  try {
+    const parsed = xmlParser.parse(xmlContent);
+    return !!(parsed?.Lib?.Package);
+  } catch {
+    return false;
+  }
 }
 
 /**
