@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.6.1] - 2026-02-06
+
+### Added
+
 - **File renaming support** for CAD files (footprint, symbol, pspice)
   - Inline rename with sanitization (special chars/spaces replaced with underscores)
   - Quick "MPN" button to apply manufacturer part number as filename, preserving density suffixes (-M, -L, -m, -l)
