@@ -2031,22 +2031,7 @@ const Settings = () => {
     },
   });
 
-  const initDbMutation = useMutation({
-    mutationFn: async () => {
-      const response = await api.initDatabase();
-      return response;
-    },
-    onSuccess: () => {
-      showSuccess('Database initialized successfully!');
-      queryClient.invalidateQueries(['categoryConfigs']);
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      showError(`Error initializing database: ${errorMsg}`);
-    },
-  });
-
-  const loadSampleDataMutation = useMutation({
+const loadSampleDataMutation = useMutation({
     mutationFn: async () => {
       const response = await api.loadSampleData();
       return response;
@@ -2333,12 +2318,9 @@ const Settings = () => {
     setConfirmDialog({
       show: true,
       action,
-      title: action === 'init' ? 'Initialize Database' : 
-             action === 'load' ? 'Load Sample Data' : 
+      title: action === 'load' ? 'Load Sample Data' :
              action === 'reset' ? 'Full Database Reset' : 'Verify Database',
-      message: action === 'init' ? 
-               'This will create the database schema (only works on empty databases). Continue?' :
-               action === 'load' ?
+      message: action === 'load' ?
                'This will load sample data into the database. Existing data will not be affected. Continue?' :
                action === 'reset' ?
                '⚠️ DANGER: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE PERMANENTLY LOST! This cannot be undone. Are you absolutely sure?' :
@@ -2380,9 +2362,7 @@ const Settings = () => {
     const newName = confirmDialog.newName;
     setConfirmDialog({ show: false, action: '', title: '', message: '', oldId: '', newName: '' });
     
-    if (action === 'init') {
-      initDbMutation.mutate();
-    } else if (action === 'load') {
+    if (action === 'load') {
       loadSampleDataMutation.mutate();
     } else if (action === 'verify') {
       verifyDbMutation.mutate();
@@ -2775,24 +2755,7 @@ const Settings = () => {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Database Operations</h2>
         
         {/* Standard Operations */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <button
-            onClick={() => handleDatabaseOperation('init')}
-            disabled={initDbMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {initDbMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Initializing...
-              </>
-            ) : (
-              <>
-                <Database className="w-4 h-4" />
-                Initialize Database
-              </>
-            )}
-          </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <button
             onClick={() => handleDatabaseOperation('load')}
             disabled={loadSampleDataMutation.isPending}
@@ -2898,9 +2861,6 @@ const Settings = () => {
         </div>
 
         <div className="mt-4 space-y-2">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            <strong>Initialize Database:</strong> Creates schema in an empty database. Won't work if tables exist.
-          </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <strong>Load Sample Data:</strong> Populates database with example components. Safe to run multiple times.
           </p>

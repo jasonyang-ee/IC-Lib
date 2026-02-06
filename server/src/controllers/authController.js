@@ -157,17 +157,17 @@ export const logout = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT 
-        u.id, 
-        u.username, 
-        u.role, 
-        u.created_at, 
-        u.last_login, 
+      SELECT
+        u.id,
+        u.username,
+        u.role,
+        created_at(u.id) as created_at,
+        u.last_login,
         u.is_active,
         creator.username as created_by_username
       FROM users u
       LEFT JOIN users creator ON u.created_by = creator.id
-      ORDER BY u.created_at DESC
+      ORDER BY u.id DESC
     `);
 
     res.json(result.rows);
@@ -242,7 +242,7 @@ export const createUser = async (req, res) => {
     const result = await pool.query(
       `INSERT INTO users (username, password_hash, role, display_name, email, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, username, role, display_name, email, created_at, is_active`,
+       RETURNING id, username, role, display_name, email, created_at(id) as created_at, is_active`,
       [username, password_hash, role, display_name || null, email || null, req.user.userId],
     );
 
@@ -375,7 +375,7 @@ export const updateUser = async (req, res) => {
       `UPDATE users 
        SET ${updates.join(', ')}
        WHERE id = $${paramCount}
-       RETURNING id, username, role, is_active, created_at, last_login`,
+       RETURNING id, username, role, is_active, created_at(id) as created_at, last_login`,
       values,
     );
 
@@ -507,8 +507,8 @@ export const changePassword = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, role, email, display_name, notification_preferences, 
-              created_at, last_login, is_active 
+      `SELECT id, username, role, email, display_name, notification_preferences,
+              created_at(id) as created_at, last_login, is_active
        FROM users WHERE id = $1`,
       [req.user.userId],
     );

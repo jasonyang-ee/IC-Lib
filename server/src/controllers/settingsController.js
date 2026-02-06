@@ -187,38 +187,6 @@ export const resetDatabase = async (req, res) => {
 };
 
 /**
- * POST /api/settings/database/init - Initialize database
- */
-export const initDatabase = async (req, res) => {
-  try {
-    console.log('Initializing database...');
-    const results = await databaseService.initializeDatabase();
-    
-    if (results.success) {
-      res.json({
-        success: true,
-        message: results.message,
-        tableCount: results.tableCount,
-        steps: results.steps,
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: results.message,
-        tableCount: results.tableCount,
-        errors: results.errors,
-      });
-    }
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    res.status(500).json({ 
-      error: 'Failed to initialize database',
-      message: error.message, 
-    });
-  }
-};
-
-/**
  * POST /api/settings/database/sample-data - Load sample data
  */
 export const loadSampleData = async (req, res) => {
@@ -257,16 +225,36 @@ export const verifyDatabase = async (req, res) => {
     
     // Expected tables for the redesigned schema
     const expectedTables = [
+      'users',
       'component_categories',
       'manufacturers',
       'distributors',
       'components',
+      'components_alternative',
       'category_specifications',
       'component_specification_values',
       'distributor_info',
       'inventory',
+      'inventory_alternative',
       'footprint_sources',
       'schema_version',
+      'activity_log',
+      'activity_types',
+      'user_activity_log',
+      'projects',
+      'project_components',
+      'eco_settings',
+      'eco_orders',
+      'eco_changes',
+      'eco_distributors',
+      'eco_alternative_parts',
+      'eco_specifications',
+      'eco_approval_stages',
+      'eco_stage_approvers',
+      'eco_approvals',
+      'smtp_settings',
+      'email_notification_preferences',
+      'email_log',
     ];
     
     const result = await pool.query(`

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download } from 'lucide-react';
+import ConfirmationModal from '../common/ConfirmationModal';
 
 const CATEGORY_LABELS = {
   footprint: 'PCB Footprint',
@@ -22,6 +23,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, category: '', filename: '' });
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -75,9 +77,11 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
     onSuccess: () => {
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       showSuccess('File deleted');
+      setDeleteConfirm({ show: false, category: '', filename: '' });
     },
     onError: (error) => {
       showError('Delete failed: ' + (error.response?.data?.error || error.message));
+      setDeleteConfirm({ show: false, category: '', filename: '' });
     },
   });
 
@@ -117,7 +121,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
   if (!mfgPartNumber) return null;
 
   return (
-    <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+    <div className="col-span-2 pt-4 mt-2">
       <div className="flex items-center justify-between mb-3">
         <h4 className="font-semibold text-gray-900 dark:text-gray-100">CAD Files</h4>
         {hasFiles && (
@@ -162,11 +166,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
                   {canEdit && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(`Delete ${file.name}?`)) {
-                          deleteMutation.mutate({ category, filename: file.name });
-                        }
-                      }}
+                      onClick={() => setDeleteConfirm({ show: true, category, filename: file.name })}
                       className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 shrink-0 text-xs"
                       title="Delete file"
                     >
@@ -215,6 +215,18 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
           </p>
         </div>
       )}
+
+      {/* Delete confirmation modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirm.show}
+        onClose={() => setDeleteConfirm({ show: false, category: '', filename: '' })}
+        onConfirm={() => deleteMutation.mutate({ category: deleteConfirm.category, filename: deleteConfirm.filename })}
+        title="Delete File"
+        message={`Are you sure you want to delete "${deleteConfirm.filename}"? This action cannot be undone.`}
+        confirmText="Delete"
+        confirmStyle="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 };

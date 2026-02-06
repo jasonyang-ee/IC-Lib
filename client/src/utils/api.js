@@ -247,7 +247,6 @@ export const api = {
   getDatabaseStatus: () => apiClient.get('/settings/database/status'),
   clearDatabase: () => apiClient.post('/settings/database/clear'),
   resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
-  initDatabase: () => apiClient.post('/settings/database/init'),
   loadSampleData: () => apiClient.post('/settings/database/sample-data'),
   verifyDatabase: () => apiClient.get('/settings/database/verify'),
   syncInventory: () => apiClient.post('/settings/database/sync-inventory'),

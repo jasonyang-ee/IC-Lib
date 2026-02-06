@@ -436,12 +436,16 @@ DECLARE
     ind_id UUID;
     dio_id UUID;
     tra_id UUID;
+    ic_id UUID;
+    mcu_id UUID;
 BEGIN
     SELECT id INTO cap_id FROM component_categories WHERE name = 'Capacitors';
     SELECT id INTO res_id FROM component_categories WHERE name = 'Resistors';
     SELECT id INTO ind_id FROM component_categories WHERE name = 'Inductors';
     SELECT id INTO dio_id FROM component_categories WHERE name = 'Diodes';
     SELECT id INTO tra_id FROM component_categories WHERE name = 'Transistors';
+    SELECT id INTO ic_id FROM component_categories WHERE name = 'ICs';
+    SELECT id INTO mcu_id FROM component_categories WHERE name = 'MCU';
 
     -- Capacitors specifications
     INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
@@ -493,6 +497,23 @@ BEGIN
         (tra_id, 'Input Capacitance (Ciss)', '', '["Input Capacitance (Ciss) (Max) @ Vds"]'::jsonb, 7, false),
         (tra_id, 'Power', 'W', '["Power - Max"]'::jsonb, 8, false),
         (tra_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 9, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+    -- ICs specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (ic_id, 'Supply Voltage', 'V', '["Supply Voltage"]'::jsonb, 1, false),
+        (ic_id, 'Number of Channels', '', '["Number of Channels"]'::jsonb, 2, false),
+        (ic_id, 'Operating Current', 'A', '["Operating Current"]'::jsonb, 3, false),
+        (ic_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 4, false)
+    ON CONFLICT (category_id, spec_name) DO NOTHING;
+
+    -- MCU specifications
+    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required) VALUES
+        (mcu_id, 'Supply Voltage', 'V', '["Supply Voltage"]'::jsonb, 1, false),
+        (mcu_id, 'Clock Speed', 'Hz', '["Clock Speed"]'::jsonb, 2, false),
+        (mcu_id, 'Flash Memory', 'KB', '["Flash Memory"]'::jsonb, 3, false),
+        (mcu_id, 'RAM', 'KB', '["RAM"]'::jsonb, 4, false),
+        (mcu_id, 'Operating Temperature', '', '["Operating Temperature"]'::jsonb, 5, false)
     ON CONFLICT (category_id, spec_name) DO NOTHING;
 END $$;
 
@@ -640,6 +661,24 @@ INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, re
 SELECT 'Review & Approval', 1, 1, 'approver'
 WHERE NOT EXISTS (SELECT 1 FROM eco_approval_stages);
 
+-- Table: eco_settings
+-- Stores ECO numbering configuration (singleton)
+CREATE TABLE IF NOT EXISTS eco_settings (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    prefix VARCHAR(20) NOT NULL DEFAULT 'ECO-',
+    leading_zeros INTEGER NOT NULL DEFAULT 6,
+    next_number INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Only one settings row should exist (singleton pattern)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_eco_settings_singleton ON eco_settings((1));
+
+-- Insert default ECO settings
+INSERT INTO eco_settings (prefix, leading_zeros, next_number)
+SELECT 'ECO-', 6, 1
+WHERE NOT EXISTS (SELECT 1 FROM eco_settings);
+
 -- Table: eco_orders
 -- Stores ECO header information
 CREATE TABLE IF NOT EXISTS eco_orders (
@@ -759,6 +798,12 @@ CREATE OR REPLACE TRIGGER update_eco_approval_stages_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+-- Trigger to update eco_settings updated_at timestamp
+CREATE OR REPLACE TRIGGER update_eco_settings_updated_at
+    BEFORE UPDATE ON eco_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- Function to generate next ECO number
 CREATE OR REPLACE FUNCTION generate_eco_number()
 RETURNS VARCHAR AS $$
@@ -829,4 +874,62 @@ BEGIN
     RETURN extract_timestamp_from_uuidv7(uuid_val);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+-- ============================================================================
+-- PART 14: SMTP & EMAIL NOTIFICATION TABLES
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS smtp_settings (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    host VARCHAR(255) NOT NULL,
+    port INTEGER NOT NULL DEFAULT 587,
+    secure BOOLEAN DEFAULT false,
+    no_auth BOOLEAN DEFAULT false,
+    auth_user VARCHAR(255),
+    auth_password_encrypted TEXT,
+    from_address VARCHAR(255) NOT NULL,
+    from_name VARCHAR(100) DEFAULT 'IC Library System',
+    enabled BOOLEAN DEFAULT false,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES users(id)
+);
+
+-- Only one SMTP configuration should exist at a time (singleton pattern)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_smtp_settings_singleton ON smtp_settings((1));
+
+-- Trigger to update updated_at timestamp
+CREATE OR REPLACE TRIGGER update_smtp_settings_updated_at
+    BEFORE UPDATE ON smtp_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS email_notification_preferences (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    notify_eco_created BOOLEAN DEFAULT true,
+    notify_eco_approved BOOLEAN DEFAULT true,
+    notify_eco_rejected BOOLEAN DEFAULT true,
+    notify_eco_pending_approval BOOLEAN DEFAULT true,
+    notify_eco_stage_advanced BOOLEAN DEFAULT true,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id)
+);
+
+CREATE OR REPLACE TRIGGER update_email_prefs_updated_at
+    BEFORE UPDATE ON email_notification_preferences
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS email_log (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    recipient_email VARCHAR(255) NOT NULL,
+    subject VARCHAR(500) NOT NULL,
+    template_name VARCHAR(100),
+    status VARCHAR(50) NOT NULL,
+    error_message TEXT,
+    eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_log_id ON email_log(id DESC);
+CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);
 

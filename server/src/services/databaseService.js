@@ -251,7 +251,22 @@ export const loadSampleData = async () => {
 
   try {
     await client.connect();
-    
+
+    // Verify that required tables exist before loading sample data
+    const tableCheck = await client.query(`
+      SELECT COUNT(*) as count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+      AND table_name IN ('components', 'component_categories', 'manufacturers', 'distributors', 'inventory')
+    `);
+
+    if (parseInt(tableCheck.rows[0].count) < 5) {
+      results.success = false;
+      results.message = 'Database tables are not initialized. Please run "Full Database Reset" first to create the schema.';
+      return results;
+    }
+
     const sampleDataPath = join(__dirname, '..', '..', '..', 'database', 'init-sample-data.sql');
     const sampleData = readFileSync(sampleDataPath, 'utf8');
     

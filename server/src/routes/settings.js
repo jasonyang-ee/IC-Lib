@@ -1,11 +1,10 @@
 import express from 'express';
-import { 
-  getSettings, 
+import {
+  getSettings,
   updateSettings,
   getDatabaseStatus,
   clearDatabase,
   resetDatabase,
-  initDatabase,
   loadSampleData,
   verifyDatabase,
   getCategoryConfigs,
@@ -65,7 +64,6 @@ router.delete('/specifications/:id', deleteCategorySpecification);
 router.get('/database/status', getDatabaseStatus);
 router.post('/database/clear', clearDatabase);
 router.post('/database/reset', resetDatabase);
-router.post('/database/init', initDatabase);
 router.post('/database/sample-data', loadSampleData);
 router.get('/database/verify', verifyDatabase);
 router.post('/database/sync-inventory', syncComponentsToInventory);

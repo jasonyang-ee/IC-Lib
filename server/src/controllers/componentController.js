@@ -181,21 +181,25 @@ export const createComponent = async (req, res, next) => {
     const component = componentResult.rows[0];
     
     // Log activity
-    const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'added', $4)
-    `, [
-      component.id,
-      req.user.id,
-      component.part_number,
-      JSON.stringify({
-        description: component.description,
-        category_name: categoryResult.rows[0]?.name,
-        manufacturer_pn: mfrPartNumber,
-        value: value,
-      }),
-    ]);
+    try {
+      const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'added', $4)
+      `, [
+        component.id,
+        req.user.id,
+        component.part_number,
+        JSON.stringify({
+          description: component.description,
+          category_name: categoryResult.rows[0]?.name,
+          manufacturer_pn: mfrPartNumber,
+          value: value,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log component creation activity:', logError.message);
+    }
     
     // Auto-create inventory entry (backup in case trigger doesn't exist)
     await pool.query(`
@@ -333,21 +337,25 @@ export const changeComponentCategory = async (req, res, next) => {
     `, [new_category_id, newPartNumber, id]);
 
     // Log activity
-    await client.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'category_changed', $4)
-    `, [
-      id,
-      req.user.id,
-      newPartNumber,
-      JSON.stringify({
-        old_part_number: oldPartNumber,
-        new_part_number: newPartNumber,
-        old_category_id: oldCategoryId,
-        new_category_id: new_category_id,
-        new_category_name: categoryName,
-      }),
-    ]);
+    try {
+      await client.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'category_changed', $4)
+      `, [
+        id,
+        req.user.id,
+        newPartNumber,
+        JSON.stringify({
+          old_part_number: oldPartNumber,
+          new_part_number: newPartNumber,
+          old_category_id: oldCategoryId,
+          new_category_id: new_category_id,
+          new_category_name: categoryName,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log category change activity:', logError.message);
+    }
 
     await client.query('COMMIT');
 
@@ -459,20 +467,24 @@ export const updateComponent = async (req, res, next) => {
     ]);
 
     // Log activity with details
-    const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [result.rows[0].category_id]);
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'updated', $4)
-    `, [
-      id,
-      req.user.id,
-      result.rows[0].part_number,
-      JSON.stringify({
-        description: result.rows[0].description,
-        category_name: categoryResult.rows[0]?.name,
-        updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
-      }),
-    ]);
+    try {
+      const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [result.rows[0].category_id]);
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'updated', $4)
+      `, [
+        id,
+        req.user.id,
+        result.rows[0].part_number,
+        JSON.stringify({
+          description: result.rows[0].description,
+          category_name: categoryResult.rows[0]?.name,
+          updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log component update activity:', logError.message);
+    }
 
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
@@ -521,18 +533,22 @@ export const deleteComponent = async (req, res, next) => {
       await client.query('BEGIN');
       
       // Log activity before deletion
-      await client.query(`
-        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, 'deleted', $4)
-      `, [
-        component.id,
-        req.user.id,
-        component.part_number,
-        JSON.stringify({
-          description: component.description,
-          category_name: component.category_name,
-        }),
-      ]);
+      try {
+        await client.query(`
+          INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+          VALUES ($1, $2, $3, 'deleted', $4)
+        `, [
+          component.id,
+          req.user.id,
+          component.part_number,
+          JSON.stringify({
+            description: component.description,
+            category_name: component.category_name,
+          }),
+        ]);
+      } catch (logError) {
+        console.error('Failed to log component deletion activity:', logError.message);
+      }
       
       // Delete from related tables first (foreign key constraints)
       await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
@@ -781,23 +797,27 @@ export const updateDistributorInfo = async (req, res, next) => {
     const component = componentResult.rows[0];
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'distributor_updated', $4)
-    `, [
-      id,
-      req.user.id,
-      component?.part_number || '',
-      JSON.stringify({
-        description: component?.description,
-        distributor_count: distributorsWithPricing.length,
-        distributors: distributorsWithPricing.map(d => ({
-          distributor_id: d.distributor_id,
-          sku: d.sku,
-          in_stock: d.in_stock,
-        })),
-      }),
-    ]);
+    try {
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'distributor_updated', $4)
+      `, [
+        id,
+        req.user.id,
+        component?.part_number || '',
+        JSON.stringify({
+          description: component?.description,
+          distributor_count: distributorsWithPricing.length,
+          distributors: distributorsWithPricing.map(d => ({
+            distributor_id: d.distributor_id,
+            sku: d.sku,
+            in_stock: d.in_stock,
+          })),
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log distributor update activity:', logError.message);
+    }
 
     // Return updated distributor info
     const result = await pool.query(`
@@ -1032,19 +1052,23 @@ export const createAlternative = async (req, res, next) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'alternative_added', $4)
-    `, [
-      id,
-      req.user.id,
-      partNumber,
-      JSON.stringify({
-        alternative_id: alternativeId,
-        manufacturer_pn: manufacturer_pn,
-        distributor_count: distributors?.length || 0,
-      }),
-    ]);
+    try {
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'alternative_added', $4)
+      `, [
+        id,
+        req.user.id,
+        partNumber,
+        JSON.stringify({
+          alternative_id: alternativeId,
+          manufacturer_pn: manufacturer_pn,
+          distributor_count: distributors?.length || 0,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log alternative added activity:', logError.message);
+    }
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -1145,19 +1169,23 @@ export const updateAlternative = async (req, res, next) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'alternative_updated', $4)
-    `, [
-      id,
-      req.user.id,
-      partNumber,
-      JSON.stringify({
-        alternative_id: altId,
-        manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
-        distributor_count: distributors?.length || 0,
-      }),
-    ]);
+    try {
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'alternative_updated', $4)
+      `, [
+        id,
+        req.user.id,
+        partNumber,
+        JSON.stringify({
+          alternative_id: altId,
+          manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
+          distributor_count: distributors?.length || 0,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log alternative update activity:', logError.message);
+    }
     
     res.json(result.rows[0]);
   } catch (error) {
@@ -1200,18 +1228,22 @@ export const deleteAlternative = async (req, res, next) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'alternative_deleted', $4)
-    `, [
-      id,
-      req.user.id,
-      partNumber,
-      JSON.stringify({
-        alternative_id: altId,
-        manufacturer_pn: alternativePn,
-      }),
-    ]);
+    try {
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'alternative_deleted', $4)
+      `, [
+        id,
+        req.user.id,
+        partNumber,
+        JSON.stringify({
+          alternative_id: altId,
+          manufacturer_pn: alternativePn,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log alternative deletion activity:', logError.message);
+    }
     
     res.json({ message: 'Alternative deleted successfully' });
   } catch (error) {
@@ -1304,19 +1336,23 @@ export const promoteAlternative = async (req, res, next) => {
     }
 
     // 3. Log activity
-    await client.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, 'alternative_promoted', $4)
-    `, [
-      id,
-      req.user.id,
-      comp.part_number,
-      JSON.stringify({
-        alternative_id: altId,
-        old_primary_manufacturer_pn: comp.manufacturer_pn,
-        new_primary_manufacturer_pn: altPart.manufacturer_pn,
-      }),
-    ]);
+    try {
+      await client.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'alternative_promoted', $4)
+      `, [
+        id,
+        req.user.id,
+        comp.part_number,
+        JSON.stringify({
+          alternative_id: altId,
+          old_primary_manufacturer_pn: comp.manufacturer_pn,
+          new_primary_manufacturer_pn: altPart.manufacturer_pn,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log alternative promotion activity:', logError.message);
+    }
 
     await client.query('COMMIT');
 
@@ -2052,30 +2088,34 @@ export const updateComponentApproval = async (req, res, next) => {
     };
 
     // Get component info for activity log
-    const componentInfo = await pool.query(`
-      SELECT c.part_number, c.description, cat.name as category_name
-      FROM components c
-      LEFT JOIN component_categories cat ON c.category_id = cat.id
-      WHERE c.id = $1
-    `, [id]);
+    try {
+      const componentInfo = await pool.query(`
+        SELECT c.part_number, c.description, cat.name as category_name
+        FROM components c
+        LEFT JOIN component_categories cat ON c.category_id = cat.id
+        WHERE c.id = $1
+      `, [id]);
 
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      id,
-      req.user?.id || null,
-      componentInfo.rows[0]?.part_number,
-      activityTypeMap[action],
-      JSON.stringify({
-        description: componentInfo.rows[0]?.description,
-        category_name: componentInfo.rows[0]?.category_name,
-        action: action,
-        old_status: component.approval_status,
-        new_status: newApprovalStatus,
-        user_id: user_id,
-      }),
-    ]);
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [
+        id,
+        req.user?.id || null,
+        componentInfo.rows[0]?.part_number,
+        activityTypeMap[action],
+        JSON.stringify({
+          description: componentInfo.rows[0]?.description,
+          category_name: componentInfo.rows[0]?.category_name,
+          action: action,
+          old_status: component.approval_status,
+          new_status: newApprovalStatus,
+          user_id: user_id,
+        }),
+      ]);
+    } catch (logError) {
+      console.error('Failed to log approval activity:', logError.message);
+    }
 
     // Fetch complete component with joined data
     const fullComponent = await pool.query(`
