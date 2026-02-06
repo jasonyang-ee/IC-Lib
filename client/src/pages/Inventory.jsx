@@ -211,35 +211,28 @@ const Inventory = () => {
     }
 
     console.log('Raw barcode input:', barcode);
-    console.log('Barcode length:', barcode.length);
-    console.log('First 50 chars:', barcode.substring(0, 50));
 
     // Define control characters
     const GS = String.fromCharCode(29); // Group Separator
     const RS = String.fromCharCode(30); // Record Separator
     const EOT = String.fromCharCode(4); // End of Transmission
-    
+
     // Replace literal text representations with actual control characters
     // Some barcode readers send the literal text {GS} instead of the control character
     let cleanBarcode = barcode
       .replace(/\{GS\}/g, GS)
       .replace(/\{RS\}/g, RS)
       .replace(/\{EOT\}/g, EOT);
-    
+
     // Also handle escaped representations
     cleanBarcode = cleanBarcode
       .replace(/\\x1d/g, GS)
       .replace(/\\x1e/g, RS)
       .replace(/\\x04/g, EOT);
-    
-    console.log('Cleaned barcode (first 50):', cleanBarcode.substring(0, 50));
-    
+
     // Split by GS (Group Separator) to get fields
     const fields = cleanBarcode.split(GS);
-    
-    console.log('Number of fields:', fields.length);
-    console.log('All fields:', fields);
-    
+
     // DigiKey format after header: [)>RS06GS <field1> GS <field2> GS ...
     // The first field after the header is the manufacturer part number
     let mfgPartNumber = null;
@@ -262,28 +255,23 @@ const Inventory = () => {
       // Remove trailing control characters
       // eslint-disable-next-line no-control-regex
       field = field.replace(/[\x1e\x04]+$/, '');
-      
-      console.log(`Field ${index}: "${field}" (length: ${field.length})`);
-      
+
       if (!field) return;
       
       // Check for manufacturer part number (1P prefix)
       if (field.startsWith('1P')) {
         mfgPartNumber = field.substring(2);
-        console.log(`  -> Found MFG P/N: ${mfgPartNumber}`);
       }
       // Check for DigiKey SKU (30P prefix)
       else if (field.startsWith('30P')) {
         const sku = field.substring(3);
         digikeySkus.push(sku);
-        console.log(`  -> Found DigiKey SKU (30P): ${sku}`);
       }
       // Check for alternative SKU format (P prefix without 30)
       else if (field.startsWith('P') && field.length > 1) {
         const sku = field.substring(1);
         if (!digikeySkus.includes(sku)) {
           digikeySkus.push(sku);
-          console.log(`  -> Found SKU (P): ${sku}`);
         }
       }
       // Check for quantity (Q prefix)
@@ -291,17 +279,13 @@ const Inventory = () => {
         const qtyStr = field.substring(1).match(/\d+/);
         if (qtyStr) {
           quantity = parseInt(qtyStr[0], 10);
-          console.log(`  -> Found Quantity: ${quantity}`);
         }
       }
       // If no prefix and we haven't found MFG P/N yet, and it looks like a valid part number
       else if (!mfgPartNumber && field.match(/^[A-Z0-9][A-Z0-9\-+_.]+$/i)) {
         mfgPartNumber = field;
-        console.log(`  -> Found MFG P/N (no prefix): ${mfgPartNumber}`);
       }
     });
-
-    console.log('Final parsed data:', { mfgPartNumber, digikeySkus, quantity });
 
     // If we successfully parsed the barcode
     if (mfgPartNumber) {
@@ -311,12 +295,10 @@ const Inventory = () => {
         quantity: quantity,
         digikeySKU: digikeySkus[0] || null
       };
-      
-      console.log('Setting decode result:', result);
+
       setBarcodeDecodeResult(result);
-      
+
       // Search for the part using ONLY the manufacturer part number
-      console.log('Setting search term to:', mfgPartNumber);
       setSearchTerm(mfgPartNumber);
       
       // Auto-focus and select the input field for next scan
@@ -331,7 +313,6 @@ const Inventory = () => {
     }
 
     // If no pattern matched
-    console.log('Failed to parse barcode');
     setBarcodeDecodeResult({
       error: 'Could not parse manufacturer part number from barcode. Please check the format.'
     });

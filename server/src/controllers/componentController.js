@@ -58,7 +58,7 @@ export const getAllComponents = async (req, res, next) => {
             OR c.id::text = $${exactParamIndex}
             OR EXISTS (
               SELECT 1 FROM components_alternative ca
-              WHERE ca.part_number = c.part_number
+              WHERE ca.component_id = c.id
               AND (ca.manufacturer_pn ILIKE $${paramIndex} OR ca.id::text = $${exactParamIndex})
             )
             OR EXISTS (
@@ -69,7 +69,7 @@ export const getAllComponents = async (req, res, next) => {
             OR EXISTS (
               SELECT 1 FROM distributor_info di
               JOIN components_alternative ca ON di.alternative_id = ca.id
-              WHERE ca.part_number = c.part_number
+              WHERE ca.component_id = c.id
               AND di.sku ILIKE $${paramIndex}
             )
           )`;
@@ -143,6 +143,7 @@ export const createComponent = async (req, res, next) => {
       schematic,
       step_model,
       pspice,
+      pad_file,
       datasheet_url,
       approval_status,
     } = req.body;
@@ -164,16 +165,16 @@ export const createComponent = async (req, res, next) => {
       INSERT INTO components (
         category_id, part_number, manufacturer_id, manufacturer_pn,
         description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-        pcb_footprint, package_size, schematic, step_model, pspice,
+        pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
         datasheet_url, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `;
 
     const componentResult = await pool.query(insertQuery, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      pcb_footprint, package_size, schematic, step_model, pspice,
+      pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
       datasheet_url, approval_status || 'new',
     ]);
 
@@ -182,11 +183,12 @@ export const createComponent = async (req, res, next) => {
     // Log activity
     const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'added', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'added', $4)
     `, [
-      component.id, 
-      component.part_number, 
+      component.id,
+      req.user.id,
+      component.part_number,
       JSON.stringify({
         description: component.description,
         category_name: categoryResult.rows[0]?.name,
@@ -313,17 +315,8 @@ export const changeComponentCategory = async (req, res, next) => {
       console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Removed ${deleteSpecsResult.rowCount} old specification values`);
     }
 
-    // Update alternative parts to reference the new part number FIRST
-    // (Before updating the main component to avoid FK violation)
-    const updateAltsResult = await client.query(`
-      UPDATE components_alternative 
-      SET part_number = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE part_number = $2
-    `, [newPartNumber, oldPartNumber]);
-
-    if (updateAltsResult.rowCount > 0) {
-      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Updated ${updateAltsResult.rowCount} alternative parts to new part number`);
-    }
+    // Note: No need to update components_alternative - they reference component_id (UUID)
+    // which doesn't change when part_number changes due to category change.
 
     // Update component with new category and part number
     // Also clear sub-categories since they may not be valid for new category
@@ -341,11 +334,12 @@ export const changeComponentCategory = async (req, res, next) => {
 
     // Log activity
     await client.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'category_changed', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'category_changed', $4)
     `, [
-      id, 
-      newPartNumber, 
+      id,
+      req.user.id,
+      newPartNumber,
       JSON.stringify({
         old_part_number: oldPartNumber,
         new_part_number: newPartNumber,
@@ -410,6 +404,7 @@ export const updateComponent = async (req, res, next) => {
       schematic,
       step_model,
       pspice,
+      pad_file,
       datasheet_url,
       approval_status,
       approval_user_id,
@@ -447,17 +442,18 @@ export const updateComponent = async (req, res, next) => {
         schematic = $13,
         step_model = $14,
         pspice = $15,
-        datasheet_url = COALESCE($16, datasheet_url),
-        approval_status = COALESCE($17, approval_status),
-        approval_user_id = $18,
-        approval_date = $19,
+        pad_file = $16,
+        datasheet_url = COALESCE($17, datasheet_url),
+        approval_status = COALESCE($18, approval_status),
+        approval_user_id = $19,
+        approval_date = $20,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $20
+      WHERE id = $21
       RETURNING *
     `, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      pcb_footprint, package_size, schematic, step_model, pspice,
+      pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
       datasheet_url, approval_status, approval_user_id, approval_date,
       id,
     ]);
@@ -465,11 +461,12 @@ export const updateComponent = async (req, res, next) => {
     // Log activity with details
     const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [result.rows[0].category_id]);
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'updated', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'updated', $4)
     `, [
-      id, 
-      result.rows[0].part_number, 
+      id,
+      req.user.id,
+      result.rows[0].part_number,
       JSON.stringify({
         description: result.rows[0].description,
         category_name: categoryResult.rows[0]?.name,
@@ -525,11 +522,12 @@ export const deleteComponent = async (req, res, next) => {
       
       // Log activity before deletion
       await client.query(`
-        INSERT INTO activity_log (component_id, part_number, activity_type, details)
-        VALUES ($1, $2, 'deleted', $3)
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, 'deleted', $4)
       `, [
-        component.id, 
-        component.part_number, 
+        component.id,
+        req.user.id,
+        component.part_number,
         JSON.stringify({
           description: component.description,
           category_name: component.category_name,
@@ -784,10 +782,11 @@ export const updateDistributorInfo = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'distributor_updated', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'distributor_updated', $4)
     `, [
       id,
+      req.user.id,
       component?.part_number || '',
       JSON.stringify({
         description: component?.description,
@@ -892,7 +891,7 @@ export const getFieldSuggestions = async (req, res, next) => {
     const { categoryId, field } = req.query;
     
     // Validate field name to prevent SQL injection
-    const allowedFields = ['package_size', 'pcb_footprint', 'schematic', 'step_model', 'pspice'];
+    const allowedFields = ['package_size', 'pcb_footprint', 'schematic', 'step_model', 'pspice', 'pad_file'];
     if (!field || !allowedFields.includes(field)) {
       return res.status(400).json({ error: 'Invalid field parameter' });
     }
@@ -925,22 +924,10 @@ export const getFieldSuggestions = async (req, res, next) => {
 export const getAlternatives = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
-    // First get the component's part number
-    const componentResult = await pool.query(
-      'SELECT part_number FROM components WHERE id = $1',
-      [id],
-    );
-    
-    if (componentResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Component not found' });
-    }
-    
-    const partNumber = componentResult.rows[0].part_number;
-    
-    // Get all alternatives for this part number (NOT including the primary component itself)
+
+    // Get all alternatives for this component
     const result = await pool.query(`
-      SELECT 
+      SELECT
         ca.*,
         m.name as manufacturer_name,
         m.website as manufacturer_website,
@@ -968,10 +955,10 @@ export const getAlternatives = async (req, res, next) => {
         ) as distributors
       FROM components_alternative ca
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
-      WHERE ca.part_number = $1
+      WHERE ca.component_id = $1
       ORDER BY ca.id ASC
-    `, [partNumber]);
-    
+    `, [id]);
+
     res.json(result.rows);
   } catch (error) {
     next(error);
@@ -984,29 +971,29 @@ export const createAlternative = async (req, res, next) => {
     const {
       manufacturer_id,
       manufacturer_pn,
-      distributors = [], // Array of distributor info objects
+      distributors = [],
     } = req.body;
-    
-    // Get component's part number
+
+    // Verify the component exists and get its part_number for logging
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
-    
+
     if (componentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Component not found' });
     }
-    
+
     const partNumber = componentResult.rows[0].part_number;
-    
-    // Create the alternative
+
+    // Create the alternative linked by component_id
     const result = await pool.query(`
       INSERT INTO components_alternative (
-        part_number, manufacturer_id, manufacturer_pn
+        component_id, manufacturer_id, manufacturer_pn
       )
       VALUES ($1, $2, $3)
       RETURNING *
-    `, [partNumber, manufacturer_id, manufacturer_pn]);
+    `, [id, manufacturer_id, manufacturer_pn]);
     
     const alternativeId = result.rows[0].id;
     
@@ -1046,10 +1033,11 @@ export const createAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'alternative_added', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'alternative_added', $4)
     `, [
       id,
+      req.user.id,
       partNumber,
       JSON.stringify({
         alternative_id: alternativeId,
@@ -1075,28 +1063,28 @@ export const updateAlternative = async (req, res, next) => {
       manufacturer_pn,
       distributors = [],
     } = req.body;
-    
-    // Get component's part number
+
+    // Verify the component exists and get part_number for logging
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
-    
+
     if (componentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Component not found' });
     }
-    
+
     const partNumber = componentResult.rows[0].part_number;
-    
+
     const result = await pool.query(`
       UPDATE components_alternative
-      SET 
+      SET
         manufacturer_id = COALESCE($1, manufacturer_id),
         manufacturer_pn = COALESCE($2, manufacturer_pn),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3 AND part_number = $4
+      WHERE id = $3 AND component_id = $4
       RETURNING *
-    `, [manufacturer_id, manufacturer_pn, altId, partNumber]);
+    `, [manufacturer_id, manufacturer_pn, altId, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
@@ -1158,10 +1146,11 @@ export const updateAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'alternative_updated', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'alternative_updated', $4)
     `, [
       id,
+      req.user.id,
       partNumber,
       JSON.stringify({
         alternative_id: altId,
@@ -1179,31 +1168,31 @@ export const updateAlternative = async (req, res, next) => {
 export const deleteAlternative = async (req, res, next) => {
   try {
     const { id, altId } = req.params;
-    
-    // Get component's part number
+
+    // Verify the component exists and get part_number for logging
     const componentResult = await pool.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
-    
+
     if (componentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Component not found' });
     }
-    
+
     const partNumber = componentResult.rows[0].part_number;
-    
+
     // Get alternative info before deleting
     const altResult = await pool.query(
       'SELECT manufacturer_pn FROM components_alternative WHERE id = $1',
       [altId],
     );
-    
+
     const alternativePn = altResult.rows[0]?.manufacturer_pn;
-    
+
     // Delete the alternative (distributor_info will be cascade deleted)
     const result = await pool.query(
-      'DELETE FROM components_alternative WHERE id = $1 AND part_number = $2 RETURNING *',
-      [altId, partNumber],
+      'DELETE FROM components_alternative WHERE id = $1 AND component_id = $2 RETURNING *',
+      [altId, id],
     );
     
     if (result.rows.length === 0) {
@@ -1212,10 +1201,11 @@ export const deleteAlternative = async (req, res, next) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, 'alternative_deleted', $3)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'alternative_deleted', $4)
     `, [
       id,
+      req.user.id,
       partNumber,
       JSON.stringify({
         alternative_id: altId,
@@ -1226,6 +1216,136 @@ export const deleteAlternative = async (req, res, next) => {
     res.json({ message: 'Alternative deleted successfully' });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Promote an alternative part to become the primary part
+ * Atomically swaps the alternative's manufacturer info and distributor info
+ * with the primary component's, demoting the current primary to an alternative
+ */
+export const promoteAlternative = async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { id, altId } = req.params;
+
+    await client.query('BEGIN');
+
+    // Fetch primary component and alternative data
+    const comp = (await client.query(
+      'SELECT id, part_number, manufacturer_id, manufacturer_pn FROM components WHERE id = $1', [id],
+    )).rows[0];
+
+    const altPart = (await client.query(
+      'SELECT id, manufacturer_id, manufacturer_pn FROM components_alternative WHERE id = $1 AND component_id = $2', [altId, id],
+    )).rows[0];
+
+    if (!comp || !altPart) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Component or alternative not found' });
+    }
+
+    // 1. Swap manufacturer info on component and alternative
+    await client.query(`
+      UPDATE components SET
+        manufacturer_id = $1,
+        manufacturer_pn = $2,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [altPart.manufacturer_id, altPart.manufacturer_pn, id]);
+
+    await client.query(`
+      UPDATE components_alternative SET
+        manufacturer_id = $1,
+        manufacturer_pn = $2,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [comp.manufacturer_id, comp.manufacturer_pn, altId]);
+
+    // 2. Swap distributor info using a staging approach:
+    //    Delete-and-reinsert to avoid unique constraint conflicts
+    const primaryDists = (await client.query(
+      'SELECT * FROM distributor_info WHERE component_id = $1', [id],
+    )).rows;
+
+    const altDists = (await client.query(
+      'SELECT * FROM distributor_info WHERE alternative_id = $1', [altId],
+    )).rows;
+
+    await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
+    await client.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
+
+    // Re-insert alternative's distributors as primary
+    for (const dist of altDists) {
+      await client.query(`
+        INSERT INTO distributor_info (
+          component_id, alternative_id, distributor_id, sku, url, currency,
+          in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+        ) VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [
+        id, dist.distributor_id, dist.sku, dist.url, dist.currency,
+        dist.in_stock, dist.stock_quantity, dist.minimum_order_quantity,
+        dist.packaging, dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
+      ]);
+    }
+
+    // Re-insert primary's distributors as alternative
+    for (const dist of primaryDists) {
+      await client.query(`
+        INSERT INTO distributor_info (
+          component_id, alternative_id, distributor_id, sku, url, currency,
+          in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+        ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [
+        altId, dist.distributor_id, dist.sku, dist.url, dist.currency,
+        dist.in_stock, dist.stock_quantity, dist.minimum_order_quantity,
+        dist.packaging, dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
+      ]);
+    }
+
+    // 3. Log activity
+    await client.query(`
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, 'alternative_promoted', $4)
+    `, [
+      id,
+      req.user.id,
+      comp.part_number,
+      JSON.stringify({
+        alternative_id: altId,
+        old_primary_manufacturer_pn: comp.manufacturer_pn,
+        new_primary_manufacturer_pn: altPart.manufacturer_pn,
+      }),
+    ]);
+
+    await client.query('COMMIT');
+
+    // Fetch and return updated component
+    const fullComponent = await pool.query(`
+      SELECT
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.id = $1
+    `, [id]);
+
+    res.json({
+      success: true,
+      component: fullComponent.rows[0],
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error promoting alternative: ${error.message}`);
+    next(error);
+  } finally {
+    client.release();
   }
 };
 
@@ -1252,9 +1372,7 @@ export const updateComponentStock = async (req, res, next) => {
       FROM distributor_info di
       JOIN distributors d ON di.distributor_id = d.id
       WHERE (di.component_id = $1 OR di.alternative_id IN (
-        SELECT id FROM components_alternative WHERE part_number = (
-          SELECT part_number FROM components WHERE id = $1
-        )
+        SELECT id FROM components_alternative WHERE component_id = $1
       ))
       AND di.sku IS NOT NULL
       AND di.sku != ''
@@ -1758,7 +1876,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
         if (allResults.length > 0) {
           console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Found ${allResults.length} distributor entries for ${comp.part_number}`);
           // Group by source
-          const bySource = {};;
+          const bySource = {};
           allResults.forEach(result => {
             if (!bySource[result.source]) {
               bySource[result.source] = [];
@@ -1942,10 +2060,11 @@ export const updateComponentApproval = async (req, res, next) => {
     `, [id]);
 
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       id,
+      req.user?.id || null,
       componentInfo.rows[0]?.part_number,
       activityTypeMap[action],
       JSON.stringify({

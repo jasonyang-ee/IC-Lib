@@ -13,9 +13,10 @@ import {
   Cpu, 
   Box, 
   Zap, 
-  FileCode, 
+  FileCode,
   ChevronRight,
-  FileText
+  FileText,
+  Layers
 } from 'lucide-react';
 
 const FileLibrary = () => {
@@ -38,6 +39,7 @@ const FileLibrary = () => {
     { id: 'schematic', label: 'Schematic', icon: Zap, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/30' },
     { id: 'step', label: 'STEP 3D Model', icon: Box, color: 'text-purple-500', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
     { id: 'pspice', label: 'PSpice Model', icon: FileCode, color: 'text-orange-500', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
+    { id: 'pad', label: 'Pad File', icon: Layers, color: 'text-teal-500', bgColor: 'bg-teal-100 dark:bg-teal-900/30' },
   ];
   
   // Fetch file type statistics

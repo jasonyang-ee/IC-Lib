@@ -143,6 +143,7 @@ export const api = {
   createComponentAlternative: (id, data) => apiClient.post(`/components/${id}/alternatives`, data),
   updateComponentAlternative: (id, altId, data) => apiClient.put(`/components/${id}/alternatives/${altId}`, data),
   deleteComponentAlternative: (id, altId) => apiClient.delete(`/components/${id}/alternatives/${altId}`),
+  promoteAlternative: (id, altId) => apiClient.post(`/components/${id}/alternatives/${altId}/promote`),
   
   // Component Approval
   updateComponentApproval: (id, action, user_id) => apiClient.post(`/components/${id}/approval`, { action, user_id }),
@@ -279,9 +280,17 @@ export const api = {
   getECOs: (params) => apiClient.get('/eco', { params }),
   getECOById: (id) => apiClient.get(`/eco/${id}`),
   createECO: (data) => apiClient.post('/eco', data),
-  approveECO: (id) => apiClient.post(`/eco/${id}/approve`),
+  approveECO: (id, data) => apiClient.post(`/eco/${id}/approve`, data),
   rejectECO: (id, data) => apiClient.post(`/eco/${id}/reject`, data),
   deleteECO: (id) => apiClient.delete(`/eco/${id}`),
+
+  // ECO Approval Stages
+  getApprovalStages: () => apiClient.get('/eco/stages'),
+  createApprovalStage: (data) => apiClient.post('/eco/stages', data),
+  updateApprovalStage: (id, data) => apiClient.put(`/eco/stages/${id}`, data),
+  deleteApprovalStage: (id) => apiClient.delete(`/eco/stages/${id}`),
+  reorderApprovalStages: (stageIds) => apiClient.put('/eco/stages/reorder', { stage_ids: stageIds }),
+  setStageApprovers: (stageId, userIds) => apiClient.put(`/eco/stages/${stageId}/approvers`, { user_ids: userIds }),
   
   // SMTP Settings
   smtp: {
@@ -304,8 +313,10 @@ export const api = {
     apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
   deleteComponentFile: (category, mfgPartNumber, filename) => 
     apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
-  getFileDownloadUrl: (category, mfgPartNumber, filename) => 
+  getFileDownloadUrl: (category, mfgPartNumber, filename) =>
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
+  getFileExportUrl: (mfgPartNumber) =>
+    `${API_BASE_URL}/files/export/${encodeURIComponent(mfgPartNumber)}`,
     
   // File Library (CAD file management)
   getFileTypeStats: () => apiClient.get('/file-library/stats'),

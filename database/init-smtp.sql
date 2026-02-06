@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
   from_name VARCHAR(100) DEFAULT 'IC Library System',
   enabled BOOLEAN DEFAULT false,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_by INTEGER REFERENCES users(id)
+  updated_by UUID REFERENCES users(id)
 );
 
 -- Only one SMTP configuration should exist at a time (singleton pattern)
@@ -37,13 +37,13 @@ COMMENT ON COLUMN smtp_settings.no_auth IS 'Set to true for SMTP servers that do
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS email_notification_preferences (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT uuidv7(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   notify_eco_created BOOLEAN DEFAULT true,
   notify_eco_approved BOOLEAN DEFAULT true,
   notify_eco_rejected BOOLEAN DEFAULT true,
   notify_eco_pending_approval BOOLEAN DEFAULT true, -- For approvers only
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  notify_eco_stage_advanced BOOLEAN DEFAULT true, -- When ECO advances to next stage
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id)
 );
@@ -59,15 +59,14 @@ CREATE TRIGGER update_email_prefs_updated_at
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS email_log (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuidv7(),
   recipient_email VARCHAR(255) NOT NULL,
   subject VARCHAR(500) NOT NULL,
   template_name VARCHAR(100),
   status VARCHAR(50) NOT NULL, -- 'sent', 'failed', 'queued'
   error_message TEXT,
-  eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_log_created_at ON email_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_log_id ON email_log(id DESC);
 CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);

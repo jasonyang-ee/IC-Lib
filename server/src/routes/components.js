@@ -58,6 +58,9 @@ router.put('/:id/alternatives/:altId', authenticate, canWrite, componentControll
 // Delete alternative part
 router.delete('/:id/alternatives/:altId', authenticate, canWrite, componentController.deleteAlternative);
 
+// Promote alternative part to primary (atomic swap)
+router.post('/:id/alternatives/:altId/promote', authenticate, canWrite, componentController.promoteAlternative);
+
 // Update approval status for component (permission check done in controller)
 router.post('/:id/approval', authenticate, componentController.updateComponentApproval);
 

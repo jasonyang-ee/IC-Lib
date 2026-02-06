@@ -2,7 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Edit, Trash2, Plus, X, Check, AlertTriangle, AlertCircle, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
+import { parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
+import { DeleteConfirmationModal, ECODeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
+import VendorDataPanel from '../components/library/VendorDataPanel';
+import SpecificationsEditor from '../components/library/SpecificationsEditor';
+import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
+import SpecificationsView from '../components/library/SpecificationsView';
+import ComponentFiles from '../components/library/ComponentFiles';
+import { Search, Edit, Trash2, Plus, X, Check, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -66,13 +73,16 @@ const Library = () => {
   const footprintRef = useRef(null);
   const symbolRef = useRef(null);
   
-  // STEP and PSPICE suggestions and dropdown states
+  // STEP, PSPICE, and PAD suggestions and dropdown states
   const [stepModelSuggestions, setStepModelSuggestions] = useState([]);
   const [pspiceSuggestions, setPspiceSuggestions] = useState([]);
+  const [padFileSuggestions, setPadFileSuggestions] = useState([]);
   const [stepModelOpen, setStepModelOpen] = useState(false);
   const [pspiceOpen, setPspiceOpen] = useState(false);
+  const [padFileOpen, setPadFileOpen] = useState(false);
   const stepModelRef = useRef(null);
   const pspiceRef = useRef(null);
+  const padFileRef = useRef(null);
   
   // Manufacturer state
   const [manufacturerInput, setManufacturerInput] = useState('');
@@ -139,6 +149,9 @@ const Library = () => {
       if (pspiceRef.current && !pspiceRef.current.contains(event.target)) {
         setPspiceOpen(false);
       }
+      if (padFileRef.current && !padFileRef.current.contains(event.target)) {
+        setPadFileOpen(false);
+      }
       if (manufacturerRef.current && !manufacturerRef.current.contains(event.target)) {
         setManufacturerOpen(false);
       }
@@ -153,138 +166,18 @@ const Library = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Copy to clipboard handler
+  // Copy to clipboard handler using imported utility
   const handleCopyToClipboard = (text, label) => {
-    // Check if clipboard API is available
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        setCopiedText(label);
-        setTimeout(() => setCopiedText(''), 2000);
-      }).catch((err) => {
-        console.error('Failed to copy text:', err);
-        fallbackCopyToClipboard(text, label);
-      });
-    } else {
-      fallbackCopyToClipboard(text, label);
-    }
-  };
-
-  // Sanitize specification value by removing unit characters if they match
-  const sanitizeSpecValue = (specValue, unit) => {
-    if (!specValue || !unit) return specValue;
-    
-    // Convert to strings and trim
-    const value = String(specValue).trim();
-    const unitStr = String(unit).trim();
-    
-    if (!unitStr) return value;
-    
-    // Check if the value ends with the unit
-    if (value.endsWith(unitStr)) {
-      // Remove the unit from the end
-      return value.substring(0, value.length - unitStr.length).trim();
-    }
-    
-    return value;
-  };
-
-  // Map vendor specifications to component specifications using mapping_spec_names
-  const mapVendorSpecifications = (vendorSpecs, categorySpecs) => {
-    if (!vendorSpecs || !categorySpecs || categorySpecs.length === 0) {
-      return categorySpecs;
-    }
-    
-    // Create a map of vendor spec name to value (case-insensitive)
-    const vendorSpecMap = {};
-    Object.entries(vendorSpecs).forEach(([key, value]) => {
-      // Handle both object format {value: "x"} and direct string values
-      const specValue = typeof value === 'object' && value !== null ? value.value : value;
-      if (specValue) {
-        vendorSpecMap[key.toLowerCase().trim()] = String(specValue);
-      }
-    });
-    
-    // Map category specs with vendor values ONLY where mapping_spec_names exists
-    return categorySpecs.map(spec => {
-      // Keep the original spec_value if no mapping exists
-      let mappedValue = spec.spec_value || '';
-      
-      // Support both old mapping_spec_name and new mapping_spec_names array
-      const mappings = Array.isArray(spec.mapping_spec_names) 
-        ? spec.mapping_spec_names 
-        : (spec.mapping_spec_name ? [spec.mapping_spec_name] : []);
-      
-      // Try each mapping until we find a match
-      if (mappings.length > 0) {
-        for (const mapping of mappings) {
-          if (mapping && mapping.trim() !== '') {
-            const mappingKey = mapping.toLowerCase().trim();
-            
-            if (vendorSpecMap[mappingKey]) {
-              const rawValue = vendorSpecMap[mappingKey];
-              // Sanitize the value by removing unit if present
-              mappedValue = sanitizeSpecValue(rawValue, spec.unit);
-              break; // Stop after first match
-            }
-          }
-        }
-      }
-      
-      return {
-        ...spec,
-        spec_value: mappedValue
-      };
-    });
-  };
-
-
-  // Fallback clipboard method for when Clipboard API is not available
-  const fallbackCopyToClipboard = (text, label) => {
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      
-      const successful = document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      if (successful) {
-        setCopiedText(label);
-        setTimeout(() => setCopiedText(''), 2000);
-      } else {
-        alert('Failed to copy to clipboard. Please copy manually.');
-      }
-    } catch (err) {
-      console.error('Fallback copy failed:', err);
-      alert('Failed to copy to clipboard. Please copy manually.');
-    }
+    copyToClipboard(
+      text,
+      () => { setCopiedText(label); setTimeout(() => setCopiedText(''), 2000); },
+      (msg) => alert(msg)
+    );
   };
 
   // Navigate to Inventory with component UUID pre-filled in search
   const jumpToInventory = (componentId) => {
     navigate('/inventory', { state: { searchUuid: componentId } });
-  };
-
-  // Parse part number to extract prefix and number
-  const parsePartNumber = (partNumber) => {
-    if (!partNumber || typeof partNumber !== 'string') return null;
-    const match = partNumber.match(/^([A-Z]+)-(\d+)$/);
-    if (!match) return null;
-    return {
-      prefix: match[1],
-      number: parseInt(match[2], 10),
-      leadingZeros: match[2].length
-    };
-  };
-
-  // Format part number with leading zeros
-  const formatPartNumber = (prefix, number, leadingZeros) => {
-    return `${prefix}-${String(number).padStart(leadingZeros, '0')}`;
   };
 
   // Navigate to previous part number
@@ -888,18 +781,20 @@ const Library = () => {
         }
         
         // Load package, footprint, symbol, step, and pspice suggestions
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
           api.getFieldSuggestions(componentDetails.category_id, 'package_size'),
           api.getFieldSuggestions(componentDetails.category_id, 'pcb_footprint'),
           api.getFieldSuggestions(componentDetails.category_id, 'schematic'),
           api.getFieldSuggestions(componentDetails.category_id, 'step_model'),
-          api.getFieldSuggestions(componentDetails.category_id, 'pspice')
+          api.getFieldSuggestions(componentDetails.category_id, 'pspice'),
+          api.getFieldSuggestions(componentDetails.category_id, 'pad_file')
         ]);
         setPackageSuggestions(packageResp.data || []);
         setFootprintSuggestions(footprintResp.data || []);
         setSymbolSuggestions(symbolResp.data || []);
         setStepModelSuggestions(stepResp.data || []);
         setPspiceSuggestions(pspiceResp.data || []);
+        setPadFileSuggestions(padResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -1431,7 +1326,7 @@ const Library = () => {
       const fieldsToTrack = [
         'description', 'value', 'pcb_footprint', 'package_size',
         'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
-        'schematic', 'step_model', 'pspice', 'datasheet_url',
+        'schematic', 'step_model', 'pspice', 'pad_file', 'datasheet_url',
         'manufacturer_id', 'manufacturer_pn', 'category_id'
       ];
 
@@ -1795,23 +1690,25 @@ const Library = () => {
         handleFieldChange('sub_category3', '');
         
         // Load package, footprint, symbol, step, and pspice suggestions
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
           api.getFieldSuggestions(categoryId, 'package_size'),
           api.getFieldSuggestions(categoryId, 'pcb_footprint'),
           api.getFieldSuggestions(categoryId, 'schematic'),
           api.getFieldSuggestions(categoryId, 'step_model'),
-          api.getFieldSuggestions(categoryId, 'pspice')
+          api.getFieldSuggestions(categoryId, 'pspice'),
+          api.getFieldSuggestions(categoryId, 'pad_file')
         ]);
         setPackageSuggestions(packageResp.data || []);
         setFootprintSuggestions(footprintResp.data || []);
         setSymbolSuggestions(symbolResp.data || []);
         setStepModelSuggestions(stepResp.data || []);
         setPspiceSuggestions(pspiceResp.data || []);
+        setPadFileSuggestions(padResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
     }
-    
+
     if (isAddMode && categoryId) {
       // Use API to get next part number (checks across ALL categories with same prefix)
       try {
@@ -1934,19 +1831,21 @@ const Library = () => {
         setSubCat4Suggestions([]);
         
         // Load package, footprint, symbol suggestions for new category
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
           api.getFieldSuggestions(newCategoryId, 'package_size'),
           api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
           api.getFieldSuggestions(newCategoryId, 'schematic'),
           api.getFieldSuggestions(newCategoryId, 'step_model'),
-          api.getFieldSuggestions(newCategoryId, 'pspice')
+          api.getFieldSuggestions(newCategoryId, 'pspice'),
+          api.getFieldSuggestions(newCategoryId, 'pad_file')
         ]);
         setPackageSuggestions(packageResp.data || []);
         setFootprintSuggestions(footprintResp.data || []);
         setSymbolSuggestions(symbolResp.data || []);
         setStepModelSuggestions(stepResp.data || []);
         setPspiceSuggestions(pspiceResp.data || []);
-        
+        setPadFileSuggestions(padResp.data || []);
+
         // Load new category's specifications (user will fill these in for ECO)
         const specsResponse = await api.getCategorySpecifications(newCategoryId);
         const categorySpecs = specsResponse.data || [];
@@ -1987,19 +1886,21 @@ const Library = () => {
         setSubCat4Suggestions([]);
         
         // Load package, footprint, symbol suggestions for new category
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp] = await Promise.all([
+        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
           api.getFieldSuggestions(newCategoryId, 'package_size'),
           api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
           api.getFieldSuggestions(newCategoryId, 'schematic'),
           api.getFieldSuggestions(newCategoryId, 'step_model'),
-          api.getFieldSuggestions(newCategoryId, 'pspice')
+          api.getFieldSuggestions(newCategoryId, 'pspice'),
+          api.getFieldSuggestions(newCategoryId, 'pad_file')
         ]);
         setPackageSuggestions(packageResp.data || []);
         setFootprintSuggestions(footprintResp.data || []);
         setSymbolSuggestions(symbolResp.data || []);
         setStepModelSuggestions(stepResp.data || []);
         setPspiceSuggestions(pspiceResp.data || []);
-        
+        setPadFileSuggestions(padResp.data || []);
+
         // Load new category's specifications
         const specsResponse = await api.getCategorySpecifications(newCategoryId);
         const categorySpecs = specsResponse.data || [];
@@ -2701,9 +2602,7 @@ const Library = () => {
         ...prevInputs,
         [altIndex]: demotedManufacturerName
       }));
-      
-      console.log('✓ Promoted alternative to primary position (distributors cleaned)');
-      
+
       // Close confirmation dialog
       setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null });
       
@@ -3802,6 +3701,53 @@ const Library = () => {
                     </div>
                   </div>
 
+                  <div className="col-span-2">
+                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Pad File</label>
+                    <div className="relative" ref={padFileRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={editData.pad_file || ''}
+                          onChange={(e) => {
+                            handleFieldChange('pad_file', e.target.value);
+                            setPadFileOpen(true);
+                          }}
+                          onFocus={() => setPadFileOpen(true)}
+                          placeholder="Pad file name"
+                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPadFileOpen(!padFileOpen)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${padFileOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
+                      {padFileOpen && padFileSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
+                          {padFileSuggestions
+                            .filter(pad =>
+                              pad.toLowerCase().includes((editData.pad_file || '').toLowerCase())
+                            )
+                            .map((pad, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  handleFieldChange('pad_file', pad);
+                                  setPadFileOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
+                              >
+                                {pad}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Datasheet URL */}
                   <div className="col-span-2">
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">Datasheet URL</label>
@@ -3858,6 +3804,14 @@ const Library = () => {
                       </div>
                     ))}
                   </div>
+
+                  {/* CAD Files Section */}
+                  {!isAddMode && editData.manufacturer_pn && (
+                    <ComponentFiles
+                      mfgPartNumber={editData.manufacturer_pn}
+                      canEdit={true}
+                    />
+                  )}
                 </>
               ) : (
                 // View Mode - Show Component Details
@@ -3970,6 +3924,9 @@ const Library = () => {
                             )}
                             {componentDetails.pspice && (
                               <CopyableField label="PSPICE Model" value={componentDetails.pspice} />
+                            )}
+                            {componentDetails.pad_file && (
+                              <CopyableField label="Pad File" value={componentDetails.pad_file} />
                             )}
 
                             {/* Datasheet URL */}
@@ -4141,349 +4098,44 @@ const Library = () => {
             )}
             </div>
           )}
+
+          {/* CAD Files - View Mode Only */}
+          {!isEditMode && !isAddMode && selectedComponent && componentDetails?.manufacturer_pn && (
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+              <ComponentFiles
+                mfgPartNumber={componentDetails.manufacturer_pn}
+                canEdit={false}
+              />
+            </div>
+          )}
         </div>
 
         {/* Fourth Column - Specifications & Alternative Parts (Edit/Add Mode Only) */}
         {(isEditMode || isAddMode) && (
           <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar" data-panel>
-            {/* Specifications Panel - For inputting values */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Specifications</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newSpec = {
-                      category_spec_id: null,
-                      spec_name: '',
-                      spec_value: '',
-                      unit: '',
-                      mapping_spec_names: [],
-                      is_required: false,
-                      is_custom: true // Mark as custom spec
-                    };
-                    handleFieldChange('specifications', [...(editData.specifications || []), newSpec]);
-                  }}
-                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-medium flex items-center gap-1 px-2 py-1 border border-primary-600 dark:border-primary-400 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add Spec</span>
-                </button>
-              </div>
-              <div className="text-sm">
-                {(editData.specifications || []).length > 0 ? (
-                  <div className="space-y-2">
-                    {/* Header row */}
-                    <div className="grid grid-cols-[minmax(100px,1fr)_minmax(100px,1.5fr)_minmax(50px,0.5fr)_minmax(150px,2fr)_auto] gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium px-1">
-                      <span>Spec Name</span>
-                      <span>Value</span>
-                      <span>Unit</span>
-                      <span>Keywords (Vendor Mapping)</span>
-                      <span></span>
-                    </div>
-                    {(editData.specifications || []).map((spec, index) => (
-                      <div key={index} className="grid grid-cols-[minmax(100px,1fr)_minmax(100px,1.5fr)_minmax(50px,0.5fr)_minmax(150px,2fr)_auto] gap-2 items-start">
-                        {/* Spec Name - Editable for custom specs, read-only for template specs */}
-                        {spec.is_custom ? (
-                          <input
-                            type="text"
-                            value={spec.spec_name || ''}
-                            onChange={(e) => {
-                              const newSpecs = [...(editData.specifications || [])];
-                              newSpecs[index] = { ...newSpecs[index], spec_name: e.target.value };
-                              handleFieldChange('specifications', newSpecs);
-                            }}
-                            placeholder="Spec Name"
-                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                          />
-                        ) : (
-                          <div className="flex items-center py-1">
-                            <span className="text-xs text-gray-700 dark:text-gray-300">
-                              {spec.spec_name}
-                              {spec.is_required && <span className="text-red-500 ml-1">*</span>}
-                            </span>
-                          </div>
-                        )}
-                        <input
-                          type="text"
-                          value={spec.spec_value || ''}
-                          onChange={(e) => {
-                            const newSpecs = [...(editData.specifications || [])];
-                            newSpecs[index] = { ...newSpecs[index], spec_value: e.target.value };
-                            handleFieldChange('specifications', newSpecs);
-                          }}
-                          placeholder="Value"
-                          className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                        />
-                        {/* Unit field - Editable for custom specs */}
-                        {spec.is_custom ? (
-                          <input
-                            type="text"
-                            value={spec.unit || ''}
-                            onChange={(e) => {
-                              const newSpecs = [...(editData.specifications || [])];
-                              newSpecs[index] = { ...newSpecs[index], unit: e.target.value };
-                              handleFieldChange('specifications', newSpecs);
-                            }}
-                            placeholder="Unit"
-                            className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
-                          />
-                        ) : (
-                          <div className="flex items-center py-1 text-xs text-gray-500 dark:text-gray-400">
-                            {spec.unit || '-'}
-                          </div>
-                        )}
-                        {/* Keywords column - Shows current mappings and allows adding more */}
-                        <div className="flex flex-wrap gap-1 items-center min-h-6.5">
-                          {(spec.mapping_spec_names || []).map((keyword, keywordIndex) => (
-                            <span
-                              key={keywordIndex}
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-xs"
-                            >
-                              {keyword}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newSpecs = [...(editData.specifications || [])];
-                                  const newMappings = (spec.mapping_spec_names || []).filter((_, ki) => ki !== keywordIndex);
-                                  newSpecs[index] = { ...newSpecs[index], mapping_spec_names: newMappings };
-                                  handleFieldChange('specifications', newSpecs);
-                                }}
-                                className="ml-0.5 text-blue-500 dark:text-blue-400 hover:text-red-500 dark:hover:text-red-400"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenMappingModal(index, spec)}
-                            className="text-xs px-1.5 py-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-dashed border-blue-300 dark:border-blue-700 transition-colors flex items-center gap-0.5"
-                            title="Add keyword mapping"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Add</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {isAddMode ? 'Select a category to see available specifications, or add custom specs' : 'No specifications defined. Click "Add Spec" to add custom specifications.'}
-                  </p>
-                )}
-              </div>
-            </div>
+            <SpecificationsEditor
+              editData={editData}
+              isAddMode={isAddMode}
+              onFieldChange={handleFieldChange}
+              onOpenMappingModal={handleOpenMappingModal}
+            />
 
-            {/* Alternative Parts Tile - Shown in Edit Mode and Add Mode */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Alternative Parts
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleAddAlternative}
-                  className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium flex items-center gap-1 px-3 py-1.5 border border-primary-600 dark:border-primary-400 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/20"
-                >
-                  <span>+ Add Alternative</span>
-                </button>
-              </div>
-              
-              {(!editData.alternatives || editData.alternatives.length === 0) ? (
-                <div className="px-4 py-8 border-2 border-dashed border-gray-300 dark:border-[#444444] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-500 dark:text-gray-400 text-sm text-center">
-                  No alternative parts added yet. Click "+ Add Alternative" to add one.
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-150 overflow-y-auto pr-2 custom-scrollbar">
-                  {editData.alternatives.map((alt, altIndex) => (
-                    <div key={altIndex} className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
-                      {/* Alternative header with promote and delete buttons */}
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Alternative #{altIndex + 1}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handlePromoteToPrimary(altIndex)}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-blue-600 dark:border-blue-400"
-                            title="Promote this alternative to become the primary part"
-                          >
-                            ↑ Promote to Primary
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAlternative(altIndex)}
-                            className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                            title="Delete alternative"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+            <AlternativePartsEditor
+              editData={editData}
+              manufacturers={manufacturers}
+              distributors={distributors}
+              altManufacturerInputs={altManufacturerInputs}
+              setAltManufacturerInputs={setAltManufacturerInputs}
+              altManufacturerOpen={altManufacturerOpen}
+              setAltManufacturerOpen={setAltManufacturerOpen}
+              altManufacturerRefs={altManufacturerRefs}
+              onAddAlternative={handleAddAlternative}
+              onDeleteAlternative={handleDeleteAlternative}
+              onPromoteToPrimary={handlePromoteToPrimary}
+              onUpdateAlternative={handleUpdateAlternative}
+              onUpdateAlternativeDistributor={handleUpdateAlternativeDistributor}
+            />
 
-                      {/* Manufacturer and MFG Part Number */}
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div 
-                          ref={el => altManufacturerRefs.current[altIndex] = el}
-                          className="relative"
-                        >
-                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            Manufacturer <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={altManufacturerInputs[altIndex] || ''}
-                              onChange={(e) => {
-                                setAltManufacturerInputs(prev => ({ ...prev, [altIndex]: e.target.value }));
-                                setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }));
-                              }}
-                              onFocus={() => setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: true }))}
-                              placeholder="Type or select"
-                              className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: !prev[altIndex] }))}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                            {altManufacturerOpen[altIndex] && (() => {
-                              const filtered = manufacturers?.filter(mfr => 
-                                mfr.name.toLowerCase().includes((altManufacturerInputs[altIndex] || '').toLowerCase())
-                              ) || [];
-                              const exactMatch = filtered.find(mfr => 
-                                mfr.name.toLowerCase() === (altManufacturerInputs[altIndex] || '').toLowerCase()
-                              );
-                              const showCreateOption = (altManufacturerInputs[altIndex] || '').trim() && !exactMatch;
-                              
-                              return (
-                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
-                                  {showCreateOption && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        // Store new manufacturer name with special marker for later creation
-                                        handleUpdateAlternative(altIndex, 'manufacturer_id', `NEW:${altManufacturerInputs[altIndex].trim()}`);
-                                        setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
-                                      }}
-                                      className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                      Use new: "{altManufacturerInputs[altIndex].trim()}" (will be added on save)
-                                    </button>
-                                  )}
-                                  {filtered.length > 0 ? (
-                                    filtered.map(mfr => (
-                                      <button
-                                        key={mfr.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setAltManufacturerInputs(prev => ({ ...prev, [altIndex]: mfr.name }));
-                                          handleUpdateAlternative(altIndex, 'manufacturer_id', mfr.id);
-                                          setAltManufacturerOpen(prev => ({ ...prev, [altIndex]: false }));
-                                        }}
-                                        className={`w-full text-left px-3 py-2 text-sm ${
-                                          alt.manufacturer_id === mfr.id
-                                            ? 'bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300'
-                                            : 'hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300'
-                                        }`}
-                                      >
-                                        {mfr.name}
-                                      </button>
-                                    ))
-                                  ) : !showCreateOption && (
-                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                      No manufacturers found
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                            MFG Part Number <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={alt.manufacturer_pn || ''}
-                            onChange={(e) => handleUpdateAlternative(altIndex, 'manufacturer_pn', e.target.value)}
-                            placeholder="e.g., RC0805FR"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Distributors section - Always show all 4 distributors */}
-                      <div className="border-t border-gray-200 dark:border-[#444444] pt-3 mt-3">
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Distributors
-                        </label>
-                        <div className="space-y-1">
-                          {(() => {
-                            // Ensure all 4 distributors are always shown in correct order
-                            const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-                            const altDistributors = alt.distributors || [];
-                            
-                            // Normalize to always have 4 distributors in order
-                            const normalizedDistributors = distributorOrder.map(distName => {
-                              const dist = distributors?.find(d => d.name === distName);
-                              const existing = altDistributors.find(d => {
-                                const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
-                                return existingDistName === distName;
-                              });
-                              
-                              return {
-                                distributor_id: dist?.id || null,
-                                distributor_name: distName,
-                                sku: existing?.sku || '',
-                                url: existing?.url || ''
-                              };
-                            });
-                            
-                            // Update the alternative's distributors to ensure they're normalized
-                            if (JSON.stringify(altDistributors) !== JSON.stringify(normalizedDistributors)) {
-                              handleUpdateAlternative(altIndex, 'distributors', normalizedDistributors);
-                            }
-                            
-                            return normalizedDistributors.map((dist, distIndex) => {
-                              return (
-                                <div key={distIndex} className="grid grid-cols-[80px_1fr_1fr] gap-2 items-center">
-                                  <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
-                                    {dist.distributor_name}
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={dist.sku || ''}
-                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'sku', e.target.value)}
-                                    placeholder="SKU"
-                                    className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={dist.url || ''}
-                                    onChange={(e) => handleUpdateAlternativeDistributor(altIndex, distIndex, 'url', e.target.value)}
-                                    placeholder="Product URL"
-                                    className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                                  />
-                                </div>
-                              );
-                            });
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
             {/* ECO Notes Section - Only shown in ECO mode, after Alternative Parts */}
             {isECOMode && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg shadow-md p-4 border border-yellow-200 dark:border-yellow-800">
@@ -4509,863 +4161,81 @@ const Library = () => {
         <div className="space-y-4 xl:min-w-87.5 overflow-y-auto custom-scrollbar" data-panel>
           {/* Vendor API Data - Shown in both Add Mode and Edit Mode when vendor data is available */}
           {(isAddMode || isEditMode) && editData._vendorSearchData && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
-                  <span className="text-lg">📦</span>
-                  Vendor API Data ({editData._vendorSearchData.source === 'digikey' ? 'Digikey' : 'Mouser'})
-                </h3>
-                {isEditMode && (
-                  <button
-                    onClick={handleAutoFillFromVendorData}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors"
-                    title="Auto-fill Manufacturer, MFG P/N, Package, Value, Specifications, and Datasheet"
-                  >
-                    Auto Fill
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-                {isEditMode 
-                  ? '📋 Click any value to copy to clipboard • Use "Auto Fill" to populate basic fields • Specifications must be filled manually'
-                  : 'Click any value to copy to clipboard • All data from vendor API'
-                }
-              </p>
-              <div className="space-y-3 text-sm">
-                {/* Basic Info */}
-                <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                  <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Basic Information</p>
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturerPartNumber, 'MFG P/N')}
-                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">MFG Part Number:</span>
-                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                      {editData._vendorSearchData.manufacturerPartNumber}
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </div>
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.manufacturer, 'Manufacturer')}
-                    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Manufacturer:</span>
-                    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                      {editData._vendorSearchData.manufacturer}
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </span>
-                  </div>
-                  <div 
-                    onClick={() => handleCopyToClipboard(editData._vendorSearchData.description, 'Description')}
-                    className="flex flex-col py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                  >
-                    <span className="text-blue-700 dark:text-blue-300 font-medium mb-1 text-xs">Description:</span>
-                    <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-2">
-                      <span className="flex-1 whitespace-pre-wrap">{editData._vendorSearchData.description}</span>
-                      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
-                    </span>
-                  </div>
-                  {editData._vendorSearchData.category && editData._vendorSearchData.category !== 'N/A' && (
-                    <div 
-                      onClick={() => handleCopyToClipboard(editData._vendorSearchData.category, 'Category')}
-                      className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                    >
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Category:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                        {editData._vendorSearchData.category}
-                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Package & Series */}
-                {(editData._vendorSearchData.packageType || editData._vendorSearchData.series) && (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Package Details</p>
-                    {editData._vendorSearchData.packageType && editData._vendorSearchData.packageType !== 'N/A' && (
-                      <div 
-                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.packageType, 'Package')}
-                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                      >
-                        <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Package/Case:</span>
-                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                          {editData._vendorSearchData.packageType}
-                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </span>
-                      </div>
-                    )}
-                    {editData._vendorSearchData.series && editData._vendorSearchData.series !== '-' && (
-                      <div 
-                        onClick={() => handleCopyToClipboard(editData._vendorSearchData.series, 'Series')}
-                        className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                      >
-                        <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Series:</span>
-                        <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                          {editData._vendorSearchData.series}
-                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Distributor Info */}
-                {editData._vendorSearchData.distributor && (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Distributor Information</p>
-                    <div 
-                      onClick={() => handleCopyToClipboard(editData._vendorSearchData.distributor.sku, 'Vendor SKU')}
-                      className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                    >
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Vendor SKU:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-                        {editData._vendorSearchData.distributor.sku}
-                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 px-2">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Stock Available:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs font-semibold">
-                        {editData._vendorSearchData.distributor.stock?.toLocaleString() || '0'} units
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 px-2">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Min Order Qty:</span>
-                      <span className="text-blue-900 dark:text-blue-100 font-mono text-xs">
-                        {editData._vendorSearchData.distributor.minimumOrderQuantity || '1'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Specifications */}
-                {editData._vendorSearchData.specifications && Object.keys(editData._vendorSearchData.specifications).length > 0 ? (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide flex items-center justify-between">
-                      <span>Technical Specifications</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-normal normal-case">
-                        ({Object.keys(editData._vendorSearchData.specifications).length} specs)
-                      </span>
-                    </p>
-                    <div className="space-y-0.5">
-                      {Object.entries(editData._vendorSearchData.specifications).map(([key, val], idx) => {
-                        const displayValue = typeof val === 'object' ? val.value : val;
-                        const displayUnit = typeof val === 'object' ? val.unit : '';
-                        // Filter out data type labels (String, UnitOfMeasure, etc.)
-                        const dataTypeLabels = ['String', 'UnitOfMeasure', 'CoupledUnitOfMeasure', 'Integer', 'Boolean', 'Decimal', 'Number', 'Double'];
-                        const shouldShowUnit = displayUnit && !dataTypeLabels.includes(displayUnit);
-                        return (
-                          <div 
-                            key={idx}
-                            onClick={() => handleCopyToClipboard(`${displayValue}${shouldShowUnit ? ' ' + displayUnit : ''}`, key)}
-                            className="flex justify-between items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors"
-                          >
-                            <span className="text-blue-700 dark:text-blue-300 text-xs font-medium shrink-0 mr-2" style={{maxWidth: '45%'}}>
-                              {key}:
-                            </span>
-                            <span className="text-blue-900 dark:text-blue-100 text-xs text-right flex items-start gap-1 flex-1">
-                              <span className="flex-1 wrap-break-word">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
-                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Technical Specifications</p>
-                    <p className="text-blue-600 dark:text-blue-400 text-xs italic">No specifications available from vendor API</p>
-                  </div>
-                )}
-
-                {/* Datasheet */}
-                {editData._vendorSearchData.datasheet && (
-                  <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Documentation</p>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Datasheet URL:</span>
-                      <a 
-                        href={editData._vendorSearchData.datasheet}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all font-mono bg-blue-100 dark:bg-blue-900/30 p-2 rounded"
-                      >
-                        {editData._vendorSearchData.datasheet}
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {/* Price Breaks - Positioned at bottom */}
-                {editData._vendorSearchData.distributor?.pricing && editData._vendorSearchData.distributor.pricing.length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Price Breaks</p>
-                    <div className="space-y-1">
-                      {editData._vendorSearchData.distributor.pricing.map((price, idx) => (
-                        <div 
-                          key={idx}
-                          onClick={() => handleCopyToClipboard(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
-                          className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
-                        >
-                          <span className="text-blue-800 dark:text-blue-200 text-xs font-medium">{price.quantity}+ units:</span>
-                          <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2">
-                            ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
-                            <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* Copy feedback */}
-              {copiedText && (
-                <div className="mt-3 text-xs text-center text-green-700 dark:text-green-400 font-medium animate-fade-in bg-green-100 dark:bg-green-900/30 py-2 rounded">
-                  ✓ Copied "{copiedText}"!
-                </div>
-              )}
-            </div>
+            <VendorDataPanel
+              editData={editData}
+              isEditMode={isEditMode}
+              onAutoFill={handleAutoFillFromVendorData}
+              onCopy={handleCopyToClipboard}
+              copiedText={copiedText}
+            />
           )}
 
           {/* Component Specifications - Only shown in View Mode */}
           {!isEditMode && !isAddMode && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
-              {selectedComponent && componentDetails && componentDetails.specifications?.length > 0 ? (
-                <div className="space-y-2">
-                  {componentDetails.specifications.map((spec, index) => (
-                    <div key={index} className="flex justify-between items-center border-b border-gray-100 dark:border-[#3a3a3a] pb-2 last:border-0">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{spec.spec_name}:</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {spec.spec_value}{spec.unit ? ` ${spec.unit}` : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No specifications available</p>
-              )}
-            </div>
+            <SpecificationsView componentDetails={componentDetails} />
           )}
         </div>
       </div>
 
-      {/* Modern Delete Confirmation Modal */}
-      {deleteConfirmation.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20">
-              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Confirm Deletion
-            </h3>
-            
-            {/* Message */}
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              {deleteConfirmation.type === 'single' 
-                ? `Are you sure you want to delete "${deleteConfirmation.componentName}"? This action cannot be undone.`
-                : `Are you sure you want to delete ${deleteConfirmation.count} component(s)? This action cannot be undone.`
-              }
-            </p>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={cancelDelete}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals */}
+      <DeleteConfirmationModal
+        deleteConfirmation={deleteConfirmation}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
 
-      {/* Modern ECO Delete Confirmation Modal */}
-      {ecoDeleteConfirmation.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
-              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Mark Component for Deletion
-            </h3>
-            
-            {/* Message */}
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              This will create an ECO to delete <span className="font-semibold text-gray-900 dark:text-gray-100">"{selectedComponent?.part_number}"</span>. 
-              The deletion will be pending until an approver reviews and approves this ECO.
-            </p>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setEcoDeleteConfirmation({ show: false })}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmECODeletion}
-                className="flex-1 px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                Mark for Deletion
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ECODeleteConfirmationModal
+        show={ecoDeleteConfirmation.show}
+        partNumber={selectedComponent?.part_number}
+        onConfirm={handleConfirmECODeletion}
+        onCancel={() => setEcoDeleteConfirmation({ show: false })}
+      />
 
-      {/* Modern Promote to Primary Confirmation Modal */}
-      {promoteConfirmation.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
-              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-              </svg>
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
-              Promote to Primary Part
-            </h3>
-            
-            {/* Swap Preview */}
-            <div className="space-y-4 mb-6">
-              {/* Current Primary → Alternative */}
-              <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-4 border border-red-200 dark:border-red-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                  </svg>
-                  <p className="font-semibold text-red-900 dark:text-red-100 text-sm">Current Primary → Alternative</p>
-                </div>
-                <p className="text-gray-700 dark:text-gray-300 font-mono text-sm pl-7">
-                  {promoteConfirmation.currentData?.manufacturer} {promoteConfirmation.currentData?.partNumber}
-                </p>
-              </div>
-              
-              {/* Alternative → New Primary */}
-              <div className="bg-green-50 dark:bg-green-900/10 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                  </svg>
-                  <p className="font-semibold text-green-900 dark:text-green-100 text-sm">Alternative → New Primary</p>
-                </div>
-                <p className="text-gray-700 dark:text-gray-300 font-mono text-sm pl-7">
-                  {promoteConfirmation.altData?.manufacturer} {promoteConfirmation.altData?.partNumber}
-                </p>
-              </div>
-            </div>
-            
-            {/* Info Message */}
-            <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-3 mb-6 border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-900 dark:text-blue-100">
-                <strong>What will happen:</strong>
-              </p>
-              <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
-                <li>Manufacturer and part number will be swapped</li>
-                <li>Distributor information will be swapped</li>
-                <li>Both parts will retain their data (no data loss)</li>
-              </ul>
-            </div>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null })}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmPromoteToPrimary}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                </svg>
-                Promote
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PromoteConfirmationModal
+        promoteConfirmation={promoteConfirmation}
+        onConfirm={confirmPromoteToPrimary}
+        onCancel={() => setPromoteConfirmation({ show: false, altIndex: null, altData: null, currentData: null })}
+      />
 
-      {/* Category Change Confirmation Modal */}
-      {categoryChangeConfirmation.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
-              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-4">
-              {isECOMode ? 'Stage Category Change' : 'Change Category'}
-            </h3>
-            
-            {/* Warning Message */}
-            {isECOMode ? (
-              <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg p-4 mb-6 border border-blue-200 dark:border-blue-800">
-                <p className="text-sm text-blue-900 dark:text-blue-100 mb-2">
-                  <strong>ECO Mode - Change will be staged:</strong>
-                </p>
-                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
-                  <li>Category change to <strong>{categoryChangeConfirmation.newCategoryName}</strong> will be staged</li>
-                  <li>New part number will be assigned upon ECO approval</li>
-                  <li>Sub-categories and specifications will be reset upon approval</li>
-                  <li>Change takes effect only after ECO is approved</li>
-                </ul>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-4 mb-6 border border-yellow-200 dark:border-yellow-800">
-                <p className="text-sm text-yellow-900 dark:text-yellow-100 mb-2">
-                  <strong>This action will:</strong>
-                </p>
-                <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-disc list-inside">
-                  <li>Change category to <strong>{categoryChangeConfirmation.newCategoryName}</strong></li>
-                  <li>Generate a new part number with the new category prefix</li>
-                  <li>Clear all sub-categories (they are category-specific)</li>
-                  <li>Reset specifications to the new category&apos;s template</li>
-                </ul>
-              </div>
-            )}
-            
-            {/* Current Part Number Display */}
-            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Current Part Number</p>
-              <p className="text-lg font-mono font-semibold text-gray-900 dark:text-gray-100">
-                {editData.part_number}
-              </p>
-              {isECOMode && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  New part number will be assigned upon approval
-                </p>
-              )}
-            </div>
-            
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCategoryChangeConfirmation({ show: false, newCategoryId: null, newCategoryName: '' })}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmCategoryChange}
-                className={`flex-1 px-4 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
-                  isECOMode 
-                    ? 'bg-blue-600 hover:bg-blue-700' 
-                    : 'bg-yellow-600 hover:bg-yellow-700'
-                }`}
-              >
-                <Check className="w-4 h-4" />
-                {isECOMode ? 'Stage Change' : 'Change Category'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CategoryChangeModal
+        categoryChangeConfirmation={categoryChangeConfirmation}
+        editData={editData}
+        isECOMode={isECOMode}
+        onConfirm={confirmCategoryChange}
+        onCancel={() => setCategoryChangeConfirmation({ show: false, newCategoryId: null, newCategoryName: '' })}
+      />
 
-      {/* Modern Warning Modal */}
-      {warningModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-            {/* Icon */}
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
-              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-            
-            {/* Title */}
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Warning
-            </h3>
-            
-            {/* Message */}
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              {warningModal.message}
-            </p>
-            
-            {/* Button */}
-            <button
-              onClick={() => setWarningModal({ show: false, message: '' })}
-              className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+      <WarningModal
+        warningModal={warningModal}
+        onClose={() => setWarningModal({ show: false, message: '' })}
+      />
 
-      {/* Add to Project Modal */}
-      {showAddToProjectModal && selectedComponent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                <FolderKanban className="w-5 h-5" />
-                Add to Project
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddToProjectModal(false);
-                  setSelectedProjectId('');
-                  setProjectQuantity(1);
-                }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <AddToProjectModal
+        show={showAddToProjectModal}
+        selectedComponent={selectedComponent}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        projectQuantity={projectQuantity}
+        onProjectChange={setSelectedProjectId}
+        onQuantityChange={setProjectQuantity}
+        onConfirm={handleAddToProject}
+        onCancel={() => { setShowAddToProjectModal(false); setSelectedProjectId(''); setProjectQuantity(1); }}
+      />
 
-            <div className="space-y-4">
-              {/* Component Info */}
-              <div className="p-3 bg-gray-50 dark:bg-[#333333] rounded-lg">
-                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                  {selectedComponent.part_number}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {selectedComponent.manufacturer_name} - {selectedComponent.manufacturer_pn}
-                </p>
-              </div>
+      <AutoFillToast
+        autoFillToast={autoFillToast}
+        onClose={() => setAutoFillToast({ show: false, message: '', count: 0 })}
+      />
 
-              {/* Project Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select Project *
-                </label>
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setSelectedProjectId(e.target.value);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
-                >
-                  <option value="">-- Select a Project --</option>
-                  {projects?.filter(p => p.status === 'active').map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Quantity *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={projectQuantity}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setProjectQuantity(e.target.value);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddToProjectModal(false);
-                  setSelectedProjectId('');
-                  setProjectQuantity(1);
-                }}
-                className="btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAddToProject}
-                disabled={!selectedProjectId || projectQuantity <= 0}
-                className="btn-primary disabled:bg-gray-400"
-              >
-                Add to Project
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Auto Fill Toast Notification */}
-      {autoFillToast.show && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-in">
-          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 min-w-75">
-            <div className="shrink-0">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-sm">{autoFillToast.message}</p>
-              <p className="text-xs text-green-100 mt-1">
-                {autoFillToast.count} field{autoFillToast.count > 1 ? 's' : ''} updated from vendor data
-              </p>
-            </div>
-            <button
-              onClick={() => setAutoFillToast({ show: false, message: '', count: 0 })}
-              className="shrink-0 text-white hover:text-green-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Quick-Add Vendor Mapping Modal */}
-      {mappingModal.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-lg w-full border border-gray-200 dark:border-[#3a3a3a] max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {mappingModal.spec ? 'Add Vendor Field Mapping' : 'New Specification'}
-              </h3>
-              <button
-                onClick={handleCloseMappingModal}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {mappingModal.spec ? (
-              // Mode: Add mapping to existing specification
-              <>
-                {/* Specification Info */}
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Specification:</p>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">
-                    {mappingModal.spec.spec_name}
-                    {mappingModal.spec.unit && <span className="text-gray-500 ml-2">({mappingModal.spec.unit})</span>}
-                  </p>
-                  
-                  {/* Show current mappings */}
-                  {mappingModal.spec.mapping_spec_names && mappingModal.spec.mapping_spec_names.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current mappings:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {mappingModal.spec.mapping_spec_names.map((mapping, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-xs"
-                          >
-                            {mapping}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Available vendor fields from current vendor data */}
-                {editData._vendorSearchData?.specifications && (
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Select from vendor fields:
-                    </p>
-                    <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-[#444444] rounded-lg">
-                      {Object.keys(editData._vendorSearchData.specifications).map((fieldName, idx) => {
-                        const isAlreadyMapped = mappingModal.spec.mapping_spec_names?.includes(fieldName);
-                        return (
-                          <button
-                            type="button"
-                            key={idx}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!isAlreadyMapped) {
-                                handleAddMapping(fieldName);
-                              }
-                            }}
-                            disabled={isAlreadyMapped}
-                            className={`w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-[#444444] last:border-b-0 transition-colors ${
-                              isAlreadyMapped
-                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                                : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-900 dark:text-gray-100'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{fieldName}</span>
-                              {isAlreadyMapped && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">(already mapped)</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Or enter new mapping */}
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Or enter a new vendor field name:
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={mappingModal.newMapping}
-                      onChange={(e) => setMappingModal(prev => ({ ...prev, newMapping: e.target.value }))}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && mappingModal.newMapping.trim()) {
-                          e.preventDefault();
-                          handleAddNewMapping();
-                        }
-                      }}
-                      placeholder="e.g., Capacitance, Cap, C"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleAddNewMapping();
-                      }}
-                      disabled={!mappingModal.newMapping.trim()}
-                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm font-medium"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleCloseMappingModal}
-                    className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            ) : (
-              // Mode: Create new specification
-              <>
-                <div className="space-y-4 mb-4">
-                  {/* Specification Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Specification Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={mappingModal.newSpecName}
-                      onChange={(e) => setMappingModal(prev => ({ ...prev, newSpecName: e.target.value }))}
-                      placeholder="e.g., Capacitance, Voltage Rating"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-
-                  {/* Unit */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Unit (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={mappingModal.newSpecUnit}
-                      onChange={(e) => setMappingModal(prev => ({ ...prev, newSpecUnit: e.target.value }))}
-                      placeholder="e.g., F, V, Ω"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-
-                  {/* Available vendor fields */}
-                  {editData._vendorSearchData?.specifications && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Select vendor field to map (optional):
-                      </p>
-                      <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-[#444444] rounded-lg">
-                        {Object.keys(editData._vendorSearchData.specifications).map((fieldName, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setMappingModal(prev => ({ ...prev, newMapping: fieldName }))}
-                            className={`w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-[#444444] last:border-b-0 transition-colors ${
-                              mappingModal.newMapping === fieldName
-                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100'
-                            }`}
-                          >
-                            {fieldName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Or enter custom mapping */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Or enter custom vendor field name:
-                    </label>
-                    <input
-                      type="text"
-                      value={mappingModal.newMapping}
-                      onChange={(e) => setMappingModal(prev => ({ ...prev, newMapping: e.target.value }))}
-                      placeholder="e.g., Capacitance, Cap, C"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={handleCloseMappingModal}
-                    className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateNewSpecification}
-                    disabled={!mappingModal.newSpecName.trim()}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md transition-colors text-sm font-medium"
-                  >
-                    Create Specification
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <VendorMappingModal
+        mappingModal={mappingModal}
+        editData={editData}
+        onClose={handleCloseMappingModal}
+        onAddMapping={handleAddMapping}
+        onAddNewMapping={handleAddNewMapping}
+        onCreateNewSpecification={handleCreateNewSpecification}
+        onUpdateModal={(updates) => setMappingModal(prev => ({ ...prev, ...updates }))}
+      />
     </div>
   );
 };

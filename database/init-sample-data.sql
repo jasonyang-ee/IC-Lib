@@ -412,28 +412,28 @@ ON CONFLICT (component_id, distributor_id, sku) DO NOTHING;
 -- ============================================================================
 
 -- Alternative for RES-0001: Vishay equivalent
-INSERT INTO components_alternative (part_number, manufacturer_id, manufacturer_pn) VALUES
-    ('RES-0001', (SELECT id FROM manufacturers WHERE name = 'Vishay'), 'CRCW06032K20FKEA')
-ON CONFLICT (part_number, manufacturer_id, manufacturer_pn) DO NOTHING;
+INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn) VALUES
+    ((SELECT id FROM components WHERE part_number = 'RES-0001'), (SELECT id FROM manufacturers WHERE name = 'Vishay'), 'CRCW06032K20FKEA')
+ON CONFLICT (component_id, manufacturer_id, manufacturer_pn) DO NOTHING;
 
 INSERT INTO distributor_info (alternative_id, distributor_id, sku, url, price, in_stock, stock_quantity) VALUES
-    ((SELECT id FROM components_alternative WHERE part_number = 'RES-0001' AND manufacturer_pn = 'CRCW06032K20FKEA'), 
+    ((SELECT id FROM components_alternative WHERE component_id = (SELECT id FROM components WHERE part_number = 'RES-0001') AND manufacturer_pn = 'CRCW06032K20FKEA'),
      (SELECT id FROM distributors WHERE name = 'Digikey'), '541-2.20KCCT-ND', 'https://www.digikey.com/product-detail/en/CRCW06032K20FKEA', 0.10, true, 45000),
-    ((SELECT id FROM components_alternative WHERE part_number = 'RES-0001' AND manufacturer_pn = 'CRCW06032K20FKEA'), 
+    ((SELECT id FROM components_alternative WHERE component_id = (SELECT id FROM components WHERE part_number = 'RES-0001') AND manufacturer_pn = 'CRCW06032K20FKEA'),
      (SELECT id FROM distributors WHERE name = 'Mouser'), '71-CRCW0603-2.2K-E3', 'https://www.mouser.com/ProductDetail/71-CRCW0603-2.2K-E3', 0.11, true, 38000)
 ON CONFLICT (alternative_id, distributor_id, sku) DO NOTHING;
 
 -- Alternative for CAP-0001: Samsung equivalent
-INSERT INTO components_alternative (part_number, manufacturer_id, manufacturer_pn) VALUES
-    ('CAP-0001', (SELECT id FROM manufacturers WHERE name = 'Samsung Electro-Mechanics'), 'CL10B104KB8NNNC')
-ON CONFLICT (part_number, manufacturer_id, manufacturer_pn) DO NOTHING;
+INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn) VALUES
+    ((SELECT id FROM components WHERE part_number = 'CAP-0001'), (SELECT id FROM manufacturers WHERE name = 'Samsung Electro-Mechanics'), 'CL10B104KB8NNNC')
+ON CONFLICT (component_id, manufacturer_id, manufacturer_pn) DO NOTHING;
 
 INSERT INTO distributor_info (alternative_id, distributor_id, sku, url, price, in_stock, stock_quantity) VALUES
-    ((SELECT id FROM components_alternative WHERE part_number = 'CAP-0001' AND manufacturer_pn = 'CL10B104KB8NNNC'), 
+    ((SELECT id FROM components_alternative WHERE component_id = (SELECT id FROM components WHERE part_number = 'CAP-0001') AND manufacturer_pn = 'CL10B104KB8NNNC'),
      (SELECT id FROM distributors WHERE name = 'Digikey'), '1276-1003-1-ND', 'https://www.digikey.com/product-detail/en/CL10B104KB8NNNC', 0.11, true, 220000),
-    ((SELECT id FROM components_alternative WHERE part_number = 'CAP-0001' AND manufacturer_pn = 'CL10B104KB8NNNC'), 
+    ((SELECT id FROM components_alternative WHERE component_id = (SELECT id FROM components WHERE part_number = 'CAP-0001') AND manufacturer_pn = 'CL10B104KB8NNNC'),
      (SELECT id FROM distributors WHERE name = 'Mouser'), '187-CL10B104KB8NNNC', 'https://www.mouser.com/ProductDetail/187-CL10B104KB8NNNC', 0.13, true, 175000),
-    ((SELECT id FROM components_alternative WHERE part_number = 'CAP-0001' AND manufacturer_pn = 'CL10B104KB8NNNC'), 
+    ((SELECT id FROM components_alternative WHERE component_id = (SELECT id FROM components WHERE part_number = 'CAP-0001') AND manufacturer_pn = 'CL10B104KB8NNNC'),
      (SELECT id FROM distributors WHERE name = 'Arrow'), 'CL10B104KB8NNNC', 'https://www.arrow.com/en/products/cl10b104kb8nnnc', 0.12, true, 110000)
 ON CONFLICT (alternative_id, distributor_id, sku) DO NOTHING;
 

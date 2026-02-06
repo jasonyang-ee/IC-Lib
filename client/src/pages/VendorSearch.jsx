@@ -395,8 +395,7 @@ const VendorSearch = () => {
         return api.downloadSnapEDAFootprint({ partNumber });
       }
     },
-    onSuccess: (data) => {
-      console.log('Footprint download response:', data);
+    onSuccess: () => {
     },
     onError: (error) => {
       console.error('Footprint download error:', error);
@@ -454,7 +453,6 @@ const VendorSearch = () => {
           });
         } catch {
           // Ignore errors from individual alternative fetches
-          console.log(`No alternatives for ${component.part_number}`);
         }
       }
 

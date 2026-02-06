@@ -28,10 +28,10 @@ services:
       # - ULTRA_LIBRARIAN_TOKEN=your_token
       # - SNAPEDA_API_KEY=your_api_key
     volumes:
-      - ./iclib/download/footprint:/app/download/footprint
-      - ./iclib/download/symbol:/app/download/symbol
-      - ./iclib/download/pad:/app/download/pad
-      - ./iclib/download/pspice:/app/download/pspice
+      - ./iclib/library/footprint:/app/library/footprint
+      - ./iclib/library/symbol:/app/library/symbol
+      - ./iclib/library/pad:/app/library/pad
+      - ./iclib/library/pspice:/app/library/pspice
   
   iclib-db:
     image: postgres:18

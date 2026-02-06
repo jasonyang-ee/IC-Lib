@@ -156,6 +156,7 @@ async function getECONotificationRecipients(notificationType) {
       'eco_approved': 'notify_eco_approved',
       'eco_rejected': 'notify_eco_rejected',
       'eco_pending_approval': 'notify_eco_pending_approval',
+      'eco_stage_advanced': 'notify_eco_stage_advanced',
     };
 
     const column = columnMap[notificationType];
@@ -187,82 +188,116 @@ async function getECONotificationRecipients(notificationType) {
  */
 function generateECOEmailHTML(eco, actionType, additionalInfo = {}) {
   const baseUrl = process.env.APP_URL || 'http://localhost:5173';
-  
+
   const titles = {
     'eco_created': 'New ECO Created',
     'eco_approved': 'ECO Approved',
     'eco_rejected': 'ECO Rejected',
+    'eco_stage_advanced': 'ECO Stage Advanced',
+  };
+
+  const subtitles = {
+    'eco_created': 'A new Engineering Change Order has been submitted for review.',
+    'eco_approved': 'An Engineering Change Order has been approved and changes have been applied.',
+    'eco_rejected': 'An Engineering Change Order has been rejected.',
+    'eco_stage_advanced': 'An Engineering Change Order has advanced to the next approval stage.',
   };
 
   const statusColors = {
-    'eco_created': '#FFA500',  // Orange
-    'eco_approved': '#28a745', // Green
-    'eco_rejected': '#dc3545', // Red
+    'eco_created': '#e67e22',
+    'eco_approved': '#27ae60',
+    'eco_rejected': '#e74c3c',
+    'eco_stage_advanced': '#3498db',
   };
+
+  const headerColor = statusColors[actionType] || '#3498db';
+
+  // Build detail rows
+  const rows = [];
+  rows.push({ label: 'ECO Number', value: eco.eco_number });
+  rows.push({ label: 'Component', value: `${eco.part_number} — ${eco.component_description || 'No description'}` });
+  rows.push({ label: 'Initiated By', value: eco.initiated_by_name || 'Unknown' });
+
+  if (actionType === 'eco_approved') {
+    rows.push({ label: 'Approved By', value: additionalInfo.approved_by_name || 'Unknown' });
+  }
+  if (actionType === 'eco_rejected') {
+    rows.push({ label: 'Rejected By', value: additionalInfo.rejected_by_name || 'Unknown' });
+    rows.push({ label: 'Reason', value: eco.rejection_reason || 'No reason provided' });
+  }
+  if (actionType === 'eco_stage_advanced') {
+    rows.push({ label: 'Previous Stage', value: additionalInfo.from_stage || 'Unknown' });
+    rows.push({ label: 'Current Stage', value: additionalInfo.to_stage || 'Unknown' });
+  }
+  if (eco.notes) {
+    rows.push({ label: 'Notes', value: eco.notes });
+  }
+
+  const detailRowsHTML = rows.map(({ label, value }) => `
+    <tr>
+      <td style="padding: 10px 16px; font-size: 13px; color: #7f8c8d; white-space: nowrap; vertical-align: top; border-bottom: 1px solid #ecf0f1;">${label}</td>
+      <td style="padding: 10px 16px; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #ecf0f1;">${value}</td>
+    </tr>
+  `).join('');
 
   return `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background-color: ${statusColors[actionType] || '#007bff'}; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-    .content { background-color: #f9f9f9; padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px; }
-    .field { margin-bottom: 10px; }
-    .label { font-weight: bold; color: #555; }
-    .value { color: #333; }
-    .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; }
-    .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${titles[actionType] || 'ECO Notification'}</title>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h2 style="margin: 0;">${titles[actionType] || 'ECO Notification'}</h2>
-    </div>
-    <div class="content">
-      <div class="field">
-        <span class="label">ECO Number:</span>
-        <span class="value">${eco.eco_number}</span>
-      </div>
-      <div class="field">
-        <span class="label">Component:</span>
-        <span class="value">${eco.part_number} - ${eco.component_description || 'No description'}</span>
-      </div>
-      <div class="field">
-        <span class="label">Initiated By:</span>
-        <span class="value">${eco.initiated_by_name || 'Unknown'}</span>
-      </div>
-      ${actionType === 'eco_approved' ? `
-      <div class="field">
-        <span class="label">Approved By:</span>
-        <span class="value">${additionalInfo.approved_by_name || 'Unknown'}</span>
-      </div>
-      ` : ''}
-      ${actionType === 'eco_rejected' ? `
-      <div class="field">
-        <span class="label">Rejected By:</span>
-        <span class="value">${additionalInfo.rejected_by_name || 'Unknown'}</span>
-      </div>
-      <div class="field">
-        <span class="label">Rejection Reason:</span>
-        <span class="value">${eco.rejection_reason || 'No reason provided'}</span>
-      </div>
-      ` : ''}
-      ${eco.notes ? `
-      <div class="field">
-        <span class="label">Notes:</span>
-        <span class="value">${eco.notes}</span>
-      </div>
-      ` : ''}
-      <a href="${baseUrl}/eco" class="button">View ECO Details</a>
-    </div>
-    <div class="footer">
-      <p>This is an automated notification from IC Library. You can manage your notification preferences in your user settings.</p>
-    </div>
-  </div>
+<body style="margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f5f7;">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color: ${headerColor}; padding: 28px 32px; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #ffffff;">${titles[actionType] || 'ECO Notification'}</h1>
+              <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.85);">${subtitles[actionType] || ''}</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 0; border-left: 1px solid #e1e4e8; border-right: 1px solid #e1e4e8;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${detailRowsHTML}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Action Button -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 24px 32px; border-left: 1px solid #e1e4e8; border-right: 1px solid #e1e4e8; border-bottom: 1px solid #e1e4e8; border-radius: 0 0 8px 8px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color: ${headerColor}; border-radius: 5px;">
+                    <a href="${baseUrl}/eco" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 600; color: #ffffff; text-decoration: none;">View ECO Details</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #95a5a6; line-height: 1.5;">
+                This is an automated notification from IC Library.<br>
+                You can manage your notification preferences in Settings.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
 `;
@@ -291,6 +326,7 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
     'eco_created': `[ECO-${eco.eco_number}] New Engineering Change Order Created`,
     'eco_approved': `[ECO-${eco.eco_number}] Engineering Change Order Approved`,
     'eco_rejected': `[ECO-${eco.eco_number}] Engineering Change Order Rejected`,
+    'eco_stage_advanced': `[ECO-${eco.eco_number}] ECO Advanced to ${additionalInfo.to_stage || 'Next Stage'}`,
   };
 
   const subject = subjects[actionType] || `ECO Notification: ${eco.eco_number}`;

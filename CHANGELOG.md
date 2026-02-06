@@ -9,15 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Unified `check.sh` script combining lint and test into a single workflow
+  - Supports `--lint-only`, `--test-only`, `--coverage`, and `--watch` flags
+  - `npm run check`, `npm run check:lint`, `npm run check:test`, `npm run check:coverage`
+- Added `check` script to all package.json files (root, client, server)
+- Unified GitHub Actions workflow (`check.yml`) replacing separate `lint.yml` and `test.yml`
+- Atomic server-side promote-to-primary endpoint (`POST /components/:id/alternatives/:altId/promote`)
+- Database migration `010_alternative_component_id.sql` for schema upgrade
 
 ### Changed
 
-- 
+- Replaced separate `lint.sh` and `test.sh` scripts with unified `check.sh`
+- Updated README.md with check script documentation
+- Updated AGENT.md with comprehensive development guidelines
+- Refactored Library.jsx (5,373 → 4,162 lines) by extracting components:
+  - `libraryUtils.js` - Pure utility functions (parsePartNumber, formatPartNumber, copyToClipboard, etc.)
+  - `LibraryModals.jsx` - 8 modal components (Delete, ECO Delete, Promote, Category Change, Warning, Add to Project, Auto Fill Toast, Vendor Mapping)
+  - `VendorDataPanel.jsx` - Vendor API data display panel
+  - `SpecificationsEditor.jsx` - Specifications editing grid with vendor mapping
+  - `AlternativePartsEditor.jsx` - Alternative parts management with manufacturer autocomplete
+  - `SpecificationsView.jsx` - Read-only specifications display
+- **Alternative parts schema refactor**: Changed `components_alternative` FK from `part_number` (VARCHAR) to `component_id` (UUID)
+  - Eliminates need for ON UPDATE CASCADE when part numbers change
+  - Simplifies all alternative-related queries across 6 controllers
+  - Removed redundant part_number update queries in category change, ECO approval, and settings flows
 
 ### Fixed
 
-- 
+-
 
 ## [1.5.0] - 2026-02-02
 

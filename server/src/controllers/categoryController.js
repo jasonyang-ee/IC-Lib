@@ -209,11 +209,8 @@ export const updateCategoryPartNumbers = async (req, res, next) => {
           [newPartNumber, comp.id],
         );
 
-        // Update alternative parts references
-        await client.query(
-          'UPDATE components_alternative SET part_number = $1 WHERE part_number = $2',
-          [newPartNumber, comp.part_number],
-        );
+        // Note: No need to update components_alternative - they reference component_id (UUID)
+        // which doesn't change when part_number changes.
 
         updatedComponents.push({
           id: comp.id,

@@ -45,7 +45,7 @@ export const getDashboardStats = async (req, res, next) => {
     // Get recently added components (extract timestamp from uuidv7 id)
     const recentComponentsResult = await pool.query(`
       SELECT COUNT(*) as count FROM components 
-      WHERE (uuid_extract_timestamp(id) AT TIME ZONE 'UTC') >= NOW() - INTERVAL '30 days'
+      WHERE (created_at(id) AT TIME ZONE 'UTC') >= NOW() - INTERVAL '30 days'
     `);
 
     // Get approval status breakdown
@@ -93,15 +93,18 @@ export const getRecentActivities = async (req, res, next) => {
     const limit = req.query.limit || 10;
 
     const result = await pool.query(`
-      SELECT 
-        id,
-        component_id,
-        part_number,
-        activity_type,
-        details,
-        created_at(id) as created_at
-      FROM activity_log
-      ORDER BY id DESC
+      SELECT
+        a.id,
+        a.component_id,
+        a.user_id,
+        a.part_number,
+        a.activity_type,
+        a.details,
+        created_at(a.id) as created_at,
+        u.username as user_name
+      FROM activity_log a
+      LEFT JOIN users u ON a.user_id = u.id
+      ORDER BY a.id DESC
       LIMIT $1
     `, [limit]);
 
@@ -114,15 +117,18 @@ export const getRecentActivities = async (req, res, next) => {
 export const getAllActivities = async (req, res, next) => {
   try {
     const result = await pool.query(`
-      SELECT 
-        id,
-        component_id,
-        part_number,
-        activity_type,
-        details,
-        created_at(id) as created_at
-      FROM activity_log
-      ORDER BY id DESC
+      SELECT
+        a.id,
+        a.component_id,
+        a.user_id,
+        a.part_number,
+        a.activity_type,
+        a.details,
+        created_at(a.id) as created_at,
+        u.username as user_name
+      FROM activity_log a
+      LEFT JOIN users u ON a.user_id = u.id
+      ORDER BY a.id DESC
     `);
 
     res.json(result.rows);
@@ -211,7 +217,7 @@ export const getExtendedDashboardStats = async (req, res, next) => {
 
     // Get components with alternatives
     const componentsWithAlternativesResult = await pool.query(
-      'SELECT COUNT(DISTINCT part_number) as count FROM components_alternative',
+      'SELECT COUNT(DISTINCT component_id) as count FROM components_alternative',
     );
 
     // Get top storage locations

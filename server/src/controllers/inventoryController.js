@@ -3,8 +3,9 @@ import pool from '../config/database.js';
 export const getAllInventory = async (req, res, next) => {
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         i.*,
+        created_at(i.id) as created_at,
         c.part_number,
         c.manufacturer_pn,
         c.description,
@@ -28,8 +29,9 @@ export const getInventoryById = async (req, res, next) => {
     const { id } = req.params;
 
     const result = await pool.query(`
-      SELECT 
+      SELECT
         i.*,
+        created_at(i.id) as created_at,
         c.part_number,
         c.manufacturer_pn,
         c.description,
@@ -137,16 +139,17 @@ export const updateInventory = async (req, res, next) => {
     // Log activity based on what changed
     if (location !== undefined && location !== oldItem.location) {
       await pool.query(`
-        INSERT INTO activity_log (component_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4, $5)
       `, [
         oldItem.component_id,
+        req.user?.id || null,
         oldItem.part_number,
         'location_updated',
-        JSON.stringify({ 
+        JSON.stringify({
           description: oldItem.description,
           category_name: oldItem.category_name,
-          old_location: oldItem.location, 
+          old_location: oldItem.location,
           new_location: location,
         }),
       ]);
@@ -156,17 +159,18 @@ export const updateInventory = async (req, res, next) => {
       // Determine if this is a quantity set or consume operation
       const activityType = quantity < oldItem.quantity ? 'inventory_consumed' : 'inventory_updated';
       await pool.query(`
-        INSERT INTO activity_log (component_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4, $5)
       `, [
         oldItem.component_id,
+        req.user?.id || null,
         oldItem.part_number,
         activityType,
-        JSON.stringify({ 
+        JSON.stringify({
           description: oldItem.description,
           category_name: oldItem.category_name,
-          old_quantity: oldItem.quantity, 
-          new_quantity: quantity, 
+          old_quantity: oldItem.quantity,
+          new_quantity: quantity,
           change: quantity - oldItem.quantity,
         }),
       ]);
@@ -182,6 +186,14 @@ export const deleteInventory = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // Get component info before deleting for audit log
+    const oldData = await pool.query(`
+      SELECT i.*, c.part_number, c.description
+      FROM inventory i
+      JOIN components c ON i.component_id = c.id
+      WHERE i.id = $1
+    `, [id]);
+
     const result = await pool.query(
       'DELETE FROM inventory WHERE id = $1 RETURNING *',
       [id],
@@ -189,6 +201,25 @@ export const deleteInventory = async (req, res, next) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    // Log the deletion
+    if (oldData.rows.length > 0) {
+      const item = oldData.rows[0];
+      await pool.query(`
+        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [
+        item.component_id,
+        req.user?.id || null,
+        item.part_number,
+        'inventory_deleted',
+        JSON.stringify({
+          description: item.description,
+          quantity: item.quantity,
+          location: item.location,
+        }),
+      ]);
     }
 
     res.json({ message: 'Inventory item deleted successfully' });
@@ -264,9 +295,9 @@ export const getAlternativeInventory = async (req, res, next) => {
   try {
     const { id } = req.params; // component_id
 
-    // First get the component's part number
+    // Verify the component exists
     const componentResult = await pool.query(
-      'SELECT part_number FROM components WHERE id = $1',
+      'SELECT id FROM components WHERE id = $1',
       [id],
     );
 
@@ -274,11 +305,9 @@ export const getAlternativeInventory = async (req, res, next) => {
       return res.status(404).json({ error: 'Component not found' });
     }
 
-    const partNumber = componentResult.rows[0].part_number;
-
     // Get all alternatives with their inventory tracking
     const result = await pool.query(`
-      SELECT 
+      SELECT
         ca.id,
         ca.manufacturer_pn,
         m.name as manufacturer_name,
@@ -289,9 +318,9 @@ export const getAlternativeInventory = async (req, res, next) => {
       FROM components_alternative ca
       LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
       LEFT JOIN inventory_alternative ia ON ca.id = ia.alternative_id
-      WHERE ca.part_number = $1
+      WHERE ca.component_id = $1
       ORDER BY ca.id ASC
-    `, [partNumber]);
+    `, [id]);
 
     res.json(result.rows);
   } catch (error) {

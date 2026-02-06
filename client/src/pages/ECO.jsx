@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Search, X, RefreshCw, Filter } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Search, X, Filter } from 'lucide-react';
 
 const ECO = () => {
   const { canApprove } = useAuth();
@@ -13,7 +13,8 @@ const ECO = () => {
   const [expandedECO, setExpandedECO] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
-  
+  const [approvalComments, setApprovalComments] = useState('');
+
   // Search/filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [ecoNumberFilter, setEcoNumberFilter] = useState('');
@@ -43,18 +44,18 @@ const ECO = () => {
   const filteredECOs = ecoOrders.filter(eco => {
     // Part number search
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       eco.component_part_number?.toLowerCase().includes(searchLower) ||
       eco.component_description?.toLowerCase().includes(searchLower);
-    
+
     // ECO number filter
     const matchesEcoNumber = !ecoNumberFilter ||
       eco.eco_number?.toLowerCase().includes(ecoNumberFilter.toLowerCase());
-    
+
     // Initiated by filter
     const matchesInitiatedBy = !initiatedByFilter ||
       eco.initiated_by_name === initiatedByFilter;
-    
+
     return matchesSearch && matchesEcoNumber && matchesInitiatedBy;
   });
 
@@ -71,17 +72,22 @@ const ECO = () => {
 
   // Approve ECO mutation
   const approveMutation = useMutation({
-    mutationFn: (id) => api.approveECO(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['ecos']);
-      queryClient.invalidateQueries(['eco', expandedECO]);
-      queryClient.invalidateQueries(['components']); // Refresh components list
-      setExpandedECO(null);
-      showSuccess('ECO approved successfully! Changes have been applied to the component.');
+    mutationFn: ({ id, comments }) => api.approveECO(id, { comments }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['ecos'] });
+      queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
+      queryClient.invalidateQueries({ queryKey: ['components'] });
+      setApprovalComments('');
+      const msg = response.data?.message || 'Approval vote recorded.';
+      showSuccess(msg);
+      // Only collapse if fully approved
+      if (response.data?.status === 'approved') {
+        setExpandedECO(null);
+      }
     },
     onError: (error) => {
-      console.error('Error approving ECO:', error);
-      showError('Failed to approve ECO. Please try again.');
+      const msg = error.response?.data?.error || 'Failed to approve ECO. Please try again.';
+      showError(msg);
     }
   });
 
@@ -89,21 +95,21 @@ const ECO = () => {
   const rejectMutation = useMutation({
     mutationFn: ({ id, rejection_reason }) => api.rejectECO(id, { rejection_reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['ecos']);
-      queryClient.invalidateQueries(['eco', expandedECO]);
+      queryClient.invalidateQueries({ queryKey: ['ecos'] });
+      queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
       setShowRejectModal(null);
       setRejectionReason('');
       setExpandedECO(null);
       showSuccess('ECO rejected successfully.');
     },
     onError: (error) => {
-      console.error('Error rejecting ECO:', error);
-      showError('Failed to reject ECO. Please try again.');
+      const msg = error.response?.data?.error || 'Failed to reject ECO. Please try again.';
+      showError(msg);
     }
   });
 
   const handleApprove = (ecoId) => {
-    approveMutation.mutate(ecoId);
+    approveMutation.mutate({ id: ecoId, comments: approvalComments });
   };
 
   const handleReject = () => {
@@ -114,11 +120,13 @@ const ECO = () => {
 
   const toggleExpanded = (ecoId) => {
     setExpandedECO(expandedECO === ecoId ? null : ecoId);
+    setApprovalComments('');
   };
 
   const getStatusBadge = (status) => {
     const styles = {
       pending: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+      in_review: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
       approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
       rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
     };
@@ -135,6 +143,13 @@ const ECO = () => {
         return <Clock className="w-4 h-4" />;
     }
   };
+
+  const getStatusLabel = (status) => {
+    if (status === 'in_review') return 'in review';
+    return status;
+  };
+
+  const isPendingApproval = (status) => status === 'pending' || status === 'in_review';
 
   const hasActiveFilters = searchTerm || ecoNumberFilter || initiatedByFilter;
 
@@ -162,7 +177,7 @@ const ECO = () => {
                   }`}
                 >
                   <span className="flex items-center gap-2 text-lg">
-                    {status}
+                    {status === 'pending' ? 'pending / in review' : status}
                   </span>
                 </button>
               ))}
@@ -258,8 +273,8 @@ const ECO = () => {
               </div>
             ) : filteredECOs.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
-                {hasActiveFilters 
-                  ? 'No ECO orders match your filters' 
+                {hasActiveFilters
+                  ? 'No ECO orders match your filters'
                   : `No ${selectedStatus} ECO orders found`}
               </div>
             ) : (
@@ -278,10 +293,10 @@ const ECO = () => {
                           </h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getStatusBadge(eco.status)}`}>
                             {getStatusIcon(eco.status)}
-                            {eco.status}
+                            {getStatusLabel(eco.status)}
                           </span>
                         </div>
-                        
+
                         <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4" />
@@ -290,7 +305,7 @@ const ECO = () => {
                               <span>- {eco.component_description}</span>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
                               <User className="w-4 h-4" />
@@ -301,6 +316,20 @@ const ECO = () => {
                               <span>{new Date(eco.created_at).toLocaleString()}</span>
                             </div>
                           </div>
+
+                          {/* Approval Stage Progress */}
+                          {isPendingApproval(eco.status) && eco.current_stage_name && (
+                            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+                              <p className="text-blue-700 dark:text-blue-400 text-xs">
+                                <strong>Current Stage:</strong> {eco.current_stage_name}
+                                {eco.current_stage_required_approvals && (
+                                  <span className="ml-2">
+                                    ({eco.current_stage_approval_count || 0}/{eco.current_stage_required_approvals} approvals)
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          )}
 
                           {eco.approved_by_name && (
                             <div className="flex items-center gap-1">
@@ -337,10 +366,10 @@ const ECO = () => {
                         onClick={() => toggleExpanded(eco.id)}
                         className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
                       >
-                        {expandedECO === eco.id ? '▼ Hide Details' : '▶ Expand Details'}
+                        {expandedECO === eco.id ? '- Hide Details' : '+ Expand Details'}
                       </button>
-                      
-                      {eco.status === 'pending' && canApprove() && (
+
+                      {isPendingApproval(eco.status) && canApprove() && (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleApprove(eco.id)}
@@ -370,6 +399,107 @@ const ECO = () => {
                         </div>
                       ) : ecoDetails ? (
                         <div className="space-y-4">
+
+                          {/* Approval Progress (stages and votes) */}
+                          {ecoDetails.stages && ecoDetails.stages.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                                Approval Progress
+                              </h4>
+                              <div className="flex gap-2 flex-wrap mb-3">
+                                {ecoDetails.stages.map((stage) => {
+                                  const isCurrent = ecoDetails.current_stage_id === stage.id;
+                                  const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
+                                  const isPast = stage.stage_order < ecoDetails.current_stage_order;
+                                  return (
+                                    <div
+                                      key={stage.id}
+                                      className={`px-3 py-2 rounded border text-sm ${
+                                        isCurrent
+                                          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                                          : isPast || isComplete
+                                            ? 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400'
+                                            : 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400'
+                                      }`}
+                                    >
+                                      <div className="font-medium">{stage.stage_name}</div>
+                                      <div className="text-xs mt-0.5">
+                                        {stage.approval_count}/{stage.required_approvals} approvals
+                                        {(isPast || isComplete) && ecoDetails.status !== 'rejected' && ' (complete)'}
+                                        {isCurrent && !isComplete && ' (current)'}
+                                      </div>
+                                      {stage.assigned_approvers?.length > 0 && (
+                                        <div className="text-xs mt-0.5 opacity-70">
+                                          {stage.assigned_approvers.map(a => a.username).join(', ')}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Vote History */}
+                              {ecoDetails.approvals && ecoDetails.approvals.length > 0 && (
+                                <div className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] overflow-hidden mb-3">
+                                  <table className="w-full text-sm">
+                                    <thead className="bg-gray-100 dark:bg-[#333333]">
+                                      <tr>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Stage</th>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">User</th>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Decision</th>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comments</th>
+                                        <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Date</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-[#3a3a3a]">
+                                      {ecoDetails.approvals.map((approval) => (
+                                        <tr key={approval.id}>
+                                          <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                                            {approval.stage_name}
+                                          </td>
+                                          <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">
+                                            {approval.user_name}
+                                          </td>
+                                          <td className="px-4 py-2">
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                              approval.decision === 'approved'
+                                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                            }`}>
+                                              {approval.decision}
+                                            </span>
+                                          </td>
+                                          <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs">
+                                            {approval.comments || '-'}
+                                          </td>
+                                          <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">
+                                            {new Date(approval.created_at).toLocaleString()}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* Approval Comments Field */}
+                              {isPendingApproval(ecoDetails.status) && canApprove() && (
+                                <div className="mb-3">
+                                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Approval Comments (optional)
+                                  </label>
+                                  <textarea
+                                    value={approvalComments}
+                                    onChange={(e) => setApprovalComments(e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444] rounded-md bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                    rows={2}
+                                    placeholder="Add optional comments with your approval..."
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Component Field Changes */}
                           {ecoDetails.changes && ecoDetails.changes.length > 0 && (
                             <div>
@@ -390,29 +520,30 @@ const ECO = () => {
                                       // Helper to get display value for special fields
                                       const getDisplayValue = (field, value, isOld) => {
                                         if (!value) return <span className="italic text-gray-400">empty</span>;
-                                        
+
                                         // Show category name for category_id field
                                         if (field === 'category_id') {
                                           const name = isOld ? change.old_category_name : change.new_category_name;
                                           return name || value;
                                         }
-                                        
+
                                         // Show manufacturer name for manufacturer_id field
                                         if (field === 'manufacturer_id') {
                                           const name = isOld ? change.old_manufacturer_name : change.new_manufacturer_name;
                                           return name || value;
                                         }
-                                        
+
                                         return value;
                                       };
-                                      
+
                                       // Format field name for display
                                       const formatFieldName = (field) => {
                                         if (field === 'category_id') return 'Category';
                                         if (field === 'manufacturer_id') return 'Manufacturer';
+                                        if (field === '_delete_component') return 'Delete Component';
                                         return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                                       };
-                                      
+
                                       return (
                                         <tr key={idx}>
                                           <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">

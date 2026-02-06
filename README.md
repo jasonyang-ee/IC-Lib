@@ -54,9 +54,10 @@ services:
       # - ULTRA_LIBRARIAN_TOKEN=your_token
       # - SNAPEDA_API_KEY=your_api_key
     volumes:
-      - ./iclib/download/footprint:/app/download/footprint
-      - ./iclib/download/symbol:/app/download/symbol
-      - ./iclib/download/pad:/app/download/pad
+      - ./iclib/library/footprint:/app/library/footprint
+      - ./iclib/library/symbol:/app/library/symbol
+      - ./iclib/library/pad:/app/library/pad
+      - ./iclib/library/pspice:/app/library/pspice
   
   iclib-db:
     image: postgres:18
@@ -100,8 +101,24 @@ services:
 - Linux
 
   ```bash
-  ./local-start.sh
+  ./start.sh
   ```
+
+### Run Checks (Lint + Test)
+
+```bash
+# Run all checks (lint + test)
+npm run check
+
+# Lint only
+npm run check:lint
+
+# Test only
+npm run check:test
+
+# Test with coverage
+npm run check:coverage
+```
 
 
 ## Reverse Proxy with Subdirectory Support

@@ -1,14 +1,14 @@
 import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { Search, Download, Filter, Package, Edit, Trash2, TrendingUp, Minus, MapPin, Calendar, ChevronDown, ChevronRight, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Download, Filter, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 
 const Audit = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activityFilter, setActivityFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month
+  const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(15); // Default to 15
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
   const { data: auditData, isLoading } = useQuery({
@@ -34,10 +34,11 @@ const Audit = () => {
 
   // Filter data based on search, activity type, and date
   const filteredData = auditData?.filter((item) => {
-    // Search filter - search in part_number and details JSON
+    // Search filter - search in part_number, user_name, and details JSON
     const detailsStr = item.details ? JSON.stringify(item.details).toLowerCase() : '';
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       item.part_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       detailsStr.includes(searchTerm.toLowerCase());
 
     // Activity type filter
@@ -49,7 +50,7 @@ const Audit = () => {
       const itemDate = new Date(item.created_at);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       if (dateFilter === 'today') {
         matchesDate = itemDate >= today;
       } else if (dateFilter === 'week') {
@@ -88,28 +89,25 @@ const Audit = () => {
       return;
     }
 
-    // Create CSV header
-    const headers = ['Timestamp', 'Part Number', 'Activity Type', 'Details'];
-    
-    // Create CSV rows
+    const headers = ['Timestamp', 'User', 'Part Number', 'Activity Type', 'Details'];
+
     const rows = filteredData.map(item => {
       const detailsStr = item.details ? JSON.stringify(item.details) : '';
 
       return [
         new Date(item.created_at).toLocaleString(),
+        item.user_name || '',
         item.part_number || '',
         item.activity_type || '',
-        detailsStr.replace(/"/g, '""') // Escape quotes
+        detailsStr.replace(/"/g, '""')
       ];
     });
 
-    // Combine headers and rows
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
-    // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -122,162 +120,223 @@ const Audit = () => {
   };
 
   const activityTypeConfig = {
+    // Component operations
     added: {
-      icon: Package,
       bgColor: 'bg-green-100 dark:bg-green-900',
       textColor: 'text-green-800 dark:text-green-200',
       label: 'Component Added'
     },
     updated: {
-      icon: Edit,
       bgColor: 'bg-blue-100 dark:bg-blue-900',
       textColor: 'text-blue-800 dark:text-blue-200',
       label: 'Component Updated'
     },
     deleted: {
-      icon: Trash2,
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
       label: 'Component Deleted'
     },
+    category_changed: {
+      bgColor: 'bg-violet-100 dark:bg-violet-900',
+      textColor: 'text-violet-800 dark:text-violet-200',
+      label: 'Category Changed'
+    },
+
+    // Inventory operations
     inventory_updated: {
-      icon: TrendingUp,
       bgColor: 'bg-green-100 dark:bg-green-900',
       textColor: 'text-green-800 dark:text-green-200',
       label: 'Quantity Updated'
     },
     inventory_consumed: {
-      icon: Minus,
       bgColor: 'bg-orange-100 dark:bg-orange-900',
       textColor: 'text-orange-800 dark:text-orange-200',
       label: 'Parts Consumed'
     },
     location_updated: {
-      icon: MapPin,
       bgColor: 'bg-purple-100 dark:bg-purple-900',
       textColor: 'text-purple-800 dark:text-purple-200',
       label: 'Location Updated'
     },
+
+    // Alternative operations
     alternative_added: {
-      icon: Package,
       bgColor: 'bg-cyan-100 dark:bg-cyan-900',
       textColor: 'text-cyan-800 dark:text-cyan-200',
       label: 'Alternative Added'
     },
     alternative_updated: {
-      icon: Edit,
       bgColor: 'bg-cyan-100 dark:bg-cyan-900',
       textColor: 'text-cyan-800 dark:text-cyan-200',
       label: 'Alternative Updated'
     },
     alternative_deleted: {
-      icon: Trash2,
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
       label: 'Alternative Deleted'
     },
+    alternative_promoted: {
+      bgColor: 'bg-cyan-100 dark:bg-cyan-900',
+      textColor: 'text-cyan-800 dark:text-cyan-200',
+      label: 'Alternative Promoted'
+    },
+
+    // Distributor operations
     distributor_updated: {
-      icon: Package,
       bgColor: 'bg-indigo-100 dark:bg-indigo-900',
       textColor: 'text-indigo-800 dark:text-indigo-200',
-      label: 'Distributor Info Updated'
+      label: 'Distributor Updated'
     },
+
+    // Approval operations
+    approval_approved: {
+      bgColor: 'bg-green-100 dark:bg-green-900',
+      textColor: 'text-green-800 dark:text-green-200',
+      label: 'Approval: Approved'
+    },
+    approval_denied: {
+      bgColor: 'bg-red-100 dark:bg-red-900',
+      textColor: 'text-red-800 dark:text-red-200',
+      label: 'Approval: Denied'
+    },
+    approval_sent_to_review: {
+      bgColor: 'bg-yellow-100 dark:bg-yellow-900',
+      textColor: 'text-yellow-800 dark:text-yellow-200',
+      label: 'Sent to Review'
+    },
+    approval_sent_to_prototype: {
+      bgColor: 'bg-yellow-100 dark:bg-yellow-900',
+      textColor: 'text-yellow-800 dark:text-yellow-200',
+      label: 'Sent to Prototype'
+    },
+    // Legacy key (kept for backward compat with old data)
     approval_changed: {
-      icon: Shield,
       bgColor: 'bg-yellow-100 dark:bg-yellow-900',
       textColor: 'text-yellow-800 dark:text-yellow-200',
       label: 'Approval Changed'
     },
+
+    // Project operations
     project_created: {
-      icon: Package,
       bgColor: 'bg-teal-100 dark:bg-teal-900',
       textColor: 'text-teal-800 dark:text-teal-200',
       label: 'Project Created'
     },
     project_updated: {
-      icon: Edit,
       bgColor: 'bg-teal-100 dark:bg-teal-900',
       textColor: 'text-teal-800 dark:text-teal-200',
       label: 'Project Updated'
     },
     project_deleted: {
-      icon: Trash2,
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
       label: 'Project Deleted'
     },
     component_added_to_project: {
-      icon: Package,
       bgColor: 'bg-lime-100 dark:bg-lime-900',
       textColor: 'text-lime-800 dark:text-lime-200',
-      label: 'Component Added to Project'
+      label: 'Added to Project'
     },
     project_component_updated: {
-      icon: Edit,
       bgColor: 'bg-lime-100 dark:bg-lime-900',
       textColor: 'text-lime-800 dark:text-lime-200',
       label: 'Project Component Updated'
     },
     component_removed_from_project: {
-      icon: Trash2,
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
-      label: 'Component Removed from Project'
+      label: 'Removed from Project'
     },
+
+    // ECO operations
     eco_initiated: {
-      icon: Package,
       bgColor: 'bg-amber-100 dark:bg-amber-900',
       textColor: 'text-amber-800 dark:text-amber-200',
       label: 'ECO Initiated'
     },
     eco_approved: {
-      icon: CheckCircle,
       bgColor: 'bg-green-100 dark:bg-green-900',
       textColor: 'text-green-800 dark:text-green-200',
       label: 'ECO Approved'
     },
     eco_rejected: {
-      icon: XCircle,
       bgColor: 'bg-red-100 dark:bg-red-900',
       textColor: 'text-red-800 dark:text-red-200',
       label: 'ECO Rejected'
-    }
+    },
+    eco_stage_advanced: {
+      bgColor: 'bg-blue-100 dark:bg-blue-900',
+      textColor: 'text-blue-800 dark:text-blue-200',
+      label: 'ECO Stage Advanced'
+    },
+
+    // User operations
+    user_login: {
+      bgColor: 'bg-slate-100 dark:bg-slate-800',
+      textColor: 'text-slate-700 dark:text-slate-300',
+      label: 'User Login'
+    },
+    user_logout: {
+      bgColor: 'bg-slate-100 dark:bg-slate-800',
+      textColor: 'text-slate-700 dark:text-slate-300',
+      label: 'User Logout'
+    },
+  };
+
+  // Default config for unknown activity types
+  const defaultConfig = {
+    bgColor: 'bg-gray-100 dark:bg-gray-800',
+    textColor: 'text-gray-700 dark:text-gray-300',
+    label: 'Unknown'
   };
 
   // Render details summary (compact view)
   const renderDetailsSummary = (item) => {
     if (!item.details) return '-';
-    
+
     const details = item.details;
-    
-    // Handle different activity types
+
     if (item.activity_type === 'inventory_updated' || item.activity_type === 'inventory_consumed') {
       return `Qty: ${details.old_quantity} → ${details.new_quantity} (${details.change >= 0 ? '+' : ''}${details.change})`;
     }
-    
+
     if (item.activity_type === 'location_updated') {
       return `${details.old_location || 'None'} → ${details.new_location}`;
     }
-    
-    if (item.activity_type === 'approval_changed') {
+
+    if (item.activity_type === 'category_changed') {
+      return `${details.old_part_number} → ${details.new_part_number}`;
+    }
+
+    if (item.activity_type?.startsWith('approval_')) {
       return `${details.old_status || 'None'} → ${details.new_status}`;
     }
-    
-    if (item.activity_type === 'updated' && details.changes) {
-      const changeCount = Object.keys(details.changes).length;
-      return `${changeCount} field${changeCount !== 1 ? 's' : ''} changed`;
+
+    if (item.activity_type === 'updated' && details.updated_fields) {
+      const fieldCount = details.updated_fields.length;
+      return `${fieldCount} field${fieldCount !== 1 ? 's' : ''} changed`;
     }
-    
+
     if (item.activity_type === 'added') {
-      return details.description ? details.description.substring(0, 40) + '...' : 'New component';
+      return details.description ? (details.description.length > 40 ? details.description.substring(0, 40) + '...' : details.description) : 'New component';
     }
-    
-    // ECO activities
+
+    if (item.activity_type === 'alternative_promoted') {
+      return `${details.old_primary_manufacturer_pn} → ${details.new_primary_manufacturer_pn}`;
+    }
+
     if (item.activity_type?.startsWith('eco_')) {
       return details.eco_number ? `ECO: ${details.eco_number}` : 'ECO activity';
     }
-    
-    // Default: show key count
+
+    if (item.activity_type === 'user_login' || item.activity_type === 'user_logout') {
+      return details.username || '';
+    }
+
+    if (item.activity_type?.includes('project')) {
+      return details.project_name || '';
+    }
+
     const keyCount = Object.keys(details).length;
     return `${keyCount} detail${keyCount !== 1 ? 's' : ''}`;
   };
@@ -288,7 +347,6 @@ const Audit = () => {
       return <span className="text-gray-500">No details available</span>;
     }
 
-    // Helper to format key names
     const formatKey = (key) => {
       return key
         .replace(/_/g, ' ')
@@ -299,7 +357,6 @@ const Audit = () => {
         .join(' ');
     };
 
-    // Helper to render value
     const renderValue = (value) => {
       if (value === null || value === undefined) return <span className="text-gray-400">null</span>;
       if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -315,7 +372,6 @@ const Audit = () => {
             </ul>
           );
         }
-        // For objects (like "changes"), render recursively
         return (
           <div className="ml-4 border-l-2 border-gray-200 dark:border-gray-600 pl-3">
             {Object.entries(value).map(([k, v]) => (
@@ -356,11 +412,25 @@ const Audit = () => {
     );
   };
 
+  // Group activity types for the filter dropdown
+  const filterGroups = [
+    { label: 'Components', types: ['added', 'updated', 'deleted', 'category_changed'] },
+    { label: 'Inventory', types: ['inventory_updated', 'inventory_consumed', 'location_updated'] },
+    { label: 'Alternatives', types: ['alternative_added', 'alternative_updated', 'alternative_deleted', 'alternative_promoted'] },
+    { label: 'Distributors', types: ['distributor_updated'] },
+    { label: 'Approval', types: ['approval_approved', 'approval_denied', 'approval_sent_to_review', 'approval_sent_to_prototype'] },
+    { label: 'Projects', types: ['project_created', 'project_updated', 'project_deleted', 'component_added_to_project', 'project_component_updated', 'component_removed_from_project'] },
+    { label: 'ECO', types: ['eco_initiated', 'eco_approved', 'eco_rejected', 'eco_stage_advanced'] },
+    { label: 'Users', types: ['user_login', 'user_logout'] },
+  ];
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 shrink-0">
-        
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          {auditData?.length || 0} total records
+        </div>
         <button
           onClick={exportToCSV}
           className="btn-primary flex items-center gap-2"
@@ -373,7 +443,6 @@ const Audit = () => {
 
       {/* Filters */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 shrink-0">
-        {/* All filters in one row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div>
@@ -388,7 +457,7 @@ const Audit = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Part number, details..."
+              placeholder="Part number, user, details..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
             />
           </div>
@@ -408,20 +477,15 @@ const Audit = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm custom-scrollbar"
             >
               <option value="all">All Activities</option>
-              <option value="added">Component Added</option>
-              <option value="updated">Component Updated</option>
-              <option value="deleted">Component Deleted</option>
-              <option value="approval_changed">Approval Changed</option>
-              <option value="inventory_updated">Quantity Updated</option>
-              <option value="inventory_consumed">Parts Consumed</option>
-              <option value="location_updated">Location Updated</option>
-              <option value="alternative_added">Alternative Added</option>
-              <option value="alternative_updated">Alternative Updated</option>
-              <option value="alternative_deleted">Alternative Deleted</option>
-              <option value="distributor_updated">Distributor Updated</option>
-              <option value="eco_initiated">ECO Initiated</option>
-              <option value="eco_approved">ECO Approved</option>
-              <option value="eco_rejected">ECO Rejected</option>
+              {filterGroups.map(group => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.types.map(type => (
+                    <option key={type} value={type}>
+                      {activityTypeConfig[type]?.label || type}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
 
@@ -489,6 +553,7 @@ const Audit = () => {
                   <tr>
                     <th className="w-10 px-2 py-3"></th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Timestamp</th>
+                    <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">User</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Activity</th>
                     <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Summary</th>
@@ -496,14 +561,13 @@ const Audit = () => {
                 </thead>
                 <tbody>
                   {paginatedData.map((item) => {
-                    const config = activityTypeConfig[item.activity_type] || activityTypeConfig.updated;
-                    const IconComponent = config.icon;
+                    const config = activityTypeConfig[item.activity_type] || defaultConfig;
                     const isExpanded = expandedRows.has(item.id);
                     const hasDetails = item.details && Object.keys(item.details).length > 0;
 
                     return (
                       <Fragment key={item.id}>
-                        <tr 
+                        <tr
                           className={`border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${hasDetails ? 'cursor-pointer' : ''}`}
                           onClick={() => hasDetails && toggleRowExpansion(item.id)}
                         >
@@ -521,12 +585,14 @@ const Audit = () => {
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 whitespace-nowrap">
                             {new Date(item.created_at).toLocaleString()}
                           </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                            {item.user_name || <span className="text-gray-400">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                             {item.part_number || '-'}
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded ${config.bgColor} ${config.textColor} text-xs font-medium`}>
-                              <IconComponent className="w-3 h-3" />
+                            <span className={`inline-flex items-center px-2 py-1 rounded ${config.bgColor} ${config.textColor} text-xs font-medium`}>
                               {config.label}
                             </span>
                           </td>
@@ -536,7 +602,7 @@ const Audit = () => {
                         </tr>
                         {isExpanded && hasDetails && (
                           <tr className="bg-gray-50 dark:bg-[#252525]">
-                            <td colSpan={5} className="px-6 py-4">
+                            <td colSpan={6} className="px-6 py-4">
                               <div className="text-sm">
                                 <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Change Details</h4>
                                 {renderExpandedDetails(item.details)}

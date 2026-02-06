@@ -14,7 +14,8 @@ build/
 # IDE
 .vscode/
 
-# Downloads
+# CAD file library
+library/
 download/
 import/
 
@@ -24,6 +25,7 @@ temp/
 *.tmp
 
 # AI notes
+*-cwd
 *.txt
 *.md
 !README.md

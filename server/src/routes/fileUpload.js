@@ -11,13 +11,14 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Base download directory (relative to server root)
-const DOWNLOAD_BASE = path.resolve(__dirname, '../../../download');
+// Base library directory for CAD files (relative to server root)
+const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
 
 // File type categories and their subdirectories
+// IMPORTANT: Extensions must be unique across categories (except for ambiguous ones handled by path-based logic)
 const FILE_CATEGORIES = {
   footprint: {
-    extensions: ['.brd', '.kicad_mod', '.lbr', '.pad', '.olb', '.psm', '.fsm', '.bxl'],
+    extensions: ['.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra'],
     subdir: 'footprint',
   },
   pad: {
@@ -25,7 +26,7 @@ const FILE_CATEGORIES = {
     subdir: 'pad',
   },
   symbol: {
-    extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.SchLib'],
+    extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.schlib'],
     subdir: 'symbol',
   },
   model: {
@@ -33,7 +34,7 @@ const FILE_CATEGORIES = {
     subdir: 'model',
   },
   pspice: {
-    extensions: ['.lib', '.mod', '.cir', '.sub', '.inc'],
+    extensions: ['.cir', '.sub', '.inc'],
     subdir: 'pspice',
   },
   libraries: {
@@ -49,7 +50,7 @@ const PASSIVE_CATEGORIES = ['Capacitors', 'Resistors', 'Inductors'];
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Temporary upload directory
-    const tempDir = path.join(DOWNLOAD_BASE, 'temp');
+    const tempDir = path.join(LIBRARY_BASE, 'temp');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
@@ -107,7 +108,7 @@ function moveToCategory(sourcePath, category, mfgPartNumber) {
   if (!config) return null;
   
   const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-  const targetDir = ensureDir(path.join(DOWNLOAD_BASE, config.subdir, sanitizedPN));
+  const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir, sanitizedPN));
   const filename = path.basename(sourcePath);
   const targetPath = path.join(targetDir, filename.replace(/^\d+-\d+-/, '')); // Remove temp prefix
   
@@ -133,62 +134,69 @@ function extractSmartZip(zipPath, mfgPartNumber) {
   const entries = zip.getEntries();
   const extractedFiles = [];
   const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-  
-  // Analyze ZIP structure to detect source
+  const zipFilename = path.basename(zipPath).toLowerCase();
+
+  // Analyze ZIP structure to detect source (check both entry names and ZIP filename)
   const filenames = entries.map(e => e.entryName.toLowerCase());
-  
+
   let source = 'unknown';
-  if (filenames.some(f => f.includes('ultralibrarian') || f.includes('ul_'))) {
+  if (filenames.some(f => f.includes('ultralibrarian') || f.includes('ul_')) || zipFilename.includes('ul_')) {
     source = 'ultralibrarian';
-  } else if (filenames.some(f => f.includes('snapeda'))) {
+  } else if (filenames.some(f => f.includes('snapeda')) || zipFilename.includes('snapeda')) {
     source = 'snapeda';
-  } else if (filenames.some(f => f.includes('samacsys') || f.includes('component_search_engine'))) {
+  } else if (filenames.some(f => f.includes('samacsys') || f.includes('component_search_engine')) || zipFilename.includes('samacsys') || zipFilename.startsWith('lib_')) {
     source = 'samacsys';
   }
-  
+
   console.log(`[FileUpload] Detected ZIP source: ${source}`);
-  
+
+  // File extensions that are valid EDA files (used to filter path-based matches)
+  const validEDAExtensions = new Set([
+    '.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra',
+    '.pad', '.plb',
+    '.olb', '.lib', '.kicad_sym', '.bsm', '.schlib', '.edf',
+    '.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t',
+    '.cir', '.sub', '.inc', '.mod',
+    '.dcm', '.asc', '.hkp',
+  ]);
+
   for (const entry of entries) {
     if (entry.isDirectory) continue;
-    
+
     const entryName = entry.entryName;
     const filename = path.basename(entryName);
     const ext = path.extname(filename).toLowerCase();
-    
-    // Skip hidden files and macOS metadata
+
+    // Skip hidden files, macOS metadata, and non-EDA files (scripts, docs, etc.)
     if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
-    
-    // Determine category based on extension or path
+    if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
+
+    // Determine category based on extension
     let category = getFileCategory(filename);
-    
-    // Additional path-based detection for specific providers
+
+    // Additional path-based detection for files not matched by extension
+    // Only apply if the file has a valid EDA extension
     const lowerPath = entryName.toLowerCase();
-    if (!category) {
-      if (lowerPath.includes('footprint') || lowerPath.includes('pcb')) {
+    if (!category && validEDAExtensions.has(ext)) {
+      if (lowerPath.includes('footprint') || lowerPath.includes('pcbfootprint') || (lowerPath.includes('pcb') && !lowerPath.includes('pcblib'))) {
         category = 'footprint';
-      } else if (lowerPath.includes('symbol') || lowerPath.includes('schematic') || lowerPath.includes('sch')) {
+      } else if (lowerPath.includes('symbol') || lowerPath.includes('schematic') || lowerPath.includes('capture')) {
         category = 'symbol';
       } else if (lowerPath.includes('3d') || lowerPath.includes('step') || lowerPath.includes('model')) {
         category = 'model';
       } else if (lowerPath.includes('spice') || lowerPath.includes('simulation')) {
         category = 'pspice';
-      } else if (lowerPath.includes('pad')) {
+      } else if (lowerPath.includes('padstack')) {
+        // Only match 'padstack' specifically, not the PADS EDA tool directory
         category = 'pad';
       }
     }
-    
-    // Special handling for specific file types
-    if (ext === '.olb') {
-      category = 'symbol'; // OrCAD symbol library
-    } else if (ext === '.brd' || ext === '.lbr') {
-      category = 'footprint'; // Allegro/EAGLE
-    }
-    
+
     if (category) {
       const config = FILE_CATEGORIES[category];
-      const targetDir = ensureDir(path.join(DOWNLOAD_BASE, config.subdir, sanitizedPN));
+      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir, sanitizedPN));
       const targetPath = path.join(targetDir, filename);
-      
+
       // Extract file
       zip.extractEntryTo(entry, targetDir, false, true);
       extractedFiles.push({
@@ -199,10 +207,10 @@ function extractSmartZip(zipPath, mfgPartNumber) {
       });
     }
   }
-  
+
   // Clean up the zip file
   fs.unlinkSync(zipPath);
-  
+
   return extractedFiles;
 }
 
@@ -378,7 +386,7 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
     const files = {};
     
     for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
-      const dirPath = path.join(DOWNLOAD_BASE, config.subdir, sanitizedPN);
+      const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
       
       if (fs.existsSync(dirPath)) {
         const dirFiles = fs.readdirSync(dirPath)
@@ -422,7 +430,7 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
     }
     
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const filePath = path.join(DOWNLOAD_BASE, config.subdir, sanitizedPN, filename);
+    const filePath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -457,7 +465,7 @@ router.get('/download/:category/:mfgPartNumber/:filename', authenticate, async (
     }
     
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const filePath = path.join(DOWNLOAD_BASE, config.subdir, sanitizedPN, filename);
+    const filePath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
     
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -467,6 +475,57 @@ router.get('/download/:category/:mfgPartNumber/:filename', authenticate, async (
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+/**
+ * Export all files for a component as a ZIP archive
+ */
+router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
+  try {
+    const { mfgPartNumber } = req.params;
+    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+
+    // Collect all files across categories
+    const allFiles = [];
+    for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
+      const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
+      if (fs.existsSync(dirPath)) {
+        const dirFiles = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
+        for (const filename of dirFiles) {
+          allFiles.push({
+            category,
+            subdir: config.subdir,
+            filename,
+            fullPath: path.join(dirPath, filename),
+          });
+        }
+      }
+    }
+
+    if (allFiles.length === 0) {
+      return res.status(404).json({ error: 'No files found for this component' });
+    }
+
+    // Create ZIP archive
+    const zip = new AdmZip();
+    for (const file of allFiles) {
+      // Organize files into category subdirectories within the ZIP
+      zip.addLocalFile(file.fullPath, file.subdir);
+    }
+
+    const zipBuffer = zip.toBuffer();
+    const zipFilename = `${sanitizedPN}_files.zip`;
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${zipFilename}"`,
+      'Content-Length': zipBuffer.length,
+    });
+    res.send(zipBuffer);
+  } catch (error) {
+    console.error('Error exporting files:', error);
+    res.status(500).json({ error: 'Failed to export files' });
   }
 });
 

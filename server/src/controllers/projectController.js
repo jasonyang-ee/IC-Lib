@@ -4,8 +4,9 @@ import pool from '../config/database.js';
 export const getAllProjects = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         p.*,
+        created_at(p.id) as created_at,
         COUNT(DISTINCT pc.id) as component_count,
         COALESCE(SUM(pc.quantity), 0) as total_quantity
       FROM projects p
@@ -27,7 +28,7 @@ export const getProjectById = async (req, res) => {
     
     // Get project details
     const projectResult = await pool.query(
-      'SELECT * FROM projects WHERE id = $1',
+      'SELECT *, created_at(id) as created_at FROM projects WHERE id = $1',
       [id],
     );
     
@@ -103,10 +104,11 @@ export const createProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       null,
+      req.user?.id || null,
       '',
       'project_created',
       JSON.stringify({
@@ -147,10 +149,11 @@ export const updateProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       null,
+      req.user?.id || null,
       '',
       'project_updated',
       JSON.stringify({
@@ -191,10 +194,11 @@ export const deleteProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       null,
+      req.user?.id || null,
       '',
       'project_deleted',
       JSON.stringify({
@@ -257,17 +261,18 @@ export const addComponentToProject = async (req, res) => {
       );
     } else if (alternative_id) {
       componentInfo = await pool.query(
-        'SELECT ca.manufacturer_pn as part_number, c.description FROM components_alternative ca JOIN components c ON ca.part_number = c.part_number WHERE ca.id = $1',
+        'SELECT ca.manufacturer_pn as part_number, c.description FROM components_alternative ca JOIN components c ON ca.component_id = c.id WHERE ca.id = $1',
         [alternative_id],
       );
     }
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       component_id || null,
+      req.user?.id || null,
       componentInfo?.rows[0]?.part_number || '',
       'component_added_to_project',
       JSON.stringify({
@@ -313,10 +318,11 @@ export const updateProjectComponent = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       projectComponent.component_id || null,
+      req.user?.id || null,
       '',
       'project_component_updated',
       JSON.stringify({
@@ -359,10 +365,11 @@ export const removeComponentFromProject = async (req, res) => {
     
     // Log activity
     await pool.query(`
-      INSERT INTO activity_log (component_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+      VALUES ($1, $2, $3, $4, $5)
     `, [
       componentResult.rows[0]?.component_id || null,
+      req.user?.id || null,
       '',
       'component_removed_from_project',
       JSON.stringify({
@@ -383,39 +390,67 @@ export const removeComponentFromProject = async (req, res) => {
 // Consume all components in a project (decrement inventory)
 export const consumeProjectComponents = async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
     const { id } = req.params;
-    
+
     await client.query('BEGIN');
-    
-    // Get all project components
+
+    // Get project info
+    const projectResult = await client.query('SELECT name FROM projects WHERE id = $1', [id]);
+    const projectName = projectResult.rows[0]?.name || 'Unknown';
+
+    // Get all project components with part info
     const componentsResult = await client.query(
-      `SELECT pc.*, pc.component_id, pc.alternative_id, pc.quantity
+      `SELECT pc.*, pc.component_id, pc.alternative_id, pc.quantity,
+              c.part_number, c.description
        FROM project_components pc
+       LEFT JOIN components c ON pc.component_id = c.id
+       LEFT JOIN components_alternative ca ON pc.alternative_id = ca.id
+       LEFT JOIN components c2 ON ca.component_id = c2.id
        WHERE pc.project_id = $1`,
       [id],
     );
-    
+
     const updates = [];
     const errors = [];
-    
+
     for (const pc of componentsResult.rows) {
       try {
         if (pc.component_id) {
           // Update main component inventory
           const result = await client.query(
-            `UPDATE inventory 
+            `UPDATE inventory
              SET quantity = GREATEST(0, quantity - $1)
              WHERE component_id = $2
              RETURNING quantity`,
             [pc.quantity, pc.component_id],
           );
           updates.push({ component_id: pc.component_id, new_quantity: result.rows[0].quantity });
+
+          // Log consumption
+          if (pc.part_number) {
+            await client.query(`
+              INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+              VALUES ($1, $2, $3, $4, $5)
+            `, [
+              pc.component_id,
+              req.user?.id || null,
+              pc.part_number,
+              'inventory_consumed',
+              JSON.stringify({
+                project_id: id,
+                project_name: projectName,
+                consumed_quantity: pc.quantity,
+                new_quantity: result.rows[0].quantity,
+                source: 'project_consumption',
+              }),
+            ]);
+          }
         } else if (pc.alternative_id) {
           // Update alternative inventory
           const result = await client.query(
-            `UPDATE inventory_alternative 
+            `UPDATE inventory_alternative
              SET quantity = GREATEST(0, quantity - $1)
              WHERE alternative_id = $2
              RETURNING quantity`,
@@ -424,16 +459,16 @@ export const consumeProjectComponents = async (req, res) => {
           updates.push({ alternative_id: pc.alternative_id, new_quantity: result.rows[0].quantity });
         }
       } catch (error) {
-        errors.push({ 
-          id: pc.component_id || pc.alternative_id, 
-          error: error.message, 
+        errors.push({
+          id: pc.component_id || pc.alternative_id,
+          error: error.message,
         });
       }
     }
-    
+
     await client.query('COMMIT');
-    
-    res.json({ 
+
+    res.json({
       message: 'Components consumed successfully',
       updates,
       errors: errors.length > 0 ? errors : undefined,

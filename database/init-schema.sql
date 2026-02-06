@@ -94,13 +94,14 @@ CREATE TABLE IF NOT EXISTS components (
     schematic VARCHAR(255),
     step_model VARCHAR(255),
     pspice VARCHAR(255),
+    pad_file VARCHAR(255),
     
     -- Documentation
     datasheet_url VARCHAR(500),
     
     -- Approval Status (merged single status)
     approval_status VARCHAR(50) DEFAULT 'new',
-    approval_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approval_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     approval_date TIMESTAMP,
     
     -- Only updated_at is needed (created_at extracted from uuidv7)
@@ -150,11 +151,11 @@ CREATE TABLE IF NOT EXISTS component_specification_values (
 -- Note: The primary variant is the one stored in components table itself
 CREATE TABLE IF NOT EXISTS components_alternative (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    part_number VARCHAR(100) REFERENCES components(part_number) ON DELETE CASCADE,
+    component_id UUID NOT NULL REFERENCES components(id) ON DELETE CASCADE,
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200) NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(part_number, manufacturer_id, manufacturer_pn)
+    UNIQUE(component_id, manufacturer_id, manufacturer_pn)
 );
 
 -- Table: inventory_alternative
@@ -244,7 +245,7 @@ CREATE INDEX IF NOT EXISTS idx_distributor_info_alternative ON distributor_info(
 CREATE INDEX IF NOT EXISTS idx_distributor_info_distributor ON distributor_info(distributor_id);
 
 -- Components alternative indexes
-CREATE INDEX IF NOT EXISTS idx_components_alternative_part_number ON components_alternative(part_number);
+CREATE INDEX IF NOT EXISTS idx_components_alternative_component_id ON components_alternative(component_id);
 CREATE INDEX IF NOT EXISTS idx_components_alternative_manufacturer ON components_alternative(manufacturer_id);
 
 -- Inventory indexes
@@ -505,8 +506,9 @@ END $$;
 CREATE TABLE IF NOT EXISTS activity_log (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     component_id UUID REFERENCES components(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     part_number VARCHAR(100) NOT NULL,
-    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted', 'inventory_updated', 'inventory_consumed', 'location_updated', etc.
+    activity_type VARCHAR(50) NOT NULL, -- 'added', 'updated', 'deleted', 'inventory_updated', 'inventory_consumed', 'location_updated', 'user_login', 'user_logout', etc.
     details JSONB NOT NULL DEFAULT '{}'::jsonb -- Flexible JSON for all change details
 );
 
@@ -515,6 +517,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_id ON activity_log(id DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_log_component ON activity_log(component_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_part_number ON activity_log(part_number);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id);
 
 -- ============================================================================
 -- PART 9: PROJECTS
@@ -618,22 +621,67 @@ ON CONFLICT (component_id) DO NOTHING;
 -- PART 12: ENGINEER CHANGE ORDER (ECO) TABLES
 -- ============================================================================
 
+-- Table: eco_approval_stages
+-- Defines the approval pipeline (configurable stages in order)
+CREATE TABLE IF NOT EXISTS eco_approval_stages (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    stage_name VARCHAR(100) NOT NULL,
+    stage_order INTEGER NOT NULL,
+    required_approvals INTEGER NOT NULL DEFAULT 1,
+    required_role VARCHAR(50) NOT NULL DEFAULT 'approver',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_stage_order UNIQUE(stage_order)
+);
+
+-- Insert default approval stage
+INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, required_role)
+SELECT 'Review & Approval', 1, 1, 'approver'
+WHERE NOT EXISTS (SELECT 1 FROM eco_approval_stages);
+
 -- Table: eco_orders
 -- Stores ECO header information
--- Note: User IDs are INTEGER (not UUID) to match users table definition
 CREATE TABLE IF NOT EXISTS eco_orders (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_number VARCHAR(20) UNIQUE NOT NULL, -- Format: ECO-XXXXXX (6 digit sequential)
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
-    initiated_by INTEGER, -- References users(id) - INTEGER not UUID
-    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
-    approved_by INTEGER, -- References users(id) - INTEGER not UUID
+    initiated_by UUID REFERENCES users(id),
+    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'in_review', 'approved', 'rejected'
+    current_stage_id UUID REFERENCES eco_approval_stages(id),
+    approved_by UUID REFERENCES users(id),
     approved_at TIMESTAMP,
     rejection_reason TEXT,
     notes TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_eco_status CHECK (status IN ('pending', 'approved', 'rejected'))
+    CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected'))
+);
+
+-- Table: eco_stage_approvers
+-- Assigns specific users to approval stages
+-- Allows configurable N-of-M approvals (e.g., any 2 of users A,B,C,D)
+CREATE TABLE IF NOT EXISTS eco_stage_approvers (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    stage_id UUID NOT NULL REFERENCES eco_approval_stages(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(stage_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_eco_stage_approvers_stage ON eco_stage_approvers(stage_id);
+CREATE INDEX IF NOT EXISTS idx_eco_stage_approvers_user ON eco_stage_approvers(user_id);
+
+-- Table: eco_approvals
+-- Tracks individual approval/rejection votes per ECO per stage
+CREATE TABLE IF NOT EXISTS eco_approvals (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    stage_id UUID NOT NULL REFERENCES eco_approval_stages(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id),
+    decision VARCHAR(20) NOT NULL,
+    comments TEXT,
+    CONSTRAINT check_approval_decision CHECK (decision IN ('approved', 'rejected')),
+    CONSTRAINT unique_vote_per_stage UNIQUE(eco_id, stage_id, user_id)
 );
 
 -- Table: eco_changes
@@ -696,10 +744,18 @@ CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_approvals_eco ON eco_approvals(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_approvals_stage ON eco_approvals(stage_id);
 
 -- Trigger to update eco_orders updated_at timestamp
 CREATE OR REPLACE TRIGGER update_eco_orders_updated_at
     BEFORE UPDATE ON eco_orders
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger to update eco_approval_stages updated_at timestamp
+CREATE OR REPLACE TRIGGER update_eco_approval_stages_updated_at
+    BEFORE UPDATE ON eco_approval_stages
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -723,22 +779,26 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- View: eco_orders_full
--- ECO orders with user information
+-- ECO orders with user and stage information
 CREATE OR REPLACE VIEW eco_orders_full AS
-SELECT 
+SELECT
     eo.*,
     u1.username as initiated_by_name,
     u2.username as approved_by_name,
     c.part_number as component_part_number,
     c.description as component_description,
     cc.name as category_name,
-    m.name as manufacturer_name
+    m.name as manufacturer_name,
+    eas.stage_name as current_stage_name,
+    eas.stage_order as current_stage_order,
+    eas.required_approvals as current_stage_required_approvals
 FROM eco_orders eo
 LEFT JOIN users u1 ON eo.initiated_by = u1.id
 LEFT JOIN users u2 ON eo.approved_by = u2.id
 LEFT JOIN components c ON eo.component_id = c.id
 LEFT JOIN component_categories cc ON c.category_id = cc.id
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN eco_approval_stages eas ON eo.current_stage_id = eas.id
 ORDER BY eo.id DESC;
 
 -- ============================================================================

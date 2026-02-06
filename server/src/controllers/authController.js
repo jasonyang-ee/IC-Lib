@@ -61,6 +61,11 @@ export const login = async (req, res) => {
          VALUES ('user_login', $1, $2)`,
         [`User ${username} logged in`, user.id],
       );
+      await pool.query(
+        `INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+         VALUES (NULL, $1, '', 'user_login', $2)`,
+        [user.id, JSON.stringify({ username: user.username, role: user.role })],
+      );
     } catch (logError) {
       console.error('Failed to log login activity:', logError);
     }
@@ -128,6 +133,11 @@ export const logout = async (req, res) => {
           `INSERT INTO user_activity_log (type_name, description, user_id)
            VALUES ('user_logout', $1, $2)`,
           [`User ${req.user.username} logged out`, req.user.userId],
+        );
+        await pool.query(
+          `INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
+           VALUES (NULL, $1, '', 'user_logout', $2)`,
+          [req.user.userId, JSON.stringify({ username: req.user.username })],
         );
       } catch (logError) {
         console.error('Failed to log logout activity:', logError);
@@ -395,7 +405,7 @@ export const deleteUser = async (req, res) => {
     const { id } = req.params;
 
     // Prevent self-deletion
-    if (parseInt(id) === req.user.userId) {
+    if (id === req.user.userId) {
       return res.status(400).json({ 
         error: 'Cannot delete your own account', 
       });

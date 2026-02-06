@@ -55,7 +55,8 @@ docs/
 **/__tests__/
 **/__mocks__/
 
-# Download cache (use volume instead)
+# CAD file library (use volume instead)
+library/
 download/
 
 # Database files (use external database, but keep SQL schemas)

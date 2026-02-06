@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.{test,spec}.{js,mjs}'],
-    exclude: ['node_modules', 'dist', 'downloads', 'download'],
+    exclude: ['node_modules', 'dist', 'library', 'download'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
@@ -13,7 +13,7 @@ export default defineConfig({
         'node_modules/**',
         'src/test/**',
         '**/*.config.{js,ts}',
-        'downloads/**',
+        'library/**',
         'download/**',
       ],
     },

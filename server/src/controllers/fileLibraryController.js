@@ -2,23 +2,24 @@ import pool from '../config/database.js';
 
 /**
  * Get all unique file names by file type with component count
- * @param {string} fileType - One of: pcb_footprint, schematic, step_model, pspice
+ * @param {string} fileType - One of: pcb_footprint, schematic, step_model, pspice, pad_file
  */
 export const getFilesByType = async (req, res) => {
   try {
     const { type } = req.params;
-    
+
     // Map the type parameter to actual column name
     const columnMap = {
       'footprint': 'pcb_footprint',
       'schematic': 'schematic',
       'step': 'step_model',
       'pspice': 'pspice',
+      'pad': 'pad_file',
     };
-    
+
     const columnName = columnMap[type];
     if (!columnName) {
-      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice' });
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
     
     // Query to get unique file names and count of components using each
@@ -53,21 +54,23 @@ export const getFilesByType = async (req, res) => {
 export const getFileTypeStats = async (req, res) => {
   try {
     const query = `
-      SELECT 
+      SELECT
         COUNT(DISTINCT CASE WHEN pcb_footprint IS NOT NULL AND pcb_footprint != '' AND pcb_footprint != 'N/A' THEN pcb_footprint END) as footprint_count,
         COUNT(DISTINCT CASE WHEN schematic IS NOT NULL AND schematic != '' AND schematic != 'N/A' THEN schematic END) as schematic_count,
         COUNT(DISTINCT CASE WHEN step_model IS NOT NULL AND step_model != '' AND step_model != 'N/A' THEN step_model END) as step_count,
-        COUNT(DISTINCT CASE WHEN pspice IS NOT NULL AND pspice != '' AND pspice != 'N/A' THEN pspice END) as pspice_count
+        COUNT(DISTINCT CASE WHEN pspice IS NOT NULL AND pspice != '' AND pspice != 'N/A' THEN pspice END) as pspice_count,
+        COUNT(DISTINCT CASE WHEN pad_file IS NOT NULL AND pad_file != '' AND pad_file != 'N/A' THEN pad_file END) as pad_count
       FROM components
     `;
-    
+
     const result = await pool.query(query);
-    
+
     res.json({
       footprint: parseInt(result.rows[0].footprint_count) || 0,
       schematic: parseInt(result.rows[0].schematic_count) || 0,
       step: parseInt(result.rows[0].step_count) || 0,
       pspice: parseInt(result.rows[0].pspice_count) || 0,
+      pad: parseInt(result.rows[0].pad_count) || 0,
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:', error.message);
@@ -93,15 +96,16 @@ export const getComponentsByFile = async (req, res) => {
       'schematic': 'schematic',
       'step': 'step_model',
       'pspice': 'pspice',
+      'pad': 'pad_file',
     };
-    
+
     const columnName = columnMap[type];
     if (!columnName) {
-      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice' });
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
-    
+
     const query = `
-      SELECT 
+      SELECT
         c.id,
         c.part_number,
         c.manufacturer_pn,
@@ -112,6 +116,7 @@ export const getComponentsByFile = async (req, res) => {
         c.schematic,
         c.step_model,
         c.pspice,
+        c.pad_file,
         m.name as manufacturer_name,
         cat.name as category_name
       FROM components c
@@ -153,13 +158,14 @@ export const massUpdateFileName = async (req, res) => {
       'schematic': 'schematic',
       'step': 'step_model',
       'pspice': 'pspice',
+      'pad': 'pad_file',
     };
-    
+
     const columnName = columnMap[type];
     if (!columnName) {
-      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice' });
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
-    
+
     let query;
     let params;
     
@@ -218,6 +224,7 @@ export const searchFiles = async (req, res) => {
         'schematic': 'schematic',
         'step': 'step_model',
         'pspice': 'pspice',
+        'pad': 'pad_file',
       };
       const columnName = columnMap[type];
       if (columnName) {
@@ -243,13 +250,18 @@ export const searchFiles = async (req, res) => {
         SELECT DISTINCT pspice as file_name, 'pspice' as source_column, 'pspice' as file_type
         FROM components
         WHERE pspice IS NOT NULL AND pspice != '' AND pspice != 'N/A'
+        UNION ALL
+        SELECT DISTINCT pad_file as file_name, 'pad_file' as source_column, 'pad' as file_type
+        FROM components
+        WHERE pad_file IS NOT NULL AND pad_file != '' AND pad_file != 'N/A'
       )
-      SELECT file_name, source_column, file_type, 
-        (SELECT COUNT(*) FROM components c 
+      SELECT file_name, source_column, file_type,
+        (SELECT COUNT(*) FROM components c
          WHERE (source_column = 'pcb_footprint' AND c.pcb_footprint = file_name)
             OR (source_column = 'schematic' AND c.schematic = file_name)
             OR (source_column = 'step_model' AND c.step_model = file_name)
             OR (source_column = 'pspice' AND c.pspice = file_name)
+            OR (source_column = 'pad_file' AND c.pad_file = file_name)
         ) as component_count
       FROM all_files
       WHERE file_name ILIKE $1 ${typeFilter}

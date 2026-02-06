@@ -44,8 +44,8 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Create directories for downloads
-RUN mkdir -p /app/download/footprint /app/download/symbol /app/download/pad
+# Create directories for CAD file library
+RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice
 
 # Copy startup script
 COPY start.sh /app/start.sh
