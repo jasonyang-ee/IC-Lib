@@ -325,6 +325,9 @@ export const api = {
   getComponentsByFile: (type, fileName) => apiClient.get(`/file-library/type/${type}/components`, { params: { fileName } }),
   massRenameFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename`, data),
   searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
+  renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
+  deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
+  checkFileCollision: (category, filename) => apiClient.get(`/files/check-collision/${category}/${encodeURIComponent(filename)}`),
 };
 
 export default apiClient;

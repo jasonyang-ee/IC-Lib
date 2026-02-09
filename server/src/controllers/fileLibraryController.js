@@ -1,45 +1,57 @@
 import pool from '../config/database.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const LIBRARY_BASE = path.resolve(__dirname, '../../..', 'library');
+
+// Map route type param to database column and file subdirectory
+const TYPE_MAP = {
+  'footprint': { column: 'pcb_footprint', subdir: 'footprint' },
+  'schematic': { column: 'schematic', subdir: 'symbol' },
+  'step':      { column: 'step_model', subdir: 'model' },
+  'pspice':    { column: 'pspice', subdir: 'pspice' },
+  'pad':       { column: 'pad_file', subdir: 'pad' },
+};
+
+function getTypeInfo(type) {
+  return TYPE_MAP[type] || null;
+}
 
 /**
- * Get all unique file names by file type with component count
- * @param {string} fileType - One of: pcb_footprint, schematic, step_model, pspice, pad_file
+ * Get all unique file names by file type with component count.
+ * JSONB: unnest arrays with jsonb_array_elements_text().
  */
 export const getFilesByType = async (req, res) => {
   try {
     const { type } = req.params;
-
-    // Map the type parameter to actual column name
-    const columnMap = {
-      'footprint': 'pcb_footprint',
-      'schematic': 'schematic',
-      'step': 'step_model',
-      'pspice': 'pspice',
-      'pad': 'pad_file',
-    };
-
-    const columnName = columnMap[type];
-    if (!columnName) {
+    const info = getTypeInfo(type);
+    if (!info) {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
-    
-    // Query to get unique file names and count of components using each
+
     const query = `
-      SELECT 
-        ${columnName} as file_name,
+      SELECT
+        fname as file_name,
         COUNT(*) as component_count
-      FROM components
-      WHERE ${columnName} IS NOT NULL 
-        AND ${columnName} != ''
-        AND ${columnName} != 'N/A'
-      GROUP BY ${columnName}
-      ORDER BY ${columnName} ASC
+      FROM (
+        SELECT jsonb_array_elements_text(${info.column}) AS fname
+        FROM components
+        WHERE ${info.column} IS NOT NULL
+          AND ${info.column} != '[]'::jsonb
+      ) sub
+      GROUP BY fname
+      ORDER BY fname ASC
     `;
-    
+
     const result = await pool.query(query);
-    
+
     res.json({
       type,
-      column: columnName,
+      column: info.column,
       files: result.rows,
     });
   } catch (error) {
@@ -49,18 +61,17 @@ export const getFilesByType = async (req, res) => {
 };
 
 /**
- * Get all file type statistics (counts for each category)
+ * Get all file type statistics (distinct filename counts per category).
  */
 export const getFileTypeStats = async (req, res) => {
   try {
     const query = `
       SELECT
-        COUNT(DISTINCT CASE WHEN pcb_footprint IS NOT NULL AND pcb_footprint != '' AND pcb_footprint != 'N/A' THEN pcb_footprint END) as footprint_count,
-        COUNT(DISTINCT CASE WHEN schematic IS NOT NULL AND schematic != '' AND schematic != 'N/A' THEN schematic END) as schematic_count,
-        COUNT(DISTINCT CASE WHEN step_model IS NOT NULL AND step_model != '' AND step_model != 'N/A' THEN step_model END) as step_count,
-        COUNT(DISTINCT CASE WHEN pspice IS NOT NULL AND pspice != '' AND pspice != 'N/A' THEN pspice END) as pspice_count,
-        COUNT(DISTINCT CASE WHEN pad_file IS NOT NULL AND pad_file != '' AND pad_file != 'N/A' THEN pad_file END) as pad_count
-      FROM components
+        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pcb_footprint) AS f WHERE pcb_footprint != '[]'::jsonb) AS footprint_count,
+        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(schematic) AS f WHERE schematic != '[]'::jsonb) AS schematic_count,
+        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(step_model) AS f WHERE step_model != '[]'::jsonb) AS step_count,
+        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pspice) AS f WHERE pspice != '[]'::jsonb) AS pspice_count,
+        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pad_file) AS f WHERE pad_file != '[]'::jsonb) AS pad_count
     `;
 
     const result = await pool.query(query);
@@ -79,28 +90,20 @@ export const getFileTypeStats = async (req, res) => {
 };
 
 /**
- * Get components using a specific file
+ * Get components using a specific file.
+ * JSONB: use @> containment operator.
  */
 export const getComponentsByFile = async (req, res) => {
   try {
     const { type } = req.params;
     const { fileName } = req.query;
-    
+
     if (!fileName) {
       return res.status(400).json({ error: 'fileName query parameter is required' });
     }
-    
-    // Map the type parameter to actual column name
-    const columnMap = {
-      'footprint': 'pcb_footprint',
-      'schematic': 'schematic',
-      'step': 'step_model',
-      'pspice': 'pspice',
-      'pad': 'pad_file',
-    };
 
-    const columnName = columnMap[type];
-    if (!columnName) {
+    const info = getTypeInfo(type);
+    if (!info) {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
@@ -111,6 +114,7 @@ export const getComponentsByFile = async (req, res) => {
         c.manufacturer_pn,
         c.description,
         c.value,
+        c.package_size,
         c.approval_status,
         c.pcb_footprint,
         c.schematic,
@@ -122,16 +126,16 @@ export const getComponentsByFile = async (req, res) => {
       FROM components c
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
       LEFT JOIN component_categories cat ON c.category_id = cat.id
-      WHERE c.${columnName} = $1
+      WHERE c.${info.column} @> jsonb_build_array($1)
       ORDER BY c.part_number ASC
     `;
-    
+
     const result = await pool.query(query, [fileName]);
-    
+
     res.json({
       fileName,
       type,
-      column: columnName,
+      column: info.column,
       components: result.rows,
     });
   } catch (error) {
@@ -141,58 +145,63 @@ export const getComponentsByFile = async (req, res) => {
 };
 
 /**
- * Mass update file name across all components
+ * Mass update file name in JSONB arrays across components.
+ * Replaces oldFileName with newFileName inside the JSONB array.
  */
 export const massUpdateFileName = async (req, res) => {
   try {
     const { type } = req.params;
     const { oldFileName, newFileName, componentIds } = req.body;
-    
+
     if (!oldFileName || !newFileName) {
       return res.status(400).json({ error: 'oldFileName and newFileName are required' });
     }
-    
-    // Map the type parameter to actual column name
-    const columnMap = {
-      'footprint': 'pcb_footprint',
-      'schematic': 'schematic',
-      'step': 'step_model',
-      'pspice': 'pspice',
-      'pad': 'pad_file',
-    };
 
-    const columnName = columnMap[type];
-    if (!columnName) {
+    const info = getTypeInfo(type);
+    if (!info) {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
     let query;
     let params;
-    
+
     if (componentIds && componentIds.length > 0) {
       // Update only specific components
       query = `
-        UPDATE components 
-        SET ${columnName} = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE ${columnName} = $2 AND id = ANY($3::uuid[])
+        UPDATE components
+        SET ${info.column} = (
+          SELECT jsonb_agg(
+            CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+          )
+          FROM jsonb_array_elements(${info.column}) AS elem
+        ),
+        updated_at = CURRENT_TIMESTAMP
+        WHERE ${info.column} @> jsonb_build_array($1)
+          AND id = ANY($3::uuid[])
         RETURNING id, part_number
       `;
-      params = [newFileName, oldFileName, componentIds];
+      params = [oldFileName, newFileName, componentIds];
     } else {
       // Update all components with the old file name
       query = `
-        UPDATE components 
-        SET ${columnName} = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE ${columnName} = $2
+        UPDATE components
+        SET ${info.column} = (
+          SELECT jsonb_agg(
+            CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+          )
+          FROM jsonb_array_elements(${info.column}) AS elem
+        ),
+        updated_at = CURRENT_TIMESTAMP
+        WHERE ${info.column} @> jsonb_build_array($1)
         RETURNING id, part_number
       `;
-      params = [newFileName, oldFileName];
+      params = [oldFileName, newFileName];
     }
-    
+
     const result = await pool.query(query, params);
-    
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Updated ${result.rowCount} components: ${columnName} "${oldFileName}" -> "${newFileName}"`);
-    
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Updated ${result.rowCount} components: ${info.column} "${oldFileName}" -> "${newFileName}"`);
+
     res.json({
       success: true,
       updatedCount: result.rowCount,
@@ -205,72 +214,64 @@ export const massUpdateFileName = async (req, res) => {
 };
 
 /**
- * Search files by name pattern
+ * Search files by name pattern across all JSONB columns.
  */
 export const searchFiles = async (req, res) => {
   try {
     const { query: searchQuery, type } = req.query;
-    
+
     if (!searchQuery) {
       return res.status(400).json({ error: 'query parameter is required' });
     }
-    
+
     const searchPattern = `%${searchQuery}%`;
-    
+
     let typeFilter = '';
     if (type) {
-      const columnMap = {
-        'footprint': 'pcb_footprint',
-        'schematic': 'schematic',
-        'step': 'step_model',
-        'pspice': 'pspice',
-        'pad': 'pad_file',
-      };
-      const columnName = columnMap[type];
-      if (columnName) {
-        typeFilter = ` AND source_column = '${columnName}'`;
+      const info = getTypeInfo(type);
+      if (info) {
+        typeFilter = ` AND source_column = '${info.column}'`;
       }
     }
-    
-    // Search across all file columns
+
     const query = `
       WITH all_files AS (
-        SELECT DISTINCT pcb_footprint as file_name, 'pcb_footprint' as source_column, 'footprint' as file_type
-        FROM components
-        WHERE pcb_footprint IS NOT NULL AND pcb_footprint != '' AND pcb_footprint != 'N/A'
+        SELECT DISTINCT f AS file_name, 'pcb_footprint' AS source_column, 'footprint' AS file_type
+        FROM components, jsonb_array_elements_text(pcb_footprint) AS f
+        WHERE pcb_footprint IS NOT NULL AND pcb_footprint != '[]'::jsonb
         UNION ALL
-        SELECT DISTINCT schematic as file_name, 'schematic' as source_column, 'schematic' as file_type
-        FROM components
-        WHERE schematic IS NOT NULL AND schematic != '' AND schematic != 'N/A'
+        SELECT DISTINCT f AS file_name, 'schematic' AS source_column, 'schematic' AS file_type
+        FROM components, jsonb_array_elements_text(schematic) AS f
+        WHERE schematic IS NOT NULL AND schematic != '[]'::jsonb
         UNION ALL
-        SELECT DISTINCT step_model as file_name, 'step_model' as source_column, 'step' as file_type
-        FROM components
-        WHERE step_model IS NOT NULL AND step_model != '' AND step_model != 'N/A'
+        SELECT DISTINCT f AS file_name, 'step_model' AS source_column, 'step' AS file_type
+        FROM components, jsonb_array_elements_text(step_model) AS f
+        WHERE step_model IS NOT NULL AND step_model != '[]'::jsonb
         UNION ALL
-        SELECT DISTINCT pspice as file_name, 'pspice' as source_column, 'pspice' as file_type
-        FROM components
-        WHERE pspice IS NOT NULL AND pspice != '' AND pspice != 'N/A'
+        SELECT DISTINCT f AS file_name, 'pspice' AS source_column, 'pspice' AS file_type
+        FROM components, jsonb_array_elements_text(pspice) AS f
+        WHERE pspice IS NOT NULL AND pspice != '[]'::jsonb
         UNION ALL
-        SELECT DISTINCT pad_file as file_name, 'pad_file' as source_column, 'pad' as file_type
-        FROM components
-        WHERE pad_file IS NOT NULL AND pad_file != '' AND pad_file != 'N/A'
+        SELECT DISTINCT f AS file_name, 'pad_file' AS source_column, 'pad' AS file_type
+        FROM components, jsonb_array_elements_text(pad_file) AS f
+        WHERE pad_file IS NOT NULL AND pad_file != '[]'::jsonb
       )
-      SELECT file_name, source_column, file_type,
+      SELECT DISTINCT file_name, source_column, file_type,
         (SELECT COUNT(*) FROM components c
-         WHERE (source_column = 'pcb_footprint' AND c.pcb_footprint = file_name)
-            OR (source_column = 'schematic' AND c.schematic = file_name)
-            OR (source_column = 'step_model' AND c.step_model = file_name)
-            OR (source_column = 'pspice' AND c.pspice = file_name)
-            OR (source_column = 'pad_file' AND c.pad_file = file_name)
+         WHERE (source_column = 'pcb_footprint' AND c.pcb_footprint @> jsonb_build_array(file_name))
+            OR (source_column = 'schematic' AND c.schematic @> jsonb_build_array(file_name))
+            OR (source_column = 'step_model' AND c.step_model @> jsonb_build_array(file_name))
+            OR (source_column = 'pspice' AND c.pspice @> jsonb_build_array(file_name))
+            OR (source_column = 'pad_file' AND c.pad_file @> jsonb_build_array(file_name))
         ) as component_count
       FROM all_files
       WHERE file_name ILIKE $1 ${typeFilter}
       ORDER BY file_type, file_name
       LIMIT 100
     `;
-    
+
     const result = await pool.query(query, [searchPattern]);
-    
+
     res.json({
       searchQuery,
       results: result.rows,
@@ -278,5 +279,118 @@ export const searchFiles = async (req, res) => {
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error searching files:', error.message);
     res.status(500).json({ error: 'Failed to search files' });
+  }
+};
+
+/**
+ * Rename a physical file on disk and update all component JSONB references.
+ */
+export const renamePhysicalFile = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { oldFileName, newFileName } = req.body;
+
+    if (!oldFileName || !newFileName) {
+      return res.status(400).json({ error: 'oldFileName and newFileName are required' });
+    }
+
+    const info = getTypeInfo(type);
+    if (!info) {
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
+    }
+
+    const oldPath = path.join(LIBRARY_BASE, info.subdir, oldFileName);
+    const newPath = path.join(LIBRARY_BASE, info.subdir, newFileName);
+
+    // Check source file exists
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ error: `File "${oldFileName}" not found on disk` });
+    }
+
+    // Collision check
+    if (fs.existsSync(newPath)) {
+      return res.status(409).json({ error: `File "${newFileName}" already exists in the ${type} directory` });
+    }
+
+    // Rename physical file
+    fs.renameSync(oldPath, newPath);
+
+    // Update all component JSONB arrays
+    const dbResult = await pool.query(`
+      UPDATE components
+      SET ${info.column} = (
+        SELECT jsonb_agg(
+          CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+        )
+        FROM jsonb_array_elements(${info.column}) AS elem
+      ),
+      updated_at = CURRENT_TIMESTAMP
+      WHERE ${info.column} @> jsonb_build_array($1)
+      RETURNING id, part_number
+    `, [oldFileName, newFileName]);
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${oldFileName}" -> "${newFileName}", updated ${dbResult.rowCount} components`);
+
+    res.json({
+      success: true,
+      oldFileName,
+      newFileName,
+      updatedCount: dbResult.rowCount,
+      updatedComponents: dbResult.rows,
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming physical file:', error.message);
+    res.status(500).json({ error: 'Failed to rename file' });
+  }
+};
+
+/**
+ * Delete a physical file from disk and remove from all component JSONB arrays.
+ */
+export const deletePhysicalFile = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { fileName } = req.body;
+
+    if (!fileName) {
+      return res.status(400).json({ error: 'fileName is required' });
+    }
+
+    const info = getTypeInfo(type);
+    if (!info) {
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
+    }
+
+    const filePath = path.join(LIBRARY_BASE, info.subdir, fileName);
+
+    // Delete physical file if it exists
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Remove from all component JSONB arrays
+    const dbResult = await pool.query(`
+      UPDATE components
+      SET ${info.column} = (
+        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+        FROM jsonb_array_elements(${info.column}) AS elem
+        WHERE elem #>> '{}' != $1
+      ),
+      updated_at = CURRENT_TIMESTAMP
+      WHERE ${info.column} @> jsonb_build_array($1)
+      RETURNING id, part_number
+    `, [fileName]);
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete: "${fileName}", updated ${dbResult.rowCount} components`);
+
+    res.json({
+      success: true,
+      fileName,
+      updatedCount: dbResult.rowCount,
+      updatedComponents: dbResult.rows,
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 };

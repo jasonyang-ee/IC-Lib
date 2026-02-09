@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
 
 const VendorSearch = () => {
@@ -18,9 +18,6 @@ const VendorSearch = () => {
   const [vendorBarcode, setVendorBarcode] = useState('');
   const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
-  const [cameraDevices, setCameraDevices] = useState([]);
-  const [selectedCamera, setSelectedCamera] = useState('');
-  const scannerRef = useRef(null);
   const vendorBarcodeInputRef = useRef(null);
   const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
   const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
@@ -272,83 +269,20 @@ const VendorSearch = () => {
     }, 0);
   };
 
-  // Camera QR Scanner functions
-  const startCameraScanner = async () => {
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length > 0) {
-        setCameraDevices(devices);
-        const rearCamera = devices.find(device => 
-          device.label.toLowerCase().includes('back') || 
-          device.label.toLowerCase().includes('rear')
-        );
-        setSelectedCamera(rearCamera ? rearCamera.id : devices[0].id);
-        setShowCameraScanner(true);
-      } else {
-        alert('No cameras found on your device.');
-      }
-    } catch (error) {
-      console.error('Error getting cameras:', error);
-      alert('Failed to access camera. Please check permissions.');
-    }
-  };
-
-  const stopCameraScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().then(() => {
-        scannerRef.current = null;
-        setShowCameraScanner(false);
-      }).catch(err => {
-        console.error('Error stopping scanner:', err);
-        setShowCameraScanner(false);
-      });
-    } else {
-      setShowCameraScanner(false);
-    }
+  // Camera barcode scanner
+  const startCameraScanner = () => {
+    setShowCameraScanner(true);
   };
 
   const handleCameraScan = (decodedText) => {
-    stopCameraScanner();
+    setShowCameraScanner(false);
     setSearchTerm(decodedText);
-    
+
     // Try to decode it if it looks like a vendor barcode
     if (decodedText.length > 20 && (decodedText.includes(String.fromCharCode(29)) || decodedText.includes('[)>'))) {
       decodeVendorBarcode(decodedText);
     }
   };
-
-  // Start camera when modal opens
-  useEffect(() => {
-    if (showCameraScanner && selectedCamera && !scannerRef.current) {
-      const scanner = new Html5Qrcode('vendor-qr-reader');
-      scannerRef.current = scanner;
-      
-      scanner.start(
-        selectedCamera,
-        {
-          fps: 30,
-          qrbox: {width: 300, height: 300},
-          aspectRatio: 1,
-          formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX ]
-        },
-        handleCameraScan,
-        () => {
-          // Ignore errors, they're just "no QR code found" messages
-        }
-      ).catch(err => {
-        console.error('Error starting scanner:', err);
-        alert('Failed to start camera scanner.');
-        setShowCameraScanner(false);
-      });
-    }
-    
-    return () => {
-      if (scannerRef.current && showCameraScanner) {
-        scannerRef.current.stop().catch(err => console.error('Cleanup error:', err));
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCameraScanner, selectedCamera]);
 
   const searchMutation = useMutation({
     mutationFn: (partNumber) => api.searchAllVendors(partNumber),
@@ -1171,59 +1105,12 @@ const VendorSearch = () => {
         </div>
       )}
 
-      {/* Camera Scanner Modal */}
+      {/* Camera Barcode Scanner */}
       {showCameraScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={stopCameraScanner}>
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Scan QR Code with Camera</h3>
-              <button
-                onClick={stopCameraScanner}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            {/* Camera Selection */}
-            {cameraDevices.length > 1 && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select Camera
-                </label>
-                <select
-                  value={selectedCamera}
-                  onChange={(e) => {
-                    const newCamera = e.target.value;
-                    setSelectedCamera(newCamera);
-                    // Restart scanner with new camera
-                    if (scannerRef.current) {
-                      scannerRef.current.stop().then(() => {
-                        scannerRef.current = null;
-                      }).catch(err => console.error('Error switching camera:', err));
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
-                >
-                  {cameraDevices.map(device => (
-                    <option key={device.id} value={device.id}>
-                      {device.label || `Camera ${device.id}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            
-            {/* Scanner View */}
-            <div className="relative">
-              <div id="vendor-qr-reader" className="w-full rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-600"></div>
-            </div>
-            
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 text-center">
-              Hold QR code in front of camera - scanning continuously
-            </p>
-          </div>
-        </div>
+        <BarcodeScanner
+          onScan={handleCameraScan}
+          onClose={() => setShowCameraScanner(false)}
+        />
       )}
 
       {/* Part Selection Modal */}

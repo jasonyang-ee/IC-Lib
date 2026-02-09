@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS components (
     value VARCHAR(100),
     
     -- Physical characteristics
-    pcb_footprint VARCHAR(200),
+    pcb_footprint JSONB DEFAULT '[]'::jsonb,
     package_size VARCHAR(100),
     
     -- Sub-categorization (expanded to 4 levels)
@@ -91,10 +91,10 @@ CREATE TABLE IF NOT EXISTS components (
     sub_category4 VARCHAR(100),
     
     -- CAD files
-    schematic VARCHAR(255),
-    step_model VARCHAR(255),
-    pspice VARCHAR(255),
-    pad_file VARCHAR(255),
+    schematic JSONB DEFAULT '[]'::jsonb,
+    step_model JSONB DEFAULT '[]'::jsonb,
+    pspice JSONB DEFAULT '[]'::jsonb,
+    pad_file JSONB DEFAULT '[]'::jsonb,
     
     -- Documentation
     datasheet_url VARCHAR(500),
@@ -253,6 +253,13 @@ CREATE INDEX IF NOT EXISTS idx_inventory_component ON inventory(component_id);
 
 -- Footprint sources indexes
 CREATE INDEX IF NOT EXISTS idx_footprint_sources_component ON footprint_sources(component_id);
+
+-- CAD file JSONB GIN indexes for containment queries
+CREATE INDEX IF NOT EXISTS idx_components_pcb_footprint ON components USING GIN (pcb_footprint);
+CREATE INDEX IF NOT EXISTS idx_components_schematic ON components USING GIN (schematic);
+CREATE INDEX IF NOT EXISTS idx_components_step_model ON components USING GIN (step_model);
+CREATE INDEX IF NOT EXISTS idx_components_pspice ON components USING GIN (pspice);
+CREATE INDEX IF NOT EXISTS idx_components_pad_file ON components USING GIN (pad_file);
 
 -- ============================================================================
 -- PART 5: TRIGGERS
@@ -421,7 +428,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT INTO schema_version (version, description) VALUES
-    ('3.0.0', 'UUID v7 migration, removed status/notes, added sub_category4')
+    ('1.7.0', 'JSONB CAD columns, flat file storage, synced with app version')
 ON CONFLICT (version) DO NOTHING;
 
 -- ============================================================================

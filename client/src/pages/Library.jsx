@@ -9,6 +9,7 @@ import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
 import SpecificationsView from '../components/library/SpecificationsView';
 import ComponentFiles from '../components/library/ComponentFiles';
+import CadFieldEditor from '../components/library/CadFieldEditor';
 import { Search, Edit, Trash2, Plus, X, Check, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -67,22 +68,12 @@ const Library = () => {
   const [footprintSuggestions, setFootprintSuggestions] = useState([]);
   const [symbolSuggestions, setSymbolSuggestions] = useState([]);
   const [packageOpen, setPackageOpen] = useState(false);
-  const [footprintOpen, setFootprintOpen] = useState(false);
-  const [symbolOpen, setSymbolOpen] = useState(false);
   const packageRef = useRef(null);
-  const footprintRef = useRef(null);
-  const symbolRef = useRef(null);
-  
-  // STEP, PSPICE, and PAD suggestions and dropdown states
+
+  // STEP, PSPICE, and PAD suggestions (dropdown state managed by CadFieldEditor)
   const [stepModelSuggestions, setStepModelSuggestions] = useState([]);
   const [pspiceSuggestions, setPspiceSuggestions] = useState([]);
   const [padFileSuggestions, setPadFileSuggestions] = useState([]);
-  const [stepModelOpen, setStepModelOpen] = useState(false);
-  const [pspiceOpen, setPspiceOpen] = useState(false);
-  const [padFileOpen, setPadFileOpen] = useState(false);
-  const stepModelRef = useRef(null);
-  const pspiceRef = useRef(null);
-  const padFileRef = useRef(null);
   
   // Manufacturer state
   const [manufacturerInput, setManufacturerInput] = useState('');
@@ -136,21 +127,6 @@ const Library = () => {
       }
       if (packageRef.current && !packageRef.current.contains(event.target)) {
         setPackageOpen(false);
-      }
-      if (footprintRef.current && !footprintRef.current.contains(event.target)) {
-        setFootprintOpen(false);
-      }
-      if (symbolRef.current && !symbolRef.current.contains(event.target)) {
-        setSymbolOpen(false);
-      }
-      if (stepModelRef.current && !stepModelRef.current.contains(event.target)) {
-        setStepModelOpen(false);
-      }
-      if (pspiceRef.current && !pspiceRef.current.contains(event.target)) {
-        setPspiceOpen(false);
-      }
-      if (padFileRef.current && !padFileRef.current.contains(event.target)) {
-        setPadFileOpen(false);
       }
       if (manufacturerRef.current && !manufacturerRef.current.contains(event.target)) {
         setManufacturerOpen(false);
@@ -893,9 +869,15 @@ const Library = () => {
       manufacturer_id: componentDetails?.manufacturer_id || '',
       manufacturer_pn: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
       manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
+      // Ensure CAD fields are arrays (JSONB from server)
+      pcb_footprint: Array.isArray(componentDetails?.pcb_footprint) ? componentDetails.pcb_footprint : [],
+      schematic: Array.isArray(componentDetails?.schematic) ? componentDetails.schematic : [],
+      step_model: Array.isArray(componentDetails?.step_model) ? componentDetails.step_model : [],
+      pspice: Array.isArray(componentDetails?.pspice) ? componentDetails.pspice : [],
+      pad_file: Array.isArray(componentDetails?.pad_file) ? componentDetails.pad_file : [],
       specifications: editSpecifications,
       distributors: editDistributors,
-      alternatives: alternativesData && alternativesData.length > 0 
+      alternatives: alternativesData && alternativesData.length > 0
         ? alternativesData.map(alt => ({
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
@@ -1614,11 +1596,12 @@ const Library = () => {
       sub_category2: '',
       sub_category3: '',
       sub_category4: '',
-      pcb_footprint: '',
+      pcb_footprint: [],
       package_size: '',
-      schematic: '',
-      step_model: '',
-      pspice: '',
+      schematic: [],
+      step_model: [],
+      pspice: [],
+      pad_file: [],
       datasheet_url: '',
       approval_status: 'new', // Default to new for new parts
       specifications: [], // Array of {spec_name, spec_value, unit}
@@ -3527,226 +3510,47 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* ROW 7: PCB Footprint, Schematic Symbol */}
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">PCB Footprint</label>
-                    <div ref={footprintRef} className="relative">
-                      <input
-                        type="text"
-                        value={editData.pcb_footprint || ''}
-                        onChange={(e) => handleFieldChange('pcb_footprint', e.target.value)}
-                        onFocus={() => setFootprintOpen(true)}
-                        placeholder="e.g., C_0805"
-                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFootprintOpen(!footprintOpen)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-                      {footprintOpen && editData.category_id && footprintSuggestions.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
-                          {footprintSuggestions
-                            .filter(fp => fp.toLowerCase().includes((editData.pcb_footprint || '').toLowerCase()))
-                            .map((fp, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  handleFieldChange('pcb_footprint', fp);
-                                  setFootprintOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
-                              >
-                                {fp}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Schematic Symbol</label>
-                    <div ref={symbolRef} className="relative">
-                      <input
-                        type="text"
-                        value={editData.schematic || ''}
-                        onChange={(e) => handleFieldChange('schematic', e.target.value)}
-                        onFocus={() => setSymbolOpen(true)}
-                        placeholder="Symbol name"
-                        className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSymbolOpen(!symbolOpen)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-                      {symbolOpen && editData.category_id && symbolSuggestions.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
-                          {symbolSuggestions
-                            .filter(sym => sym.toLowerCase().includes((editData.schematic || '').toLowerCase()))
-                            .map((sym, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  handleFieldChange('schematic', sym);
-                                  setSymbolOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
-                              >
-                                {sym}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ROW 8: STEP 3D Model, PSPICE Model */}
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">STEP 3D Model</label>
-                    <div className="relative" ref={stepModelRef}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={editData.step_model || ''}
-                          onChange={(e) => {
-                            handleFieldChange('step_model', e.target.value);
-                            setStepModelOpen(true);
-                          }}
-                          onFocus={() => setStepModelOpen(true)}
-                          placeholder="STEP model name"
-                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setStepModelOpen(!stepModelOpen)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                        >
-                          <ChevronDown className={`h-4 w-4 transition-transform ${stepModelOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                      </div>
-                      {stepModelOpen && stepModelSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
-                          {stepModelSuggestions
-                            .filter(step => 
-                              step.toLowerCase().includes((editData.step_model || '').toLowerCase())
-                            )
-                            .map((step, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  handleFieldChange('step_model', step);
-                                  setStepModelOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
-                              >
-                                {step}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">PSPICE Model</label>
-                    <div className="relative" ref={pspiceRef}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={editData.pspice || ''}
-                          onChange={(e) => {
-                            handleFieldChange('pspice', e.target.value);
-                            setPspiceOpen(true);
-                          }}
-                          onFocus={() => setPspiceOpen(true)}
-                          placeholder="Pspice model name"
-                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setPspiceOpen(!pspiceOpen)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                        >
-                          <ChevronDown className={`h-4 w-4 transition-transform ${pspiceOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                      </div>
-                      {pspiceOpen && pspiceSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
-                          {pspiceSuggestions
-                            .filter(psp => 
-                              psp.toLowerCase().includes((editData.pspice || '').toLowerCase())
-                            )
-                            .map((psp, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  handleFieldChange('pspice', psp);
-                                  setPspiceOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
-                              >
-                                {psp}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-gray-600 dark:text-gray-400 mb-1">Pad File</label>
-                    <div className="relative" ref={padFileRef}>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={editData.pad_file || ''}
-                          onChange={(e) => {
-                            handleFieldChange('pad_file', e.target.value);
-                            setPadFileOpen(true);
-                          }}
-                          onFocus={() => setPadFileOpen(true)}
-                          placeholder="Pad file name"
-                          className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setPadFileOpen(!padFileOpen)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                        >
-                          <ChevronDown className={`h-4 w-4 transition-transform ${padFileOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                      </div>
-                      {padFileOpen && padFileSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-[#2a2a2a] border border-gray-300 dark:border-[#444444] rounded-md shadow-lg max-h-60 overflow-auto">
-                          {padFileSuggestions
-                            .filter(pad =>
-                              pad.toLowerCase().includes((editData.pad_file || '').toLowerCase())
-                            )
-                            .map((pad, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  handleFieldChange('pad_file', pad);
-                                  setPadFileOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#333333] text-gray-700 dark:text-gray-300"
-                              >
-                                {pad}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {/* ROW 7-8: CAD Files (multi-value JSONB arrays) */}
+                  <CadFieldEditor
+                    label="PCB Footprint"
+                    values={editData.pcb_footprint || []}
+                    suggestions={footprintSuggestions}
+                    onChange={(arr) => handleFieldChange('pcb_footprint', arr)}
+                    placeholder="e.g., C_0805"
+                    categoryId={editData.category_id}
+                  />
+                  <CadFieldEditor
+                    label="Schematic Symbol"
+                    values={editData.schematic || []}
+                    suggestions={symbolSuggestions}
+                    onChange={(arr) => handleFieldChange('schematic', arr)}
+                    placeholder="Symbol name"
+                    categoryId={editData.category_id}
+                  />
+                  <CadFieldEditor
+                    label="STEP 3D Model"
+                    values={editData.step_model || []}
+                    suggestions={stepModelSuggestions}
+                    onChange={(arr) => handleFieldChange('step_model', arr)}
+                    placeholder="STEP model name"
+                    categoryId={editData.category_id}
+                  />
+                  <CadFieldEditor
+                    label="PSpice Model"
+                    values={editData.pspice || []}
+                    suggestions={pspiceSuggestions}
+                    onChange={(arr) => handleFieldChange('pspice', arr)}
+                    placeholder="PSpice model name"
+                    categoryId={editData.category_id}
+                  />
+                  <CadFieldEditor
+                    label="Pad File"
+                    values={editData.pad_file || []}
+                    suggestions={padFileSuggestions}
+                    onChange={(arr) => handleFieldChange('pad_file', arr)}
+                    placeholder="Pad file name"
+                    categoryId={editData.category_id}
+                  />
 
                   {/* Datasheet URL */}
                   <div className="col-span-2">
@@ -3806,10 +3610,23 @@ const Library = () => {
                   </div>
 
                   {/* CAD Files Section */}
-                  {!isAddMode && editData.manufacturer_pn && (
+                  {editData.manufacturer_pn && (
                     <ComponentFiles
                       mfgPartNumber={editData.manufacturer_pn}
                       canEdit={true}
+                      showRename={!isAddMode}
+                      showDelete={!isAddMode}
+                      onFileUploaded={(category, filename) => {
+                        // Map upload category to editData field name
+                        const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
+                        const field = fieldMap[category];
+                        if (field) {
+                          const current = Array.isArray(editData[field]) ? editData[field] : [];
+                          if (!current.includes(filename)) {
+                            handleFieldChange(field, [...current, filename]);
+                          }
+                        }
+                      }}
                     />
                   )}
                 </>

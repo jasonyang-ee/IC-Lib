@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { authenticate, canWrite } from '../middleware/auth.js';
+import pool from '../config/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,15 @@ const FILE_CATEGORIES = {
   },
 };
 
+// Map file category to database column name
+const CATEGORY_TO_COLUMN = {
+  footprint: 'pcb_footprint',
+  symbol: 'schematic',
+  model: 'step_model',
+  pspice: 'pspice',
+  pad: 'pad_file',
+};
+
 // Passive component categories that can share files
 const PASSIVE_CATEGORIES = ['Capacitors', 'Resistors', 'Inductors'];
 
@@ -63,7 +73,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max file size
@@ -101,39 +111,84 @@ function ensureDir(dirPath) {
 }
 
 /**
- * Move file to appropriate category directory
+ * Find file in flat directory first, then fall back to legacy nested directory
+ * Returns the full path if found, null otherwise
  */
-function moveToCategory(sourcePath, category, mfgPartNumber) {
+function findFile(category, filename, mfgPartNumber) {
   const config = FILE_CATEGORIES[category];
   if (!config) return null;
-  
-  const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-  const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir, sanitizedPN));
-  const filename = path.basename(sourcePath);
-  const targetPath = path.join(targetDir, filename.replace(/^\d+-\d+-/, '')); // Remove temp prefix
-  
-  // If file already exists, add a suffix
-  let finalPath = targetPath;
-  let counter = 1;
-  while (fs.existsSync(finalPath)) {
-    const ext = path.extname(targetPath);
-    const base = path.basename(targetPath, ext);
-    finalPath = path.join(targetDir, `${base}_${counter}${ext}`);
-    counter++;
+
+  // Try flat path first
+  const flatPath = path.join(LIBRARY_BASE, config.subdir, filename);
+  if (fs.existsSync(flatPath)) return flatPath;
+
+  // Try legacy nested path
+  if (mfgPartNumber) {
+    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+    const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
+    if (fs.existsSync(nestedPath)) return nestedPath;
   }
-  
-  fs.renameSync(sourcePath, finalPath);
-  return finalPath;
+
+  return null;
+}
+
+/**
+ * Move file to appropriate category directory (flat structure)
+ * Returns { collision, path, filename } or null
+ */
+function moveToCategory(sourcePath, category) {
+  const config = FILE_CATEGORIES[category];
+  if (!config) return null;
+
+  // Flat storage: no MPN subdirectory
+  const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
+  const filename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
+  const targetPath = path.join(targetDir, filename);
+
+  // Collision check: reject if file already exists
+  if (fs.existsSync(targetPath)) {
+    // Clean up temp file
+    if (fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
+    return { collision: true, filename };
+  }
+
+  fs.renameSync(sourcePath, targetPath);
+  return { collision: false, path: targetPath, filename };
+}
+
+/**
+ * Auto-link an uploaded filename to the component's JSONB array in the database
+ */
+async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
+  const dbColumn = CATEGORY_TO_COLUMN[category];
+  if (!dbColumn) return;
+
+  try {
+    await pool.query(`
+      UPDATE components
+      SET ${dbColumn} = (
+        CASE
+          WHEN ${dbColumn} IS NULL THEN jsonb_build_array($1)
+          WHEN NOT (${dbColumn} @> jsonb_build_array($1)) THEN ${dbColumn} || jsonb_build_array($1)
+          ELSE ${dbColumn}
+        END
+      )
+      WHERE manufacturer_pn = $2
+    `, [filename, mfgPartNumber]);
+  } catch (error) {
+    console.error(`[FileUpload] Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
+  }
 }
 
 /**
  * Detect and extract ZIP file from popular EDA tool providers
+ * Files are stored in flat structure (no MPN subdirectory)
  */
 function extractSmartZip(zipPath, mfgPartNumber) {
   const zip = new AdmZip(zipPath);
   const entries = zip.getEntries();
   const extractedFiles = [];
-  const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+  const collisions = [];
   const zipFilename = path.basename(zipPath).toLowerCase();
 
   // Analyze ZIP structure to detect source (check both entry names and ZIP filename)
@@ -187,17 +242,23 @@ function extractSmartZip(zipPath, mfgPartNumber) {
       } else if (lowerPath.includes('spice') || lowerPath.includes('simulation')) {
         category = 'pspice';
       } else if (lowerPath.includes('padstack')) {
-        // Only match 'padstack' specifically, not the PADS EDA tool directory
         category = 'pad';
       }
     }
 
     if (category) {
       const config = FILE_CATEGORIES[category];
-      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir, sanitizedPN));
+      // Flat storage: no MPN subdirectory
+      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
       const targetPath = path.join(targetDir, filename);
 
-      // Extract file
+      // Check for collision in flat directory
+      if (fs.existsSync(targetPath)) {
+        collisions.push({ category, filename, source });
+        continue;
+      }
+
+      // Extract file directly to flat directory
       zip.extractEntryTo(entry, targetDir, false, true);
       extractedFiles.push({
         category,
@@ -211,7 +272,7 @@ function extractSmartZip(zipPath, mfgPartNumber) {
   // Clean up the zip file
   fs.unlinkSync(zipPath);
 
-  return extractedFiles;
+  return { extractedFiles, collisions };
 }
 
 /**
@@ -221,45 +282,52 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
   try {
     const { mfgPartNumber } = req.params;
     const { category: explicitCategory } = req.body;
-    
+
     if (!mfgPartNumber) {
       return res.status(400).json({ error: 'Manufacturer part number is required' });
     }
-    
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
-    
+
     const results = [];
-    
+
     for (const file of req.files) {
       const ext = path.extname(file.originalname).toLowerCase();
-      
+
       // Handle ZIP files
       if (ext === '.zip') {
         try {
-          const extractedFiles = extractSmartZip(file.path, mfgPartNumber);
+          const { extractedFiles, collisions } = extractSmartZip(file.path, mfgPartNumber);
+
+          // Auto-link extracted files to component
+          for (const ef of extractedFiles) {
+            await autoLinkFileToComponent(ef.category, ef.filename, mfgPartNumber);
+          }
+
           results.push({
             originalName: file.originalname,
             type: 'archive',
             extracted: extractedFiles,
             filesExtracted: extractedFiles.length,
+            collisions: collisions.length > 0 ? collisions : undefined,
           });
         } catch (error) {
           console.error('Error extracting ZIP:', error);
           // If extraction fails, try to move as library file
-          const targetPath = moveToCategory(file.path, 'libraries', mfgPartNumber);
+          const moveResult = moveToCategory(file.path, 'libraries');
           results.push({
             originalName: file.originalname,
             type: 'library',
-            path: targetPath,
+            path: moveResult?.path,
             error: 'Could not extract, saved as library file',
           });
         }
       } else {
         // Regular file - determine category
         const category = explicitCategory || getFileCategory(file.originalname);
-        
+
         if (!category) {
           // Clean up and report error for this file
           fs.unlinkSync(file.path);
@@ -270,16 +338,30 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
           });
           continue;
         }
-        
-        const targetPath = moveToCategory(file.path, category, mfgPartNumber);
-        results.push({
-          originalName: file.originalname,
-          type: category,
-          path: targetPath,
-        });
+
+        const moveResult = moveToCategory(file.path, category);
+
+        if (moveResult?.collision) {
+          results.push({
+            originalName: file.originalname,
+            type: category,
+            error: `File "${moveResult.filename}" already exists. Rename or delete the existing file first.`,
+            collision: true,
+          });
+        } else {
+          // Auto-link to component
+          await autoLinkFileToComponent(category, moveResult.filename, mfgPartNumber);
+
+          results.push({
+            originalName: file.originalname,
+            type: category,
+            path: moveResult.path,
+            filename: moveResult.filename,
+          });
+        }
       }
     }
-    
+
     res.json({
       message: 'Files processed successfully',
       mfgPartNumber,
@@ -293,44 +375,42 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
 
 /**
  * Upload shared passive component files (resistor, capacitor, inductor)
- * Files are stored by value and package instead of part number
+ * Files are stored in flat structure
  */
 router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20), async (req, res) => {
   try {
     const { value, packageSize, category: componentCategory } = req.body;
-    
+
     if (!value || !packageSize) {
       return res.status(400).json({ error: 'Value and package size are required for passive components' });
     }
-    
+
     // Verify it's a passive component category
     if (!PASSIVE_CATEGORIES.includes(componentCategory)) {
-      return res.status(400).json({ 
-        error: 'This endpoint is only for passive components (Capacitors, Resistors, Inductors)', 
+      return res.status(400).json({
+        error: 'This endpoint is only for passive components (Capacitors, Resistors, Inductors)',
       });
     }
-    
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
-    
-    // Create a shared identifier like "10K_0402" or "100nF_0603"
-    const sharedId = `${value}_${packageSize}`.replace(/[<>:"/\\|?*\s]/g, '_');
-    
+
     const results = [];
-    
+
     for (const file of req.files) {
       const ext = path.extname(file.originalname).toLowerCase();
-      
+
       // Handle ZIP files
       if (ext === '.zip') {
         try {
-          const extractedFiles = extractSmartZip(file.path, sharedId);
+          const { extractedFiles, collisions } = extractSmartZip(file.path, '');
           results.push({
             originalName: file.originalname,
             type: 'archive',
             extracted: extractedFiles,
             filesExtracted: extractedFiles.length,
+            collisions: collisions.length > 0 ? collisions : undefined,
           });
         } catch (error) {
           console.error('Error extracting ZIP:', error);
@@ -343,7 +423,7 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
       } else {
         // Regular file
         const category = getFileCategory(file.originalname);
-        
+
         if (!category) {
           fs.unlinkSync(file.path);
           results.push({
@@ -352,19 +432,28 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
           });
           continue;
         }
-        
-        const targetPath = moveToCategory(file.path, category, sharedId);
-        results.push({
-          originalName: file.originalname,
-          type: category,
-          path: targetPath,
-        });
+
+        const moveResult = moveToCategory(file.path, category);
+        if (moveResult?.collision) {
+          results.push({
+            originalName: file.originalname,
+            type: category,
+            error: `File "${moveResult.filename}" already exists.`,
+            collision: true,
+          });
+        } else {
+          results.push({
+            originalName: file.originalname,
+            type: category,
+            path: moveResult.path,
+            filename: moveResult.filename,
+          });
+        }
       }
     }
-    
+
     res.json({
       message: 'Passive component files processed successfully',
-      sharedId,
       value,
       packageSize,
       results,
@@ -376,33 +465,96 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
 });
 
 /**
+ * Check if a file exists in the flat directory (collision check)
+ */
+router.get('/check-collision/:category/:filename', authenticate, (req, res) => {
+  try {
+    const { category, filename } = req.params;
+    const config = FILE_CATEGORIES[category];
+    if (!config) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
+
+    const filePath = path.join(LIBRARY_BASE, config.subdir, filename);
+    const exists = fs.existsSync(filePath);
+
+    res.json({ exists, filename, category });
+  } catch (error) {
+    console.error('Error checking collision:', error);
+    res.status(500).json({ error: 'Failed to check file collision' });
+  }
+});
+
+/**
  * List files for a component
+ * Checks both flat directory and legacy nested directory
  */
 router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
   try {
     const { mfgPartNumber } = req.params;
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    
+
     const files = {};
-    
+    const seenFiles = new Set(); // Prevent duplicates
+
     for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
-      const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
-      
-      if (fs.existsSync(dirPath)) {
-        const dirFiles = fs.readdirSync(dirPath)
-          .filter(f => !f.startsWith('.'))
-          .map(f => ({
-            name: f,
-            path: path.join(config.subdir, sanitizedPN, f),
-            size: fs.statSync(path.join(dirPath, f)).size,
-          }));
-        
-        if (dirFiles.length > 0) {
-          files[category] = dirFiles;
+      const categoryFiles = [];
+
+      // Check flat directory for files matching this component's JSONB array
+      const flatDir = path.join(LIBRARY_BASE, config.subdir);
+      const dbColumn = CATEGORY_TO_COLUMN[category];
+
+      if (dbColumn) {
+        try {
+          const result = await pool.query(`
+            SELECT ${dbColumn} as files FROM components WHERE manufacturer_pn = $1 LIMIT 1
+          `, [mfgPartNumber]);
+
+          if (result.rows.length > 0 && result.rows[0].files) {
+            const dbFiles = result.rows[0].files;
+            if (Array.isArray(dbFiles)) {
+              for (const fname of dbFiles) {
+                const flatPath = path.join(flatDir, fname);
+                if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
+                  seenFiles.add(`${category}:${fname}`);
+                  categoryFiles.push({
+                    name: fname,
+                    path: path.join(config.subdir, fname),
+                    size: fs.statSync(flatPath).size,
+                    storage: 'flat',
+                  });
+                }
+              }
+            }
+          }
+        } catch (dbError) {
+          // DB query failed, continue with directory scan
+          console.error(`[FileUpload] DB lookup failed for ${mfgPartNumber}: ${dbError.message}`);
         }
       }
+
+      // Also check legacy nested directory
+      const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
+      if (fs.existsSync(nestedDir)) {
+        const dirFiles = fs.readdirSync(nestedDir).filter(f => !f.startsWith('.'));
+        for (const f of dirFiles) {
+          if (!seenFiles.has(`${category}:${f}`)) {
+            seenFiles.add(`${category}:${f}`);
+            categoryFiles.push({
+              name: f,
+              path: path.join(config.subdir, sanitizedPN, f),
+              size: fs.statSync(path.join(nestedDir, f)).size,
+              storage: 'nested',
+            });
+          }
+        }
+      }
+
+      if (categoryFiles.length > 0) {
+        files[category] = categoryFiles;
+      }
     }
-    
+
     res.json({
       mfgPartNumber,
       files,
@@ -452,12 +604,10 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
     }
 
     const sanitizedNewFilename = newBaseName + finalExt;
-    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
-    const oldPath = path.join(dirPath, oldFilename);
-    const newPath = path.join(dirPath, sanitizedNewFilename);
 
-    if (!fs.existsSync(oldPath)) {
+    // Find the file (flat or nested)
+    const oldPath = findFile(category, oldFilename, mfgPartNumber);
+    if (!oldPath) {
       return res.status(404).json({ error: 'File not found' });
     }
 
@@ -465,11 +615,44 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
       return res.json({ message: 'No changes needed', filename: sanitizedNewFilename });
     }
 
-    if (fs.existsSync(newPath)) {
-      return res.status(409).json({ error: 'A file with that name already exists' });
+    // Collision check in flat directory
+    const flatNewPath = path.join(LIBRARY_BASE, config.subdir, sanitizedNewFilename);
+    if (fs.existsSync(flatNewPath)) {
+      return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists in the ${category} directory` });
     }
 
+    // Move/rename file to flat directory with new name
+    const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
+    const newPath = path.join(targetDir, sanitizedNewFilename);
     fs.renameSync(oldPath, newPath);
+
+    // Clean up empty legacy directory if applicable
+    const oldDir = path.dirname(oldPath);
+    if (oldDir !== targetDir) {
+      try {
+        const remaining = fs.readdirSync(oldDir).filter(f => !f.startsWith('.'));
+        if (remaining.length === 0) fs.rmdirSync(oldDir);
+      } catch { /* ignore cleanup errors */ }
+    }
+
+    // Update component JSONB arrays: replace old filename with new
+    const dbColumn = CATEGORY_TO_COLUMN[category];
+    if (dbColumn) {
+      try {
+        await pool.query(`
+          UPDATE components
+          SET ${dbColumn} = (
+            SELECT jsonb_agg(
+              CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+            )
+            FROM jsonb_array_elements(${dbColumn}) AS elem
+          )
+          WHERE ${dbColumn} @> jsonb_build_array($1)
+        `, [oldFilename, sanitizedNewFilename]);
+      } catch (dbError) {
+        console.error(`[FileUpload] Failed to update JSONB refs: ${dbError.message}`);
+      }
+    }
 
     res.json({
       message: 'File renamed successfully',
@@ -488,32 +671,53 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
 router.delete('/delete', authenticate, canWrite, async (req, res) => {
   try {
     const { category, mfgPartNumber, filename } = req.body;
-    
+
     if (!category || !mfgPartNumber || !filename) {
       return res.status(400).json({ error: 'Category, part number, and filename are required' });
     }
-    
+
     const config = FILE_CATEGORIES[category];
     if (!config) {
       return res.status(400).json({ error: 'Invalid category' });
     }
-    
-    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const filePath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
-    
-    if (!fs.existsSync(filePath)) {
+
+    // Find file (flat or nested)
+    const filePath = findFile(category, filename, mfgPartNumber);
+    if (!filePath) {
       return res.status(404).json({ error: 'File not found' });
     }
-    
+
     fs.unlinkSync(filePath);
-    
-    // Clean up empty directories
+
+    // Clean up empty legacy directories
     const dirPath = path.dirname(filePath);
-    const remainingFiles = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
-    if (remainingFiles.length === 0) {
-      fs.rmdirSync(dirPath);
+    const flatDir = path.join(LIBRARY_BASE, config.subdir);
+    if (dirPath !== flatDir) {
+      try {
+        const remainingFiles = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
+        if (remainingFiles.length === 0) fs.rmdirSync(dirPath);
+      } catch { /* ignore cleanup errors */ }
     }
-    
+
+    // Remove filename from component's JSONB array
+    const dbColumn = CATEGORY_TO_COLUMN[category];
+    if (dbColumn) {
+      try {
+        await pool.query(`
+          UPDATE components
+          SET ${dbColumn} = (
+            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+            FROM jsonb_array_elements(${dbColumn}) AS elem
+            WHERE elem #>> '{}' != $1
+          )
+          WHERE ${dbColumn} @> jsonb_build_array($1)
+            AND manufacturer_pn = $2
+        `, [filename, mfgPartNumber]);
+      } catch (dbError) {
+        console.error(`[FileUpload] Failed to remove JSONB ref: ${dbError.message}`);
+      }
+    }
+
     res.json({ message: 'File deleted successfully' });
   } catch (error) {
     console.error('Error deleting file:', error);
@@ -523,23 +727,23 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
 
 /**
  * Download a file
+ * Supports both new flat path format and legacy nested format
  */
 router.get('/download/:category/:mfgPartNumber/:filename', authenticate, async (req, res) => {
   try {
     const { category, mfgPartNumber, filename } = req.params;
-    
+
     const config = FILE_CATEGORIES[category];
     if (!config) {
       return res.status(400).json({ error: 'Invalid category' });
     }
-    
-    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const filePath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
-    
-    if (!fs.existsSync(filePath)) {
+
+    // Find file in flat or nested directory
+    const filePath = findFile(category, filename, mfgPartNumber);
+    if (!filePath) {
       return res.status(404).json({ error: 'File not found' });
     }
-    
+
     res.download(filePath, filename);
   } catch (error) {
     console.error('Error downloading file:', error);
@@ -549,6 +753,7 @@ router.get('/download/:category/:mfgPartNumber/:filename', authenticate, async (
 
 /**
  * Export all files for a component as a ZIP archive
+ * Checks both flat and legacy nested directories
  */
 router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
   try {
@@ -557,17 +762,48 @@ router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
 
     // Collect all files across categories
     const allFiles = [];
+    const seenFiles = new Set();
+
     for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
-      const dirPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
-      if (fs.existsSync(dirPath)) {
-        const dirFiles = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
+      // Check DB for JSONB-linked files in flat directory
+      const dbColumn = CATEGORY_TO_COLUMN[category];
+      if (dbColumn) {
+        try {
+          const result = await pool.query(`
+            SELECT ${dbColumn} as files FROM components WHERE manufacturer_pn = $1 LIMIT 1
+          `, [mfgPartNumber]);
+
+          if (result.rows.length > 0 && Array.isArray(result.rows[0].files)) {
+            for (const fname of result.rows[0].files) {
+              const flatPath = path.join(LIBRARY_BASE, config.subdir, fname);
+              if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
+                seenFiles.add(`${category}:${fname}`);
+                allFiles.push({
+                  category,
+                  subdir: config.subdir,
+                  filename: fname,
+                  fullPath: flatPath,
+                });
+              }
+            }
+          }
+        } catch { /* continue with directory scan */ }
+      }
+
+      // Check legacy nested directory
+      const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
+      if (fs.existsSync(nestedDir)) {
+        const dirFiles = fs.readdirSync(nestedDir).filter(f => !f.startsWith('.'));
         for (const filename of dirFiles) {
-          allFiles.push({
-            category,
-            subdir: config.subdir,
-            filename,
-            fullPath: path.join(dirPath, filename),
-          });
+          if (!seenFiles.has(`${category}:${filename}`)) {
+            seenFiles.add(`${category}:${filename}`);
+            allFiles.push({
+              category,
+              subdir: config.subdir,
+              filename,
+              fullPath: path.join(nestedDir, filename),
+            });
+          }
         }
       }
     }
