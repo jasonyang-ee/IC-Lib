@@ -3510,47 +3510,72 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* ROW 7-8: CAD Files (multi-value JSONB arrays) */}
-                  <CadFieldEditor
-                    label="PCB Footprint"
-                    values={editData.pcb_footprint || []}
-                    suggestions={footprintSuggestions}
-                    onChange={(arr) => handleFieldChange('pcb_footprint', arr)}
-                    placeholder="e.g., C_0805"
-                    categoryId={editData.category_id}
-                  />
-                  <CadFieldEditor
-                    label="Schematic Symbol"
-                    values={editData.schematic || []}
-                    suggestions={symbolSuggestions}
-                    onChange={(arr) => handleFieldChange('schematic', arr)}
-                    placeholder="Symbol name"
-                    categoryId={editData.category_id}
-                  />
-                  <CadFieldEditor
-                    label="STEP 3D Model"
-                    values={editData.step_model || []}
-                    suggestions={stepModelSuggestions}
-                    onChange={(arr) => handleFieldChange('step_model', arr)}
-                    placeholder="STEP model name"
-                    categoryId={editData.category_id}
-                  />
-                  <CadFieldEditor
-                    label="PSpice Model"
-                    values={editData.pspice || []}
-                    suggestions={pspiceSuggestions}
-                    onChange={(arr) => handleFieldChange('pspice', arr)}
-                    placeholder="PSpice model name"
-                    categoryId={editData.category_id}
-                  />
-                  <CadFieldEditor
-                    label="Pad File"
-                    values={editData.pad_file || []}
-                    suggestions={padFileSuggestions}
-                    onChange={(arr) => handleFieldChange('pad_file', arr)}
-                    placeholder="Pad file name"
-                    categoryId={editData.category_id}
-                  />
+                  {/* CAD Files - Unified section with file names and file management */}
+                  <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CAD Files</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <CadFieldEditor
+                        label="PCB Footprint"
+                        values={editData.pcb_footprint || []}
+                        suggestions={footprintSuggestions}
+                        onChange={(arr) => handleFieldChange('pcb_footprint', arr)}
+                        placeholder="e.g., C_0805"
+                        categoryId={editData.category_id}
+                      />
+                      <CadFieldEditor
+                        label="Schematic Symbol"
+                        values={editData.schematic || []}
+                        suggestions={symbolSuggestions}
+                        onChange={(arr) => handleFieldChange('schematic', arr)}
+                        placeholder="Symbol name"
+                        categoryId={editData.category_id}
+                      />
+                      <CadFieldEditor
+                        label="STEP 3D Model"
+                        values={editData.step_model || []}
+                        suggestions={stepModelSuggestions}
+                        onChange={(arr) => handleFieldChange('step_model', arr)}
+                        placeholder="STEP model name"
+                        categoryId={editData.category_id}
+                      />
+                      <CadFieldEditor
+                        label="PSpice Model"
+                        values={editData.pspice || []}
+                        suggestions={pspiceSuggestions}
+                        onChange={(arr) => handleFieldChange('pspice', arr)}
+                        placeholder="PSpice model name"
+                        categoryId={editData.category_id}
+                      />
+                      <CadFieldEditor
+                        label="Pad File"
+                        values={editData.pad_file || []}
+                        suggestions={padFileSuggestions}
+                        onChange={(arr) => handleFieldChange('pad_file', arr)}
+                        placeholder="Pad file name"
+                        categoryId={editData.category_id}
+                      />
+                    </div>
+                    {/* File upload and management */}
+                    {editData.manufacturer_pn && (
+                      <ComponentFiles
+                        mfgPartNumber={editData.manufacturer_pn}
+                        canEdit={true}
+                        showRename={!isAddMode}
+                        showDelete={!isAddMode}
+                        onFileUploaded={(category, filename) => {
+                          // Map upload category to editData field name
+                          const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
+                          const field = fieldMap[category];
+                          if (field) {
+                            const current = Array.isArray(editData[field]) ? editData[field] : [];
+                            if (!current.includes(filename)) {
+                              handleFieldChange(field, [...current, filename]);
+                            }
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
 
                   {/* Datasheet URL */}
                   <div className="col-span-2">
@@ -3564,7 +3589,7 @@ const Library = () => {
                     />
                   </div>
 
-                  {/* Distributor Info Section - Merged into Component Details in Edit/Add Mode */}
+                  {/* Distributor Info Section */}
                   <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Info</h4>
                     {(editData.distributors || []).map((dist, index) => (
@@ -3603,32 +3628,11 @@ const Library = () => {
                           placeholder="URL"
                           className="px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-xs bg-white dark:bg-[#333333] dark:text-gray-100"
                         />
-                        {/* Spacer to maintain grid alignment (no add/remove in add or edit mode) */}
+                        {/* Spacer to maintain grid alignment */}
                         <div></div>
                       </div>
                     ))}
                   </div>
-
-                  {/* CAD Files Section */}
-                  {editData.manufacturer_pn && (
-                    <ComponentFiles
-                      mfgPartNumber={editData.manufacturer_pn}
-                      canEdit={true}
-                      showRename={!isAddMode}
-                      showDelete={!isAddMode}
-                      onFileUploaded={(category, filename) => {
-                        // Map upload category to editData field name
-                        const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
-                        const field = fieldMap[category];
-                        if (field) {
-                          const current = Array.isArray(editData[field]) ? editData[field] : [];
-                          if (!current.includes(filename)) {
-                            handleFieldChange(field, [...current, filename]);
-                          }
-                        }
-                      }}
-                    />
-                  )}
                 </>
               ) : (
                 // View Mode - Show Component Details
@@ -3731,20 +3735,35 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* CAD Files - each in own row */}
-                            <CopyableField label="PCB Footprint" value={componentDetails.pcb_footprint} />
-                            {componentDetails.schematic && (
-                              <CopyableField label="Schematic" value={componentDetails.schematic} />
-                            )}
-                            {componentDetails.step_model && (
-                              <CopyableField label="STEP 3D Model" value={componentDetails.step_model} />
-                            )}
-                            {componentDetails.pspice && (
-                              <CopyableField label="PSPICE Model" value={componentDetails.pspice} />
-                            )}
-                            {componentDetails.pad_file && (
-                              <CopyableField label="Pad File" value={componentDetails.pad_file} />
-                            )}
+                            {/* CAD Files - each in own row (values are JSONB arrays) */}
+                            {(() => {
+                              const formatCadValue = (val) => {
+                                if (Array.isArray(val) && val.length > 0) return val.join(', ');
+                                if (typeof val === 'string' && val) return val;
+                                return null;
+                              };
+                              const hasCadValue = (val) => {
+                                if (Array.isArray(val)) return val.length > 0;
+                                return val && val !== '[]';
+                              };
+                              return (
+                                <>
+                                  <CopyableField label="PCB Footprint" value={formatCadValue(componentDetails.pcb_footprint) || 'N/A'} />
+                                  {hasCadValue(componentDetails.schematic) && (
+                                    <CopyableField label="Schematic" value={formatCadValue(componentDetails.schematic)} />
+                                  )}
+                                  {hasCadValue(componentDetails.step_model) && (
+                                    <CopyableField label="STEP 3D Model" value={formatCadValue(componentDetails.step_model)} />
+                                  )}
+                                  {hasCadValue(componentDetails.pspice) && (
+                                    <CopyableField label="PSPICE Model" value={formatCadValue(componentDetails.pspice)} />
+                                  )}
+                                  {hasCadValue(componentDetails.pad_file) && (
+                                    <CopyableField label="Pad File" value={formatCadValue(componentDetails.pad_file)} />
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             {/* Datasheet URL */}
                             {componentDetails.datasheet_url && (

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Plus, X } from 'lucide-react';
+import { ChevronDown, Plus, X, File } from 'lucide-react';
 
 /**
- * Multi-value CAD field editor with chip/tag array pattern.
- * Renders existing values as removable chips with an input + dropdown for adding new entries.
+ * Multi-value CAD field editor with card/list layout.
+ * Renders existing values as individual list items with an input + dropdown for adding new entries.
  *
  * Props:
  *   label       - Display label
@@ -57,25 +57,27 @@ const CadFieldEditor = ({ label, values = [], suggestions = [], onChange, placeh
 
   return (
     <div className="col-span-2" ref={containerRef}>
-      <label className="block text-gray-600 dark:text-gray-400 mb-1">{label}</label>
+      <label className="block text-gray-600 dark:text-gray-400 mb-1.5">{label}</label>
 
-      {/* Chips */}
+      {/* File list - card layout */}
       {values.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1.5">
+        <div className="space-y-1.5 mb-2">
           {values.map((v, idx) => (
-            <span
+            <div
               key={idx}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300 text-xs"
+              className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-[#333333] border border-gray-200 dark:border-[#444444] rounded-md group"
             >
-              {v}
+              <File className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" />
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200 flex-1 truncate">{v}</span>
               <button
                 type="button"
                 onClick={() => removeValue(idx)}
-                className="hover:text-red-600 dark:hover:text-red-400"
+                className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-opacity"
+                title="Remove"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
-            </span>
+            </div>
           ))}
         </div>
       )}

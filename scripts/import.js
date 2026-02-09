@@ -199,6 +199,15 @@ function getInventoryFromPartsbox(manufacturerPN) {
 }
 
 /**
+ * Convert a CSV field value to a JSONB array string for CAD fields.
+ * Returns a JSON-stringified array (e.g., '["value"]' or '[]')
+ */
+function toJsonbArray(val) {
+  if (!val || val.trim() === '' || val === 'N/A') return '[]';
+  return JSON.stringify([val.trim()]);
+}
+
+/**
  * Format part number according to category leading zeros
  */
 function formatPartNumber(originalPartNumber, prefix, leadingZeros) {
@@ -335,7 +344,7 @@ async function importCSVFile(filePath) {
         const subCategory3 = partTypeParts[2] || null;
         const subCategory4 = partTypeParts[3] || null;
 
-        // Build component data
+        // Build component data (CAD fields as JSONB arrays)
         const componentData = {
           category_id: categoryId,
           part_number: partNumber,
@@ -343,15 +352,15 @@ async function importCSVFile(filePath) {
           manufacturer_pn: manufacturerPN || null,
           description: record.Description || null,
           value: record.Value || null,
-          pcb_footprint: record['PCB Footprint'] || null,
-          schematic: record['Schematic Part'] || null,
+          pcb_footprint: toJsonbArray(record['PCB Footprint']),
+          schematic: toJsonbArray(record['Schematic Part']),
           package_size: record['Package Size'] || null,
           sub_category1: subCategory1,
           sub_category2: subCategory2,
           sub_category3: subCategory3,
           sub_category4: subCategory4,
           datasheet_url: record.Datasheet || null,
-          step_model: record.STEP_MODEL || null,
+          step_model: toJsonbArray(record.STEP_MODEL),
         };
 
         if (isDryRun) {
