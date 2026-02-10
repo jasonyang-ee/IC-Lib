@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
+import cadFileService from '../services/cadFileService.js';
 
 /**
  * Convert a value to a JSONB array string for PostgreSQL.
@@ -217,6 +218,19 @@ export const createComponent = async (req, res, next) => {
       VALUES ($1, 0, 0, NULL)
       ON CONFLICT (component_id) DO NOTHING
     `, [component.id]);
+
+    // Sync CAD files to cad_files table
+    try {
+      await cadFileService.syncComponentCadFiles(component.id, {
+        pcb_footprint: pcb_footprint ? JSON.parse(toJsonbArray(pcb_footprint)) : [],
+        schematic: schematic ? JSON.parse(toJsonbArray(schematic)) : [],
+        step_model: step_model ? JSON.parse(toJsonbArray(step_model)) : [],
+        pspice: pspice ? JSON.parse(toJsonbArray(pspice)) : [],
+        pad_file: pad_file ? JSON.parse(toJsonbArray(pad_file)) : [],
+      });
+    } catch (syncError) {
+      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
+    }
     
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
@@ -498,6 +512,20 @@ export const updateComponent = async (req, res, next) => {
       ]);
     } catch (logError) {
       console.error('Failed to log component update activity:', logError.message);
+    }
+
+    // Sync CAD files to cad_files table
+    try {
+      const updatedComponent = result.rows[0];
+      await cadFileService.syncComponentCadFiles(id, {
+        pcb_footprint: Array.isArray(updatedComponent.pcb_footprint) ? updatedComponent.pcb_footprint : [],
+        schematic: Array.isArray(updatedComponent.schematic) ? updatedComponent.schematic : [],
+        step_model: Array.isArray(updatedComponent.step_model) ? updatedComponent.step_model : [],
+        pspice: Array.isArray(updatedComponent.pspice) ? updatedComponent.pspice : [],
+        pad_file: Array.isArray(updatedComponent.pad_file) ? updatedComponent.pad_file : [],
+      });
+    } catch (syncError) {
+      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
     }
 
     // Fetch the complete component with joined data

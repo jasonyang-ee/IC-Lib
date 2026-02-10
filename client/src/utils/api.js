@@ -322,12 +322,21 @@ export const api = {
   // File Library (CAD file management)
   getFileTypeStats: () => apiClient.get('/file-library/stats'),
   getFilesByType: (type) => apiClient.get(`/file-library/type/${type}`),
-  getComponentsByFile: (type, fileName) => apiClient.get(`/file-library/type/${type}/components`, { params: { fileName } }),
+  getComponentsByFile: (type, fileName, cadFileId) => apiClient.get(`/file-library/type/${type}/components`, { params: { fileName, cadFileId } }),
   massRenameFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename`, data),
   searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
   deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
   checkFileCollision: (category, filename) => apiClient.get(`/files/check-collision/${category}/${encodeURIComponent(filename)}`),
+
+  // File Library - CAD Files (new junction-based)
+  getOrphanFiles: (type) => apiClient.get('/file-library/orphans', { params: { type } }),
+  getAvailableFiles: (type, search) => apiClient.get('/file-library/available', { params: { type, search } }),
+  getCadFilesForComponent: (componentId) => apiClient.get(`/file-library/component/${componentId}`),
+  getComponentsByCategoryForFiles: (categoryId) => apiClient.get(`/file-library/category/${categoryId}`),
+  getSharingComponents: (componentId) => apiClient.get(`/file-library/sharing/${componentId}`),
+  linkFileToComponent: (cadFileId, componentId) => apiClient.post('/file-library/link', { cadFileId, componentId }),
+  unlinkFileFromComponent: (cadFileId, componentId) => apiClient.post('/file-library/unlink', { cadFileId, componentId }),
 };
 
 export default apiClient;

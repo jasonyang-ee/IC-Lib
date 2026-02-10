@@ -10,6 +10,7 @@ import AlternativePartsEditor from '../components/library/AlternativePartsEditor
 import SpecificationsView from '../components/library/SpecificationsView';
 import ComponentFiles from '../components/library/ComponentFiles';
 import CadFieldEditor from '../components/library/CadFieldEditor';
+import CadFieldSection from '../components/library/CadFieldSection';
 import { Search, Edit, Trash2, Plus, X, Check, Copy, ChevronDown, Package, FolderKanban, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -3514,44 +3515,59 @@ const Library = () => {
                   <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CAD Files</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      <CadFieldEditor
-                        label="PCB Footprint"
+                      <CadFieldSection
+                        field="pcb_footprint"
                         values={editData.pcb_footprint || []}
-                        suggestions={footprintSuggestions}
                         onChange={(arr) => handleFieldChange('pcb_footprint', arr)}
-                        placeholder="e.g., C_0805"
+                        isEditMode={isEditMode}
+                        isAddMode={isAddMode}
+                        mfgPartNumber={editData.manufacturer_pn}
+                        packageSize={editData.package_size}
+                        suggestions={footprintSuggestions}
                         categoryId={editData.category_id}
                       />
-                      <CadFieldEditor
-                        label="Schematic Symbol"
+                      <CadFieldSection
+                        field="schematic"
                         values={editData.schematic || []}
-                        suggestions={symbolSuggestions}
                         onChange={(arr) => handleFieldChange('schematic', arr)}
-                        placeholder="Symbol name"
+                        isEditMode={isEditMode}
+                        isAddMode={isAddMode}
+                        mfgPartNumber={editData.manufacturer_pn}
+                        packageSize={editData.package_size}
+                        suggestions={symbolSuggestions}
                         categoryId={editData.category_id}
                       />
-                      <CadFieldEditor
-                        label="STEP 3D Model"
+                      <CadFieldSection
+                        field="step_model"
                         values={editData.step_model || []}
-                        suggestions={stepModelSuggestions}
                         onChange={(arr) => handleFieldChange('step_model', arr)}
-                        placeholder="STEP model name"
+                        isEditMode={isEditMode}
+                        isAddMode={isAddMode}
+                        mfgPartNumber={editData.manufacturer_pn}
+                        packageSize={editData.package_size}
+                        suggestions={stepModelSuggestions}
                         categoryId={editData.category_id}
                       />
-                      <CadFieldEditor
-                        label="PSpice Model"
+                      <CadFieldSection
+                        field="pspice"
                         values={editData.pspice || []}
-                        suggestions={pspiceSuggestions}
                         onChange={(arr) => handleFieldChange('pspice', arr)}
-                        placeholder="PSpice model name"
+                        isEditMode={isEditMode}
+                        isAddMode={isAddMode}
+                        mfgPartNumber={editData.manufacturer_pn}
+                        packageSize={editData.package_size}
+                        suggestions={pspiceSuggestions}
                         categoryId={editData.category_id}
                       />
-                      <CadFieldEditor
-                        label="Pad File"
+                      <CadFieldSection
+                        field="pad_file"
                         values={editData.pad_file || []}
-                        suggestions={padFileSuggestions}
                         onChange={(arr) => handleFieldChange('pad_file', arr)}
-                        placeholder="Pad file name"
+                        isEditMode={isEditMode}
+                        isAddMode={isAddMode}
+                        mfgPartNumber={editData.manufacturer_pn}
+                        packageSize={editData.package_size}
+                        suggestions={padFileSuggestions}
                         categoryId={editData.category_id}
                       />
                     </div>
@@ -3735,34 +3751,53 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* CAD Files - each in own row (values are JSONB arrays) */}
+                            {/* CAD Files - clickable links to file library */}
                             {(() => {
-                              const formatCadValue = (val) => {
-                                if (Array.isArray(val) && val.length > 0) return val.join(', ');
-                                if (typeof val === 'string' && val) return val;
-                                return null;
+                              const cadTypeMap = {
+                                pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint', subdir: 'footprint' },
+                                schematic: { label: 'Schematic', routeType: 'schematic', subdir: 'symbol' },
+                                step_model: { label: 'STEP 3D Model', routeType: 'step', subdir: 'model' },
+                                pspice: { label: 'PSPICE Model', routeType: 'pspice', subdir: 'pspice' },
+                                pad_file: { label: 'Pad File', routeType: 'pad', subdir: 'pad' },
                               };
                               const hasCadValue = (val) => {
                                 if (Array.isArray(val)) return val.length > 0;
                                 return val && val !== '[]';
                               };
-                              return (
-                                <>
-                                  <CopyableField label="PCB Footprint" value={formatCadValue(componentDetails.pcb_footprint) || 'N/A'} />
-                                  {hasCadValue(componentDetails.schematic) && (
-                                    <CopyableField label="Schematic" value={formatCadValue(componentDetails.schematic)} />
-                                  )}
-                                  {hasCadValue(componentDetails.step_model) && (
-                                    <CopyableField label="STEP 3D Model" value={formatCadValue(componentDetails.step_model)} />
-                                  )}
-                                  {hasCadValue(componentDetails.pspice) && (
-                                    <CopyableField label="PSPICE Model" value={formatCadValue(componentDetails.pspice)} />
-                                  )}
-                                  {hasCadValue(componentDetails.pad_file) && (
-                                    <CopyableField label="Pad File" value={formatCadValue(componentDetails.pad_file)} />
-                                  )}
-                                </>
-                              );
+                              return Object.entries(cadTypeMap).map(([field, config]) => {
+                                const val = componentDetails[field];
+                                if (!hasCadValue(val) && field !== 'pcb_footprint') return null;
+                                const files = Array.isArray(val) ? val : (val ? [val] : []);
+                                return (
+                                  <div key={field} className="flex items-start gap-2">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-0.5">{config.label}:</span>
+                                    <div className="flex-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                                      {files.length === 0 ? (
+                                        <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>
+                                      ) : files.map((fileName, idx) => (
+                                        <div key={idx} className="flex items-center gap-1.5">
+                                          <a
+                                            href={api.getFileDownloadUrl(config.subdir, componentDetails.manufacturer_pn, fileName)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
+                                            title={`Download ${fileName}`}
+                                          >
+                                            {fileName}
+                                          </a>
+                                          <button
+                                            onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
+                                            className="text-xs text-gray-400 hover:text-primary-500 dark:hover:text-primary-400"
+                                            title="View in File Library"
+                                          >
+                                            <ExternalLink className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              });
                             })()}
 
                             {/* Datasheet URL */}

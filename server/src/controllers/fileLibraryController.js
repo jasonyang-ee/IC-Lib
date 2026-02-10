@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import cadFileService from '../services/cadFileService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,11 +11,11 @@ const LIBRARY_BASE = path.resolve(__dirname, '../../..', 'library');
 
 // Map route type param to database column and file subdirectory
 const TYPE_MAP = {
-  'footprint': { column: 'pcb_footprint', subdir: 'footprint' },
-  'schematic': { column: 'schematic', subdir: 'symbol' },
-  'step':      { column: 'step_model', subdir: 'model' },
-  'pspice':    { column: 'pspice', subdir: 'pspice' },
-  'pad':       { column: 'pad_file', subdir: 'pad' },
+  'footprint': { column: 'pcb_footprint', subdir: 'footprint', fileType: 'footprint' },
+  'schematic': { column: 'schematic', subdir: 'symbol', fileType: 'symbol' },
+  'step':      { column: 'step_model', subdir: 'model', fileType: 'model' },
+  'pspice':    { column: 'pspice', subdir: 'pspice', fileType: 'pspice' },
+  'pad':       { column: 'pad_file', subdir: 'pad', fileType: 'pad' },
 };
 
 function getTypeInfo(type) {
@@ -126,7 +127,7 @@ export const getComponentsByFile = async (req, res) => {
       FROM components c
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
       LEFT JOIN component_categories cat ON c.category_id = cat.id
-      WHERE c.${info.column} @> jsonb_build_array($1)
+      WHERE c.${info.column} @> jsonb_build_array($1::text)
       ORDER BY c.part_number ASC
     `;
 
@@ -171,12 +172,12 @@ export const massUpdateFileName = async (req, res) => {
         UPDATE components
         SET ${info.column} = (
           SELECT jsonb_agg(
-            CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+            CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
           )
           FROM jsonb_array_elements(${info.column}) AS elem
         ),
         updated_at = CURRENT_TIMESTAMP
-        WHERE ${info.column} @> jsonb_build_array($1)
+        WHERE ${info.column} @> jsonb_build_array($1::text)
           AND id = ANY($3::uuid[])
         RETURNING id, part_number
       `;
@@ -187,12 +188,12 @@ export const massUpdateFileName = async (req, res) => {
         UPDATE components
         SET ${info.column} = (
           SELECT jsonb_agg(
-            CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+            CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
           )
           FROM jsonb_array_elements(${info.column}) AS elem
         ),
         updated_at = CURRENT_TIMESTAMP
-        WHERE ${info.column} @> jsonb_build_array($1)
+        WHERE ${info.column} @> jsonb_build_array($1::text)
         RETURNING id, part_number
       `;
       params = [oldFileName, newFileName];
@@ -320,12 +321,12 @@ export const renamePhysicalFile = async (req, res) => {
       UPDATE components
       SET ${info.column} = (
         SELECT jsonb_agg(
-          CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+          CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
         )
         FROM jsonb_array_elements(${info.column}) AS elem
       ),
       updated_at = CURRENT_TIMESTAMP
-      WHERE ${info.column} @> jsonb_build_array($1)
+      WHERE ${info.column} @> jsonb_build_array($1::text)
       RETURNING id, part_number
     `, [oldFileName, newFileName]);
 
@@ -377,7 +378,7 @@ export const deletePhysicalFile = async (req, res) => {
         WHERE elem #>> '{}' != $1
       ),
       updated_at = CURRENT_TIMESTAMP
-      WHERE ${info.column} @> jsonb_build_array($1)
+      WHERE ${info.column} @> jsonb_build_array($1::text)
       RETURNING id, part_number
     `, [fileName]);
 
@@ -392,5 +393,151 @@ export const deletePhysicalFile = async (req, res) => {
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
     res.status(500).json({ error: 'Failed to delete file' });
+  }
+};
+
+/**
+ * Get orphan CAD files (not linked to any component).
+ */
+export const getOrphanFiles = async (req, res) => {
+  try {
+    const { type } = req.query;
+    const info = type ? getTypeInfo(type) : null;
+    const fileType = info ? info.fileType : null;
+
+    const orphans = await cadFileService.getOrphanCadFiles(fileType);
+
+    res.json({ orphans });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching orphan files:', error.message);
+    res.status(500).json({ error: 'Failed to fetch orphan files' });
+  }
+};
+
+/**
+ * Get CAD files for a specific component.
+ */
+export const getCadFilesForComponent = async (req, res) => {
+  try {
+    const { componentId } = req.params;
+    const files = await cadFileService.getCadFilesForComponentGrouped(componentId);
+    res.json({ files });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching component CAD files:', error.message);
+    res.status(500).json({ error: 'Failed to fetch component CAD files' });
+  }
+};
+
+/**
+ * Link an existing CAD file to a component.
+ */
+export const linkFileToComponent = async (req, res) => {
+  try {
+    const { cadFileId, componentId } = req.body;
+
+    if (!cadFileId || !componentId) {
+      return res.status(400).json({ error: 'cadFileId and componentId are required' });
+    }
+
+    const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
+    if (cfResult.rows.length === 0) {
+      return res.status(404).json({ error: 'CAD file not found' });
+    }
+
+    const cadFile = cfResult.rows[0];
+    await cadFileService.linkCadFileToComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Linked "${cadFile.file_name}" to component ${componentId}`);
+
+    res.json({ success: true, cadFile });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error linking file to component:', error.message);
+    res.status(500).json({ error: 'Failed to link file to component' });
+  }
+};
+
+/**
+ * Unlink a CAD file from a component.
+ */
+export const unlinkFileFromComponent = async (req, res) => {
+  try {
+    const { cadFileId, componentId } = req.body;
+
+    if (!cadFileId || !componentId) {
+      return res.status(400).json({ error: 'cadFileId and componentId are required' });
+    }
+
+    const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
+    if (cfResult.rows.length === 0) {
+      return res.status(404).json({ error: 'CAD file not found' });
+    }
+
+    const cadFile = cfResult.rows[0];
+    await cadFileService.unlinkCadFileFromComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Unlinked "${cadFile.file_name}" from component ${componentId}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error unlinking file from component:', error.message);
+    res.status(500).json({ error: 'Failed to unlink file from component' });
+  }
+};
+
+/**
+ * Get components in a category with their CAD file counts.
+ */
+export const getComponentsByCategory = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const components = await cadFileService.getComponentsWithCadFiles(categoryId);
+    res.json({ components });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by category:', error.message);
+    res.status(500).json({ error: 'Failed to fetch components' });
+  }
+};
+
+/**
+ * Get components sharing CAD files with a given component.
+ */
+export const getSharingComponents = async (req, res) => {
+  try {
+    const { componentId } = req.params;
+    const components = await cadFileService.getComponentsSharingFiles(componentId);
+    res.json({ components });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching sharing components:', error.message);
+    res.status(500).json({ error: 'Failed to fetch sharing components' });
+  }
+};
+
+/**
+ * Get all available CAD files for linking (file picker).
+ */
+export const getAvailableFiles = async (req, res) => {
+  try {
+    const { type, search } = req.query;
+    const info = type ? getTypeInfo(type) : null;
+    const fileType = info ? info.fileType : null;
+
+    let files;
+    if (search) {
+      files = await cadFileService.searchCadFiles(search, fileType);
+    } else if (fileType) {
+      files = await cadFileService.getCadFilesByType(fileType);
+    } else {
+      const allFiles = [];
+      for (const ft of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
+        const typeFiles = await cadFileService.getCadFilesByType(ft);
+        allFiles.push(...typeFiles);
+      }
+      files = allFiles;
+    }
+
+    res.json({ files });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching available files:', error.message);
+    res.status(500).json({ error: 'Failed to fetch available files' });
   }
 };

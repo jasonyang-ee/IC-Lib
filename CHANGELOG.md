@@ -9,15 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- CAD file tracking system with new `cad_files` and `component_cad_files` database tables (migration 002)
+- `cadFileService.js` — centralized service layer for all CAD file operations (register, link, unlink, rename, delete, search, sync, orphan detection)
+- File Library page: new "Category" view mode — browse by category → component → CAD files → sharing components
+- File Library page: orphan file detection and cleanup — filter and delete CAD files not linked to any component
+- File Library page: URL parameter support (`?type=X&file=Y`) for deep-linking from Library part details
+- `CadFieldSection` component — static file display with unlink, add-existing picker, rename presets (MPN/Package/Custom) in add mode
+- `CadFilePickerModal` component — reusable modal for selecting existing CAD files from the library
+- New API endpoints: `/file-library/orphans`, `/file-library/available`, `/file-library/component/:id`, `/file-library/category/:id`, `/file-library/sharing/:id`, `/file-library/link`, `/file-library/unlink`
+- Component create/update now syncs CAD file junction table via `cadFileService.syncComponentCadFiles()`
 
 ### Changed
 
-- 
+- File Library page rebuilt with two view modes (File Types + Category), slim top-bar search, and improved layout
+- Library page view mode: CAD files now shown as clickable download links with "View in File Library" buttons
+- Library page edit mode: uses `CadFieldSection` instead of `CadFieldEditor` for static file management
+- Only footprint and pad files support multiple files per part; symbol, model, and pspice are single-file only
 
 ### Fixed
 
-- 
+- Fixed `could not determine data type of parameter $1` PostgreSQL errors in `fileLibraryController.js` and `fileUpload.js` — cast `$1` to `::text` in `jsonb_build_array()` and use `elem #>> '{}' = $1` for JSONB element comparison
+- Fixed status badge in File Library component table using `approval_status` instead of incorrect `status` field
 
 ## [1.6.0] - 2026-02-05
 

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { authenticate, canWrite } from '../middleware/auth.js';
 import pool from '../config/database.js';
+import cadFileService from '../services/cadFileService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,24 +158,36 @@ function moveToCategory(sourcePath, category) {
 }
 
 /**
- * Auto-link an uploaded filename to the component's JSONB array in the database
+ * Auto-link an uploaded filename to the component's JSONB array in the database.
+ * Also registers the file in cad_files table and creates junction record.
  */
 async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
   const dbColumn = CATEGORY_TO_COLUMN[category];
   if (!dbColumn) return;
 
+  // Map upload category to cad_files file_type
+  const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+  const fileType = fileTypeMap[category];
+
   try {
-    await pool.query(`
-      UPDATE components
-      SET ${dbColumn} = (
-        CASE
-          WHEN ${dbColumn} IS NULL THEN jsonb_build_array($1)
-          WHEN NOT (${dbColumn} @> jsonb_build_array($1)) THEN ${dbColumn} || jsonb_build_array($1)
-          ELSE ${dbColumn}
-        END
-      )
-      WHERE manufacturer_pn = $2
-    `, [filename, mfgPartNumber]);
+    // Register in cad_files table and link via junction table
+    if (fileType) {
+      const cadFile = await cadFileService.registerCadFile(filename, fileType);
+      await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, fileType, filename);
+    } else {
+      // Fallback: just update legacy JSONB column
+      await pool.query(`
+        UPDATE components
+        SET ${dbColumn} = (
+          CASE
+            WHEN ${dbColumn} IS NULL THEN jsonb_build_array($1::text)
+            WHEN NOT (${dbColumn} @> jsonb_build_array($1::text)) THEN ${dbColumn} || jsonb_build_array($1::text)
+            ELSE ${dbColumn}
+          END
+        )
+        WHERE manufacturer_pn = $2
+      `, [filename, mfgPartNumber]);
+    }
   } catch (error) {
     console.error(`[FileUpload] Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
   }
@@ -184,7 +197,7 @@ async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
  * Detect and extract ZIP file from popular EDA tool providers
  * Files are stored in flat structure (no MPN subdirectory)
  */
-function extractSmartZip(zipPath, mfgPartNumber) {
+function extractSmartZip(zipPath, _mfgPartNumber) {
   const zip = new AdmZip(zipPath);
   const entries = zip.getEntries();
   const extractedFiles = [];
@@ -643,11 +656,11 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
           UPDATE components
           SET ${dbColumn} = (
             SELECT jsonb_agg(
-              CASE WHEN elem = $1 THEN to_jsonb($2::text) ELSE elem END
+              CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
             )
             FROM jsonb_array_elements(${dbColumn}) AS elem
           )
-          WHERE ${dbColumn} @> jsonb_build_array($1)
+          WHERE ${dbColumn} @> jsonb_build_array($1::text)
         `, [oldFilename, sanitizedNewFilename]);
       } catch (dbError) {
         console.error(`[FileUpload] Failed to update JSONB refs: ${dbError.message}`);
@@ -710,7 +723,7 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
             FROM jsonb_array_elements(${dbColumn}) AS elem
             WHERE elem #>> '{}' != $1
           )
-          WHERE ${dbColumn} @> jsonb_build_array($1)
+          WHERE ${dbColumn} @> jsonb_build_array($1::text)
             AND manufacturer_pn = $2
         `, [filename, mfgPartNumber]);
       } catch (dbError) {
