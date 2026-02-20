@@ -63,7 +63,7 @@ export const clearDatabaseData = async () => {
       'footprint_sources',
       'inventory',
       'distributor_info',
-      'component_specifications',
+      'component_specification_values',
       'components',
       'component_categories',
       'distributors',

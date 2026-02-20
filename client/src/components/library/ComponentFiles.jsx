@@ -38,7 +38,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
+const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, showDelete = true, onFileUploaded }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -71,6 +71,20 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
       const extracted = results.filter(r => r.type === 'archive');
       const regular = results.filter(r => r.type !== 'archive' && !r.error);
       const errors = results.filter(r => r.error);
+
+      // Notify parent of uploaded files for auto-linking
+      if (onFileUploaded) {
+        for (const r of regular) {
+          if (r.type && r.filename) onFileUploaded(r.type, r.filename);
+        }
+        for (const r of extracted) {
+          if (r.extracted) {
+            for (const ef of r.extracted) {
+              if (ef.category && ef.filename) onFileUploaded(ef.category, ef.filename);
+            }
+          }
+        }
+      }
 
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
@@ -276,7 +290,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
                       </span>
                       {canEdit && (
                         <div className="flex items-center gap-1 shrink-0">
-                          {RENAMEABLE_CATEGORIES.includes(category) && (
+                          {showRename && RENAMEABLE_CATEGORIES.includes(category) && (
                             <>
                               <button
                                 type="button"
@@ -296,6 +310,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
                               </button>
                             </>
                           )}
+                          {showDelete && (
                           <button
                             type="button"
                             onClick={() => setDeleteConfirm({ show: true, category, filename: file.name })}
@@ -304,6 +319,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false }) => {
                           >
                             x
                           </button>
+                          )}
                         </div>
                       )}
                     </div>

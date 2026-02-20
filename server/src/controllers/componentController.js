@@ -1,6 +1,17 @@
 import pool from '../config/database.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
+import cadFileService from '../services/cadFileService.js';
+
+/**
+ * Convert a value to a JSONB array string for PostgreSQL.
+ * Accepts arrays, strings, or nullish values.
+ */
+const toJsonbArray = (val) => {
+  if (Array.isArray(val)) return JSON.stringify(val);
+  if (typeof val === 'string' && val.trim() && val !== 'N/A') return JSON.stringify([val]);
+  return '[]';
+};
 
 export const getAllComponents = async (req, res, next) => {
   try {
@@ -167,14 +178,14 @@ export const createComponent = async (req, res, next) => {
         description, value, sub_category1, sub_category2, sub_category3, sub_category4,
         pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
         datasheet_url, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17, $18)
       RETURNING *
     `;
 
     const componentResult = await pool.query(insertQuery, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
+      toJsonbArray(pcb_footprint), package_size, toJsonbArray(schematic), toJsonbArray(step_model), toJsonbArray(pspice), toJsonbArray(pad_file),
       datasheet_url, approval_status || 'new',
     ]);
 
@@ -207,6 +218,19 @@ export const createComponent = async (req, res, next) => {
       VALUES ($1, 0, 0, NULL)
       ON CONFLICT (component_id) DO NOTHING
     `, [component.id]);
+
+    // Sync CAD files to cad_files table
+    try {
+      await cadFileService.syncComponentCadFiles(component.id, {
+        pcb_footprint: pcb_footprint ? JSON.parse(toJsonbArray(pcb_footprint)) : [],
+        schematic: schematic ? JSON.parse(toJsonbArray(schematic)) : [],
+        step_model: step_model ? JSON.parse(toJsonbArray(step_model)) : [],
+        pspice: pspice ? JSON.parse(toJsonbArray(pspice)) : [],
+        pad_file: pad_file ? JSON.parse(toJsonbArray(pad_file)) : [],
+      });
+    } catch (syncError) {
+      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
+    }
     
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
@@ -445,12 +469,12 @@ export const updateComponent = async (req, res, next) => {
         sub_category2 = $8,
         sub_category3 = $9,
         sub_category4 = $10,
-        pcb_footprint = COALESCE($11, pcb_footprint),
+        pcb_footprint = COALESCE($11::jsonb, pcb_footprint),
         package_size = COALESCE($12, package_size),
-        schematic = $13,
-        step_model = $14,
-        pspice = $15,
-        pad_file = $16,
+        schematic = COALESCE($13::jsonb, schematic),
+        step_model = COALESCE($14::jsonb, step_model),
+        pspice = COALESCE($15::jsonb, pspice),
+        pad_file = COALESCE($16::jsonb, pad_file),
         datasheet_url = COALESCE($17, datasheet_url),
         approval_status = COALESCE($18, approval_status),
         approval_user_id = $19,
@@ -461,7 +485,11 @@ export const updateComponent = async (req, res, next) => {
     `, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
+      pcb_footprint != null ? toJsonbArray(pcb_footprint) : null, package_size,
+      schematic != null ? toJsonbArray(schematic) : null,
+      step_model != null ? toJsonbArray(step_model) : null,
+      pspice != null ? toJsonbArray(pspice) : null,
+      pad_file != null ? toJsonbArray(pad_file) : null,
       datasheet_url, approval_status, approval_user_id, approval_date,
       id,
     ]);
@@ -484,6 +512,20 @@ export const updateComponent = async (req, res, next) => {
       ]);
     } catch (logError) {
       console.error('Failed to log component update activity:', logError.message);
+    }
+
+    // Sync CAD files to cad_files table
+    try {
+      const updatedComponent = result.rows[0];
+      await cadFileService.syncComponentCadFiles(id, {
+        pcb_footprint: Array.isArray(updatedComponent.pcb_footprint) ? updatedComponent.pcb_footprint : [],
+        schematic: Array.isArray(updatedComponent.schematic) ? updatedComponent.schematic : [],
+        step_model: Array.isArray(updatedComponent.step_model) ? updatedComponent.step_model : [],
+        pspice: Array.isArray(updatedComponent.pspice) ? updatedComponent.pspice : [],
+        pad_file: Array.isArray(updatedComponent.pad_file) ? updatedComponent.pad_file : [],
+      });
+    } catch (syncError) {
+      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
     }
 
     // Fetch the complete component with joined data
@@ -909,26 +951,41 @@ export const getSubCategorySuggestions = async (req, res, next) => {
 export const getFieldSuggestions = async (req, res, next) => {
   try {
     const { categoryId, field } = req.query;
-    
+
     // Validate field name to prevent SQL injection
     const allowedFields = ['package_size', 'pcb_footprint', 'schematic', 'step_model', 'pspice', 'pad_file'];
     if (!field || !allowedFields.includes(field)) {
       return res.status(400).json({ error: 'Invalid field parameter' });
     }
-    
+
     if (!categoryId) {
       return res.status(400).json({ error: 'categoryId is required' });
     }
 
-    const query = `
-      SELECT DISTINCT ${field} as value
-      FROM components
-      WHERE category_id = $1 
-        AND ${field} IS NOT NULL 
-        AND ${field} != ''
-      ORDER BY ${field}
-    `;
-    
+    // JSONB array columns need unnesting; package_size is still VARCHAR
+    const jsonbFields = ['pcb_footprint', 'schematic', 'step_model', 'pspice', 'pad_file'];
+    let query;
+
+    if (jsonbFields.includes(field)) {
+      query = `
+        SELECT DISTINCT jsonb_array_elements_text(${field}) as value
+        FROM components
+        WHERE category_id = $1
+          AND ${field} IS NOT NULL
+          AND ${field} != '[]'::jsonb
+        ORDER BY value
+      `;
+    } else {
+      query = `
+        SELECT DISTINCT ${field} as value
+        FROM components
+        WHERE category_id = $1
+          AND ${field} IS NOT NULL
+          AND ${field} != ''
+        ORDER BY ${field}
+      `;
+    }
+
     const result = await pool.query(query, [categoryId]);
 
     res.json(result.rows.map(row => row.value));

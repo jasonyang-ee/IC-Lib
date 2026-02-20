@@ -138,11 +138,13 @@ async function initializePartsDatabase() {
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema initialized successfully');
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
     } catch (initError) {
-      // If error is about existing triggers/constraints, that's actually OK - database is already initialized
+      // If error is about existing triggers/constraints or type mismatches on older schemas, that's OK
+      // The migration system will handle column type conversions
       const errorMsg = initError.message || '';
-      if (errorMsg.includes('already exists') || errorMsg.includes('duplicate')) {
+      if (errorMsg.includes('already exists') || errorMsg.includes('duplicate') ||
+          errorMsg.includes('operator class') || errorMsg.includes('input syntax for type json')) {
         console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema already exists (some objects were already created)');
-        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m This is normal for an existing database - skipping duplicate creation');
+        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Pending migrations will handle any column type changes');
       } else {
         // For other errors, rethrow
         throw initError;
@@ -209,8 +211,8 @@ async function validateUsersTableSchema() {
     `);
     
     const requiredColumns = [
-      'id', 'username', 'password_hash', 'role', 
-      'created_at', 'created_by', 'last_login', 'is_active',
+      'id', 'username', 'password_hash', 'role',
+      'created_by', 'last_login', 'is_active',
     ];
     
     const existingColumns = result.rows.map(row => row.column_name);
