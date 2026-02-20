@@ -30,5 +30,5 @@ temp/
 *.md
 !README.md
 !CHANGELOG.md
-!Agent.md
+!AGENTS.md
 !plan.md
