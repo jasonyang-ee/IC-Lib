@@ -81,20 +81,21 @@ CREATE TABLE IF NOT EXISTS components (
     value VARCHAR(100),
     
     -- Physical characteristics
-    pcb_footprint JSONB DEFAULT '[]'::jsonb,
+    pcb_footprint TEXT DEFAULT '',
     package_size VARCHAR(100),
-    
+
     -- Sub-categorization (expanded to 4 levels)
     sub_category1 VARCHAR(100),
     sub_category2 VARCHAR(100),
     sub_category3 VARCHAR(100),
     sub_category4 VARCHAR(100),
-    
-    -- CAD files
-    schematic JSONB DEFAULT '[]'::jsonb,
-    step_model JSONB DEFAULT '[]'::jsonb,
-    pspice JSONB DEFAULT '[]'::jsonb,
-    pad_file JSONB DEFAULT '[]'::jsonb,
+
+    -- CAD files (TEXT: comma-separated base filenames without extensions, for CIS integration)
+    -- Full filenames with extensions are stored in cad_files + component_cad_files junction tables
+    schematic TEXT DEFAULT '',
+    step_model TEXT DEFAULT '',
+    pspice TEXT DEFAULT '',
+    pad_file TEXT DEFAULT '',
     
     -- Documentation
     datasheet_url VARCHAR(500),
@@ -254,12 +255,38 @@ CREATE INDEX IF NOT EXISTS idx_inventory_component ON inventory(component_id);
 -- Footprint sources indexes
 CREATE INDEX IF NOT EXISTS idx_footprint_sources_component ON footprint_sources(component_id);
 
--- CAD file JSONB GIN indexes for containment queries
-CREATE INDEX IF NOT EXISTS idx_components_pcb_footprint ON components USING GIN (pcb_footprint);
-CREATE INDEX IF NOT EXISTS idx_components_schematic ON components USING GIN (schematic);
-CREATE INDEX IF NOT EXISTS idx_components_step_model ON components USING GIN (step_model);
-CREATE INDEX IF NOT EXISTS idx_components_pspice ON components USING GIN (pspice);
-CREATE INDEX IF NOT EXISTS idx_components_pad_file ON components USING GIN (pad_file);
+-- ============================================================================
+-- PART 4b: CAD FILES TRACKING TABLES
+-- ============================================================================
+
+-- Table: cad_files
+-- Tracks all CAD files with full filenames (including extensions)
+-- This is the internal source of truth for file management
+CREATE TABLE IF NOT EXISTS cad_files (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    file_name VARCHAR(500) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_path VARCHAR(1000),
+    file_size BIGINT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_file_type CHECK (file_type IN ('footprint', 'symbol', 'model', 'pspice', 'pad')),
+    CONSTRAINT uq_cad_file UNIQUE (file_name, file_type)
+);
+
+-- Table: component_cad_files
+-- Junction table linking components to CAD files (many-to-many)
+CREATE TABLE IF NOT EXISTS component_cad_files (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    component_id UUID NOT NULL REFERENCES components(id) ON DELETE CASCADE,
+    cad_file_id UUID NOT NULL REFERENCES cad_files(id) ON DELETE CASCADE,
+    CONSTRAINT uq_component_cad_file UNIQUE (component_id, cad_file_id)
+);
+
+-- CAD files indexes
+CREATE INDEX IF NOT EXISTS idx_cad_files_file_type ON cad_files(file_type);
+CREATE INDEX IF NOT EXISTS idx_cad_files_file_name ON cad_files(file_name);
+CREATE INDEX IF NOT EXISTS idx_component_cad_files_component ON component_cad_files(component_id);
+CREATE INDEX IF NOT EXISTS idx_component_cad_files_cad_file ON component_cad_files(cad_file_id);
 
 -- ============================================================================
 -- PART 5: TRIGGERS
@@ -428,7 +455,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT INTO schema_version (version, description) VALUES
-    ('1.7.0', 'JSONB CAD columns, flat file storage, synced with app version')
+    ('1.8.0', 'TEXT CAD columns for CIS integration, cad_files junction tables for internal file management')
 ON CONFLICT (version) DO NOTHING;
 
 -- ============================================================================

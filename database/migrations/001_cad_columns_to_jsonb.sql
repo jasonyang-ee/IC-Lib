@@ -2,7 +2,7 @@
 -- Version: 1.7.0
 -- Description: Supports multiple CAD files per type per component
 
--- Step 0: Check if migration is needed (skip if columns are already JSONB)
+-- Step 0: Check if migration is needed (skip if columns are already JSONB or TEXT)
 DO $$
 BEGIN
   -- If pcb_footprint is already jsonb, skip the entire migration
@@ -11,6 +11,15 @@ BEGIN
     WHERE table_name = 'components' AND column_name = 'pcb_footprint' AND data_type = 'jsonb'
   ) THEN
     RAISE NOTICE 'CAD columns are already JSONB - skipping migration';
+    RETURN;
+  END IF;
+
+  -- If pcb_footprint is already text, skip (newer schema uses TEXT for CIS integration)
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'components' AND column_name = 'pcb_footprint' AND data_type = 'text'
+  ) THEN
+    RAISE NOTICE 'CAD columns are already TEXT - skipping migration';
     RETURN;
   END IF;
 

@@ -4,13 +4,31 @@ import * as mouserService from '../services/mouserService.js';
 import cadFileService from '../services/cadFileService.js';
 
 /**
- * Convert a value to a JSONB array string for PostgreSQL.
+ * Convert a value to a comma-separated TEXT string for PostgreSQL.
  * Accepts arrays, strings, or nullish values.
  */
-const toJsonbArray = (val) => {
-  if (Array.isArray(val)) return JSON.stringify(val);
-  if (typeof val === 'string' && val.trim() && val !== 'N/A') return JSON.stringify([val]);
-  return '[]';
+const toTextList = (val) => {
+  if (Array.isArray(val)) return val.filter(v => v && String(v).trim() && v !== 'N/A').join(',');
+  if (typeof val === 'string' && val.trim() && val !== 'N/A') return val;
+  return '';
+};
+
+/**
+ * Parse a comma-separated TEXT field into an array for API responses.
+ */
+const parseCadField = (val) => val ? val.split(',').filter(Boolean) : [];
+
+/**
+ * Transform component row to parse TEXT CAD columns into arrays for frontend.
+ */
+const transformCadFields = (row) => {
+  if (!row) return row;
+  row.pcb_footprint = parseCadField(row.pcb_footprint);
+  row.schematic = parseCadField(row.schematic);
+  row.step_model = parseCadField(row.step_model);
+  row.pspice = parseCadField(row.pspice);
+  row.pad_file = parseCadField(row.pad_file);
+  return row;
 };
 
 export const getAllComponents = async (req, res, next) => {
@@ -98,7 +116,7 @@ export const getAllComponents = async (req, res, next) => {
     query += ' ORDER BY c.id DESC';
 
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json(result.rows.map(transformCadFields));
   } catch (error) {
     next(error);
   }
@@ -129,7 +147,7 @@ export const getComponentById = async (req, res, next) => {
       return res.status(404).json({ error: 'Component not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json(transformCadFields(result.rows[0]));
   } catch (error) {
     next(error);
   }
@@ -178,14 +196,14 @@ export const createComponent = async (req, res, next) => {
         description, value, sub_category1, sub_category2, sub_category3, sub_category4,
         pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
         datasheet_url, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17, $18)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `;
 
     const componentResult = await pool.query(insertQuery, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      toJsonbArray(pcb_footprint), package_size, toJsonbArray(schematic), toJsonbArray(step_model), toJsonbArray(pspice), toJsonbArray(pad_file),
+      toTextList(pcb_footprint), package_size, toTextList(schematic), toTextList(step_model), toTextList(pspice), toTextList(pad_file),
       datasheet_url, approval_status || 'new',
     ]);
 
@@ -222,19 +240,19 @@ export const createComponent = async (req, res, next) => {
     // Sync CAD files to cad_files table
     try {
       await cadFileService.syncComponentCadFiles(component.id, {
-        pcb_footprint: pcb_footprint ? JSON.parse(toJsonbArray(pcb_footprint)) : [],
-        schematic: schematic ? JSON.parse(toJsonbArray(schematic)) : [],
-        step_model: step_model ? JSON.parse(toJsonbArray(step_model)) : [],
-        pspice: pspice ? JSON.parse(toJsonbArray(pspice)) : [],
-        pad_file: pad_file ? JSON.parse(toJsonbArray(pad_file)) : [],
+        pcb_footprint: parseCadField(component.pcb_footprint),
+        schematic: parseCadField(component.schematic),
+        step_model: parseCadField(component.step_model),
+        pspice: parseCadField(component.pspice),
+        pad_file: parseCadField(component.pad_file),
       });
     } catch (syncError) {
       console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
     }
-    
+
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
-      SELECT 
+      SELECT
         c.*,
         cat.name as category_name,
         cat.prefix as category_prefix,
@@ -247,7 +265,7 @@ export const createComponent = async (req, res, next) => {
       WHERE c.id = $1
     `, [component.id]);
 
-    res.status(201).json(fullComponent.rows[0]);
+    res.status(201).json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
     console.error('Error in createComponent:', error);
     next(error);
@@ -404,7 +422,7 @@ export const changeComponentCategory = async (req, res, next) => {
       success: true,
       old_part_number: oldPartNumber,
       new_part_number: newPartNumber,
-      component: fullComponent.rows[0],
+      component: transformCadFields(fullComponent.rows[0]),
     });
 
   } catch (error) {
@@ -469,12 +487,12 @@ export const updateComponent = async (req, res, next) => {
         sub_category2 = $8,
         sub_category3 = $9,
         sub_category4 = $10,
-        pcb_footprint = COALESCE($11::jsonb, pcb_footprint),
+        pcb_footprint = COALESCE($11, pcb_footprint),
         package_size = COALESCE($12, package_size),
-        schematic = COALESCE($13::jsonb, schematic),
-        step_model = COALESCE($14::jsonb, step_model),
-        pspice = COALESCE($15::jsonb, pspice),
-        pad_file = COALESCE($16::jsonb, pad_file),
+        schematic = COALESCE($13, schematic),
+        step_model = COALESCE($14, step_model),
+        pspice = COALESCE($15, pspice),
+        pad_file = COALESCE($16, pad_file),
         datasheet_url = COALESCE($17, datasheet_url),
         approval_status = COALESCE($18, approval_status),
         approval_user_id = $19,
@@ -485,11 +503,11 @@ export const updateComponent = async (req, res, next) => {
     `, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
-      pcb_footprint != null ? toJsonbArray(pcb_footprint) : null, package_size,
-      schematic != null ? toJsonbArray(schematic) : null,
-      step_model != null ? toJsonbArray(step_model) : null,
-      pspice != null ? toJsonbArray(pspice) : null,
-      pad_file != null ? toJsonbArray(pad_file) : null,
+      pcb_footprint != null ? toTextList(pcb_footprint) : null, package_size,
+      schematic != null ? toTextList(schematic) : null,
+      step_model != null ? toTextList(step_model) : null,
+      pspice != null ? toTextList(pspice) : null,
+      pad_file != null ? toTextList(pad_file) : null,
       datasheet_url, approval_status, approval_user_id, approval_date,
       id,
     ]);
@@ -518,11 +536,11 @@ export const updateComponent = async (req, res, next) => {
     try {
       const updatedComponent = result.rows[0];
       await cadFileService.syncComponentCadFiles(id, {
-        pcb_footprint: Array.isArray(updatedComponent.pcb_footprint) ? updatedComponent.pcb_footprint : [],
-        schematic: Array.isArray(updatedComponent.schematic) ? updatedComponent.schematic : [],
-        step_model: Array.isArray(updatedComponent.step_model) ? updatedComponent.step_model : [],
-        pspice: Array.isArray(updatedComponent.pspice) ? updatedComponent.pspice : [],
-        pad_file: Array.isArray(updatedComponent.pad_file) ? updatedComponent.pad_file : [],
+        pcb_footprint: parseCadField(updatedComponent.pcb_footprint),
+        schematic: parseCadField(updatedComponent.schematic),
+        step_model: parseCadField(updatedComponent.step_model),
+        pspice: parseCadField(updatedComponent.pspice),
+        pad_file: parseCadField(updatedComponent.pad_file),
       });
     } catch (syncError) {
       console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
@@ -530,7 +548,7 @@ export const updateComponent = async (req, res, next) => {
 
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
-      SELECT 
+      SELECT
         c.*,
         cat.name as category_name,
         cat.prefix as category_prefix,
@@ -543,7 +561,7 @@ export const updateComponent = async (req, res, next) => {
       WHERE c.id = $1
     `, [id]);
 
-    res.json(fullComponent.rows[0]);
+    res.json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
     console.error('Error in updateComponent:', error);
     next(error);
@@ -962,17 +980,17 @@ export const getFieldSuggestions = async (req, res, next) => {
       return res.status(400).json({ error: 'categoryId is required' });
     }
 
-    // JSONB array columns need unnesting; package_size is still VARCHAR
-    const jsonbFields = ['pcb_footprint', 'schematic', 'step_model', 'pspice', 'pad_file'];
+    // TEXT CAD columns need unnesting from comma-separated values; package_size is still VARCHAR
+    const cadTextFields = ['pcb_footprint', 'schematic', 'step_model', 'pspice', 'pad_file'];
     let query;
 
-    if (jsonbFields.includes(field)) {
+    if (cadTextFields.includes(field)) {
       query = `
-        SELECT DISTINCT jsonb_array_elements_text(${field}) as value
+        SELECT DISTINCT unnest(string_to_array(${field}, ',')) as value
         FROM components
         WHERE category_id = $1
           AND ${field} IS NOT NULL
-          AND ${field} != '[]'::jsonb
+          AND ${field} != ''
         ORDER BY value
       `;
     } else {

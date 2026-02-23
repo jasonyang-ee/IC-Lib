@@ -17,24 +17,24 @@ export const getDashboardStats = async (req, res, next) => {
       'SELECT COUNT(*) as count, SUM(quantity) as total_quantity FROM inventory',
     );
 
-    // Get components without footprints (JSONB arrays - empty array or null)
+    // Get components without footprints (TEXT columns - empty string or null)
     const missingFootprintsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = '[]'::jsonb",
+      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''",
     );
 
     // Get components without schematic symbols
     const missingSchematicResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE schematic IS NULL OR schematic = '[]'::jsonb",
+      "SELECT COUNT(*) as count FROM components WHERE schematic IS NULL OR schematic = ''",
     );
 
     // Get components without 3D models
     const missing3DModelResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE step_model IS NULL OR step_model = '[]'::jsonb",
+      "SELECT COUNT(*) as count FROM components WHERE step_model IS NULL OR step_model = ''",
     );
 
     // Get components without Pspice models
     const missingPspiceResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = '[]'::jsonb",
+      "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = ''",
     );
 
     // Get low stock count

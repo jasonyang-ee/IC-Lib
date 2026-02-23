@@ -24,7 +24,7 @@ function getTypeInfo(type) {
 
 /**
  * Get all unique file names by file type with component count.
- * JSONB: unnest arrays with jsonb_array_elements_text().
+ * Uses cad_files + component_cad_files junction tables.
  */
 export const getFilesByType = async (req, res) => {
   try {
@@ -34,26 +34,12 @@ export const getFilesByType = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    const query = `
-      SELECT
-        fname as file_name,
-        COUNT(*) as component_count
-      FROM (
-        SELECT jsonb_array_elements_text(${info.column}) AS fname
-        FROM components
-        WHERE ${info.column} IS NOT NULL
-          AND ${info.column} != '[]'::jsonb
-      ) sub
-      GROUP BY fname
-      ORDER BY fname ASC
-    `;
-
-    const result = await pool.query(query);
+    const files = await cadFileService.getCadFilesByType(info.fileType);
 
     res.json({
       type,
       column: info.column,
-      files: result.rows,
+      files: files.map(f => ({ file_name: f.file_name, component_count: f.component_count })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:', error.message);
@@ -63,26 +49,18 @@ export const getFilesByType = async (req, res) => {
 
 /**
  * Get all file type statistics (distinct filename counts per category).
+ * Uses cad_files table for counts.
  */
 export const getFileTypeStats = async (req, res) => {
   try {
-    const query = `
-      SELECT
-        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pcb_footprint) AS f WHERE pcb_footprint != '[]'::jsonb) AS footprint_count,
-        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(schematic) AS f WHERE schematic != '[]'::jsonb) AS schematic_count,
-        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(step_model) AS f WHERE step_model != '[]'::jsonb) AS step_count,
-        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pspice) AS f WHERE pspice != '[]'::jsonb) AS pspice_count,
-        (SELECT COUNT(DISTINCT f) FROM components, jsonb_array_elements_text(pad_file) AS f WHERE pad_file != '[]'::jsonb) AS pad_count
-    `;
-
-    const result = await pool.query(query);
+    const stats = await cadFileService.getCadFileStats();
 
     res.json({
-      footprint: parseInt(result.rows[0].footprint_count) || 0,
-      schematic: parseInt(result.rows[0].schematic_count) || 0,
-      step: parseInt(result.rows[0].step_count) || 0,
-      pspice: parseInt(result.rows[0].pspice_count) || 0,
-      pad: parseInt(result.rows[0].pad_count) || 0,
+      footprint: stats.footprint || 0,
+      schematic: stats.symbol || 0,
+      step: stats.model || 0,
+      pspice: stats.pspice || 0,
+      pad: stats.pad || 0,
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:', error.message);
@@ -92,7 +70,7 @@ export const getFileTypeStats = async (req, res) => {
 
 /**
  * Get components using a specific file.
- * JSONB: use @> containment operator.
+ * Uses cad_files + junction table via cadFileService.
  */
 export const getComponentsByFile = async (req, res) => {
   try {
@@ -108,36 +86,13 @@ export const getComponentsByFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    const query = `
-      SELECT
-        c.id,
-        c.part_number,
-        c.manufacturer_pn,
-        c.description,
-        c.value,
-        c.package_size,
-        c.approval_status,
-        c.pcb_footprint,
-        c.schematic,
-        c.step_model,
-        c.pspice,
-        c.pad_file,
-        m.name as manufacturer_name,
-        cat.name as category_name
-      FROM components c
-      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-      LEFT JOIN component_categories cat ON c.category_id = cat.id
-      WHERE c.${info.column} @> jsonb_build_array($1::text)
-      ORDER BY c.part_number ASC
-    `;
-
-    const result = await pool.query(query, [fileName]);
+    const components = await cadFileService.getComponentsByFileName(fileName, info.fileType);
 
     res.json({
       fileName,
       type,
       column: info.column,
-      components: result.rows,
+      components,
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:', error.message);
@@ -146,13 +101,13 @@ export const getComponentsByFile = async (req, res) => {
 };
 
 /**
- * Mass update file name in JSONB arrays across components.
- * Replaces oldFileName with newFileName inside the JSONB array.
+ * Mass update file name via cad_files table and regenerate TEXT columns.
+ * Uses cadFileService.renameCadFile for the rename operation.
  */
 export const massUpdateFileName = async (req, res) => {
   try {
     const { type } = req.params;
-    const { oldFileName, newFileName, componentIds } = req.body;
+    const { oldFileName, newFileName } = req.body;
 
     if (!oldFileName || !newFileName) {
       return res.status(400).json({ error: 'oldFileName and newFileName are required' });
@@ -163,50 +118,24 @@ export const massUpdateFileName = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    let query;
-    let params;
-
-    if (componentIds && componentIds.length > 0) {
-      // Update only specific components
-      query = `
-        UPDATE components
-        SET ${info.column} = (
-          SELECT jsonb_agg(
-            CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
-          )
-          FROM jsonb_array_elements(${info.column}) AS elem
-        ),
-        updated_at = CURRENT_TIMESTAMP
-        WHERE ${info.column} @> jsonb_build_array($1::text)
-          AND id = ANY($3::uuid[])
-        RETURNING id, part_number
-      `;
-      params = [oldFileName, newFileName, componentIds];
-    } else {
-      // Update all components with the old file name
-      query = `
-        UPDATE components
-        SET ${info.column} = (
-          SELECT jsonb_agg(
-            CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
-          )
-          FROM jsonb_array_elements(${info.column}) AS elem
-        ),
-        updated_at = CURRENT_TIMESTAMP
-        WHERE ${info.column} @> jsonb_build_array($1::text)
-        RETURNING id, part_number
-      `;
-      params = [oldFileName, newFileName];
+    // Find the cad_file record
+    const cadFile = await cadFileService.findCadFile(oldFileName, info.fileType);
+    if (!cadFile) {
+      return res.status(404).json({ error: `File "${oldFileName}" not found in database` });
     }
 
-    const result = await pool.query(query, params);
+    // Get affected components before rename
+    const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Updated ${result.rowCount} components: ${info.column} "${oldFileName}" -> "${newFileName}"`);
+    // Rename via cadFileService (handles cad_files update + TEXT regen)
+    await cadFileService.renameCadFile(cadFile.id, newFileName);
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Updated ${affectedBefore.length} components: ${info.column} "${oldFileName}" -> "${newFileName}"`);
 
     res.json({
       success: true,
-      updatedCount: result.rowCount,
-      updatedComponents: result.rows,
+      updatedCount: affectedBefore.length,
+      updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error mass updating file name:', error.message);
@@ -215,7 +144,8 @@ export const massUpdateFileName = async (req, res) => {
 };
 
 /**
- * Search files by name pattern across all JSONB columns.
+ * Search files by name pattern.
+ * Uses cad_files table via cadFileService.
  */
 export const searchFiles = async (req, res) => {
   try {
@@ -225,57 +155,18 @@ export const searchFiles = async (req, res) => {
       return res.status(400).json({ error: 'query parameter is required' });
     }
 
-    const searchPattern = `%${searchQuery}%`;
+    const info = type ? getTypeInfo(type) : null;
+    const fileType = info ? info.fileType : null;
 
-    let typeFilter = '';
-    if (type) {
-      const info = getTypeInfo(type);
-      if (info) {
-        typeFilter = ` AND source_column = '${info.column}'`;
-      }
-    }
-
-    const query = `
-      WITH all_files AS (
-        SELECT DISTINCT f AS file_name, 'pcb_footprint' AS source_column, 'footprint' AS file_type
-        FROM components, jsonb_array_elements_text(pcb_footprint) AS f
-        WHERE pcb_footprint IS NOT NULL AND pcb_footprint != '[]'::jsonb
-        UNION ALL
-        SELECT DISTINCT f AS file_name, 'schematic' AS source_column, 'schematic' AS file_type
-        FROM components, jsonb_array_elements_text(schematic) AS f
-        WHERE schematic IS NOT NULL AND schematic != '[]'::jsonb
-        UNION ALL
-        SELECT DISTINCT f AS file_name, 'step_model' AS source_column, 'step' AS file_type
-        FROM components, jsonb_array_elements_text(step_model) AS f
-        WHERE step_model IS NOT NULL AND step_model != '[]'::jsonb
-        UNION ALL
-        SELECT DISTINCT f AS file_name, 'pspice' AS source_column, 'pspice' AS file_type
-        FROM components, jsonb_array_elements_text(pspice) AS f
-        WHERE pspice IS NOT NULL AND pspice != '[]'::jsonb
-        UNION ALL
-        SELECT DISTINCT f AS file_name, 'pad_file' AS source_column, 'pad' AS file_type
-        FROM components, jsonb_array_elements_text(pad_file) AS f
-        WHERE pad_file IS NOT NULL AND pad_file != '[]'::jsonb
-      )
-      SELECT DISTINCT file_name, source_column, file_type,
-        (SELECT COUNT(*) FROM components c
-         WHERE (source_column = 'pcb_footprint' AND c.pcb_footprint @> jsonb_build_array(file_name))
-            OR (source_column = 'schematic' AND c.schematic @> jsonb_build_array(file_name))
-            OR (source_column = 'step_model' AND c.step_model @> jsonb_build_array(file_name))
-            OR (source_column = 'pspice' AND c.pspice @> jsonb_build_array(file_name))
-            OR (source_column = 'pad_file' AND c.pad_file @> jsonb_build_array(file_name))
-        ) as component_count
-      FROM all_files
-      WHERE file_name ILIKE $1 ${typeFilter}
-      ORDER BY file_type, file_name
-      LIMIT 100
-    `;
-
-    const result = await pool.query(query, [searchPattern]);
+    const results = await cadFileService.searchCadFiles(searchQuery, fileType);
 
     res.json({
       searchQuery,
-      results: result.rows,
+      results: results.map(f => ({
+        file_name: f.file_name,
+        file_type: f.file_type,
+        component_count: f.component_count,
+      })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error searching files:', error.message);
@@ -284,7 +175,8 @@ export const searchFiles = async (req, res) => {
 };
 
 /**
- * Rename a physical file on disk and update all component JSONB references.
+ * Rename a physical file on disk and update cad_files + TEXT columns.
+ * Uses cadFileService.renameCadFile which handles junction + TEXT regen.
  */
 export const renamePhysicalFile = async (req, res) => {
   try {
@@ -300,44 +192,38 @@ export const renamePhysicalFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    const oldPath = path.join(LIBRARY_BASE, info.subdir, oldFileName);
-    const newPath = path.join(LIBRARY_BASE, info.subdir, newFileName);
-
-    // Check source file exists
-    if (!fs.existsSync(oldPath)) {
-      return res.status(404).json({ error: `File "${oldFileName}" not found on disk` });
+    // Find the cad_file record
+    const cadFile = await cadFileService.findCadFile(oldFileName, info.fileType);
+    if (!cadFile) {
+      // Check if the physical file exists even without a DB record
+      const oldPath = path.join(LIBRARY_BASE, info.subdir, oldFileName);
+      if (!fs.existsSync(oldPath)) {
+        return res.status(404).json({ error: `File "${oldFileName}" not found` });
+      }
+      // Physical-only rename (no DB record yet)
+      const newPath = path.join(LIBRARY_BASE, info.subdir, newFileName);
+      if (fs.existsSync(newPath)) {
+        return res.status(409).json({ error: `File "${newFileName}" already exists in the ${type} directory` });
+      }
+      fs.renameSync(oldPath, newPath);
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename (no DB record): "${oldFileName}" -> "${newFileName}"`);
+      return res.json({ success: true, oldFileName, newFileName, updatedCount: 0, updatedComponents: [] });
     }
 
-    // Collision check
-    if (fs.existsSync(newPath)) {
-      return res.status(409).json({ error: `File "${newFileName}" already exists in the ${type} directory` });
-    }
+    // Get affected components before rename
+    const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
 
-    // Rename physical file
-    fs.renameSync(oldPath, newPath);
+    // Rename via cadFileService (handles physical rename + cad_files update + TEXT regen)
+    await cadFileService.renameCadFile(cadFile.id, newFileName);
 
-    // Update all component JSONB arrays
-    const dbResult = await pool.query(`
-      UPDATE components
-      SET ${info.column} = (
-        SELECT jsonb_agg(
-          CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
-        )
-        FROM jsonb_array_elements(${info.column}) AS elem
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE ${info.column} @> jsonb_build_array($1::text)
-      RETURNING id, part_number
-    `, [oldFileName, newFileName]);
-
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${oldFileName}" -> "${newFileName}", updated ${dbResult.rowCount} components`);
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${oldFileName}" -> "${newFileName}", updated ${affectedBefore.length} components`);
 
     res.json({
       success: true,
       oldFileName,
       newFileName,
-      updatedCount: dbResult.rowCount,
-      updatedComponents: dbResult.rows,
+      updatedCount: affectedBefore.length,
+      updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming physical file:', error.message);
@@ -346,7 +232,8 @@ export const renamePhysicalFile = async (req, res) => {
 };
 
 /**
- * Delete a physical file from disk and remove from all component JSONB arrays.
+ * Delete a physical file from disk and remove from cad_files + TEXT columns.
+ * Uses cadFileService.deleteCadFile which handles junction + TEXT regen.
  */
 export const deletePhysicalFile = async (req, res) => {
   try {
@@ -362,33 +249,28 @@ export const deletePhysicalFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    const filePath = path.join(LIBRARY_BASE, info.subdir, fileName);
-
-    // Delete physical file if it exists
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Find the cad_file record
+    const cadFile = await cadFileService.findCadFile(fileName, info.fileType);
+    if (!cadFile) {
+      // No DB record — just delete the physical file if it exists
+      const filePath = path.join(LIBRARY_BASE, info.subdir, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete (no DB record): "${fileName}"`);
+      return res.json({ success: true, fileName, updatedCount: 0, updatedComponents: [] });
     }
 
-    // Remove from all component JSONB arrays
-    const dbResult = await pool.query(`
-      UPDATE components
-      SET ${info.column} = (
-        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-        FROM jsonb_array_elements(${info.column}) AS elem
-        WHERE elem #>> '{}' != $1
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE ${info.column} @> jsonb_build_array($1::text)
-      RETURNING id, part_number
-    `, [fileName]);
+    // Delete via cadFileService (handles physical file + DB + TEXT regen)
+    const { linkedComponents } = await cadFileService.deleteCadFile(cadFile.id);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete: "${fileName}", updated ${dbResult.rowCount} components`);
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete: "${fileName}", updated ${linkedComponents.length} components`);
 
     res.json({
       success: true,
       fileName,
-      updatedCount: dbResult.rowCount,
-      updatedComponents: dbResult.rows,
+      updatedCount: linkedComponents.length,
+      updatedComponents: linkedComponents.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
@@ -575,7 +457,7 @@ export const getAvailableFiles = async (req, res) => {
             });
           } catch { /* skip unreadable files */ }
         }
-      } catch (e) { /* ignore directory read errors */ }
+      } catch { /* ignore directory read errors */ }
     }
 
     const files = [...dbFiles, ...diskFiles];

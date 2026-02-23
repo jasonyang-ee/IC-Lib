@@ -17,7 +17,7 @@ const TYPE_SUBDIR = {
   pad: 'pad',
 };
 
-// Map route type param to DB file_type and legacy JSONB column
+// Map route type param to DB file_type and TEXT column
 const TYPE_MAP = {
   footprint: { fileType: 'footprint', column: 'pcb_footprint', subdir: 'footprint' },
   schematic: { fileType: 'symbol', column: 'schematic', subdir: 'symbol' },
@@ -35,7 +35,7 @@ const _CATEGORY_TO_FILE_TYPE = {
   pad: 'pad',
 };
 
-// Map cad_files file_type to legacy JSONB column name
+// Map cad_files file_type to TEXT column name in components table
 const FILE_TYPE_TO_COLUMN = {
   footprint: 'pcb_footprint',
   symbol: 'schematic',
@@ -49,6 +49,38 @@ const FILE_TYPE_TO_COLUMN = {
  */
 export function getTypeInfo(routeType) {
   return TYPE_MAP[routeType] || null;
+}
+
+/**
+ * Regenerate the TEXT column for a specific file type on a component.
+ * Queries the junction table, strips file extensions, deduplicates base names,
+ * and writes the comma-separated result to the components TEXT column.
+ */
+export async function regenerateCadText(componentId, fileType) {
+  const column = FILE_TYPE_TO_COLUMN[fileType];
+  if (!column) return;
+
+  const result = await pool.query(`
+    SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',') as text_value
+    FROM component_cad_files ccf
+    JOIN cad_files cf ON ccf.cad_file_id = cf.id
+    WHERE ccf.component_id = $1 AND cf.file_type = $2
+  `, [componentId, fileType]);
+
+  const textValue = result.rows[0]?.text_value || '';
+  await pool.query(
+    `UPDATE components SET ${column} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+    [textValue, componentId],
+  );
+}
+
+/**
+ * Regenerate all TEXT columns for a component.
+ */
+export async function regenerateAllCadText(componentId) {
+  for (const fileType of Object.keys(FILE_TYPE_TO_COLUMN)) {
+    await regenerateCadText(componentId, fileType);
+  }
 }
 
 /**
@@ -69,9 +101,9 @@ export async function registerCadFile(fileName, fileType, fileSize = null) {
 
 /**
  * Link a CAD file to a component.
- * Also updates the legacy JSONB column for backward compatibility.
+ * Inserts junction record and regenerates the TEXT column.
  */
-export async function linkCadFileToComponent(cadFileId, componentId, fileType, fileName) {
+export async function linkCadFileToComponent(cadFileId, componentId, fileType, _fileName) {
   // Insert junction record
   await pool.query(`
     INSERT INTO component_cad_files (component_id, cad_file_id)
@@ -79,22 +111,8 @@ export async function linkCadFileToComponent(cadFileId, componentId, fileType, f
     ON CONFLICT (component_id, cad_file_id) DO NOTHING
   `, [componentId, cadFileId]);
 
-  // Update legacy JSONB column
-  const column = FILE_TYPE_TO_COLUMN[fileType];
-  if (column) {
-    await pool.query(`
-      UPDATE components
-      SET ${column} = (
-        CASE
-          WHEN ${column} IS NULL THEN jsonb_build_array($1::text)
-          WHEN NOT (${column} @> jsonb_build_array($1::text)) THEN ${column} || jsonb_build_array($1::text)
-          ELSE ${column}
-        END
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-    `, [fileName, componentId]);
-  }
+  // Regenerate TEXT column from junction table
+  await regenerateCadText(componentId, fileType);
 }
 
 /**
@@ -116,29 +134,17 @@ export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, file
 
 /**
  * Unlink a CAD file from a component.
- * Removes junction record and updates legacy JSONB column.
+ * Removes junction record and regenerates TEXT column.
  */
-export async function unlinkCadFileFromComponent(cadFileId, componentId, fileType, fileName) {
+export async function unlinkCadFileFromComponent(cadFileId, componentId, fileType, _fileName) {
   // Remove junction record
   await pool.query(`
     DELETE FROM component_cad_files
     WHERE component_id = $1 AND cad_file_id = $2
   `, [componentId, cadFileId]);
 
-  // Update legacy JSONB column
-  const column = FILE_TYPE_TO_COLUMN[fileType];
-  if (column) {
-    await pool.query(`
-      UPDATE components
-      SET ${column} = (
-        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-        FROM jsonb_array_elements(${column}) AS elem
-        WHERE elem #>> '{}' != $1
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-    `, [fileName, componentId]);
-  }
+  // Regenerate TEXT column from junction table
+  await regenerateCadText(componentId, fileType);
 }
 
 /**
@@ -214,7 +220,7 @@ export async function getComponentsByCadFile(cadFileId) {
 
 /**
  * Get all components that reference a file name of a given type.
- * Falls back to JSONB search if cad_files table has no match.
+ * Uses cad_files table via junction table, falls back to TEXT column search.
  */
 export async function getComponentsByFileName(fileName, fileType) {
   // First try via cad_files table
@@ -226,9 +232,12 @@ export async function getComponentsByFileName(fileName, fileType) {
     return getComponentsByCadFile(cfResult.rows[0].id);
   }
 
-  // Fallback to legacy JSONB search
+  // Fallback: search TEXT column for base filename match
   const column = FILE_TYPE_TO_COLUMN[fileType];
   if (!column) return [];
+
+  // Strip extension from fileName for TEXT column search
+  const baseName = fileName.replace(/\.[^.]+$/, '');
 
   const result = await pool.query(`
     SELECT
@@ -244,9 +253,9 @@ export async function getComponentsByFileName(fileName, fileType) {
     FROM components c
     LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
     LEFT JOIN component_categories cat ON c.category_id = cat.id
-    WHERE c.${column} @> jsonb_build_array($1::text)
+    WHERE $1 = ANY(string_to_array(c.${column}, ','))
     ORDER BY c.part_number ASC
-  `, [fileName]);
+  `, [baseName]);
   return result.rows;
 }
 
@@ -272,7 +281,7 @@ export async function getCadFilesForComponent(componentId) {
 
 /**
  * Rename a CAD file (physical + database).
- * Updates cad_files table, legacy JSONB columns, and renames on disk.
+ * Updates cad_files table and regenerates TEXT columns for all affected components.
  */
 export async function renameCadFile(cadFileId, newFileName) {
   // Get current file info
@@ -303,6 +312,9 @@ export async function renameCadFile(cadFileId, newFileName) {
     fs.renameSync(oldPath, newPath);
   }
 
+  // Get affected components before update
+  const affectedComponents = await getComponentsByCadFile(cadFileId);
+
   // Update cad_files table
   await pool.query(`
     UPDATE cad_files
@@ -310,20 +322,9 @@ export async function renameCadFile(cadFileId, newFileName) {
     WHERE id = $3
   `, [newFileName, `${subdir}/${newFileName}`, cadFileId]);
 
-  // Update all legacy JSONB columns
-  const column = FILE_TYPE_TO_COLUMN[cadFile.file_type];
-  if (column) {
-    await pool.query(`
-      UPDATE components
-      SET ${column} = (
-        SELECT jsonb_agg(
-          CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
-        )
-        FROM jsonb_array_elements(${column}) AS elem
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE ${column} @> jsonb_build_array($1::text)
-    `, [oldFileName, newFileName]);
+  // Regenerate TEXT columns for all affected components
+  for (const comp of affectedComponents) {
+    await regenerateCadText(comp.id, cadFile.file_type);
   }
 
   return { oldFileName, newFileName, fileType: cadFile.file_type };
@@ -331,7 +332,7 @@ export async function renameCadFile(cadFileId, newFileName) {
 
 /**
  * Delete a CAD file from the system.
- * Removes physical file, cad_files record, junction records, and legacy JSONB refs.
+ * Removes physical file, cad_files record, and regenerates TEXT columns.
  */
 export async function deleteCadFile(cadFileId) {
   // Get current file info
@@ -354,27 +355,17 @@ export async function deleteCadFile(cadFileId) {
     }
   }
 
-  // Get linked components before deletion (for response)
+  // Get linked components before deletion (for response and TEXT regen)
   const linkedComponents = await getComponentsByCadFile(cadFileId);
-
-  // Remove from legacy JSONB columns
-  const column = FILE_TYPE_TO_COLUMN[cadFile.file_type];
-  if (column) {
-    await pool.query(`
-      UPDATE components
-      SET ${column} = (
-        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-        FROM jsonb_array_elements(${column}) AS elem
-        WHERE elem #>> '{}' != $1
-      ),
-      updated_at = CURRENT_TIMESTAMP
-      WHERE ${column} @> jsonb_build_array($1::text)
-    `, [cadFile.file_name]);
-  }
 
   // Junction records are deleted via ON DELETE CASCADE on cad_files FK
   // Delete cad_files record
   await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFileId]);
+
+  // Regenerate TEXT columns for all affected components
+  for (const comp of linkedComponents) {
+    await regenerateCadText(comp.id, cadFile.file_type);
+  }
 
   return { fileName: cadFile.file_name, fileType: cadFile.file_type, linkedComponents };
 }
@@ -476,8 +467,9 @@ export async function findCadFile(fileName, fileType) {
 }
 
 /**
- * Sync CAD files from a component's JSONB arrays to the cad_files table.
- * Used after component create/update to ensure the junction table is in sync.
+ * Sync CAD files from a component's data to the junction table.
+ * Accepts arrays of base filenames (no extensions).
+ * After syncing junction records, regenerates all TEXT columns.
  */
 export async function syncComponentCadFiles(componentId, cadData) {
   // cadData: { pcb_footprint: [], schematic: [], step_model: [], pspice: [], pad_file: [] }
@@ -529,6 +521,9 @@ export async function syncComponentCadFiles(componentId, cadData) {
       await pool.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
     }
   }
+
+  // Regenerate all TEXT columns from junction table
+  await regenerateAllCadText(componentId);
 }
 
 /**
@@ -580,6 +575,8 @@ export async function getComponentsSharingFiles(componentId) {
 
 export default {
   getTypeInfo,
+  regenerateCadText,
+  regenerateAllCadText,
   registerCadFile,
   linkCadFileToComponent,
   linkCadFileToComponentByMPN,

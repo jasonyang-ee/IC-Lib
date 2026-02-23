@@ -158,8 +158,9 @@ function moveToCategory(sourcePath, category) {
 }
 
 /**
- * Auto-link an uploaded filename to the component's JSONB array in the database.
- * Also registers the file in cad_files table and creates junction record.
+ * Auto-link an uploaded filename to the component via cad_files junction table.
+ * Registers the file in cad_files table and creates junction record,
+ * which regenerates the TEXT column automatically.
  */
 async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
   const dbColumn = CATEGORY_TO_COLUMN[category];
@@ -170,23 +171,9 @@ async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
   const fileType = fileTypeMap[category];
 
   try {
-    // Register in cad_files table and link via junction table
     if (fileType) {
       const cadFile = await cadFileService.registerCadFile(filename, fileType);
       await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, fileType, filename);
-    } else {
-      // Fallback: just update legacy JSONB column
-      await pool.query(`
-        UPDATE components
-        SET ${dbColumn} = (
-          CASE
-            WHEN ${dbColumn} IS NULL THEN jsonb_build_array($1::text)
-            WHEN NOT (${dbColumn} @> jsonb_build_array($1::text)) THEN ${dbColumn} || jsonb_build_array($1::text)
-            ELSE ${dbColumn}
-          END
-        )
-        WHERE manufacturer_pn = $2
-      `, [filename, mfgPartNumber]);
     }
   } catch (error) {
     console.error(`[FileUpload] Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
@@ -513,31 +500,32 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
     for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
       const categoryFiles = [];
 
-      // Check flat directory for files matching this component's JSONB array
+      // Check flat directory for files linked via cad_files junction table
       const flatDir = path.join(LIBRARY_BASE, config.subdir);
       const dbColumn = CATEGORY_TO_COLUMN[category];
 
       if (dbColumn) {
         try {
+          // Query cad_files via junction table for this component
           const result = await pool.query(`
-            SELECT ${dbColumn} as files FROM components WHERE manufacturer_pn = $1 LIMIT 1
-          `, [mfgPartNumber]);
+            SELECT cf.file_name
+            FROM component_cad_files ccf
+            JOIN cad_files cf ON ccf.cad_file_id = cf.id
+            JOIN components c ON ccf.component_id = c.id
+            WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
+          `, [mfgPartNumber, category]);
 
-          if (result.rows.length > 0 && result.rows[0].files) {
-            const dbFiles = result.rows[0].files;
-            if (Array.isArray(dbFiles)) {
-              for (const fname of dbFiles) {
-                const flatPath = path.join(flatDir, fname);
-                if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
-                  seenFiles.add(`${category}:${fname}`);
-                  categoryFiles.push({
-                    name: fname,
-                    path: path.join(config.subdir, fname),
-                    size: fs.statSync(flatPath).size,
-                    storage: 'flat',
-                  });
-                }
-              }
+          for (const row of result.rows) {
+            const fname = row.file_name;
+            const flatPath = path.join(flatDir, fname);
+            if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
+              seenFiles.add(`${category}:${fname}`);
+              categoryFiles.push({
+                name: fname,
+                path: path.join(config.subdir, fname),
+                size: fs.statSync(flatPath).size,
+                storage: 'flat',
+              });
             }
           }
         } catch (dbError) {
@@ -648,22 +636,27 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
       } catch { /* ignore cleanup errors */ }
     }
 
-    // Update component JSONB arrays: replace old filename with new
-    const dbColumn = CATEGORY_TO_COLUMN[category];
-    if (dbColumn) {
+    // Update cad_files table and regenerate TEXT columns
+    // (Physical rename already done above; just update DB record)
+    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    const fileType = fileTypeMap[category];
+    if (fileType) {
       try {
-        await pool.query(`
-          UPDATE components
-          SET ${dbColumn} = (
-            SELECT jsonb_agg(
-              CASE WHEN elem #>> '{}' = $1 THEN to_jsonb($2::text) ELSE elem END
-            )
-            FROM jsonb_array_elements(${dbColumn}) AS elem
-          )
-          WHERE ${dbColumn} @> jsonb_build_array($1::text)
-        `, [oldFilename, sanitizedNewFilename]);
+        const cadFile = await cadFileService.findCadFile(oldFilename, fileType);
+        if (cadFile) {
+          const subdir = config.subdir;
+          await pool.query(`
+            UPDATE cad_files SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
+          `, [sanitizedNewFilename, `${subdir}/${sanitizedNewFilename}`, cadFile.id]);
+
+          // Regenerate TEXT columns for affected components
+          const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
+          for (const comp of affected) {
+            await cadFileService.regenerateCadText(comp.id, fileType);
+          }
+        }
       } catch (dbError) {
-        console.error(`[FileUpload] Failed to update JSONB refs: ${dbError.message}`);
+        console.error(`[FileUpload] Failed to update cad_files refs: ${dbError.message}`);
       }
     }
 
@@ -712,22 +705,27 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
       } catch { /* ignore cleanup errors */ }
     }
 
-    // Remove filename from component's JSONB array
-    const dbColumn = CATEGORY_TO_COLUMN[category];
-    if (dbColumn) {
+    // Remove from cad_files table and regenerate TEXT columns
+    // (Physical file already deleted above)
+    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    const fileType = fileTypeMap[category];
+    if (fileType) {
       try {
-        await pool.query(`
-          UPDATE components
-          SET ${dbColumn} = (
-            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-            FROM jsonb_array_elements(${dbColumn}) AS elem
-            WHERE elem #>> '{}' != $1
-          )
-          WHERE ${dbColumn} @> jsonb_build_array($1::text)
-            AND manufacturer_pn = $2
-        `, [filename, mfgPartNumber]);
+        const cadFile = await cadFileService.findCadFile(filename, fileType);
+        if (cadFile) {
+          // Get affected components before deleting the cad_file record
+          const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
+
+          // Delete cad_files record (cascades junction records)
+          await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFile.id]);
+
+          // Regenerate TEXT columns for affected components
+          for (const comp of affected) {
+            await cadFileService.regenerateCadText(comp.id, fileType);
+          }
+        }
       } catch (dbError) {
-        console.error(`[FileUpload] Failed to remove JSONB ref: ${dbError.message}`);
+        console.error(`[FileUpload] Failed to remove cad_files ref: ${dbError.message}`);
       }
     }
 
@@ -778,26 +776,29 @@ router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
     const seenFiles = new Set();
 
     for (const [category, config] of Object.entries(FILE_CATEGORIES)) {
-      // Check DB for JSONB-linked files in flat directory
+      // Check DB for files linked via cad_files junction table
       const dbColumn = CATEGORY_TO_COLUMN[category];
       if (dbColumn) {
         try {
           const result = await pool.query(`
-            SELECT ${dbColumn} as files FROM components WHERE manufacturer_pn = $1 LIMIT 1
-          `, [mfgPartNumber]);
+            SELECT cf.file_name
+            FROM component_cad_files ccf
+            JOIN cad_files cf ON ccf.cad_file_id = cf.id
+            JOIN components c ON ccf.component_id = c.id
+            WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
+          `, [mfgPartNumber, category]);
 
-          if (result.rows.length > 0 && Array.isArray(result.rows[0].files)) {
-            for (const fname of result.rows[0].files) {
-              const flatPath = path.join(LIBRARY_BASE, config.subdir, fname);
-              if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
-                seenFiles.add(`${category}:${fname}`);
-                allFiles.push({
-                  category,
-                  subdir: config.subdir,
-                  filename: fname,
-                  fullPath: flatPath,
-                });
-              }
+          for (const row of result.rows) {
+            const fname = row.file_name;
+            const flatPath = path.join(LIBRARY_BASE, config.subdir, fname);
+            if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
+              seenFiles.add(`${category}:${fname}`);
+              allFiles.push({
+                category,
+                subdir: config.subdir,
+                filename: fname,
+                fullPath: flatPath,
+              });
             }
           }
         } catch { /* continue with directory scan */ }
