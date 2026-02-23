@@ -3583,10 +3583,15 @@ const Library = () => {
                           const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
                           const field = fieldMap[category];
                           if (field) {
-                            const current = Array.isArray(editData[field]) ? editData[field] : [];
-                            if (!current.includes(filename)) {
-                              handleFieldChange(field, [...current, filename]);
-                            }
+                            // Use functional updater to avoid stale closure when multiple
+                            // files are extracted from a ZIP and onFileUploaded is called in a loop
+                            setEditData(prev => {
+                              const current = Array.isArray(prev[field]) ? prev[field] : [];
+                              if (!current.includes(filename)) {
+                                return { ...prev, [field]: [...current, filename] };
+                              }
+                              return prev;
+                            });
                           }
                         }}
                       />

@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Download } from 'lucide-react';
+import { Download, AlertCircle } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
 
 const CATEGORY_LABELS = {
@@ -45,6 +45,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
   const [uploading, setUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, category: '', filename: '' });
   const [renaming, setRenaming] = useState({ category: '', filename: '', newName: '' });
+  const [mpnRenameConfirm, setMpnRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -129,9 +130,11 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       showSuccess(`Renamed to ${response.data.newFilename}`);
       setRenaming({ category: '', filename: '', newName: '' });
+      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
     },
     onError: (error) => {
       showError('Rename failed: ' + (error.response?.data?.error || error.message));
+      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
     },
   });
 
@@ -180,7 +183,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
     });
   };
 
-  const applyMpnAsFilename = (category, filename) => {
+  const requestMpnRename = (category, filename) => {
     const { suffix, ext } = extractDensitySuffix(filename);
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
@@ -192,11 +195,16 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
       return;
     }
 
-    renameMutation.mutate({
-      category,
-      oldFilename: filename,
-      newFilename,
-    });
+    setMpnRenameConfirm({ show: true, category, oldFilename: filename, newFilename });
+  };
+
+  const confirmMpnRename = () => {
+    const { category, oldFilename, newFilename } = mpnRenameConfirm;
+    renameMutation.mutate({ category, oldFilename, newFilename });
+  };
+
+  const dismissMpnRenameConfirm = () => {
+    setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
   };
 
   const cancelRename = () => {
@@ -275,12 +283,12 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
                     </div>
                   ) : (
                     /* Normal file row */
-                    <div className="flex items-center justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
+                    <div className="flex items-start justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
                       <a
                         href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
+                        className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
                         title={file.name}
                       >
                         {file.name}
@@ -294,7 +302,7 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
                             <>
                               <button
                                 type="button"
-                                onClick={() => applyMpnAsFilename(category, file.name)}
+                                onClick={() => requestMpnRename(category, file.name)}
                                 className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1"
                                 title="Apply MPN as filename"
                               >
@@ -378,6 +386,49 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
         confirmStyle="danger"
         isLoading={deleteMutation.isPending}
       />
+
+      {/* MPN Rename confirmation modal */}
+      {mpnRenameConfirm.show && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={dismissMpnRenameConfirm}>
+          <div
+            className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
+              <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Rename to MPN
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
+              This will physically rename the file on disk.
+            </p>
+            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 font-mono text-sm">
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current</div>
+              <div className="text-gray-700 dark:text-gray-300 break-all">{mpnRenameConfirm.oldFilename}</div>
+              <div className="text-gray-400 text-center my-2">&darr;</div>
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New</div>
+              <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{mpnRenameConfirm.newFilename}</div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={dismissMpnRenameConfirm}
+                disabled={renameMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmMpnRename}
+                disabled={renameMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {renameMutation.isPending ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

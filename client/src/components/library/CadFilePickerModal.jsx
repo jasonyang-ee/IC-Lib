@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, X, FileText, Link } from 'lucide-react';
-import api from '../../utils/api';
+import { api } from '../../utils/api';
 
 const FILE_TYPE_LABELS = {
   footprint: 'Footprint',
@@ -38,15 +38,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
   const { data: filesData, isLoading } = useQuery({
     queryKey: ['available-cad-files', routeType, searchQuery],
     queryFn: async () => {
-      if (searchQuery.length > 0) {
-        const res = await api.getAvailableFiles(routeType, searchQuery);
-        return res.data.files;
-      }
-      if (routeType) {
-        const res = await api.getFilesByType(routeType);
-        return res.data.files;
-      }
-      const res = await api.getAvailableFiles();
+      const res = await api.getAvailableFiles(routeType, searchQuery || undefined);
       return res.data.files;
     },
     enabled: isOpen,
@@ -109,11 +101,11 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
                   onSelect(file);
                   onClose();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-[#333333] text-left transition-colors"
+                className="w-full flex items-start gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-[#333333] text-left transition-colors"
               >
-                <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-900 dark:text-gray-100 truncate">{file.file_name}</div>
+                  <div className="text-sm text-gray-900 dark:text-gray-100 break-all">{file.file_name}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                     {!fileType && file.file_type && (
                       <span>{FILE_TYPE_LABELS[file.file_type] || file.file_type}</span>

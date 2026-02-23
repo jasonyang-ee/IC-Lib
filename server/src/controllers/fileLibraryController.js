@@ -514,6 +514,8 @@ export const getSharingComponents = async (req, res) => {
 
 /**
  * Get all available CAD files for linking (file picker).
+ * Queries the cad_files table first, then augments with filesystem scan
+ * to discover files that exist on disk but aren't registered in DB.
  */
 export const getAvailableFiles = async (req, res) => {
   try {
@@ -521,19 +523,63 @@ export const getAvailableFiles = async (req, res) => {
     const info = type ? getTypeInfo(type) : null;
     const fileType = info ? info.fileType : null;
 
-    let files;
-    if (search) {
-      files = await cadFileService.searchCadFiles(search, fileType);
-    } else if (fileType) {
-      files = await cadFileService.getCadFilesByType(fileType);
-    } else {
-      const allFiles = [];
-      for (const ft of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
-        const typeFiles = await cadFileService.getCadFilesByType(ft);
-        allFiles.push(...typeFiles);
+    let dbFiles = [];
+    try {
+      if (search) {
+        dbFiles = await cadFileService.searchCadFiles(search, fileType);
+      } else if (fileType) {
+        dbFiles = await cadFileService.getCadFilesByType(fileType);
+      } else {
+        for (const ft of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
+          const typeFiles = await cadFileService.getCadFilesByType(ft);
+          dbFiles.push(...typeFiles);
+        }
       }
-      files = allFiles;
+    } catch (dbError) {
+      // cad_files table may not exist yet - continue with disk scan
+      console.error('[FileLibrary] DB query failed, falling back to disk scan:', dbError.message);
     }
+
+    // Augment with filesystem scan for files not in DB
+    const dbFileNames = new Set(dbFiles.map(f => `${f.file_type}:${f.file_name}`));
+    const diskFiles = [];
+
+    const typesToScan = fileType
+      ? [{ ft: fileType, subdir: info.subdir }]
+      : Object.entries(TYPE_MAP).map(([, v]) => ({ ft: v.fileType, subdir: v.subdir }));
+
+    for (const { ft, subdir } of typesToScan) {
+      const dirPath = path.join(LIBRARY_BASE, subdir);
+      if (!fs.existsSync(dirPath)) continue;
+
+      try {
+        const entries = fs.readdirSync(dirPath).filter(f => {
+          if (f.startsWith('.')) return false;
+          const fullPath = path.join(dirPath, f);
+          try { return !fs.statSync(fullPath).isDirectory(); } catch { return false; }
+        });
+
+        for (const fileName of entries) {
+          const key = `${ft}:${fileName}`;
+          if (dbFileNames.has(key)) continue;
+          if (search && !fileName.toLowerCase().includes(search.toLowerCase())) continue;
+
+          try {
+            const stats = fs.statSync(path.join(dirPath, fileName));
+            diskFiles.push({
+              id: null,
+              file_name: fileName,
+              file_type: ft,
+              file_size: stats.size,
+              component_count: '0',
+            });
+          } catch { /* skip unreadable files */ }
+        }
+      } catch (e) { /* ignore directory read errors */ }
+    }
+
+    const files = [...dbFiles, ...diskFiles];
+    files.sort((a, b) => a.file_name.localeCompare(b.file_name));
 
     res.json({ files });
   } catch (error) {
