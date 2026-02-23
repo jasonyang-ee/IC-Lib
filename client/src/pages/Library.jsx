@@ -64,18 +64,11 @@ const Library = () => {
   const subCat3Ref = useRef(null);
   const subCat4Ref = useRef(null);
   
-  // Package, Footprint, Symbol suggestions and dropdown states
+  // Package suggestions and dropdown states
   const [packageSuggestions, setPackageSuggestions] = useState([]);
-  const [footprintSuggestions, setFootprintSuggestions] = useState([]);
-  const [symbolSuggestions, setSymbolSuggestions] = useState([]);
   const [packageOpen, setPackageOpen] = useState(false);
   const packageRef = useRef(null);
 
-  // STEP, PSPICE, and PAD suggestions (dropdown state managed by CadFieldEditor)
-  const [stepModelSuggestions, setStepModelSuggestions] = useState([]);
-  const [pspiceSuggestions, setPspiceSuggestions] = useState([]);
-  const [padFileSuggestions, setPadFileSuggestions] = useState([]);
-  
   // Manufacturer state
   const [manufacturerInput, setManufacturerInput] = useState('');
   const [manufacturerOpen, setManufacturerOpen] = useState(false);
@@ -757,21 +750,9 @@ const Library = () => {
           setSubCat4Suggestions(sub4.data || []);
         }
         
-        // Load package, footprint, symbol, step, and pspice suggestions
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
-          api.getFieldSuggestions(componentDetails.category_id, 'package_size'),
-          api.getFieldSuggestions(componentDetails.category_id, 'pcb_footprint'),
-          api.getFieldSuggestions(componentDetails.category_id, 'schematic'),
-          api.getFieldSuggestions(componentDetails.category_id, 'step_model'),
-          api.getFieldSuggestions(componentDetails.category_id, 'pspice'),
-          api.getFieldSuggestions(componentDetails.category_id, 'pad_file')
-        ]);
+        // Load package suggestions
+        const packageResp = await api.getFieldSuggestions(componentDetails.category_id, 'package_size');
         setPackageSuggestions(packageResp.data || []);
-        setFootprintSuggestions(footprintResp.data || []);
-        setSymbolSuggestions(symbolResp.data || []);
-        setStepModelSuggestions(stepResp.data || []);
-        setPspiceSuggestions(pspiceResp.data || []);
-        setPadFileSuggestions(padResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -1673,21 +1654,9 @@ const Library = () => {
         handleFieldChange('sub_category2', '');
         handleFieldChange('sub_category3', '');
         
-        // Load package, footprint, symbol, step, and pspice suggestions
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
-          api.getFieldSuggestions(categoryId, 'package_size'),
-          api.getFieldSuggestions(categoryId, 'pcb_footprint'),
-          api.getFieldSuggestions(categoryId, 'schematic'),
-          api.getFieldSuggestions(categoryId, 'step_model'),
-          api.getFieldSuggestions(categoryId, 'pspice'),
-          api.getFieldSuggestions(categoryId, 'pad_file')
-        ]);
+        // Load package suggestions
+        const packageResp = await api.getFieldSuggestions(categoryId, 'package_size');
         setPackageSuggestions(packageResp.data || []);
-        setFootprintSuggestions(footprintResp.data || []);
-        setSymbolSuggestions(symbolResp.data || []);
-        setStepModelSuggestions(stepResp.data || []);
-        setPspiceSuggestions(pspiceResp.data || []);
-        setPadFileSuggestions(padResp.data || []);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -1814,21 +1783,9 @@ const Library = () => {
         setSubCat3Suggestions([]);
         setSubCat4Suggestions([]);
         
-        // Load package, footprint, symbol suggestions for new category
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
-          api.getFieldSuggestions(newCategoryId, 'package_size'),
-          api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
-          api.getFieldSuggestions(newCategoryId, 'schematic'),
-          api.getFieldSuggestions(newCategoryId, 'step_model'),
-          api.getFieldSuggestions(newCategoryId, 'pspice'),
-          api.getFieldSuggestions(newCategoryId, 'pad_file')
-        ]);
+        // Load package suggestions for new category
+        const packageResp = await api.getFieldSuggestions(newCategoryId, 'package_size');
         setPackageSuggestions(packageResp.data || []);
-        setFootprintSuggestions(footprintResp.data || []);
-        setSymbolSuggestions(symbolResp.data || []);
-        setStepModelSuggestions(stepResp.data || []);
-        setPspiceSuggestions(pspiceResp.data || []);
-        setPadFileSuggestions(padResp.data || []);
 
         // Load new category's specifications (user will fill these in for ECO)
         const specsResponse = await api.getCategorySpecifications(newCategoryId);
@@ -1869,21 +1826,9 @@ const Library = () => {
         setSubCat3Suggestions([]);
         setSubCat4Suggestions([]);
         
-        // Load package, footprint, symbol suggestions for new category
-        const [packageResp, footprintResp, symbolResp, stepResp, pspiceResp, padResp] = await Promise.all([
-          api.getFieldSuggestions(newCategoryId, 'package_size'),
-          api.getFieldSuggestions(newCategoryId, 'pcb_footprint'),
-          api.getFieldSuggestions(newCategoryId, 'schematic'),
-          api.getFieldSuggestions(newCategoryId, 'step_model'),
-          api.getFieldSuggestions(newCategoryId, 'pspice'),
-          api.getFieldSuggestions(newCategoryId, 'pad_file')
-        ]);
+        // Load package suggestions for new category
+        const packageResp = await api.getFieldSuggestions(newCategoryId, 'package_size');
         setPackageSuggestions(packageResp.data || []);
-        setFootprintSuggestions(footprintResp.data || []);
-        setSymbolSuggestions(symbolResp.data || []);
-        setStepModelSuggestions(stepResp.data || []);
-        setPspiceSuggestions(pspiceResp.data || []);
-        setPadFileSuggestions(padResp.data || []);
 
         // Load new category's specifications
         const specsResponse = await api.getCategorySpecifications(newCategoryId);
@@ -3514,67 +3459,34 @@ const Library = () => {
                   {/* CAD Files - Unified section with file names and file management */}
                   <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CAD Files</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-3">
                       <CadFieldSection
                         field="pcb_footprint"
                         values={editData.pcb_footprint || []}
-                        onChange={(arr) => handleFieldChange('pcb_footprint', arr)}
-                        isEditMode={isEditMode}
-                        isAddMode={isAddMode}
-                        mfgPartNumber={editData.manufacturer_pn}
-                        packageSize={editData.package_size}
-                        suggestions={footprintSuggestions}
-                        categoryId={editData.category_id}
                       />
                       <CadFieldSection
                         field="schematic"
                         values={editData.schematic || []}
-                        onChange={(arr) => handleFieldChange('schematic', arr)}
-                        isEditMode={isEditMode}
-                        isAddMode={isAddMode}
-                        mfgPartNumber={editData.manufacturer_pn}
-                        packageSize={editData.package_size}
-                        suggestions={symbolSuggestions}
-                        categoryId={editData.category_id}
                       />
                       <CadFieldSection
                         field="step_model"
                         values={editData.step_model || []}
-                        onChange={(arr) => handleFieldChange('step_model', arr)}
-                        isEditMode={isEditMode}
-                        isAddMode={isAddMode}
-                        mfgPartNumber={editData.manufacturer_pn}
-                        packageSize={editData.package_size}
-                        suggestions={stepModelSuggestions}
-                        categoryId={editData.category_id}
                       />
                       <CadFieldSection
                         field="pspice"
                         values={editData.pspice || []}
-                        onChange={(arr) => handleFieldChange('pspice', arr)}
-                        isEditMode={isEditMode}
-                        isAddMode={isAddMode}
-                        mfgPartNumber={editData.manufacturer_pn}
-                        packageSize={editData.package_size}
-                        suggestions={pspiceSuggestions}
-                        categoryId={editData.category_id}
                       />
                       <CadFieldSection
                         field="pad_file"
                         values={editData.pad_file || []}
-                        onChange={(arr) => handleFieldChange('pad_file', arr)}
-                        isEditMode={isEditMode}
-                        isAddMode={isAddMode}
-                        mfgPartNumber={editData.manufacturer_pn}
-                        packageSize={editData.package_size}
-                        suggestions={padFileSuggestions}
-                        categoryId={editData.category_id}
                       />
                     </div>
                     {/* File upload and management */}
                     {editData.manufacturer_pn && (
                       <ComponentFiles
                         mfgPartNumber={editData.manufacturer_pn}
+                        componentId={selectedComponent}
+                        packageSize={editData.package_size}
                         canEdit={true}
                         showRename={!isAddMode}
                         showDelete={!isAddMode}

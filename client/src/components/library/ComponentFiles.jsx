@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Download, AlertCircle } from 'lucide-react';
+import { Download, AlertCircle, Plus } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
+import CadFilePickerModal from './CadFilePickerModal';
 
 const CATEGORY_LABELS = {
   footprint: 'PCB Footprint',
@@ -38,7 +39,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, showDelete = true, onFileUploaded }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -46,6 +47,8 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, category: '', filename: '' });
   const [renaming, setRenaming] = useState({ category: '', filename: '', newName: '' });
   const [mpnRenameConfirm, setMpnRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
+  const [pkgRenameConfirm, setPkgRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
+  const [linkPicker, setLinkPicker] = useState({ show: false, category: '' });
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -131,10 +134,12 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
       showSuccess(`Renamed to ${response.data.newFilename}`);
       setRenaming({ category: '', filename: '', newName: '' });
       setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
+      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
     },
     onError: (error) => {
       showError('Rename failed: ' + (error.response?.data?.error || error.message));
       setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
+      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
     },
   });
 
@@ -206,6 +211,45 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
   const dismissMpnRenameConfirm = () => {
     setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
   };
+
+  const requestPkgRename = (category, filename) => {
+    if (!packageSize) return;
+    const { suffix, ext } = extractDensitySuffix(filename);
+    const sanitizedPkg = packageSize
+      .replace(/[<>:"/\\|?*]/g, '_')
+      .replace(/\s+/g, '_');
+    const newFilename = sanitizedPkg + suffix + ext;
+
+    if (newFilename === filename) {
+      showSuccess('Filename already matches package');
+      return;
+    }
+
+    setPkgRenameConfirm({ show: true, category, oldFilename: filename, newFilename });
+  };
+
+  const confirmPkgRename = () => {
+    const { category, oldFilename, newFilename } = pkgRenameConfirm;
+    renameMutation.mutate({ category, oldFilename, newFilename });
+  };
+
+  const dismissPkgRenameConfirm = () => {
+    setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
+  };
+
+  // Link existing file mutation
+  const linkMutation = useMutation({
+    mutationFn: async ({ cadFileId }) => {
+      return api.linkFileToComponent(cadFileId, componentId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      showSuccess('File linked successfully');
+    },
+    onError: (error) => {
+      showError('Link failed: ' + (error.response?.data?.error || error.message));
+    },
+  });
 
   const cancelRename = () => {
     setRenaming({ category: '', filename: '', newName: '' });
@@ -308,6 +352,16 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
                               >
                                 MPN
                               </button>
+                              {packageSize && (
+                                <button
+                                  type="button"
+                                  onClick={() => requestPkgRename(category, file.name)}
+                                  className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1"
+                                  title="Apply package size as filename"
+                                >
+                                  PKG
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => startRename(category, file.name)}
@@ -334,12 +388,48 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
                   )}
                 </div>
               ))}
+              {canEdit && componentId && (
+                <button
+                  type="button"
+                  onClick={() => setLinkPicker({ show: true, category })}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 mt-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Link existing file
+                </button>
+              )}
             </div>
           ))}
         </div>
       ) : (
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">No files uploaded</p>
       )}
+
+      {/* Empty categories with link buttons */}
+      {canEdit && componentId && (() => {
+        const ALL_CATEGORIES = ['footprint', 'pad', 'symbol', 'model', 'pspice'];
+        const emptyCategories = ALL_CATEGORIES.filter(c => !files[c] || files[c].length === 0);
+        if (emptyCategories.length === 0) return null;
+        return (
+          <div className="space-y-2 mb-3">
+            {emptyCategories.map(category => (
+              <div key={category}>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  {CATEGORY_LABELS[category] || category}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLinkPicker({ show: true, category })}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Link existing file
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Drag-and-drop upload area (edit mode only) */}
       {canEdit && (
@@ -429,6 +519,65 @@ const ComponentFiles = ({ mfgPartNumber, canEdit = false, showRename = true, sho
           </div>
         </div>
       )}
+
+      {/* PKG Rename confirmation modal */}
+      {pkgRenameConfirm.show && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={dismissPkgRenameConfirm}>
+          <div
+            className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
+              <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Rename to Package
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
+              This will physically rename the file on disk.
+            </p>
+            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 font-mono text-sm">
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current</div>
+              <div className="text-gray-700 dark:text-gray-300 break-all">{pkgRenameConfirm.oldFilename}</div>
+              <div className="text-gray-400 text-center my-2">&darr;</div>
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New</div>
+              <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{pkgRenameConfirm.newFilename}</div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={dismissPkgRenameConfirm}
+                disabled={renameMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPkgRename}
+                disabled={renameMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {renameMutation.isPending ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link existing file picker modal */}
+      <CadFilePickerModal
+        isOpen={linkPicker.show}
+        onClose={() => setLinkPicker({ show: false, category: '' })}
+        onSelect={(file) => {
+          if (file.id && componentId) {
+            linkMutation.mutate({ cadFileId: file.id });
+          }
+          if (onFileUploaded && linkPicker.category) {
+            onFileUploaded(linkPicker.category, file.file_name);
+          }
+        }}
+        fileType={linkPicker.category || undefined}
+        excludeFileIds={[]}
+      />
     </div>
   );
 };
