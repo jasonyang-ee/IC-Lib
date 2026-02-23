@@ -39,7 +39,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -49,6 +49,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [mpnRenameConfirm, setMpnRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
   const [pkgRenameConfirm, setPkgRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
   const [linkPicker, setLinkPicker] = useState({ show: false, category: '' });
+  const [localUploads, setLocalUploads] = useState({});
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -99,6 +100,39 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (errors.length > 0) message += `${errors.length} file(s) failed.`;
 
       if (message) showSuccess(message.trim());
+
+      // Track uploaded files locally for add mode (when server junction table may be empty)
+      const newLocal = {};
+      for (const r of regular) {
+        if (r.type && r.filename) {
+          if (!newLocal[r.type]) newLocal[r.type] = [];
+          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'local' });
+        }
+      }
+      for (const r of extracted) {
+        if (r.extracted) {
+          for (const ef of r.extracted) {
+            if (ef.category && ef.filename) {
+              if (!newLocal[ef.category]) newLocal[ef.category] = [];
+              newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'local' });
+            }
+          }
+        }
+      }
+      if (Object.keys(newLocal).length > 0) {
+        setLocalUploads(prev => {
+          const merged = { ...prev };
+          for (const [cat, catFiles] of Object.entries(newLocal)) {
+            if (!merged[cat]) merged[cat] = [];
+            for (const f of catFiles) {
+              if (!merged[cat].find(e => e.name === f.name)) {
+                merged[cat].push(f);
+              }
+            }
+          }
+          return merged;
+        });
+      }
     },
     onError: (error) => {
       showError('Upload failed: ' + (error.response?.data?.error || error.message));
@@ -129,9 +163,24 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     mutationFn: async ({ category, oldFilename, newFilename }) => {
       return api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename);
     },
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       showSuccess(`Renamed to ${response.data.newFilename}`);
+      // Notify parent of rename for editData update
+      if (onFileRenamed) {
+        onFileRenamed(variables.category, variables.oldFilename, response.data.newFilename);
+      }
+      // Update local uploads cache if applicable
+      setLocalUploads(prev => {
+        const updated = { ...prev };
+        const cat = variables.category;
+        if (updated[cat]) {
+          updated[cat] = updated[cat].map(f =>
+            f.name === variables.oldFilename ? { ...f, name: response.data.newFilename } : f
+          );
+        }
+        return updated;
+      });
       setRenaming({ category: '', filename: '', newName: '' });
       setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
       setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '' });
@@ -259,7 +308,17 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     return renaming.category === category && renaming.filename === filename;
   };
 
-  const files = filesData?.files || {};
+  // Merge server files with locally tracked uploads (for add mode when junction table is empty)
+  const serverFiles = filesData?.files || {};
+  const files = { ...serverFiles };
+  for (const [cat, catFiles] of Object.entries(localUploads)) {
+    if (!files[cat]) files[cat] = [];
+    for (const f of catFiles) {
+      if (!files[cat].find(e => e.name === f.name)) {
+        files[cat].push(f);
+      }
+    }
+  }
   const hasFiles = Object.keys(files).length > 0;
 
   if (!mfgPartNumber) return null;
@@ -267,7 +326,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   return (
     <div className="col-span-2 pt-4 mt-2">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="font-semibold text-gray-900 dark:text-gray-100">CAD Files</h4>
+        <h4 className="font-semibold text-gray-900 dark:text-gray-100">CAD File Management</h4>
         {hasFiles && (
           <a
             href={api.getFileExportUrl(mfgPartNumber)}

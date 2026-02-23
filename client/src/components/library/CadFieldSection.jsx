@@ -27,16 +27,18 @@ const stripExt = (name) => {
  */
 export default function CadFieldSection({ field, values = [] }) {
   const label = FILE_TYPE_LABELS[field] || field;
+  // Filter out .dra files - CIS only needs .psm for footprints
+  const filtered = values.filter(v => !v.toLowerCase().endsWith('.dra'));
 
   return (
     <div className="space-y-1">
       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
         {label}
       </label>
-      {values.length === 0 ? (
+      {filtered.length === 0 ? (
         <span className="text-xs text-gray-400 dark:text-gray-500 italic">None</span>
       ) : (
-        values.map((fileName, index) => (
+        filtered.map((fileName, index) => (
           <div key={`${fileName}-${index}`} className="flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             <span className="text-sm text-gray-800 dark:text-gray-200 break-all font-mono">

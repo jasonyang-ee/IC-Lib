@@ -3458,7 +3458,7 @@ const Library = () => {
 
                   {/* CAD Files - Unified section with file names and file management */}
                   <div className="col-span-2 border-t border-gray-200 dark:border-[#444444] pt-4 mt-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CAD Files</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CIS Filename List</h4>
                     <div className="grid grid-cols-1 gap-3">
                       <CadFieldSection
                         field="pcb_footprint"
@@ -3503,6 +3503,16 @@ const Library = () => {
                                 return { ...prev, [field]: [...current, filename] };
                               }
                               return prev;
+                            });
+                          }
+                        }}
+                        onFileRenamed={(category, oldFilename, newFilename) => {
+                          const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
+                          const field = fieldMap[category];
+                          if (field) {
+                            setEditData(prev => {
+                              const current = Array.isArray(prev[field]) ? prev[field] : [];
+                              return { ...prev, [field]: current.map(f => f === oldFilename ? newFilename : f) };
                             });
                           }
                         }}

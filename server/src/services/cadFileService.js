@@ -65,6 +65,7 @@ export async function regenerateCadText(componentId, fileType) {
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     WHERE ccf.component_id = $1 AND cf.file_type = $2
+      AND cf.file_name NOT LIKE '%.dra'
   `, [componentId, fileType]);
 
   const textValue = result.rows[0]?.text_value || '';
