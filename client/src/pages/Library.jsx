@@ -49,6 +49,9 @@ const Library = () => {
   // ECO state
   const [_ecoChanges, setEcoChanges] = useState([]);
   const [ecoNotes, setEcoNotes] = useState('');
+
+  // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
+  const [tempFiles, setTempFiles] = useState([]);
   
   // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
@@ -910,25 +913,34 @@ const Library = () => {
 
       try {
         let manufacturerId = editData.manufacturer_id;
-        
+
         // Check if manufacturer needs to be created (starts with "NEW:")
         if (typeof manufacturerId === 'string' && manufacturerId.startsWith('NEW:')) {
           const newManufacturerName = manufacturerId.substring(4); // Remove "NEW:" prefix
           try {
-            const response = await createManufacturerMutation.mutateAsync({ 
-              name: newManufacturerName 
+            const response = await createManufacturerMutation.mutateAsync({
+              name: newManufacturerName
             });
             manufacturerId = response.data.id;
           } catch (error) {
             console.error('Error creating manufacturer:', error);
-            setWarningModal({ 
-              show: true, 
-              message: `Failed to create manufacturer "${newManufacturerName}". Please try again.` 
+            setWarningModal({
+              show: true,
+              message: `Failed to create manufacturer "${newManufacturerName}". Please try again.`
             });
             return;
           }
         }
-        
+
+        // Finalize temp files before saving component
+        if (tempFiles.length > 0) {
+          await api.finalizeTempFiles({
+            files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
+            mfgPartNumber: editData.manufacturer_pn,
+          });
+          setTempFiles([]);
+        }
+
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
         
@@ -2011,6 +2023,15 @@ const Library = () => {
       }
 
       if (editData.category_id && editData.part_number) {
+        // Finalize temp files before creating component
+        if (tempFiles.length > 0) {
+          await api.finalizeTempFiles({
+            files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
+            mfgPartNumber: editData.manufacturer_pn,
+          });
+          setTempFiles([]);
+        }
+
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
         
@@ -2139,9 +2160,25 @@ const Library = () => {
     }
   };
 
-  const handleCancelAdd = () => {
+  const handleCancelAdd = async () => {
+    if (tempFiles.length > 0) {
+      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
+      catch (e) { console.error('Cleanup failed:', e); }
+      setTempFiles([]);
+    }
     setIsAddMode(false);
     setEditData({});
+    setManufacturerInput('');
+    setAltManufacturerInputs({});
+  };
+
+  const handleCancelEdit = async () => {
+    if (tempFiles.length > 0) {
+      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
+      catch (e) { console.error('Cleanup failed:', e); }
+      setTempFiles([]);
+    }
+    setIsEditMode(false);
     setManufacturerInput('');
     setAltManufacturerInputs({});
   };
@@ -2745,7 +2782,7 @@ const Library = () => {
               </div>
 
               {/* Approval Status Filter */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <label className="text-sm text-gray-600 dark:text-gray-400 w-12.5">Status:</label>
                 <select
                   value={selectedApprovalStatus}
@@ -2806,11 +2843,7 @@ const Library = () => {
                   )}
                   
                   <button
-                    onClick={isECOMode ? handleCancelECO : () => {
-                      setIsEditMode(false);
-                      setManufacturerInput('');
-                      setAltManufacturerInputs({});
-                    }}
+                    onClick={isECOMode ? handleCancelECO : handleCancelEdit}
                     className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <X className="w-4 h-4" />
@@ -2931,8 +2964,8 @@ const Library = () => {
                           />
                         </th>
                       )}
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Part Number</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG Part Number</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">P/N</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG P/N</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</th>
                       <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
                     </tr>
@@ -3487,12 +3520,13 @@ const Library = () => {
                       />
                     </div>
                     {/* File upload and management */}
-                    {(editData.manufacturer_pn || isAddMode) && (
+                    {(editData.manufacturer_pn || isAddMode || isEditMode) && (
                       <ComponentFiles
                         mfgPartNumber={editData.manufacturer_pn}
                         componentId={selectedComponent?.id}
                         packageSize={editData.package_size}
                         canEdit={true}
+                        onTempFileStaged={(info) => setTempFiles(prev => [...prev, info])}
                         onFileUploaded={(category, filename) => {
                           // Map upload category to editData field name
                           const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };

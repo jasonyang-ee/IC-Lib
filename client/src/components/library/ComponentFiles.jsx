@@ -39,7 +39,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -62,17 +62,19 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     refetchOnMount: 'always',
   });
 
-  // Upload mutation
+  // Upload mutation — stages files in temp directory
   const uploadMutation = useMutation({
     mutationFn: async (files) => {
       const formData = new FormData();
       for (const file of files) {
         formData.append('files', file);
       }
-      return api.uploadComponentFiles(mfgPartNumber, formData);
+      return api.uploadTempFiles(formData);
     },
     onSuccess: (response) => {
-      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      if (mfgPartNumber) {
+        queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      }
       const results = response.data.results || [];
       const extracted = results.filter(r => r.type === 'archive');
       const regular = results.filter(r => r.type !== 'archive' && !r.error && !r.collision);
@@ -101,6 +103,24 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         }
       }
 
+      // Notify parent of temp-staged files for finalize/cleanup tracking
+      if (onTempFileStaged) {
+        for (const r of regular) {
+          if (r.tempFilename && r.type && r.filename) {
+            onTempFileStaged({ tempFilename: r.tempFilename, category: r.type, filename: r.filename });
+          }
+        }
+        for (const r of extracted) {
+          if (r.extracted) {
+            for (const ef of r.extracted) {
+              if (ef.tempFilename && ef.category && ef.filename) {
+                onTempFileStaged({ tempFilename: ef.tempFilename, category: ef.category, filename: ef.filename });
+              }
+            }
+          }
+        }
+      }
+
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
       if (collisionFiles.length > 0) message += `${collisionFiles.length} file(s) already existed and linked. `;
@@ -112,12 +132,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       if (message) showSuccess(message.trim());
 
-      // Track uploaded files locally for add mode (when server junction table may be empty)
+      // Track uploaded files locally (for display when server junction table may be empty)
       const newLocal = {};
       for (const r of regular) {
         if (r.type && r.filename) {
           if (!newLocal[r.type]) newLocal[r.type] = [];
-          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'local' });
+          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'temp', tempFilename: r.tempFilename });
         }
       }
       for (const r of collisionFiles) {
@@ -131,7 +151,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           for (const ef of r.extracted) {
             if (ef.category && ef.filename) {
               if (!newLocal[ef.category]) newLocal[ef.category] = [];
-              newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'local' });
+              newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'temp', tempFilename: ef.tempFilename });
             }
           }
         }
@@ -342,6 +362,39 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     setRenaming({ category: '', filename: '', newName: '' });
   };
 
+  // Handle delete — temp files use cleanup endpoint, existing files use regular delete
+  const handleConfirmDelete = async () => {
+    const { category, filename } = deleteConfirm;
+    // Check if this file is a temp upload
+    const localFile = localUploads[category]?.find(f => f.name === filename && f.storage === 'temp');
+    if (localFile && localFile.tempFilename) {
+      try {
+        await api.cleanupTempFiles({ tempFilenames: [localFile.tempFilename] });
+        showSuccess('File removed');
+      } catch (err) {
+        showError('Delete failed: ' + (err.response?.data?.error || err.message));
+      }
+      // Remove from local uploads
+      setLocalUploads(prev => {
+        const updated = { ...prev };
+        if (updated[category]) {
+          updated[category] = updated[category].filter(f => f.name !== filename);
+          if (updated[category].length === 0) delete updated[category];
+        }
+        return updated;
+      });
+      if (onFileDeleted) onFileDeleted(category, filename);
+      // Also notify parent to remove from tempFiles state
+      if (onTempFileStaged) {
+        // Pass a removal signal — parent tracks tempFiles separately
+      }
+      setDeleteConfirm({ show: false, category: '', filename: '' });
+    } else {
+      // Existing file — use regular delete mutation
+      deleteMutation.mutate({ category, filename });
+    }
+  };
+
   const isRenaming = (category, filename) => {
     return renaming.category === category && renaming.filename === filename;
   };
@@ -376,7 +429,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       </div>
 
       {/* File listing */}
-      {isLoading ? (
+      {isLoading && mfgPartNumber ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">Loading files...</p>
       ) : hasFiles ? (
         <div className="space-y-2 mb-3">
@@ -423,21 +476,27 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                   ) : (
                     /* Normal file row */
                     <div className="flex items-start justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
-                      <a
-                        href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                        title={file.name}
-                      >
-                        {file.name}
-                      </a>
+                      {mfgPartNumber ? (
+                        <a
+                          href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
+                          title={file.name}
+                        >
+                          {file.name}
+                        </a>
+                      ) : (
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={file.name}>
+                          {file.name}
+                        </span>
+                      )}
                       <span className="text-gray-400 dark:text-gray-500 shrink-0">
                         {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
                       </span>
                       {canEdit && (
                         <div className="flex items-center gap-1 shrink-0">
-                          {showRename && RENAMEABLE_CATEGORIES.includes(category) && (
+                          {showRename && mfgPartNumber && RENAMEABLE_CATEGORIES.includes(category) && (
                             <>
                               <button
                                 type="button"
@@ -483,7 +542,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                   )}
                 </div>
               ))}
-              {canEdit && (componentId || onFileUploaded) && (
+              {canEdit && mfgPartNumber && (componentId || onFileUploaded) && (
                 <button
                   type="button"
                   onClick={() => setLinkPicker({ show: true, category })}
@@ -496,12 +555,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             </div>
           ))}
         </div>
-      ) : (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">No files uploaded</p>
-      )}
+      ) : null}
 
-      {/* Empty categories with link buttons */}
-      {canEdit && (componentId || onFileUploaded) && (() => {
+      {/* Empty categories with link buttons (requires MPN) */}
+      {mfgPartNumber && canEdit && (componentId || onFileUploaded) && (() => {
         const ALL_CATEGORIES = ['footprint', 'pad', 'symbol', 'model', 'pspice'];
         const emptyCategories = ALL_CATEGORIES.filter(c => !files[c] || files[c].length === 0);
         if (emptyCategories.length === 0) return null;
@@ -528,7 +585,6 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       {/* Drag-and-drop upload area (edit mode only) */}
       {canEdit && (
-        mfgPartNumber ? (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -559,20 +615,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             Supports CAD files and ZIP archives (SamacSys, SnapEDA, Ultra Librarian)
           </p>
         </div>
-        ) : (
-        <div className="border-2 border-dashed border-gray-200 dark:border-[#3a3a3a] rounded-md p-4 text-center">
-          <p className="text-sm text-gray-400 dark:text-gray-500">
-            Enter MFG Part Number to enable file uploads
-          </p>
-        </div>
-        )
       )}
 
       {/* Delete confirmation modal */}
       <ConfirmationModal
         isOpen={deleteConfirm.show}
         onClose={() => setDeleteConfirm({ show: false, category: '', filename: '' })}
-        onConfirm={() => deleteMutation.mutate({ category: deleteConfirm.category, filename: deleteConfirm.filename })}
+        onConfirm={handleConfirmDelete}
         title="Delete File"
         message={`Are you sure you want to delete "${deleteConfirm.filename}"? This action cannot be undone.`}
         confirmText="Delete"

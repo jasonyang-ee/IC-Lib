@@ -304,7 +304,13 @@ export const api = {
     apiClient.post(`/files/upload/${encodeURIComponent(mfgPartNumber)}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
-  uploadPassiveFiles: (formData) => 
+  uploadTempFiles: (formData) =>
+    apiClient.post('/files/upload-temp', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+  finalizeTempFiles: (data) => apiClient.post('/files/finalize-temp', data),
+  cleanupTempFiles: (data) => apiClient.post('/files/cleanup-temp', data),
+  uploadPassiveFiles: (formData) =>
     apiClient.post('/files/upload-passive', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
