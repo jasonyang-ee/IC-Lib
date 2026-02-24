@@ -104,6 +104,15 @@ const Library = () => {
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
 
+  // Ref to track editing mode — immune to stale closures in useEffect
+  // This prevents window-focus-triggered query refetches from resetting add/edit state
+  const isEditingRef = useRef(false);
+  isEditingRef.current = isAddMode || isEditMode;
+
+  // Ref to track whether vendorData from location.state has been processed
+  // Prevents re-processing when distributors/manufacturers queries refetch
+  const vendorDataProcessedRef = useRef(false);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -365,7 +374,7 @@ const Library = () => {
 
   // Auto-select component when searching from Inventory
   useEffect(() => {
-    if (isAddMode || isEditMode) return; // Don't interfere with editing modes
+    if (isEditingRef.current) return; // Use ref — immune to stale closures
     if ((location.state?.searchUuid || location.state?.searchTerm) && components && components.length > 0) {
       // Select the first matching component
       setSelectedComponent(components[0]);
@@ -376,7 +385,7 @@ const Library = () => {
 
   // Auto-select component when using Previous/Next navigation
   useEffect(() => {
-    if (isAddMode || isEditMode) return; // Don't interfere with editing modes
+    if (isEditingRef.current) return; // Use ref — immune to stale closures
     // Only trigger if we have components and a valid part number format in search
     if (components && components.length > 0 && searchTerm && parsePartNumber(searchTerm)) {
       // Check if the search term exactly matches a component's part number
@@ -407,7 +416,10 @@ const Library = () => {
 
   // Handle incoming vendor data from vendor search
   useEffect(() => {
+    // Guard: only process vendor data once per navigation
+    if (vendorDataProcessedRef.current) return;
     if (location.state?.vendorData && distributors && manufacturers) {
+      vendorDataProcessedRef.current = true; // Mark as processed BEFORE async work
       const vendorData = location.state.vendorData;
       
       // Extract Package/Case from specifications
@@ -500,6 +512,14 @@ const Library = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, distributors, manufacturers]);
+
+  // Reset vendorDataProcessedRef when location.state no longer has vendorData
+  // This allows the next vendor search navigation to properly process new data
+  useEffect(() => {
+    if (!location.state?.vendorData) {
+      vendorDataProcessedRef.current = false;
+    }
+  }, [location.state]);
 
   // Fetch component details with specifications
   const { data: componentDetails } = useQuery({
