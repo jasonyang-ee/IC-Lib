@@ -3251,9 +3251,6 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 1
                     </label>
-                    {!editData.category_id && (
-                      <div className="text-xs text-gray-500 mb-1">(Select category first)</div>
-                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -3272,7 +3269,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.category_id && setSubCat1Open(true)}
                         disabled={!editData.category_id}
-                        placeholder={editData.category_id ? "Type or select..." : ""}
+                        placeholder={editData.category_id ? "Type or select..." : "Select category first"}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.category_id && (
@@ -3309,9 +3306,6 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 2
                     </label>
-                    {!editData.sub_category1 && (
-                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 1 first)</div>
-                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -3328,7 +3322,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.sub_category1 && setSubCat2Open(true)}
                         disabled={!editData.sub_category1}
-                        placeholder={editData.sub_category1 ? "Type or select..." : ""}
+                        placeholder={editData.sub_category1 ? "Type or select..." : "Select sub-category 1 first"}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.sub_category1 && (
@@ -3365,9 +3359,6 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 3
                     </label>
-                    {!editData.sub_category2 && (
-                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 2 first)</div>
-                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -3378,7 +3369,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.sub_category2 && setSubCat3Open(true)}
                         disabled={!editData.sub_category2}
-                        placeholder={editData.sub_category2 ? "Type or select..." : ""}
+                        placeholder={editData.sub_category2 ? "Type or select..." : "Select sub-category 2 first"}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.sub_category2 && (
@@ -3415,9 +3406,6 @@ const Library = () => {
                     <label className="block text-gray-600 dark:text-gray-400 mb-1">
                       Sub-Category 4
                     </label>
-                    {!editData.sub_category3 && (
-                      <div className="text-xs text-gray-500 mb-1">(Select sub-category 3 first)</div>
-                    )}
                     <div className="relative">
                       <input
                         type="text"
@@ -3428,7 +3416,7 @@ const Library = () => {
                         }}
                         onFocus={() => editData.sub_category3 && setSubCat4Open(true)}
                         disabled={!editData.sub_category3}
-                        placeholder={editData.sub_category3 ? "Type or select..." : ""}
+                        placeholder={editData.sub_category3 ? "Type or select..." : "Select sub-category 3 first"}
                         className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm disabled:bg-gray-100 dark:disabled:bg-[#252525] disabled:cursor-not-allowed"
                       />
                       {editData.sub_category3 && (
@@ -3710,35 +3698,19 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* CAD Files - clickable links to local files */}
+                            {/* CAD Files - clickable to navigate to File Library */}
                             {(() => {
-                              const rawPath = import.meta.env.VITE_FILE_STORAGE_PATH || '';
-                              // Normalize: collapse any mix of \ and / into single /, ensure trailing /
-                              const fileStoragePath = rawPath
-                                ? rawPath.replace(/[\\/]+/g, '/').replace(/\/$/, '') + '/'
-                                : '';
                               const cadTypeMap = {
-                                pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint', subdir: 'footprint' },
-                                schematic: { label: 'Schematic', routeType: 'schematic', subdir: 'symbol' },
-                                step_model: { label: 'STEP 3D Model', routeType: 'step', subdir: 'model' },
-                                pspice: { label: 'PSPICE Model', routeType: 'pspice', subdir: 'pspice' },
-                                pad_file: { label: 'Pad File', routeType: 'pad', subdir: 'pad' },
+                                pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint' },
+                                schematic: { label: 'Schematic', routeType: 'schematic' },
+                                step_model: { label: 'STEP 3D Model', routeType: 'step' },
+                                pspice: { label: 'PSPICE Model', routeType: 'pspice' },
+                                pad_file: { label: 'Pad File', routeType: 'pad' },
                               };
                               const hasCadValue = (val) => {
                                 if (Array.isArray(val)) return val.length > 0;
                                 return val && val !== '[]';
                               };
-                              // Build a lookup: baseName -> fullFileName from cadFilesLinked
-                              const linkedFilesMap = {};
-                              if (componentDetails.cadFilesLinked) {
-                                for (const [fileType, files] of Object.entries(componentDetails.cadFilesLinked)) {
-                                  if (!linkedFilesMap[fileType]) linkedFilesMap[fileType] = {};
-                                  for (const f of files) {
-                                    const baseName = f.file_name.replace(/\.[^.]+$/, '');
-                                    linkedFilesMap[fileType][baseName] = f.file_name;
-                                  }
-                                }
-                              }
                               return Object.entries(cadTypeMap).map(([field, config]) => {
                                 const val = componentDetails[field];
                                 if (!hasCadValue(val) && field !== 'pcb_footprint') return null;
@@ -3749,43 +3721,16 @@ const Library = () => {
                                     <div className="flex-1 flex flex-wrap gap-x-3 gap-y-0.5 px-1">
                                       {files.length === 0 ? (
                                         <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>
-                                      ) : files.map((fileName, idx) => {
-                                        // Build the local file path
-                                        let localFilePath = '';
-                                        if (fileStoragePath) {
-                                          if (field === 'pcb_footprint') {
-                                            // Footprint: always link to .dra design file
-                                            localFilePath = `${fileStoragePath}${config.subdir}/${fileName}.dra`;
-                                          } else {
-                                            // Others: use the actual full filename from linked cad_files
-                                            const fullName = linkedFilesMap[config.subdir]?.[fileName] || fileName;
-                                            localFilePath = `${fileStoragePath}${config.subdir}/${fullName}`;
-                                          }
-                                        }
-                                        const fileHref = localFilePath
-                                          ? `file:///${localFilePath}`
-                                          : api.getFileDownloadUrl(config.subdir, componentDetails.manufacturer_pn, fileName);
-                                        return (
-                                        <div key={idx} className="flex items-center gap-1.5">
-                                          <a
-                                            href={fileHref}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
-                                            title={localFilePath ? `Open ${localFilePath}` : `Download ${fileName}`}
-                                          >
-                                            {fileName}
-                                          </a>
-                                          <button
-                                            onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
-                                            className="text-xs text-gray-400 hover:text-primary-500 dark:hover:text-primary-400"
-                                            title="View in File Library"
-                                          >
-                                            <ExternalLink className="w-3 h-3" />
-                                          </button>
-                                        </div>
-                                        );
-                                      })}
+                                      ) : files.map((fileName, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
+                                          className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
+                                          title="View in File Library"
+                                        >
+                                          {fileName}
+                                        </button>
+                                      ))}
                                     </div>
                                   </div>
                                 );

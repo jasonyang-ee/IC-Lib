@@ -526,8 +526,9 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         );
       })()}
 
-      {/* Drag-and-drop upload area (edit mode only, requires MPN) */}
-      {canEdit && mfgPartNumber && (
+      {/* Drag-and-drop upload area (edit mode only) */}
+      {canEdit && (
+        mfgPartNumber ? (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -558,11 +559,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             Supports CAD files and ZIP archives (SamacSys, SnapEDA, Ultra Librarian)
           </p>
         </div>
-      )}
-      {canEdit && !mfgPartNumber && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-2">
-          Enter MFG Part Number to enable file uploads
-        </p>
+        ) : (
+        <div className="border-2 border-dashed border-gray-200 dark:border-[#3a3a3a] rounded-md p-4 text-center">
+          <p className="text-sm text-gray-400 dark:text-gray-500">
+            Enter MFG Part Number to enable file uploads
+          </p>
+        </div>
+        )
       )}
 
       {/* Delete confirmation modal */}
