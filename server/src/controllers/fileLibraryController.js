@@ -422,6 +422,14 @@ export const getAvailableFiles = async (req, res) => {
       console.error('[FileLibrary] DB query failed, falling back to disk scan:', dbError.message);
     }
 
+    // Filter DB files to only those that physically exist on disk
+    const FILE_TYPE_SUBDIR = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    dbFiles = dbFiles.filter(f => {
+      const subdir = FILE_TYPE_SUBDIR[f.file_type];
+      if (!subdir) return false;
+      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
+    });
+
     // Augment with filesystem scan for files not in DB
     const dbFileNames = new Set(dbFiles.map(f => `${f.file_type}:${f.file_name}`));
     const diskFiles = [];

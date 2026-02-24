@@ -3897,15 +3897,6 @@ const Library = () => {
             </div>
           )}
 
-          {/* CAD Files - View Mode Only */}
-          {!isEditMode && !isAddMode && selectedComponent && componentDetails?.manufacturer_pn && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <ComponentFiles
-                mfgPartNumber={componentDetails.manufacturer_pn}
-                canEdit={false}
-              />
-            </div>
-          )}
         </div>
 
         {/* Fourth Column - Specifications & Alternative Parts (Edit/Add Mode Only) */}

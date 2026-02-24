@@ -306,6 +306,11 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
             await autoLinkFileToComponent(ef.category, ef.filename, mfgPartNumber);
           }
 
+          // Auto-link collision files (already exist on disk) to component
+          for (const col of collisions) {
+            await autoLinkFileToComponent(col.category, col.filename, mfgPartNumber);
+          }
+
           results.push({
             originalName: file.originalname,
             type: 'archive',
@@ -342,10 +347,13 @@ router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('file
         const moveResult = moveToCategory(file.path, category);
 
         if (moveResult?.collision) {
+          // Auto-link the existing file to the component even on collision
+          await autoLinkFileToComponent(category, moveResult.filename, mfgPartNumber);
+
           results.push({
             originalName: file.originalname,
             type: category,
-            error: `File "${moveResult.filename}" already exists. Rename or delete the existing file first.`,
+            filename: moveResult.filename,
             collision: true,
           });
         } else {
@@ -594,7 +602,7 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
 
     // Ensure the extension is preserved (use old extension if new one differs or is missing)
     const finalExt = (newExt && config.extensions.includes(newExt)) ? newExt : oldExt;
-    const newBaseName = path.basename(newFilename, newExt || oldExt)
+    const newBaseName = newFilename.replace(/\.[^.]+$/, '')
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_')
       .replace(/_+/g, '_')

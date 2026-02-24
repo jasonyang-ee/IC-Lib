@@ -59,6 +59,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       return response.data;
     },
     enabled: !!mfgPartNumber,
+    refetchOnMount: 'always',
   });
 
   // Upload mutation
@@ -74,12 +75,16 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       const results = response.data.results || [];
       const extracted = results.filter(r => r.type === 'archive');
-      const regular = results.filter(r => r.type !== 'archive' && !r.error);
+      const regular = results.filter(r => r.type !== 'archive' && !r.error && !r.collision);
+      const collisionFiles = results.filter(r => r.collision && r.filename);
       const errors = results.filter(r => r.error);
 
       // Notify parent of uploaded files for auto-linking
       if (onFileUploaded) {
         for (const r of regular) {
+          if (r.type && r.filename) onFileUploaded(r.type, r.filename);
+        }
+        for (const r of collisionFiles) {
           if (r.type && r.filename) onFileUploaded(r.type, r.filename);
         }
         for (const r of extracted) {
@@ -88,11 +93,17 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
               if (ef.category && ef.filename) onFileUploaded(ef.category, ef.filename);
             }
           }
+          if (r.collisions) {
+            for (const col of r.collisions) {
+              if (col.category && col.filename) onFileUploaded(col.category, col.filename);
+            }
+          }
         }
       }
 
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
+      if (collisionFiles.length > 0) message += `${collisionFiles.length} file(s) already existed and linked. `;
       if (extracted.length > 0) {
         const totalExtracted = extracted.reduce((sum, e) => sum + (e.filesExtracted || 0), 0);
         message += `${totalExtracted} file(s) extracted from ZIP. `;
@@ -109,12 +120,26 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           newLocal[r.type].push({ name: r.filename, size: 0, storage: 'local' });
         }
       }
+      for (const r of collisionFiles) {
+        if (r.type && r.filename) {
+          if (!newLocal[r.type]) newLocal[r.type] = [];
+          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'local' });
+        }
+      }
       for (const r of extracted) {
         if (r.extracted) {
           for (const ef of r.extracted) {
             if (ef.category && ef.filename) {
               if (!newLocal[ef.category]) newLocal[ef.category] = [];
               newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'local' });
+            }
+          }
+        }
+        if (r.collisions) {
+          for (const col of r.collisions) {
+            if (col.category && col.filename) {
+              if (!newLocal[col.category]) newLocal[col.category] = [];
+              newLocal[col.category].push({ name: col.filename, size: 0, storage: 'local' });
             }
           }
         }
