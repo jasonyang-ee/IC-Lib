@@ -117,6 +117,7 @@ export const api = {
   updateProfile: (data) => apiClient.put('/auth/profile', data),
   getNotificationPreferences: () => apiClient.get('/auth/notification-preferences'),
   updateNotificationPreferences: (data) => apiClient.put('/auth/notification-preferences', data),
+  getFileStoragePath: () => apiClient.get('/auth/file-storage-path'),
 
   patch: (url, data, config) => apiClient.patch(url, data, config),
 
@@ -247,7 +248,6 @@ export const api = {
   getDatabaseStatus: () => apiClient.get('/settings/database/status'),
   clearDatabase: () => apiClient.post('/settings/database/clear'),
   resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
-  loadSampleData: () => apiClient.post('/settings/database/sample-data'),
   verifyDatabase: () => apiClient.get('/settings/database/verify'),
   syncInventory: () => apiClient.post('/settings/database/sync-inventory'),
   
@@ -310,6 +310,8 @@ export const api = {
     }),
   finalizeTempFiles: (data) => apiClient.post('/files/finalize-temp', data),
   cleanupTempFiles: (data) => apiClient.post('/files/cleanup-temp', data),
+  restoreDeletedFiles: (files) => apiClient.post('/files/restore-deleted', { files }),
+  confirmDeleteFiles: (tempFilenames) => apiClient.post('/files/confirm-delete', { tempFilenames }),
   uploadPassiveFiles: (formData) =>
     apiClient.post('/files/upload-passive', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -343,6 +345,7 @@ export const api = {
   getSharingComponents: (componentId) => apiClient.get(`/file-library/sharing/${componentId}`),
   linkFileToComponent: (cadFileId, componentId) => apiClient.post('/file-library/link', { cadFileId, componentId }),
   unlinkFileFromComponent: (cadFileId, componentId) => apiClient.post('/file-library/unlink', { cadFileId, componentId }),
+  scanLibraryFiles: () => apiClient.post('/file-library/scan'),
 };
 
 export default apiClient;

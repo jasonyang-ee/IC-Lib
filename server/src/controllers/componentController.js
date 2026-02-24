@@ -2132,7 +2132,7 @@ export const updateComponentApproval = async (req, res, next) => {
       case 'approve':
         newApprovalStatus = 'approved';
         break;
-      case 'deny':
+      case 'archive':
         newApprovalStatus = 'archived';
         break;
       case 'send_to_review':

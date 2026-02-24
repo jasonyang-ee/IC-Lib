@@ -24,20 +24,20 @@ CREATE TABLE IF NOT EXISTS component_categories (
 
 -- Insert default categories
 INSERT INTO component_categories (name, description, prefix, leading_zeros, display_order) VALUES
-    ('Capacitors', 'Capacitors and capacitor arrays', 'CAP', 5, 1),
-    ('Resistors', 'Resistors and resistor arrays', 'RES', 5, 2),
-    ('Inductors', 'Inductors and coils', 'IND', 5, 3),
-    ('Diodes', 'Diodes, LEDs, and rectifiers', 'DIODE', 5, 4),
-    ('Transistors', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
-    ('ICs', 'Integrated circuits', 'IC', 5, 6),
-    ('Connectors', 'Connectors and headers', 'CONN', 5, 7),
-    ('Switches', 'Switches and buttons', 'SW', 5, 8),
-    ('Oscillators', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
+    ('Capacitor', 'Capacitors and capacitor arrays', 'CAP', 5, 1),
+    ('Resistor', 'Resistors and resistor arrays', 'RES', 5, 2),
+    ('Inductor', 'Inductors and coils', 'IND', 5, 3),
+    ('Diode', 'Diodes, LEDs, and rectifiers', 'DIODE', 5, 4),
+    ('Transistor', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
+    ('IC', 'Integrated circuits', 'IC', 5, 6),
+    ('Connector', 'Connectors and headers', 'CONN', 5, 7),
+    ('Switche', 'Switches and buttons', 'SW', 5, 8),
+    ('Oscillator', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
     ('MCU', 'Microcontroller', 'IC', 5, 10),
     ('Mechanical', 'Mechanical Parts', 'MECH', 5, 11),
     ('Misc', 'Miscellaneous Parts', 'MISC', 5, 12),
-    ('Relays', 'Relays', 'RELAY', 5, 13),
-    ('Transformers', 'Transformers', 'TRNS', 5, 14)
+    ('Relay', 'Relays', 'RELAY', 5, 13),
+    ('Transformer', 'Transformers', 'TRNS', 5, 14)
 ON CONFLICT (name) DO NOTHING;
 
 -- Table: manufacturers
@@ -472,12 +472,12 @@ DECLARE
     ic_id UUID;
     mcu_id UUID;
 BEGIN
-    SELECT id INTO cap_id FROM component_categories WHERE name = 'Capacitors';
-    SELECT id INTO res_id FROM component_categories WHERE name = 'Resistors';
-    SELECT id INTO ind_id FROM component_categories WHERE name = 'Inductors';
-    SELECT id INTO dio_id FROM component_categories WHERE name = 'Diodes';
-    SELECT id INTO tra_id FROM component_categories WHERE name = 'Transistors';
-    SELECT id INTO ic_id FROM component_categories WHERE name = 'ICs';
+    SELECT id INTO cap_id FROM component_categories WHERE name = 'Capacitor';
+    SELECT id INTO res_id FROM component_categories WHERE name = 'Resistor';
+    SELECT id INTO ind_id FROM component_categories WHERE name = 'Inductor';
+    SELECT id INTO dio_id FROM component_categories WHERE name = 'Diode';
+    SELECT id INTO tra_id FROM component_categories WHERE name = 'Transistor';
+    SELECT id INTO ic_id FROM component_categories WHERE name = 'IC';
     SELECT id INTO mcu_id FROM component_categories WHERE name = 'MCU';
 
     -- Capacitors specifications
@@ -909,7 +909,7 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
     auth_user VARCHAR(255),
     auth_password_encrypted TEXT,
     from_address VARCHAR(255) NOT NULL,
-    from_name VARCHAR(100) DEFAULT 'IC Library System',
+    from_name VARCHAR(100) DEFAULT 'IC-Lib',
     enabled BOOLEAN DEFAULT false,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by UUID REFERENCES users(id)
@@ -952,4 +952,11 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);
+
+-- ============================================================================
+-- PART 15: MIGRATIONS FOR EXISTING DATABASES
+-- ============================================================================
+
+-- Add file_storage_path to users table (for per-user library path)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS file_storage_path VARCHAR(1000);
 

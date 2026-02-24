@@ -5,7 +5,6 @@ import {
   getDatabaseStatus,
   clearDatabase,
   resetDatabase,
-  loadSampleData,
   verifyDatabase,
   getCategoryConfigs,
   updateCategoryConfig,
@@ -64,7 +63,6 @@ router.delete('/specifications/:id', deleteCategorySpecification);
 router.get('/database/status', getDatabaseStatus);
 router.post('/database/clear', clearDatabase);
 router.post('/database/reset', resetDatabase);
-router.post('/database/sample-data', loadSampleData);
 router.get('/database/verify', verifyDatabase);
 router.post('/database/sync-inventory', syncComponentsToInventory);
 

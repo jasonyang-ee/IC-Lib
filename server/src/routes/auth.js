@@ -15,6 +15,7 @@ router.post('/change-password', authenticate, authController.changePassword);
 // Profile management routes
 router.get('/profile', authenticate, authController.getProfile);
 router.put('/profile', authenticate, authController.updateProfile);
+router.get('/file-storage-path', authenticate, authController.getFileStoragePath);
 router.get('/notification-preferences', authenticate, authController.getNotificationPreferences);
 router.put('/notification-preferences', authenticate, authController.updateNotificationPreferences);
 

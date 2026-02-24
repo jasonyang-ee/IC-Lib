@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -17,6 +17,10 @@ const CATEGORY_LABELS = {
 
 // Categories that support renaming (pad files are excluded)
 const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'pspice'];
+
+// Categories restricted to a single file per component
+const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
+const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: '3D STEP Model' };
 
 // Density suffixes that should be preserved when applying MPN as filename
 const DENSITY_SUFFIXES = ['-M', '-L', '-m', '-l'];
@@ -39,7 +43,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -50,6 +54,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [pkgRenameConfirm, setPkgRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
   const [linkPicker, setLinkPicker] = useState({ show: false, category: '' });
   const [localUploads, setLocalUploads] = useState({});
+  const [fileConflict, setFileConflict] = useState(null);
+  const [conflictPending, setConflictPending] = useState(false);
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -81,10 +87,52 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       const collisionFiles = results.filter(r => r.collision && r.filename);
       const errors = results.filter(r => r.error);
 
-      // Notify parent of uploaded files for auto-linking
+      // Identify files that conflict with single-file category limits
+      const priorFiles = filesRef.current;
+      const conflictingKeys = new Set();
+      let firstConflict = null;
+
+      for (const r of regular) {
+        if (r.type && SINGLE_FILE_CATEGORIES.includes(r.type) && priorFiles[r.type]?.length > 0) {
+          conflictingKeys.add(`${r.type}:${r.filename}`);
+          if (!firstConflict) {
+            firstConflict = {
+              category: r.type,
+              categoryLabel: SINGLE_FILE_LABELS[r.type] || CATEGORY_LABELS[r.type] || r.type,
+              existingFile: priorFiles[r.type][0].name,
+              newFile: r.filename,
+              newTempFilename: r.tempFilename,
+              isLink: false,
+            };
+          }
+        }
+      }
+      for (const r of extracted) {
+        if (r.extracted) {
+          for (const ef of r.extracted) {
+            if (ef.category && SINGLE_FILE_CATEGORIES.includes(ef.category) && priorFiles[ef.category]?.length > 0) {
+              conflictingKeys.add(`${ef.category}:${ef.filename}`);
+              if (!firstConflict) {
+                firstConflict = {
+                  category: ef.category,
+                  categoryLabel: SINGLE_FILE_LABELS[ef.category] || CATEGORY_LABELS[ef.category] || ef.category,
+                  existingFile: priorFiles[ef.category][0].name,
+                  newFile: ef.filename,
+                  newTempFilename: ef.tempFilename,
+                  isLink: false,
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // Notify parent of uploaded files — SKIP conflicting ones (deferred to conflict modal)
       if (onFileUploaded) {
         for (const r of regular) {
-          if (r.type && r.filename) onFileUploaded(r.type, r.filename);
+          if (r.type && r.filename && !conflictingKeys.has(`${r.type}:${r.filename}`)) {
+            onFileUploaded(r.type, r.filename);
+          }
         }
         for (const r of collisionFiles) {
           if (r.type && r.filename) onFileUploaded(r.type, r.filename);
@@ -92,7 +140,9 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         for (const r of extracted) {
           if (r.extracted) {
             for (const ef of r.extracted) {
-              if (ef.category && ef.filename) onFileUploaded(ef.category, ef.filename);
+              if (ef.category && ef.filename && !conflictingKeys.has(`${ef.category}:${ef.filename}`)) {
+                onFileUploaded(ef.category, ef.filename);
+              }
             }
           }
           if (r.collisions) {
@@ -103,17 +153,17 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         }
       }
 
-      // Notify parent of temp-staged files for finalize/cleanup tracking
+      // Notify parent of temp-staged files — SKIP conflicting ones
       if (onTempFileStaged) {
         for (const r of regular) {
-          if (r.tempFilename && r.type && r.filename) {
+          if (r.tempFilename && r.type && r.filename && !conflictingKeys.has(`${r.type}:${r.filename}`)) {
             onTempFileStaged({ tempFilename: r.tempFilename, category: r.type, filename: r.filename });
           }
         }
         for (const r of extracted) {
           if (r.extracted) {
             for (const ef of r.extracted) {
-              if (ef.tempFilename && ef.category && ef.filename) {
+              if (ef.tempFilename && ef.category && ef.filename && !conflictingKeys.has(`${ef.category}:${ef.filename}`)) {
                 onTempFileStaged({ tempFilename: ef.tempFilename, category: ef.category, filename: ef.filename });
               }
             }
@@ -178,6 +228,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           return merged;
         });
       }
+
+      // Show conflict modal if a single-file category already had files
+      if (firstConflict) {
+        setFileConflict(firstConflict);
+      }
     },
     onError: (error) => {
       showError('Upload failed: ' + (error.response?.data?.error || error.message));
@@ -187,14 +242,26 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     },
   });
 
-  // Delete mutation
+  // Delete mutation (supports soft-delete and unlink responses)
   const deleteMutation = useMutation({
     mutationFn: async ({ category, filename }) => {
       return api.deleteComponentFile(category, mfgPartNumber, filename);
     },
     onSuccess: (response, variables) => {
+      const data = response.data;
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
-      showSuccess('File deleted');
+
+      if (data.unlinked) {
+        showSuccess(`File unlinked (still used by ${data.remaining} other component${data.remaining !== 1 ? 's' : ''})`);
+      } else if (data.softDeleted) {
+        showSuccess('File moved to trash');
+        if (onFileSoftDeleted) {
+          onFileSoftDeleted({ tempFilename: data.tempFilename, category: variables.category, filename: variables.filename });
+        }
+      } else {
+        showSuccess('File deleted');
+      }
+
       // Remove from local uploads cache
       setLocalUploads(prev => {
         const updated = { ...prev };
@@ -384,9 +451,9 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         return updated;
       });
       if (onFileDeleted) onFileDeleted(category, filename);
-      // Also notify parent to remove from tempFiles state
-      if (onTempFileStaged) {
-        // Pass a removal signal — parent tracks tempFiles separately
+      // Notify parent to remove from tempFiles state
+      if (onTempFileRemoved && localFile.tempFilename) {
+        onTempFileRemoved(localFile.tempFilename);
       }
       setDeleteConfirm({ show: false, category: '', filename: '' });
     } else {
@@ -397,6 +464,89 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   const isRenaming = (category, filename) => {
     return renaming.category === category && renaming.filename === filename;
+  };
+
+  // Single-file conflict resolution: keep the existing file, discard the new upload
+  const handleKeepOriginal = async () => {
+    if (!fileConflict) return;
+    setConflictPending(true);
+    try {
+      if (!fileConflict.isLink && fileConflict.newTempFilename) {
+        // Upload conflict: clean up the new temp file
+        await api.cleanupTempFiles({ tempFilenames: [fileConflict.newTempFilename] });
+      }
+      // Remove new file from localUploads display
+      setLocalUploads(prev => {
+        const updated = { ...prev };
+        if (updated[fileConflict.category]) {
+          updated[fileConflict.category] = updated[fileConflict.category].filter(f => f.name !== fileConflict.newFile);
+          if (updated[fileConflict.category].length === 0) delete updated[fileConflict.category];
+        }
+        return updated;
+      });
+    } catch (e) {
+      console.error('Conflict cleanup failed:', e);
+    }
+    setConflictPending(false);
+    setFileConflict(null);
+  };
+
+  // Single-file conflict resolution: replace existing file with the new one
+  const handleUseNew = async () => {
+    if (!fileConflict) return;
+    setConflictPending(true);
+    try {
+      // Delete/unlink the existing file
+      const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile);
+      const deleteData = deleteResponse.data;
+
+      // Track soft-delete for restore-on-cancel
+      if (deleteData.softDeleted && onFileSoftDeleted) {
+        onFileSoftDeleted({ tempFilename: deleteData.tempFilename, category: fileConflict.category, filename: fileConflict.existingFile });
+      }
+
+      // Remove old file from localUploads
+      setLocalUploads(prev => {
+        const updated = { ...prev };
+        if (updated[fileConflict.category]) {
+          updated[fileConflict.category] = updated[fileConflict.category].filter(f => f.name !== fileConflict.existingFile);
+          if (updated[fileConflict.category].length === 0) delete updated[fileConflict.category];
+        }
+        return updated;
+      });
+      // Remove old file from editData
+      if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
+
+      if (fileConflict.isLink) {
+        // Link conflict: now perform the deferred link
+        if (fileConflict.cadFileId && componentId) {
+          linkMutation.mutate({ cadFileId: fileConflict.cadFileId });
+        }
+        if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
+        // Add to localUploads
+        setLocalUploads(prev => {
+          const updated = { ...prev };
+          if (!updated[fileConflict.category]) updated[fileConflict.category] = [];
+          if (!updated[fileConflict.category].find(f => f.name === fileConflict.newFile)) {
+            updated[fileConflict.category].push({ name: fileConflict.newFile, size: 0, storage: 'local' });
+          }
+          return updated;
+        });
+      } else {
+        // Upload conflict: register the new file (was deferred in onSuccess)
+        if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
+        if (onTempFileStaged && fileConflict.newTempFilename) {
+          onTempFileStaged({ tempFilename: fileConflict.newTempFilename, category: fileConflict.category, filename: fileConflict.newFile });
+        }
+      }
+
+      // Refresh files
+      if (mfgPartNumber) queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+    } catch (e) {
+      showError('Failed to replace file: ' + (e.response?.data?.error || e.message));
+    }
+    setConflictPending(false);
+    setFileConflict(null);
   };
 
   // Merge server files with locally tracked uploads (for add mode when junction table is empty)
@@ -411,6 +561,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     }
   }
   const hasFiles = Object.keys(files).length > 0;
+
+  // Ref to track current files for conflict detection inside mutation callbacks
+  const filesRef = useRef({});
+  filesRef.current = files;
 
   return (
     <div className="col-span-2 pt-4 mt-2">
@@ -720,10 +874,26 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         isOpen={linkPicker.show}
         onClose={() => setLinkPicker({ show: false, category: '' })}
         onSelect={(file) => {
+          const cat = linkPicker.category;
+
+          // Check single-file category conflict
+          if (cat && SINGLE_FILE_CATEGORIES.includes(cat) && filesRef.current[cat]?.length > 0) {
+            setFileConflict({
+              category: cat,
+              categoryLabel: SINGLE_FILE_LABELS[cat] || CATEGORY_LABELS[cat] || cat,
+              existingFile: filesRef.current[cat][0].name,
+              newFile: file.file_name,
+              newTempFilename: null,
+              isLink: true,
+              cadFileId: file.id,
+            });
+            setLinkPicker({ show: false, category: '' });
+            return;
+          }
+
           if (file.id && componentId) {
             linkMutation.mutate({ cadFileId: file.id });
           }
-          const cat = linkPicker.category;
           if (onFileUploaded && cat) {
             onFileUploaded(cat, file.file_name);
           }
@@ -742,6 +912,49 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         fileType={linkPicker.category || undefined}
         excludeFileIds={[]}
       />
+
+      {/* Single-file category conflict modal */}
+      {fileConflict && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !conflictPending && setFileConflict(null)}>
+          <div
+            className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
+              <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+              Replace {fileConflict.categoryLabel} File?
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
+              Only one {fileConflict.categoryLabel.toLowerCase()} file is allowed per component. Choose which to keep:
+            </p>
+            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 text-sm">
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current file</div>
+              <div className="text-gray-700 dark:text-gray-300 break-all font-medium">{fileConflict.existingFile}</div>
+              <div className="text-gray-400 text-center my-2">vs</div>
+              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New file</div>
+              <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{fileConflict.newFile}</div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleKeepOriginal}
+                disabled={conflictPending}
+                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
+              >
+                {conflictPending ? '...' : 'Keep Original'}
+              </button>
+              <button
+                onClick={handleUseNew}
+                disabled={conflictPending}
+                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {conflictPending ? 'Replacing...' : 'Use New File'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

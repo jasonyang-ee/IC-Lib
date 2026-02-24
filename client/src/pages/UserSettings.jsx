@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Key, AlertCircle, CheckCircle, Loader2, Mail, Bell, Save } from 'lucide-react';
+import { User, Key, AlertCircle, CheckCircle, Loader2, Mail, Bell, Save, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -22,7 +22,8 @@ const UserSettings = () => {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
     email: '',
-    displayName: ''
+    displayName: '',
+    fileStoragePath: ''
   });
 
   // Notification preferences state
@@ -42,7 +43,8 @@ const UserSettings = () => {
         const profile = response.data;
         setProfileForm({
           email: profile.email || '',
-          displayName: profile.displayName || ''
+          displayName: profile.displayName || '',
+          fileStoragePath: profile.fileStoragePath || ''
         });
         setNotificationPreferences(profile.notificationPreferences || {
           eco_submitted: true,
@@ -68,7 +70,8 @@ const UserSettings = () => {
     try {
       await api.updateProfile({
         email: profileForm.email || null,
-        displayName: profileForm.displayName || null
+        displayName: profileForm.displayName || null,
+        fileStoragePath: profileForm.fileStoragePath || null
       });
       showSuccess('Profile updated successfully');
     } catch (error) {
@@ -241,6 +244,26 @@ const UserSettings = () => {
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Used for email notifications when SMTP is configured.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <FolderOpen className="w-4 h-4" />
+                    File Storage Path
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={profileForm.fileStoragePath}
+                  onChange={(e) => setProfileForm({ ...profileForm, fileStoragePath: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 font-mono text-sm"
+                  placeholder="C:/Cadence/SPB_Data/cdslib/IC-Lib/library"
+                  disabled={isSavingProfile}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Base path to your library folder. Used for copying file paths in the File Library.
                 </p>
               </div>
 

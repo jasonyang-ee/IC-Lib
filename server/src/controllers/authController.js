@@ -507,7 +507,7 @@ export const changePassword = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, role, email, display_name, notification_preferences,
+      `SELECT id, username, role, email, display_name, notification_preferences, file_storage_path,
               created_at(id) as created_at, last_login, is_active
        FROM users WHERE id = $1`,
       [req.user.userId],
@@ -524,6 +524,7 @@ export const getProfile = async (req, res) => {
       role: user.role,
       email: user.email,
       displayName: user.display_name,
+      fileStoragePath: user.file_storage_path || '',
       notificationPreferences: user.notification_preferences || {
         eco_submitted: true,
         eco_approved: true,
@@ -547,7 +548,7 @@ export const getProfile = async (req, res) => {
  */
 export const updateProfile = async (req, res) => {
   try {
-    const { email, displayName } = req.body;
+    const { email, displayName, fileStoragePath } = req.body;
 
     // Validate email format if provided
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -561,11 +562,11 @@ export const updateProfile = async (req, res) => {
 
     // Update profile
     const result = await pool.query(
-      `UPDATE users 
-       SET email = $1, display_name = $2 
-       WHERE id = $3 
-       RETURNING id, username, email, display_name`,
-      [email || null, displayName || null, req.user.userId],
+      `UPDATE users
+       SET email = $1, display_name = $2, file_storage_path = $3
+       WHERE id = $4
+       RETURNING id, username, email, display_name, file_storage_path`,
+      [email || null, displayName || null, fileStoragePath || null, req.user.userId],
     );
 
     if (result.rows.length === 0) {
@@ -590,11 +591,30 @@ export const updateProfile = async (req, res) => {
         username: result.rows[0].username,
         email: result.rows[0].email,
         displayName: result.rows[0].display_name,
+        fileStoragePath: result.rows[0].file_storage_path || '',
       },
     });
   } catch (error) {
     console.error('[error] [Auth] Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+/**
+ * Get effective file storage path for current user
+ */
+export const getFileStoragePath = async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT file_storage_path FROM users WHERE id = $1',
+      [req.user.userId],
+    );
+
+    const userPath = result.rows[0]?.file_storage_path || '';
+    res.json({ path: userPath || process.env.FILE_STORAGE_PATH || '' });
+  } catch (error) {
+    console.error('[error] [Auth] Get file storage path error:', error);
+    res.status(500).json({ error: 'Failed to fetch file storage path' });
   }
 };
 

@@ -69,8 +69,11 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     // Keep original filename with timestamp to avoid conflicts
+    // Lowercase file extension for consistency
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
+    const baseName = path.basename(file.originalname, path.extname(file.originalname));
+    cb(null, uniqueSuffix + '-' + baseName + ext);
   },
 });
 
@@ -143,7 +146,10 @@ function moveToCategory(sourcePath, category) {
 
   // Flat storage: no MPN subdirectory
   const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
-  const filename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
+  const rawFilename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
+  // Lowercase extension for consistency
+  const rawExt = path.extname(rawFilename);
+  const filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
   const targetPath = path.join(targetDir, filename);
 
   // Collision check: reject if file already exists
@@ -218,8 +224,14 @@ function extractSmartZipToTemp(zipPath) {
     if (entry.isDirectory) continue;
 
     const entryName = entry.entryName;
-    const filename = path.basename(entryName);
+    let filename = path.basename(entryName);
     const ext = path.extname(filename).toLowerCase();
+
+    // Lowercase file extension for consistency
+    const rawExt = path.extname(filename);
+    if (rawExt !== rawExt.toLowerCase()) {
+      filename = filename.substring(0, filename.length - rawExt.length) + rawExt.toLowerCase();
+    }
 
     if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
     if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
@@ -254,8 +266,9 @@ function extractSmartZipToTemp(zipPath) {
       const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const tempFilename = uniquePrefix + '-' + filename;
       zip.extractEntryTo(entry, tempDir, false, true);
-      // AdmZip extracts with original name, rename to temp name
-      const extractedPath = path.join(tempDir, filename);
+      // AdmZip extracts with original name — find it and rename to temp name (with lowercase extension)
+      const originalExtractedName = path.basename(entryName);
+      const extractedPath = path.join(tempDir, originalExtractedName);
       const tempPath = path.join(tempDir, tempFilename);
       if (fs.existsSync(extractedPath)) {
         fs.renameSync(extractedPath, tempPath);
@@ -315,8 +328,14 @@ function extractSmartZip(zipPath, _mfgPartNumber) {
     if (entry.isDirectory) continue;
 
     const entryName = entry.entryName;
-    const filename = path.basename(entryName);
+    let filename = path.basename(entryName);
     const ext = path.extname(filename).toLowerCase();
+
+    // Lowercase file extension for consistency
+    const rawExt = path.extname(filename);
+    if (rawExt !== rawExt.toLowerCase()) {
+      filename = filename.substring(0, filename.length - rawExt.length) + rawExt.toLowerCase();
+    }
 
     // Skip hidden files, macOS metadata, and non-EDA files (scripts, docs, etc.)
     if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
@@ -356,6 +375,14 @@ function extractSmartZip(zipPath, _mfgPartNumber) {
 
       // Extract file directly to flat directory
       zip.extractEntryTo(entry, targetDir, false, true);
+      // Rename from original to lowercase extension if needed
+      const originalExtractedName = path.basename(entryName);
+      if (originalExtractedName !== filename) {
+        const originalPath = path.join(targetDir, originalExtractedName);
+        if (fs.existsSync(originalPath)) {
+          fs.renameSync(originalPath, targetPath);
+        }
+      }
       extractedFiles.push({
         category,
         filename,
@@ -407,7 +434,10 @@ router.post('/upload-temp', authenticate, canWrite, upload.array('files', 20), a
         }
       } else {
         // Regular file - determine category
-        const category = getFileCategory(file.originalname);
+        // Normalize filename with lowercase extension
+        const origExt = path.extname(file.originalname);
+        const normalizedFilename = path.basename(file.originalname, origExt) + origExt.toLowerCase();
+        const category = getFileCategory(normalizedFilename);
 
         if (!category) {
           fs.unlinkSync(file.path);
@@ -421,14 +451,14 @@ router.post('/upload-temp', authenticate, canWrite, upload.array('files', 20), a
 
         // Check collision in actual category directory
         const config = FILE_CATEGORIES[category];
-        const categoryPath = path.join(LIBRARY_BASE, config.subdir, file.originalname);
+        const categoryPath = path.join(LIBRARY_BASE, config.subdir, normalizedFilename);
         if (fs.existsSync(categoryPath)) {
           // File already exists in library — delete temp, report collision
           fs.unlinkSync(file.path);
           results.push({
             originalName: file.originalname,
             type: category,
-            filename: file.originalname,
+            filename: normalizedFilename,
             collision: true,
           });
         } else {
@@ -437,7 +467,7 @@ router.post('/upload-temp', authenticate, canWrite, upload.array('files', 20), a
           results.push({
             originalName: file.originalname,
             type: category,
-            filename: file.originalname,
+            filename: normalizedFilename,
             tempFilename,
           });
         }
@@ -946,7 +976,9 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
 });
 
 /**
- * Delete a file
+ * Delete a file (soft-delete with shared-file protection)
+ * - If file is shared (linked to multiple components): unlink from requesting component only
+ * - If file is sole-use or orphan: move to temp folder (soft-delete) for potential restore
  */
 router.delete('/delete', authenticate, canWrite, async (req, res) => {
   try {
@@ -961,13 +993,53 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
       return res.status(400).json({ error: 'Invalid category' });
     }
 
-    // Find file (flat or nested)
+    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    const fileType = fileTypeMap[category];
+
+    // Check if this file is shared (linked to multiple components)
+    if (fileType) {
+      try {
+        const cadFile = await cadFileService.findCadFile(filename, fileType);
+        if (cadFile) {
+          const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
+          const linkCount = linkedComponents.length;
+
+          if (linkCount > 1) {
+            // Shared file: only unlink from requesting component, don't delete physical file
+            const compResult = await pool.query(
+              'SELECT id FROM components WHERE manufacturer_pn = $1',
+              [mfgPartNumber],
+            );
+            const componentId = compResult.rows[0]?.id;
+
+            if (componentId) {
+              await cadFileService.unlinkCadFileFromComponent(cadFile.id, componentId, fileType, filename);
+            }
+
+            return res.json({
+              unlinked: true,
+              remaining: linkCount - 1,
+              filename,
+            });
+          }
+        }
+      } catch (dbError) {
+        console.error(`[FileUpload] Shared-file check failed: ${dbError.message}`);
+      }
+    }
+
+    // Sole-use or orphan: soft-delete (move to temp)
     const filePath = findFile(category, filename, mfgPartNumber);
     if (!filePath) {
       return res.status(404).json({ error: 'File not found' });
     }
 
-    fs.unlinkSync(filePath);
+    // Move to temp directory instead of deleting
+    const tempDir = path.join(LIBRARY_BASE, 'temp');
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+    const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const tempFilename = uniquePrefix + '-' + filename;
+    fs.renameSync(filePath, path.join(tempDir, tempFilename));
 
     // Clean up empty legacy directories
     const dirPath = path.dirname(filePath);
@@ -980,20 +1052,12 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
     }
 
     // Remove from cad_files table and regenerate TEXT columns
-    // (Physical file already deleted above)
-    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-    const fileType = fileTypeMap[category];
     if (fileType) {
       try {
         const cadFile = await cadFileService.findCadFile(filename, fileType);
         if (cadFile) {
-          // Get affected components before deleting the cad_file record
           const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
-
-          // Delete cad_files record (cascades junction records)
           await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFile.id]);
-
-          // Regenerate TEXT columns for affected components
           for (const comp of affected) {
             await cadFileService.regenerateCadText(comp.id, fileType);
           }
@@ -1003,7 +1067,7 @@ router.delete('/delete', authenticate, canWrite, async (req, res) => {
       }
     }
 
-    res.json({ message: 'File deleted successfully' });
+    res.json({ softDeleted: true, tempFilename, filename, category });
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file' });
@@ -1119,6 +1183,76 @@ router.get('/export/:mfgPartNumber', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error exporting files:', error);
     res.status(500).json({ error: 'Failed to export files' });
+  }
+});
+
+/**
+ * Restore soft-deleted files (move back from temp to category directory)
+ * Called when user cancels an edit to undo file deletions
+ */
+router.post('/restore-deleted', authenticate, canWrite, async (req, res) => {
+  try {
+    const { files } = req.body;
+    if (!files || !Array.isArray(files)) {
+      return res.status(400).json({ error: 'files array is required' });
+    }
+
+    const results = [];
+    for (const { tempFilename, category, filename, mfgPartNumber } of files) {
+      const config = FILE_CATEGORIES[category];
+      if (!config) {
+        results.push({ filename, error: 'Invalid category' });
+        continue;
+      }
+
+      const tempPath = path.join(LIBRARY_BASE, 'temp', path.basename(tempFilename));
+      const targetPath = path.join(LIBRARY_BASE, config.subdir, filename);
+
+      if (!fs.existsSync(tempPath)) {
+        results.push({ filename, error: 'Temp file not found' });
+        continue;
+      }
+
+      fs.renameSync(tempPath, targetPath);
+
+      // Re-register in cad_files and re-link to component
+      await autoLinkFileToComponent(category, filename, mfgPartNumber);
+
+      results.push({ filename, restored: true });
+    }
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error restoring deleted files:', error);
+    res.status(500).json({ error: 'Failed to restore files' });
+  }
+});
+
+/**
+ * Confirm soft-deleted files (permanently delete from temp)
+ * Called when user saves after deleting files
+ */
+router.post('/confirm-delete', authenticate, canWrite, async (req, res) => {
+  try {
+    const { tempFilenames } = req.body;
+    if (!tempFilenames || !Array.isArray(tempFilenames)) {
+      return res.status(400).json({ error: 'tempFilenames array is required' });
+    }
+
+    let deleted = 0;
+    for (const tf of tempFilenames) {
+      const safeName = path.basename(tf);
+      const tempPath = path.join(LIBRARY_BASE, 'temp', safeName);
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+        deleted++;
+      }
+    }
+
+    res.json({ deleted });
+  } catch (error) {
+    console.error('Error confirming delete:', error);
+    res.status(500).json({ error: 'Failed to confirm delete' });
   }
 });
 

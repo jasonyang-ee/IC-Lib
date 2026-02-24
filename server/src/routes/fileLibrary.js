@@ -15,12 +15,16 @@ import {
   getComponentsByCategory,
   getSharingComponents,
   getAvailableFiles,
+  scanLibraryFiles,
 } from '../controllers/fileLibraryController.js';
 
 const router = express.Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+// Scan library folder for untracked files and register them (requires write permission)
+router.post('/scan', canWrite, scanLibraryFiles);
 
 // Get statistics for all file types (counts)
 router.get('/stats', getFileTypeStats);

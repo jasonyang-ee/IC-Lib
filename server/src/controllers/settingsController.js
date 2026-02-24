@@ -187,36 +187,6 @@ export const resetDatabase = async (req, res) => {
 };
 
 /**
- * POST /api/settings/database/sample-data - Load sample data
- */
-export const loadSampleData = async (req, res) => {
-  try {
-    console.log('Loading sample data...');
-    const results = await databaseService.loadSampleData();
-    
-    if (results.success) {
-      res.json({
-        success: true,
-        message: results.message,
-        recordCounts: results.recordCounts,
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: results.message,
-        errors: results.errors,
-      });
-    }
-  } catch (error) {
-    console.error('Error loading sample data:', error);
-    res.status(500).json({ 
-      error: 'Failed to load sample data',
-      message: error.message, 
-    });
-  }
-};
-
-/**
  * GET /api/settings/database/verify - Verify database schema
  */
 export const verifyDatabase = async (req, res) => {

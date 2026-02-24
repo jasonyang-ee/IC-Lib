@@ -1925,6 +1925,9 @@ const Settings = () => {
   const manufacturerDropdownRef = useRef(null);
   const newNameDropdownRef = useRef(null);
 
+  // Scan library files state
+  const [scanResult, setScanResult] = useState('');
+
   const { data: categoryConfigs, isLoading: loadingConfigs } = useQuery({
     queryKey: ['categoryConfigs'],
     queryFn: async () => {
@@ -2031,20 +2034,6 @@ const Settings = () => {
     },
   });
 
-const loadSampleDataMutation = useMutation({
-    mutationFn: async () => {
-      const response = await api.loadSampleData();
-      return response;
-    },
-    onSuccess: () => {
-      showSuccess('Sample data loaded successfully!');
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      showError(`Error loading sample data: ${errorMsg}`);
-    },
-  });
-
   const verifyDbMutation = useMutation({
     mutationFn: async () => {
       const response = await api.verifyDatabase();
@@ -2080,6 +2069,22 @@ const loadSampleDataMutation = useMutation({
     onError: (error) => {
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
       showError(`Error clearing audit logs: ${errorMsg}`);
+    },
+  });
+
+  // Scan library files mutation
+  const scanLibraryMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.scanLibraryFiles();
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setScanResult(data.message);
+      showSuccess(data.message);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.error || error.message;
+      showError(`Scan failed: ${errorMsg}`);
     },
   });
 
@@ -2318,11 +2323,8 @@ const loadSampleDataMutation = useMutation({
     setConfirmDialog({
       show: true,
       action,
-      title: action === 'load' ? 'Load Sample Data' :
-             action === 'reset' ? 'Full Database Reset' : 'Verify Database',
-      message: action === 'load' ?
-               'This will load sample data into the database. Existing data will not be affected. Continue?' :
-               action === 'reset' ?
+      title: action === 'reset' ? 'Full Database Reset' : 'Verify Database',
+      message: action === 'reset' ?
                '⚠️ DANGER: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE PERMANENTLY LOST! This cannot be undone. Are you absolutely sure?' :
                'This will verify the database schema matches the expected structure. Continue?'
     });
@@ -2362,9 +2364,7 @@ const loadSampleDataMutation = useMutation({
     const newName = confirmDialog.newName;
     setConfirmDialog({ show: false, action: '', title: '', message: '', oldId: '', newName: '' });
     
-    if (action === 'load') {
-      loadSampleDataMutation.mutate();
-    } else if (action === 'verify') {
+    if (action === 'verify') {
       verifyDbMutation.mutate();
     } else if (action === 'reset') {
       resetDbMutation.mutate();
@@ -2757,23 +2757,6 @@ const loadSampleDataMutation = useMutation({
         {/* Standard Operations */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <button
-            onClick={() => handleDatabaseOperation('load')}
-            disabled={loadSampleDataMutation.isPending}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loadSampleDataMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <Database className="w-4 h-4" />
-                Load Sample Data
-              </>
-            )}
-          </button>
-          <button
             onClick={() => handleDatabaseOperation('verify')}
             disabled={verifyDbMutation.isPending}
             className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
@@ -2861,9 +2844,6 @@ const loadSampleDataMutation = useMutation({
         </div>
 
         <div className="mt-4 space-y-2">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            <strong>Load Sample Data:</strong> Populates database with example components. Safe to run multiple times.
-          </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <strong>Verify Schema:</strong> Checks if all required tables exist and match expected schema.
           </p>
@@ -2968,6 +2948,37 @@ const loadSampleDataMutation = useMutation({
                 </>
               )}
             </button>
+          </div>
+
+          {/* Scan Library Files */}
+          <div className="border border-gray-200 dark:border-[#3a3a3a] rounded-lg p-4 flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <RefreshCw className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Scan Library Files</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
+              Scan the library folder for untracked CAD files and register them in the database. Newly registered files will appear as orphans in the File Library.
+            </p>
+            <button
+              onClick={() => scanLibraryMutation.mutate()}
+              disabled={scanLibraryMutation.isPending}
+              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {scanLibraryMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  Scan Library
+                </>
+              )}
+            </button>
+            {scanResult && (
+              <p className="text-sm text-green-600 dark:text-green-400 mt-2">{scanResult}</p>
+            )}
           </div>
         </div>
       </div>

@@ -194,29 +194,20 @@ export const resetDatabase = async (req, res, _next) => {
       console.error('[error] [Admin] Users table verification FAILED:', error.message);
       throw new Error('Users table was not created successfully');
     }
-    
-    // Load sample data
-    const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
-    const sampleResult = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
-    console.log(`[info] [Admin] Sample data loaded: ${sampleResult.executedCount}/${sampleResult.totalStatements} statements`);
-    if (sampleResult.errors.length > 0) {
-      console.error('[error] [Admin] Sample data errors:', sampleResult.errors);
-    }
-    
-    // Check if users table was created successfully
-    const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0 || sampleResult.errors.length > 0;
-    
+
+    // Check if there were any errors
+    const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0;
+
     if (hasErrors) {
       console.warn('[warn] [Admin] Database reset completed with errors:');
       if (schemaResult.errors.length > 0) console.warn('[warn] [Admin] Schema errors:', schemaResult.errors.length);
       if (usersResult.errors.length > 0) console.warn('[warn] [Admin] Users errors:', usersResult.errors.length);
-      if (sampleResult.errors.length > 0) console.warn('[warn] [Admin] Sample data errors:', sampleResult.errors.length);
     }
-    
+
     res.json({
       success: !hasErrors,
-      message: hasErrors 
-        ? 'Database reset completed with errors - check console for details' 
+      message: hasErrors
+        ? 'Database reset completed with errors - check console for details'
         : 'Database reset and reinitialized successfully',
       schema: {
         statementsExecuted: schemaResult.executedCount,
@@ -228,58 +219,12 @@ export const resetDatabase = async (req, res, _next) => {
         totalStatements: usersResult.totalStatements,
         errors: usersResult.errors,
       },
-      sampleData: {
-        statementsExecuted: sampleResult.executedCount,
-        totalStatements: sampleResult.totalStatements,
-        errors: sampleResult.errors,
-      },
     });
   } catch (error) {
     console.error('Database reset error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to reset database',
-      message: error.message,
-    });
-  } finally {
-    client.release();
-  }
-};
-
-// Load sample data
-export const loadSampleData = async (req, res, _next) => {
-  const client = await pool.connect();
-  
-  try {
-    console.log('Loading sample data...');
-    
-    // Execute init-sample-data.sql
-    const sampleDataPath = path.join(__dirname, '../../../database/init-sample-data.sql');
-    const result = await executeSQLFile(client, sampleDataPath, 'init-sample-data.sql');
-    
-    // Get record counts
-    const counts = await client.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM components) as components,
-        (SELECT COUNT(*) FROM manufacturers) as manufacturers,
-        (SELECT COUNT(*) FROM component_specifications) as specifications,
-        (SELECT COUNT(*) FROM distributor_info) as distributor_info
-    `);
-    
-    res.json({
-      success: result.errors.length === 0,
-      message: result.errors.length === 0 
-        ? `Sample data loaded successfully (${result.executedCount} statements)`
-        : `Sample data loaded with ${result.errors.length} errors`,
-      statementsExecuted: result.executedCount,
-      recordCounts: counts.rows[0],
-      errors: result.errors,
-    });
-  } catch (error) {
-    console.error('Load sample data error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to load sample data',
       message: error.message,
     });
   } finally {

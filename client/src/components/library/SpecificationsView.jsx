@@ -2,8 +2,8 @@ const SpecificationsView = ({ componentDetails }) => {
   const specs = componentDetails?.specifications || [];
 
   return (
-    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Specifications</h3>
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-3 border border-gray-200 dark:border-[#3a3a3a]">
+      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 text-lg">Specifications</h3>
       {specs.length > 0 ? (
         <div className="space-y-2">
           {specs.map((spec, index) => (

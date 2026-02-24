@@ -52,6 +52,9 @@ const Library = () => {
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
+
+  // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
+  const [deletedFiles, setDeletedFiles] = useState([]);
   
   // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
@@ -240,7 +243,7 @@ const Library = () => {
     }
   };
 
-  // Handle approval action (approve, deny, send_to_review, send_to_prototype)
+  // Handle approval action (approve, archive, send_to_review, send_to_prototype)
   const handleApprovalAction = async (action) => {
     if (!selectedComponent || !user) return;
     
@@ -939,6 +942,12 @@ const Library = () => {
             mfgPartNumber: editData.manufacturer_pn,
           });
           setTempFiles([]);
+        }
+
+        // Confirm-delete soft-deleted files (permanently remove from temp)
+        if (deletedFiles.length > 0) {
+          await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
+          setDeletedFiles([]);
         }
 
         // Extract specifications and distributors from editData
@@ -2032,6 +2041,12 @@ const Library = () => {
           setTempFiles([]);
         }
 
+        // Confirm-delete soft-deleted files (permanently remove from temp)
+        if (deletedFiles.length > 0) {
+          await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
+          setDeletedFiles([]);
+        }
+
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
         
@@ -2166,6 +2181,13 @@ const Library = () => {
       catch (e) { console.error('Cleanup failed:', e); }
       setTempFiles([]);
     }
+    if (deletedFiles.length > 0) {
+      try { await api.restoreDeletedFiles(deletedFiles.map(f => ({
+        tempFilename: f.tempFilename, category: f.category, filename: f.filename,
+        mfgPartNumber: editData.manufacturer_pn,
+      }))); } catch (e) { console.error('Restore failed:', e); }
+      setDeletedFiles([]);
+    }
     setIsAddMode(false);
     setEditData({});
     setManufacturerInput('');
@@ -2177,6 +2199,13 @@ const Library = () => {
       try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
       catch (e) { console.error('Cleanup failed:', e); }
       setTempFiles([]);
+    }
+    if (deletedFiles.length > 0) {
+      try { await api.restoreDeletedFiles(deletedFiles.map(f => ({
+        tempFilename: f.tempFilename, category: f.category, filename: f.filename,
+        mfgPartNumber: editData.manufacturer_pn,
+      }))); } catch (e) { console.error('Restore failed:', e); }
+      setDeletedFiles([]);
     }
     setIsEditMode(false);
     setManufacturerInput('');
@@ -3527,6 +3556,8 @@ const Library = () => {
                         packageSize={editData.package_size}
                         canEdit={true}
                         onTempFileStaged={(info) => setTempFiles(prev => [...prev, info])}
+                        onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
+                        onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
                         onFileUploaded={(category, filename) => {
                           // Map upload category to editData field name
                           const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
@@ -3735,11 +3766,11 @@ const Library = () => {
                             {/* CAD Files - clickable to navigate to File Library */}
                             {(() => {
                               const cadTypeMap = {
-                                pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint' },
-                                schematic: { label: 'Schematic', routeType: 'schematic' },
-                                step_model: { label: 'STEP 3D Model', routeType: 'step' },
-                                pspice: { label: 'PSPICE Model', routeType: 'pspice' },
-                                pad_file: { label: 'Pad File', routeType: 'pad' },
+								schematic: { label: 'Schematic', routeType: 'schematic' },
+                                pcb_footprint: { label: 'Footprint', routeType: 'footprint' },
+                                pad_file: { label: 'Pad', routeType: 'pad' },
+                                step_model: { label: '3D Model', routeType: 'step' },
+                                pspice: { label: 'Pspice Model', routeType: 'pspice' },
                               };
                               const hasCadValue = (val) => {
                                 if (Array.isArray(val)) return val.length > 0;
@@ -3752,18 +3783,19 @@ const Library = () => {
                                 return (
                                   <div key={field} className="flex items-start gap-2">
                                     <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-0.5">{config.label}:</span>
-                                    <div className="flex-1 flex flex-wrap gap-x-3 gap-y-0.5 px-1">
+                                    <div className="flex-1 space-y-0 px-1">
                                       {files.length === 0 ? (
                                         <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>
                                       ) : files.map((fileName, idx) => (
-                                        <button
-                                          key={idx}
-                                          onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
-                                          className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
-                                          title="View in File Library"
-                                        >
-                                          {fileName}
-                                        </button>
+                                        <div key={idx} className={idx > 0 ? 'border-gray-200 dark:border-[#444444] pt-0.5 mt-0.5' : ''}>
+                                          <button
+                                            onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
+                                            className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
+                                            title="View in File Library"
+                                          >
+                                            {fileName}
+                                          </button>
+                                        </div>
                                       ))}
                                     </div>
                                   </div>
@@ -3822,11 +3854,11 @@ const Library = () => {
                                         Approve
                                       </button>
                                       <button
-                                        onClick={() => handleApprovalAction('deny')}
+                                        onClick={() => handleApprovalAction('archive')}
                                         disabled={updatingApproval || componentDetails.approval_status === 'archived'}
                                         className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
                                       >
-                                        Deny
+                                        Archive
                                       </button>
                                     </>
                                   )}
@@ -3872,8 +3904,8 @@ const Library = () => {
 
           {/* Distributor Info - Shows distributors for selected alternative or primary component - View Mode Only */}
           {!isEditMode && !isAddMode && (
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Distributor Information</h3>
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-3 border border-gray-200 dark:border-[#3a3a3a]">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 text-lg">Distributor Information</h3>
               {selectedComponent && selectedAlternative?.distributors && selectedAlternative.distributors.length > 0 ? (
               <div className="space-y-4">
                 {(() => {
@@ -3907,7 +3939,7 @@ const Library = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <button
                           onClick={() => handleCopyToClipboard(dist.sku, `sku_${index}`)}
-                          className="text-xs text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer underline decoration-dotted"
+                          className="text-xs text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer"
                           title="Click to copy SKU"
                         >
                           SKU: {dist.sku}

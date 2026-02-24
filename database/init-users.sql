@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     "eco_rejected": true,
     "eco_assigned": true
   }'::jsonb,
+  file_storage_path VARCHAR(1000),
   created_by UUID REFERENCES users(id),
   last_login TIMESTAMP,
   is_active BOOLEAN DEFAULT true
