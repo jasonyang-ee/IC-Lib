@@ -33,11 +33,11 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
           <CopyableRow label="Manufacturer" value={vendorData.manufacturer} onCopy={onCopy} />
           <div
             onClick={() => onCopy(vendorData.description, 'Description')}
-            className="flex flex-col py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+            className="flex items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors gap-2"
           >
-            <span className="text-blue-700 dark:text-blue-300 font-medium mb-1 text-xs">Description:</span>
-            <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-2">
-              <span className="flex-1 whitespace-pre-wrap">{vendorData.description}</span>
+            <span className="text-blue-700 dark:text-blue-300 font-medium text-xs shrink-0 w-28 text-right">Description:</span>
+            <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-1 flex-1 min-w-0 ml-1">
+              <span className="flex-1 whitespace-pre-wrap break-words">{vendorData.description}</span>
               <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
             </span>
           </div>
@@ -64,18 +64,8 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
           <div className="border-b border-blue-200 dark:border-blue-800 pb-2">
             <p className="text-blue-800 dark:text-blue-200 font-semibold text-xs mb-2 uppercase tracking-wide">Distributor Information</p>
             <CopyableRow label="Vendor SKU" value={vendorData.distributor.sku} onCopy={onCopy} />
-            <div className="flex justify-between items-center py-1 px-2">
-              <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Stock Available:</span>
-              <span className="text-blue-900 dark:text-blue-100 font-mono text-xs font-semibold">
-                {vendorData.distributor.stock?.toLocaleString() || '0'} units
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-1 px-2">
-              <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">Min Order Qty:</span>
-              <span className="text-blue-900 dark:text-blue-100 font-mono text-xs">
-                {vendorData.distributor.minimumOrderQuantity || '1'}
-              </span>
-            </div>
+            <CopyableRow label="Stock Available" value={`${vendorData.distributor.stock?.toLocaleString() || '0'} units`} onCopy={onCopy} />
+            <CopyableRow label="Min Order Qty" value={vendorData.distributor.minimumOrderQuantity || '1'} onCopy={onCopy} />
           </div>
         )}
 
@@ -98,13 +88,13 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
                   <div
                     key={idx}
                     onClick={() => onCopy(`${displayValue}${shouldShowUnit ? ' ' + displayUnit : ''}`, key)}
-                    className="flex justify-between items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors"
+                    className="flex items-start py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group transition-colors gap-2"
                   >
-                    <span className="text-blue-700 dark:text-blue-300 text-xs font-medium shrink-0 mr-2" style={{maxWidth: '45%'}}>
+                    <span className="text-blue-700 dark:text-blue-300 text-xs font-medium shrink-0 w-28 text-right">
                       {key}:
                     </span>
-                    <span className="text-blue-900 dark:text-blue-100 text-xs text-right flex items-start gap-1 flex-1">
-                      <span className="flex-1 wrap-break-word">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
+                    <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-1 flex-1 min-w-0 ml-1">
+                      <span className="flex-1 break-words">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
                       <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
                     </span>
                   </div>
@@ -129,7 +119,7 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
                 href={vendorData.datasheet}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all font-mono bg-blue-100 dark:bg-blue-900/30 p-2 rounded"
+                className="text-blue-600 dark:text-blue-400 hover:underline text-xs break-all font-mono bg-blue-100 dark:bg-blue-900/30 p-2 rounded ml-2"
               >
                 {vendorData.datasheet}
               </a>
@@ -146,10 +136,10 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
                 <div
                   key={idx}
                   onClick={() => onCopy(`${price.quantity}+ @ $${price.price}`, 'Price Break')}
-                  className="flex justify-between items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+                  className="flex items-center py-0.5 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group gap-2"
                 >
-                  <span className="text-blue-800 dark:text-blue-200 text-xs font-medium">{price.quantity}+ units:</span>
-                  <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2">
+                  <span className="text-blue-800 dark:text-blue-200 text-xs font-medium shrink-0 w-28 text-right">{price.quantity}+ units:</span>
+                  <span className="text-green-700 dark:text-green-400 font-mono text-xs font-semibold flex items-center gap-2 ml-1">
                     ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
                     <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </span>
@@ -170,16 +160,16 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
   );
 };
 
-// Reusable row for copyable vendor data
+// Reusable row for copyable vendor data — label-value aligned layout
 const CopyableRow = ({ label, value, onCopy }) => (
   <div
     onClick={() => onCopy(value, label)}
-    className="flex justify-between items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group"
+    className="flex items-center py-1 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded cursor-pointer group gap-2"
   >
-    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs">{label}:</span>
-    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2">
-      {value}
-      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+    <span className="text-blue-700 dark:text-blue-300 font-medium text-xs shrink-0 w-28 text-right">{label}:</span>
+    <span className="text-blue-900 dark:text-blue-100 font-mono text-xs flex items-center gap-2 flex-1 min-w-0 ml-1">
+      <span className="truncate">{value}</span>
+      <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
     </span>
   </div>
 );

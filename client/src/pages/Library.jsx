@@ -526,15 +526,17 @@ const Library = () => {
     queryKey: ['componentDetails', selectedComponent?.id],
     enabled: !!selectedComponent && !isAddMode,
     queryFn: async () => {
-      const [details, specifications, distributors] = await Promise.all([
+      const [details, specifications, distributors, cadFiles] = await Promise.all([
         api.getComponentById(selectedComponent.id),
         api.getComponentSpecifications(selectedComponent.id),
         api.getComponentDistributors(selectedComponent.id),
+        api.getCadFilesForComponent(selectedComponent.id),
       ]);
       return {
         ...details.data,
         specifications: specifications.data,
         distributors: distributors.data,
+        cadFilesLinked: cadFiles.data?.files || {},
       };
     },
   });
@@ -3625,11 +3627,11 @@ const Library = () => {
                           <div className="flex items-baseline gap-2 pb-2">
                             <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">{label}:</span>
                             {isLink ? (
-                              <a 
-                                href={value} 
-                                target="_blank" 
+                              <a
+                                href={value}
+                                target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate flex-1"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate flex-1 px-1"
                               >
                                 {value}
                               </a>
@@ -3715,8 +3717,9 @@ const Library = () => {
                               </div>
                             )}
 
-                            {/* CAD Files - clickable links to file library */}
+                            {/* CAD Files - clickable links to local files */}
                             {(() => {
+                              const fileStoragePath = import.meta.env.VITE_FILE_STORAGE_PATH || '';
                               const cadTypeMap = {
                                 pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint', subdir: 'footprint' },
                                 schematic: { label: 'Schematic', routeType: 'schematic', subdir: 'symbol' },
@@ -3728,6 +3731,17 @@ const Library = () => {
                                 if (Array.isArray(val)) return val.length > 0;
                                 return val && val !== '[]';
                               };
+                              // Build a lookup: baseName -> fullFileName from cadFilesLinked
+                              const linkedFilesMap = {};
+                              if (componentDetails.cadFilesLinked) {
+                                for (const [fileType, files] of Object.entries(componentDetails.cadFilesLinked)) {
+                                  if (!linkedFilesMap[fileType]) linkedFilesMap[fileType] = {};
+                                  for (const f of files) {
+                                    const baseName = f.file_name.replace(/\.[^.]+$/, '');
+                                    linkedFilesMap[fileType][baseName] = f.file_name;
+                                  }
+                                }
+                              }
                               return Object.entries(cadTypeMap).map(([field, config]) => {
                                 const val = componentDetails[field];
                                 if (!hasCadValue(val) && field !== 'pcb_footprint') return null;
@@ -3735,17 +3749,33 @@ const Library = () => {
                                 return (
                                   <div key={field} className="flex items-start gap-2">
                                     <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-0.5">{config.label}:</span>
-                                    <div className="flex-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                                    <div className="flex-1 flex flex-wrap gap-x-3 gap-y-0.5 px-1">
                                       {files.length === 0 ? (
                                         <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>
-                                      ) : files.map((fileName, idx) => (
+                                      ) : files.map((fileName, idx) => {
+                                        // Build the local file path
+                                        let localFilePath = '';
+                                        if (fileStoragePath) {
+                                          if (field === 'pcb_footprint') {
+                                            // Footprint: always link to .dra design file
+                                            localFilePath = `${fileStoragePath}${config.subdir}/${fileName}.dra`;
+                                          } else {
+                                            // Others: use the actual full filename from linked cad_files
+                                            const fullName = linkedFilesMap[config.subdir]?.[fileName] || fileName;
+                                            localFilePath = `${fileStoragePath}${config.subdir}/${fullName}`;
+                                          }
+                                        }
+                                        const fileHref = localFilePath
+                                          ? `file:///${localFilePath.replace(/\\/g, '/')}`
+                                          : api.getFileDownloadUrl(config.subdir, componentDetails.manufacturer_pn, fileName);
+                                        return (
                                         <div key={idx} className="flex items-center gap-1.5">
                                           <a
-                                            href={api.getFileDownloadUrl(config.subdir, componentDetails.manufacturer_pn, fileName)}
+                                            href={fileHref}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
-                                            title={`Download ${fileName}`}
+                                            title={localFilePath ? `Open ${localFilePath}` : `Download ${fileName}`}
                                           >
                                             {fileName}
                                           </a>
@@ -3757,7 +3787,8 @@ const Library = () => {
                                             <ExternalLink className="w-3 h-3" />
                                           </button>
                                         </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 );
@@ -3772,9 +3803,9 @@ const Library = () => {
                             {/* Approval Status Section */}
                             <div className="border-t border-gray-200 dark:border-[#444444] pt-3 mt-3 space-y-1">
                               {/* Approval Status - single row */}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 pb-2">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approval Status:</span>
-                                <span className={`inline-block py-0.5 rounded text-xs font-semibold ${
+                                <span className={`inline-block px-3 py-0.5 rounded text-xs font-semibold ${
                                   componentDetails.approval_status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                                   componentDetails.approval_status === 'archived' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                                   componentDetails.approval_status === 'pending review' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
@@ -3791,9 +3822,9 @@ const Library = () => {
 
                               {/* By / Date - single row */}
                               {(componentDetails.approval_user_name || componentDetails.approval_date) && (
-                                <div className="flex items-baseline gap-2">
+                                <div className="flex items-baseline gap-2 pb-2">
                                   <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Approver:</span>
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 px-1">
                                     {componentDetails.approval_user_name && `${componentDetails.approval_user_name}`}
                                     {componentDetails.approval_user_name && componentDetails.approval_date && ' • '}
                                     {componentDetails.approval_date && `${new Date(componentDetails.approval_date).toLocaleDateString()}`}
@@ -3802,8 +3833,8 @@ const Library = () => {
                               )}
 
                               {/* Approval Action Buttons - with label */}
-                              <div className="flex items-start gap-2 pt-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-2">Approval Action:</span>
+                              <div className="flex items-start gap-2 pt-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-1.5">Action:</span>
                                 <div className="flex flex-wrap gap-2">
                                   {canApprove() && (
                                     <>
