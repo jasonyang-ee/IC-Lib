@@ -624,14 +624,8 @@ const Library = () => {
       // Distributor info and specifications will be added separately by handleSaveAdd
       return await api.createComponent(data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['components']);
-      setIsAddMode(false);
-      setEditData({});
-      setSelectedComponent(null);
-      setManufacturerInput('');
-      setAltManufacturerInputs({});
-    },
+    // Note: cleanup (invalidation, state reset) happens at the end of handleSaveAdd,
+    // not here — onSuccess fires before the rest of the save handler completes.
   });
 
   // Delete mutation - now supports bulk delete
@@ -656,13 +650,9 @@ const Library = () => {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => api.updateComponent(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['componentDetails']);
-      setIsEditMode(false);
-      setManufacturerInput('');
-      setAltManufacturerInputs({});
-    },
+    // Note: cleanup (invalidation, state reset) happens at the end of handleSave,
+    // not here — onSuccess fires before the rest of the save handler completes
+    // (specs, distributors, alternatives still pending).
   });
 
   // Create manufacturer mutation
@@ -1120,6 +1110,8 @@ const Library = () => {
         queryClient.invalidateQueries(['components']);
         queryClient.invalidateQueries(['componentDetails']);
         setIsEditMode(false);
+        setManufacturerInput('');
+        setAltManufacturerInputs({});
       } catch (error) {
         console.error('Error saving component:', error);
         setWarningModal({ show: true, message: 'Failed to save component. Please try again.' });
@@ -1595,6 +1587,7 @@ const Library = () => {
     setEditData({
       category_id: '',
       part_number: '', // Will be auto-generated based on category
+      manufacturer_pn: '',
       manufacturer_part_number: '',
       description: '',
       value: '',
@@ -2131,9 +2124,9 @@ const Library = () => {
         
         // All operations completed successfully - show success notification
         showSuccess('Component added successfully!');
-        
-        // Explicit cleanup to ensure we exit add mode
-        // This is done here to ensure all async operations complete before resetting state
+
+        // Refresh and cleanup — done here so all async operations complete before resetting state
+        queryClient.invalidateQueries(['components']);
         setIsAddMode(false);
         setEditData({});
         setSelectedComponent(null);
@@ -3506,7 +3499,7 @@ const Library = () => {
                       />
                     </div>
                     {/* File upload and management */}
-                    {editData.manufacturer_pn && (
+                    {(editData.manufacturer_pn || isAddMode) && (
                       <ComponentFiles
                         mfgPartNumber={editData.manufacturer_pn}
                         componentId={selectedComponent?.id}
@@ -3719,7 +3712,11 @@ const Library = () => {
 
                             {/* CAD Files - clickable links to local files */}
                             {(() => {
-                              const fileStoragePath = import.meta.env.VITE_FILE_STORAGE_PATH || '';
+                              const rawPath = import.meta.env.VITE_FILE_STORAGE_PATH || '';
+                              // Normalize: collapse any mix of \ and / into single /, ensure trailing /
+                              const fileStoragePath = rawPath
+                                ? rawPath.replace(/[\\/]+/g, '/').replace(/\/$/, '') + '/'
+                                : '';
                               const cadTypeMap = {
                                 pcb_footprint: { label: 'PCB Footprint', routeType: 'footprint', subdir: 'footprint' },
                                 schematic: { label: 'Schematic', routeType: 'schematic', subdir: 'symbol' },
@@ -3766,7 +3763,7 @@ const Library = () => {
                                           }
                                         }
                                         const fileHref = localFilePath
-                                          ? `file:///${localFilePath.replace(/\\/g, '/')}`
+                                          ? `file:///${localFilePath}`
                                           : api.getFileDownloadUrl(config.subdir, componentDetails.manufacturer_pn, fileName);
                                         return (
                                         <div key={idx} className="flex items-center gap-1.5">

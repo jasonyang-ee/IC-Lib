@@ -359,13 +359,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   }
   const hasFiles = Object.keys(files).length > 0;
 
-  if (!mfgPartNumber) return null;
-
   return (
     <div className="col-span-2 pt-4 mt-2">
       <div className="flex items-center justify-between mb-3">
         <h4 className="font-semibold text-gray-900 dark:text-gray-100">CAD File Management</h4>
-        {hasFiles && (
+        {mfgPartNumber && hasFiles && (
           <a
             href={api.getFileExportUrl(mfgPartNumber)}
             className="btn-secondary text-xs flex items-center gap-1"
@@ -528,8 +526,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         );
       })()}
 
-      {/* Drag-and-drop upload area (edit mode only) */}
-      {canEdit && (
+      {/* Drag-and-drop upload area (edit mode only, requires MPN) */}
+      {canEdit && mfgPartNumber && (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -560,6 +558,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             Supports CAD files and ZIP archives (SamacSys, SnapEDA, Ultra Librarian)
           </p>
         </div>
+      )}
+      {canEdit && !mfgPartNumber && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic mt-2">
+          Enter MFG Part Number to enable file uploads
+        </p>
       )}
 
       {/* Delete confirmation modal */}

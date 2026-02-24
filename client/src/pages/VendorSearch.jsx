@@ -862,11 +862,12 @@ const VendorSearch = () => {
                     </div>
                     <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {part.partNumber}
+                          {part.manufacturerPartNumber && <span className="font-normal text-sm text-gray-500 dark:text-gray-400"> - MFG P/N: {part.manufacturerPartNumber}</span>}
+                        </p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                           {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
-                          {part.manufacturer && ' - '}
-                          <span>MFG P/N: {part.manufacturerPartNumber}</span>
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
@@ -945,11 +946,12 @@ const VendorSearch = () => {
                     </div>
                     <div className="flex justify-between items-start pr-8">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{part.partNumber}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {part.partNumber}
+                          {part.manufacturerPartNumber && <span className="font-normal text-sm text-gray-500 dark:text-gray-400"> - MFG P/N: {part.manufacturerPartNumber}</span>}
+                        </p>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                           {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
-                          {part.manufacturer && ' - '}
-                          <span>MFG P/N: {part.manufacturerPartNumber}</span>
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
