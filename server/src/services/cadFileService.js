@@ -419,7 +419,8 @@ export async function findCadFile(fileName, fileType) {
 
 /**
  * Sync CAD files from a component's data to the junction table.
- * Accepts arrays of base filenames (no extensions).
+ * Accepts arrays of base filenames (no extensions) from TEXT columns.
+ * Matches against cad_files records which store full filenames (with extensions).
  * After syncing junction records, regenerates all TEXT columns.
  */
 export async function syncComponentCadFiles(componentId, cadData) {
@@ -432,44 +433,68 @@ export async function syncComponentCadFiles(componentId, cadData) {
     pad_file: 'pad',
   };
 
-  // Get current links
+  // Get current junction links (full filenames from cad_files)
   const currentLinks = await pool.query(`
-    SELECT ccf.id, cf.file_name, cf.file_type
+    SELECT ccf.id, cf.id as cad_file_id, cf.file_name, cf.file_type
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     WHERE ccf.component_id = $1
   `, [componentId]);
 
-  const existingSet = new Set(currentLinks.rows.map(r => `${r.file_type}:${r.file_name}`));
-  const desiredSet = new Set();
-
-  // Register and link new files
+  // Build desired base names per file type
+  const desiredBaseNames = {};
   for (const [column, fileType] of Object.entries(columnToFileType)) {
-    const fileNames = cadData[column] || [];
-    const arr = Array.isArray(fileNames) ? fileNames : [];
+    const names = cadData[column] || [];
+    desiredBaseNames[fileType] = new Set(
+      (Array.isArray(names) ? names : []).filter(n => n && typeof n === 'string'),
+    );
+  }
 
-    for (const fileName of arr) {
-      if (!fileName || typeof fileName !== 'string') continue;
-      desiredSet.add(`${fileType}:${fileName}`);
+  // Remove junction records where the base name is no longer desired for that file type
+  for (const row of currentLinks.rows) {
+    const baseName = row.file_name.replace(/\.[^.]+$/, '');
+    const desired = desiredBaseNames[row.file_type];
+    if (desired && !desired.has(baseName)) {
+      await pool.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
+    }
+  }
 
-      if (!existingSet.has(`${fileType}:${fileName}`)) {
-        // Register the cad file (upsert)
-        const cadFile = await registerCadFile(fileName, fileType);
-        // Link to component
+  // Build set of already-linked base names per file type
+  const linkedBaseNames = {};
+  for (const row of currentLinks.rows) {
+    const baseName = row.file_name.replace(/\.[^.]+$/, '');
+    const desired = desiredBaseNames[row.file_type];
+    // Only count as linked if it survived the deletion above
+    if (desired && desired.has(baseName)) {
+      if (!linkedBaseNames[row.file_type]) linkedBaseNames[row.file_type] = new Set();
+      linkedBaseNames[row.file_type].add(baseName);
+    }
+  }
+
+  // Add junction records for base names that aren't yet linked
+  for (const [column, fileType] of Object.entries(columnToFileType)) {
+    const baseNames = cadData[column] || [];
+    const arr = Array.isArray(baseNames) ? baseNames : [];
+    const alreadyLinked = linkedBaseNames[fileType] || new Set();
+
+    for (const baseName of arr) {
+      if (!baseName || typeof baseName !== 'string') continue;
+      if (alreadyLinked.has(baseName)) continue;
+
+      // Find an existing cad_file by base name pattern match
+      const match = await pool.query(`
+        SELECT id FROM cad_files
+        WHERE file_type = $1 AND regexp_replace(file_name, '\\.[^.]+$', '') = $2
+        LIMIT 1
+      `, [fileType, baseName]);
+
+      if (match.rows.length > 0) {
         await pool.query(`
           INSERT INTO component_cad_files (component_id, cad_file_id)
           VALUES ($1, $2)
           ON CONFLICT (component_id, cad_file_id) DO NOTHING
-        `, [componentId, cadFile.id]);
+        `, [componentId, match.rows[0].id]);
       }
-    }
-  }
-
-  // Remove links that are no longer desired
-  for (const row of currentLinks.rows) {
-    const key = `${row.file_type}:${row.file_name}`;
-    if (!desiredSet.has(key)) {
-      await pool.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
     }
   }
 

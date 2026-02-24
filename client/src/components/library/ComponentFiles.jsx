@@ -39,7 +39,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -172,9 +172,22 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     mutationFn: async ({ category, filename }) => {
       return api.deleteComponentFile(category, mfgPartNumber, filename);
     },
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       showSuccess('File deleted');
+      // Remove from local uploads cache
+      setLocalUploads(prev => {
+        const updated = { ...prev };
+        if (updated[variables.category]) {
+          updated[variables.category] = updated[variables.category].filter(f => f.name !== variables.filename);
+          if (updated[variables.category].length === 0) delete updated[variables.category];
+        }
+        return updated;
+      });
+      // Notify parent to update CIS filename list
+      if (onFileDeleted) {
+        onFileDeleted(variables.category, variables.filename);
+      }
       setDeleteConfirm({ show: false, category: '', filename: '' });
     },
     onError: (error) => {
@@ -472,7 +485,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                   )}
                 </div>
               ))}
-              {canEdit && componentId && (
+              {canEdit && (componentId || onFileUploaded) && (
                 <button
                   type="button"
                   onClick={() => setLinkPicker({ show: true, category })}
@@ -490,7 +503,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       )}
 
       {/* Empty categories with link buttons */}
-      {canEdit && componentId && (() => {
+      {canEdit && (componentId || onFileUploaded) && (() => {
         const ALL_CATEGORIES = ['footprint', 'pad', 'symbol', 'model', 'pspice'];
         const emptyCategories = ALL_CATEGORIES.filter(c => !files[c] || files[c].length === 0);
         if (emptyCategories.length === 0) return null;
@@ -655,8 +668,20 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           if (file.id && componentId) {
             linkMutation.mutate({ cadFileId: file.id });
           }
-          if (onFileUploaded && linkPicker.category) {
-            onFileUploaded(linkPicker.category, file.file_name);
+          const cat = linkPicker.category;
+          if (onFileUploaded && cat) {
+            onFileUploaded(cat, file.file_name);
+          }
+          // Add to localUploads so the file appears in the list immediately
+          if (cat && file.file_name) {
+            setLocalUploads(prev => {
+              const updated = { ...prev };
+              if (!updated[cat]) updated[cat] = [];
+              if (!updated[cat].find(f => f.name === file.file_name)) {
+                updated[cat].push({ name: file.file_name, size: 0, storage: 'local' });
+              }
+              return updated;
+            });
           }
         }}
         fileType={linkPicker.category || undefined}

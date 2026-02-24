@@ -365,16 +365,18 @@ const Library = () => {
 
   // Auto-select component when searching from Inventory
   useEffect(() => {
+    if (isAddMode || isEditMode) return; // Don't interfere with editing modes
     if ((location.state?.searchUuid || location.state?.searchTerm) && components && components.length > 0) {
       // Select the first matching component
       setSelectedComponent(components[0]);
       setIsEditMode(false);
       setIsAddMode(false);
     }
-  }, [components, location.state]);
+  }, [components, location.state, isAddMode, isEditMode]);
 
   // Auto-select component when using Previous/Next navigation
   useEffect(() => {
+    if (isAddMode || isEditMode) return; // Don't interfere with editing modes
     // Only trigger if we have components and a valid part number format in search
     if (components && components.length > 0 && searchTerm && parsePartNumber(searchTerm)) {
       // Check if the search term exactly matches a component's part number
@@ -3485,22 +3487,22 @@ const Library = () => {
                     {editData.manufacturer_pn && (
                       <ComponentFiles
                         mfgPartNumber={editData.manufacturer_pn}
-                        componentId={selectedComponent}
+                        componentId={selectedComponent?.id}
                         packageSize={editData.package_size}
                         canEdit={true}
-                        showRename={!isAddMode}
-                        showDelete={!isAddMode}
                         onFileUploaded={(category, filename) => {
                           // Map upload category to editData field name
                           const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
                           const field = fieldMap[category];
                           if (field) {
+                            // Strip extension — CIS TEXT columns store base names only
+                            const baseName = filename.replace(/\.[^.]+$/, '');
                             // Use functional updater to avoid stale closure when multiple
                             // files are extracted from a ZIP and onFileUploaded is called in a loop
                             setEditData(prev => {
                               const current = Array.isArray(prev[field]) ? prev[field] : [];
-                              if (!current.includes(filename)) {
-                                return { ...prev, [field]: [...current, filename] };
+                              if (!current.includes(baseName)) {
+                                return { ...prev, [field]: [...current, baseName] };
                               }
                               return prev;
                             });
@@ -3510,9 +3512,24 @@ const Library = () => {
                           const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
                           const field = fieldMap[category];
                           if (field) {
+                            // Strip extensions — CIS TEXT columns store base names only
+                            const oldBase = oldFilename.replace(/\.[^.]+$/, '');
+                            const newBase = newFilename.replace(/\.[^.]+$/, '');
                             setEditData(prev => {
                               const current = Array.isArray(prev[field]) ? prev[field] : [];
-                              return { ...prev, [field]: current.map(f => f === oldFilename ? newFilename : f) };
+                              return { ...prev, [field]: current.map(f => f === oldBase ? newBase : f) };
+                            });
+                          }
+                        }}
+                        onFileDeleted={(category, filename) => {
+                          const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };
+                          const field = fieldMap[category];
+                          if (field) {
+                            // Strip extension — CIS TEXT columns store base names only
+                            const baseName = filename.replace(/\.[^.]+$/, '');
+                            setEditData(prev => {
+                              const current = Array.isArray(prev[field]) ? prev[field] : [];
+                              return { ...prev, [field]: current.filter(f => f !== baseName) };
                             });
                           }
                         }}
