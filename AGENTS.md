@@ -79,10 +79,13 @@ IC-Lib/
 - Approval workflow (new -> temporary -> pending review -> experimental -> approved -> archived)
 
 ### File Management
-- CAD file storage organized as `library/[category]/[sanitized_mfg_part_number]/[filename]`
+- Flat CAD file storage: `library/[category]/[filename]` (legacy nested paths also supported for reads)
 - Categories: footprint, symbol, model, pspice, pad, libraries
+- `cad_files` table + `component_cad_files` junction table track file-to-component many-to-many relationships
+- TEXT columns on components (pcb_footprint, schematic, step_model, pspice, pad_file) store comma-separated base filenames for OrCAD CIS/ODBC integration — auto-regenerated from junction table
 - ZIP upload with smart extraction (SamacSys, SnapEDA, UltraLibrarian detection)
 - Per-component ZIP export of all associated files
+- File Library page manages files via `cad_files` table; only shows files that physically exist on disk
 
 ### ECO (Engineer Change Order)
 - Multi-stage approval workflow with configurable stages

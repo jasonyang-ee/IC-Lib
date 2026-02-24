@@ -36,10 +36,15 @@ export const getFilesByType = async (req, res) => {
 
     const files = await cadFileService.getCadFilesByType(info.fileType);
 
+    // Only return files that physically exist on disk
+    const existingFiles = files.filter(f =>
+      fs.existsSync(path.join(LIBRARY_BASE, info.subdir, f.file_name)),
+    );
+
     res.json({
       type,
       column: info.column,
-      files: files.map(f => ({ file_name: f.file_name, component_count: f.component_count })),
+      files: existingFiles.map(f => ({ file_name: f.file_name, component_count: f.component_count })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:', error.message);
@@ -160,9 +165,17 @@ export const searchFiles = async (req, res) => {
 
     const results = await cadFileService.searchCadFiles(searchQuery, fileType);
 
+    // Only return files that physically exist on disk
+    const FILE_TYPE_SUBDIR = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    const existingResults = results.filter(f => {
+      const subdir = FILE_TYPE_SUBDIR[f.file_type];
+      if (!subdir) return false;
+      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
+    });
+
     res.json({
       searchQuery,
-      results: results.map(f => ({
+      results: existingResults.map(f => ({
         file_name: f.file_name,
         file_type: f.file_type,
         component_count: f.component_count,
@@ -289,7 +302,15 @@ export const getOrphanFiles = async (req, res) => {
 
     const orphans = await cadFileService.getOrphanCadFiles(fileType);
 
-    res.json({ orphans });
+    // Only return orphans that physically exist on disk
+    const FILE_TYPE_SUBDIR_MAP = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
+    const existingOrphans = orphans.filter(f => {
+      const subdir = FILE_TYPE_SUBDIR_MAP[f.file_type];
+      if (!subdir) return false;
+      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
+    });
+
+    res.json({ orphans: existingOrphans });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching orphan files:', error.message);
     res.status(500).json({ error: 'Failed to fetch orphan files' });

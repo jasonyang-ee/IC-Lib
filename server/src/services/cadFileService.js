@@ -17,24 +17,6 @@ const TYPE_SUBDIR = {
   pad: 'pad',
 };
 
-// Map route type param to DB file_type and TEXT column
-const TYPE_MAP = {
-  footprint: { fileType: 'footprint', column: 'pcb_footprint', subdir: 'footprint' },
-  schematic: { fileType: 'symbol', column: 'schematic', subdir: 'symbol' },
-  step:      { fileType: 'model', column: 'step_model', subdir: 'model' },
-  pspice:    { fileType: 'pspice', column: 'pspice', subdir: 'pspice' },
-  pad:       { fileType: 'pad', column: 'pad_file', subdir: 'pad' },
-};
-
-// Map file category (from upload) to cad_files file_type
-const _CATEGORY_TO_FILE_TYPE = {
-  footprint: 'footprint',
-  symbol: 'symbol',
-  model: 'model',
-  pspice: 'pspice',
-  pad: 'pad',
-};
-
 // Map cad_files file_type to TEXT column name in components table
 const FILE_TYPE_TO_COLUMN = {
   footprint: 'pcb_footprint',
@@ -43,13 +25,6 @@ const FILE_TYPE_TO_COLUMN = {
   pspice: 'pspice',
   pad: 'pad_file',
 };
-
-/**
- * Resolve route type param (e.g., 'footprint', 'schematic') to type info
- */
-export function getTypeInfo(routeType) {
-  return TYPE_MAP[routeType] || null;
-}
 
 /**
  * Regenerate the TEXT column for a specific file type on a component.
@@ -221,10 +196,9 @@ export async function getComponentsByCadFile(cadFileId) {
 
 /**
  * Get all components that reference a file name of a given type.
- * Uses cad_files table via junction table, falls back to TEXT column search.
+ * Uses cad_files table via junction table only.
  */
 export async function getComponentsByFileName(fileName, fileType) {
-  // First try via cad_files table
   const cfResult = await pool.query(`
     SELECT id FROM cad_files WHERE file_name = $1 AND file_type = $2
   `, [fileName, fileType]);
@@ -233,31 +207,7 @@ export async function getComponentsByFileName(fileName, fileType) {
     return getComponentsByCadFile(cfResult.rows[0].id);
   }
 
-  // Fallback: search TEXT column for base filename match
-  const column = FILE_TYPE_TO_COLUMN[fileType];
-  if (!column) return [];
-
-  // Strip extension from fileName for TEXT column search
-  const baseName = fileName.replace(/\.[^.]+$/, '');
-
-  const result = await pool.query(`
-    SELECT
-      c.id,
-      c.part_number,
-      c.manufacturer_pn,
-      c.description,
-      c.value,
-      c.package_size,
-      c.approval_status,
-      m.name as manufacturer_name,
-      cat.name as category_name
-    FROM components c
-    LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-    LEFT JOIN component_categories cat ON c.category_id = cat.id
-    WHERE $1 = ANY(string_to_array(c.${column}, ','))
-    ORDER BY c.part_number ASC
-  `, [baseName]);
-  return result.rows;
+  return [];
 }
 
 /**
@@ -575,7 +525,6 @@ export async function getComponentsSharingFiles(componentId) {
 }
 
 export default {
-  getTypeInfo,
   regenerateCadText,
   regenerateAllCadText,
   registerCadFile,

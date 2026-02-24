@@ -226,8 +226,7 @@ CREATE TABLE IF NOT EXISTS footprint_sources (
 -- PART 4: INDEXES FOR PERFORMANCE
 -- ============================================================================
 
--- Components table indexes
-CREATE INDEX IF NOT EXISTS idx_components_id ON components(id);
+-- Components table indexes (PK index is automatic, no need for idx on id)
 CREATE INDEX IF NOT EXISTS idx_components_category ON components(category_id);
 CREATE INDEX IF NOT EXISTS idx_components_manufacturer ON components(manufacturer_id);
 CREATE INDEX IF NOT EXISTS idx_components_part_number ON components(part_number);
@@ -567,8 +566,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
     details JSONB NOT NULL DEFAULT '{}'::jsonb -- Flexible JSON for all change details
 );
 
--- Index for faster queries (using uuidv7 for ordering by time)
-CREATE INDEX IF NOT EXISTS idx_activity_log_id ON activity_log(id DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_type ON activity_log(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_log_component ON activity_log(component_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_part_number ON activity_log(part_number);
@@ -610,26 +607,17 @@ CREATE INDEX IF NOT EXISTS idx_project_components_component ON project_component
 CREATE INDEX IF NOT EXISTS idx_project_components_alternative ON project_components(alternative_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 
--- Trigger to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_project_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_update_project_timestamp ON projects;
 CREATE TRIGGER trigger_update_project_timestamp
     BEFORE UPDATE ON projects
     FOR EACH ROW
-    EXECUTE FUNCTION update_project_timestamp();
+    EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS trigger_update_project_component_timestamp ON project_components;
 CREATE TRIGGER trigger_update_project_component_timestamp
     BEFORE UPDATE ON project_components
     FOR EACH ROW
-    EXECUTE FUNCTION update_project_timestamp();
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
 -- PART 10: TRIGGERS FOR AUTO-SYNC
@@ -812,7 +800,6 @@ CREATE TABLE IF NOT EXISTS eco_specifications (
 CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_eco_number ON eco_orders(eco_number);
-CREATE INDEX IF NOT EXISTS idx_eco_orders_id ON eco_orders(id DESC);
 CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
@@ -964,6 +951,5 @@ CREATE TABLE IF NOT EXISTS email_log (
     eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_log_id ON email_log(id DESC);
 CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);
 
