@@ -9,13 +9,13 @@
 The following table is provided for convenience only. It is a non-binding summary intended to assist readers in understanding the intent of this License. In the event of any conflict between this table and the full license terms set forth below, the full license terms shall control.
 
 | Scenario | Permitted | Obligation |
-|---|---|---|
+| :--- | :--- | :--- |
 | Individual or hobbyist use | Yes | None |
-| Company using the Software for internal operations or R&D | Yes | None |
-| Company modifying the Software for internal use only | Yes | None — no disclosure required |
-| Providing the Software or its functionality as a hosted or managed service to third parties | No | Prohibited under Section 4.1 |
-| Bundling the Software into a proprietary EDA tool, plugin, or commercial product distributed to third parties | No | Prohibited under Section 4.2 |
-| Distributing a modified or unmodified version of the Software to third parties (e.g., a community fork) | Yes | Full source disclosure and license continuity required under Section 5 |
+| Company using Software for internal operations | Yes | None |
+| Company modifying Software for internal use | Yes | None — no disclosure required |
+| Providing Software as a hosted/managed service | **No** | Prohibited (Section 4.1) |
+| Bundling into a commercial product | **No** | Prohibited (Section 4.2) |
+| Distributing a community fork | Yes | Full disclosure (Section 5) |
 
 ---
 
