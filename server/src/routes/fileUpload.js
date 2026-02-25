@@ -496,53 +496,75 @@ router.post('/upload-temp', authenticate, canWrite, upload.array('files', 20), a
  */
 router.post('/finalize-temp', authenticate, canWrite, async (req, res) => {
   try {
-    const { files, mfgPartNumber } = req.body;
+    const { files, mfgPartNumber, collisions } = req.body;
 
-    if (!files || !Array.isArray(files) || files.length === 0) {
+    const hasFiles = files && Array.isArray(files) && files.length > 0;
+    const hasCollisions = collisions && Array.isArray(collisions) && collisions.length > 0;
+
+    if (!hasFiles && !hasCollisions) {
       return res.status(400).json({ error: 'No files to finalize' });
     }
 
     const results = [];
+    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
 
-    for (const { tempFilename, category } of files) {
-      const safeName = path.basename(tempFilename); // prevent traversal
-      const tempPath = path.join(LIBRARY_BASE, 'temp', safeName);
+    // Process temp files (move from temp to category directory)
+    if (hasFiles) {
+      for (const { tempFilename, category } of files) {
+        const safeName = path.basename(tempFilename); // prevent traversal
+        const tempPath = path.join(LIBRARY_BASE, 'temp', safeName);
 
-      if (!fs.existsSync(tempPath)) {
-        // File might have been cleaned up or already moved — skip
-        results.push({ filename: safeName, error: 'Temp file not found' });
-        continue;
+        if (!fs.existsSync(tempPath)) {
+          // File might have been cleaned up or already moved — skip
+          results.push({ filename: safeName, error: 'Temp file not found' });
+          continue;
+        }
+
+        // Move from temp to category directory
+        const moveResult = moveToCategory(tempPath, category);
+
+        if (!moveResult) {
+          results.push({ filename: safeName, error: 'Invalid category' });
+          continue;
+        }
+
+        const filename = moveResult.filename;
+
+        // Register in DB and optionally link to component
+        const fileType = fileTypeMap[category];
+
+        if (mfgPartNumber && fileType) {
+          await autoLinkFileToComponent(category, filename, mfgPartNumber);
+        } else if (fileType) {
+          try {
+            await cadFileService.registerCadFile(filename, fileType);
+          } catch (err) {
+            console.error(`[FileUpload] Failed to register ${filename}: ${err.message}`);
+          }
+        }
+
+        results.push({
+          filename,
+          type: category,
+          collision: moveResult.collision || false,
+        });
       }
+    }
 
-      // Move from temp to category directory
-      const moveResult = moveToCategory(tempPath, category);
+    // Process collision files (already exist on disk — register in DB and link to component)
+    if (hasCollisions && mfgPartNumber) {
+      for (const { filename, category } of collisions) {
+        const fileType = fileTypeMap[category];
+        if (!fileType) continue;
 
-      if (!moveResult) {
-        results.push({ filename: safeName, error: 'Invalid category' });
-        continue;
-      }
-
-      const filename = moveResult.filename;
-
-      // Register in DB and optionally link to component
-      const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-      const fileType = fileTypeMap[category];
-
-      if (mfgPartNumber && fileType) {
-        await autoLinkFileToComponent(category, filename, mfgPartNumber);
-      } else if (fileType) {
         try {
-          await cadFileService.registerCadFile(filename, fileType);
+          await autoLinkFileToComponent(category, filename, mfgPartNumber);
+          results.push({ filename, type: category, collision: true, linked: true });
         } catch (err) {
-          console.error(`[FileUpload] Failed to register ${filename}: ${err.message}`);
+          console.error(`[FileUpload] Failed to link collision file ${filename}: ${err.message}`);
+          results.push({ filename, type: category, collision: true, error: err.message });
         }
       }
-
-      results.push({
-        filename,
-        type: category,
-        collision: moveResult.collision || false,
-      });
     }
 
     res.json({ message: 'Files finalized', results });

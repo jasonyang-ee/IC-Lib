@@ -53,6 +53,9 @@ const Library = () => {
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
 
+  // Collision file tracking (files that already exist on disk but need DB linking on save)
+  const [collisionFiles, setCollisionFiles] = useState([]);
+
   // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
   const [deletedFiles, setDeletedFiles] = useState([]);
   
@@ -935,13 +938,15 @@ const Library = () => {
           }
         }
 
-        // Finalize temp files before saving component
-        if (tempFiles.length > 0) {
+        // Finalize temp files and register collision files before saving component
+        if (tempFiles.length > 0 || collisionFiles.length > 0) {
           await api.finalizeTempFiles({
             files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
             mfgPartNumber: editData.manufacturer_pn,
+            collisions: collisionFiles.map(f => ({ filename: f.filename, category: f.category })),
           });
           setTempFiles([]);
+          setCollisionFiles([]);
         }
 
         // Confirm-delete soft-deleted files (permanently remove from temp)
@@ -2032,13 +2037,15 @@ const Library = () => {
       }
 
       if (editData.category_id && editData.part_number) {
-        // Finalize temp files before creating component
-        if (tempFiles.length > 0) {
+        // Finalize temp files and register collision files before creating component
+        if (tempFiles.length > 0 || collisionFiles.length > 0) {
           await api.finalizeTempFiles({
             files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
             mfgPartNumber: editData.manufacturer_pn,
+            collisions: collisionFiles.map(f => ({ filename: f.filename, category: f.category })),
           });
           setTempFiles([]);
+          setCollisionFiles([]);
         }
 
         // Confirm-delete soft-deleted files (permanently remove from temp)
@@ -2190,6 +2197,7 @@ const Library = () => {
     }
     setIsAddMode(false);
     setEditData({});
+    setCollisionFiles([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
   };
@@ -2208,6 +2216,7 @@ const Library = () => {
       setDeletedFiles([]);
     }
     setIsEditMode(false);
+    setCollisionFiles([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
   };
@@ -3556,6 +3565,11 @@ const Library = () => {
                         packageSize={editData.package_size}
                         canEdit={true}
                         onTempFileStaged={(info) => setTempFiles(prev => [...prev, info])}
+                        onCollisionFile={(info) => setCollisionFiles(prev => {
+                          // Avoid duplicates
+                          if (prev.some(f => f.filename === info.filename && f.category === info.category)) return prev;
+                          return [...prev, info];
+                        })}
                         onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
                         onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
                         onFileUploaded={(category, filename) => {

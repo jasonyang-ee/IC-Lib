@@ -46,7 +46,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onCollisionFile, onFileSoftDeleted, onTempFileRemoved }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -165,6 +165,20 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           if (r.collisions) {
             for (const col of r.collisions) {
               if (col.category && col.filename) onFileUploaded(col.category, col.filename);
+            }
+          }
+        }
+      }
+
+      // Notify parent of collision files (already on disk, need DB registration on save)
+      if (onCollisionFile) {
+        for (const r of collisionFiles) {
+          if (r.type && r.filename) onCollisionFile({ filename: r.filename, category: r.type });
+        }
+        for (const r of extracted) {
+          if (r.collisions) {
+            for (const col of r.collisions) {
+              if (col.category && col.filename) onCollisionFile({ filename: col.filename, category: col.category });
             }
           }
         }

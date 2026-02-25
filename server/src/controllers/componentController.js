@@ -460,7 +460,7 @@ export const updateComponent = async (req, res, next) => {
       approval_user_id,
       approval_date,
     } = req.body;
-    
+
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
     const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
 
@@ -532,7 +532,7 @@ export const updateComponent = async (req, res, next) => {
       console.error('Failed to log component update activity:', logError.message);
     }
 
-    // Sync CAD files to cad_files table
+    // Sync CAD files to junction table and regenerate TEXT columns
     try {
       const updatedComponent = result.rows[0];
       await cadFileService.syncComponentCadFiles(id, {
