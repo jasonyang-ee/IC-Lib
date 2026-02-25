@@ -28,6 +28,7 @@ temp/
 *-cwd
 *.txt
 *.md
+!LICENSE.md
 !README.md
 !CHANGELOG.md
 !AGENTS.md
