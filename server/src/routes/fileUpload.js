@@ -20,23 +20,23 @@ const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
 // IMPORTANT: Extensions must be unique across categories (except for ambiguous ones handled by path-based logic)
 const FILE_CATEGORIES = {
   footprint: {
-    extensions: ['.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra'],
+    extensions: ['.brd', '.psm', '.dra'],
     subdir: 'footprint',
   },
   pad: {
-    extensions: ['.pad', '.plb'],
+    extensions: ['.pad'],
     subdir: 'pad',
   },
   symbol: {
-    extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.schlib'],
+    extensions: ['.olb'],
     subdir: 'symbol',
   },
   model: {
-    extensions: ['.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t'],
+    extensions: ['.step', '.stp', '.iges', '.igs', '.3ds'],
     subdir: 'model',
   },
   pspice: {
-    extensions: ['.cir', '.sub', '.inc'],
+    extensions: ['.lib'],
     subdir: 'pspice',
   },
   libraries: {

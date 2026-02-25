@@ -4,19 +4,19 @@ import { Search, X, FileText, Link } from 'lucide-react';
 import { api } from '../../utils/api';
 
 const FILE_TYPE_LABELS = {
-  footprint: 'Footprint',
   symbol: 'Symbol',
+  footprint: 'Footprint',
+  pad: 'Pad',
   model: '3D Model',
   pspice: 'PSpice',
-  pad: 'Pad',
 };
 
 const ROUTE_TYPE_MAP = {
-  footprint: 'footprint',
   symbol: 'schematic',
+  footprint: 'footprint',
+  pad: 'pad',
   model: 'step',
   pspice: 'pspice',
-  pad: 'pad',
 };
 
 /**

@@ -7,8 +7,8 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import CadFilePickerModal from './CadFilePickerModal';
 
 const CATEGORY_LABELS = {
-  symbol: 'Symbol',
-  footprint: 'PCB Footprint',
+  symbol: 'Schematic',
+  footprint: 'Footprint',
   pad: 'Pad',
   model: '3D Model',
   pspice: 'PSpice',
@@ -617,12 +617,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         <p className="text-xs text-gray-500 dark:text-gray-400">Loading files...</p>
       ) : hasFiles ? (
         <div className="space-y-2 mb-3">
-          {Object.entries(files).map(([category, categoryFiles]) => (
+          {Object.keys(CATEGORY_LABELS).filter(cat => files[cat]?.length > 0).map((category) => (
             <div key={category}>
               <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 {CATEGORY_LABELS[category] || category}
               </p>
-              {categoryFiles.map((file) => (
+              {files[category].map((file) => (
                 <div key={file.name} className="mb-1">
                   {isRenaming(category, file.name) ? (
                     /* Inline rename form */
