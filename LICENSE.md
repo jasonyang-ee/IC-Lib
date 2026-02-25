@@ -1,166 +1,142 @@
-# IC-Lib Software License
+# IC-Lib Public License (v1.0)
 
-Copyright (C) Jason Yang. All rights reserved.
-
----
-
-## PREAMBLE
-
-This software is made available to the public under the terms of the GNU Affero General Public License, Version 3.0 ("AGPL-3.0"), as supplemented by the Additional Terms set forth herein. The AGPL-3.0 forms the foundational license governing this software, and the Additional Terms are incorporated pursuant to Section 7 of the AGPL-3.0, which expressly permits the imposition of supplemental conditions. In the event of any conflict between the AGPL-3.0 and the Additional Terms, the Additional Terms shall control.
-
-The intent of this license is to ensure that this software remains freely available for internal use by any person or organization, while expressly prohibiting any party from commercializing or monetizing access to this software as a hosted or managed service, and while preserving the copyleft obligations that require derivative works to remain open and available to the public under these same terms.
+**Copyright (C) 2026 Jason Yang. All rights reserved.**
 
 ---
 
-## PART I: BASE LICENSE
+## SUMMARY OF PERMITTED AND PROHIBITED USES
 
-### Section 1. Incorporation of AGPL-3.0
+The following table is provided for convenience only. It is a non-binding summary intended to assist readers in understanding the intent of this License. In the event of any conflict between this table and the full license terms set forth below, the full license terms shall control.
 
-This software is licensed under the GNU Affero General Public License, Version 3.0. The complete text of the AGPL-3.0 is available at:
-
-https://www.gnu.org/licenses/agpl-3.0.en.html
-
-All rights and obligations of the AGPL-3.0 apply to this software, except as expressly modified or supplemented by Part II of this License.
+| Scenario | Permitted | Obligation |
+|---|---|---|
+| Individual or hobbyist use | Yes | None |
+| Company using the Software for internal operations or R&D | Yes | None |
+| Company modifying the Software for internal use only | Yes | None — no disclosure required |
+| Providing the Software or its functionality as a hosted or managed service to third parties | No | Prohibited under Section 4.1 |
+| Bundling the Software into a proprietary EDA tool, plugin, or commercial product distributed to third parties | No | Prohibited under Section 4.2 |
+| Distributing a modified or unmodified version of the Software to third parties (e.g., a community fork) | Yes | Full source disclosure and license continuity required under Section 5 |
 
 ---
 
-## PART II: ADDITIONAL TERMS PURSUANT TO AGPL-3.0, SECTION 7
+## 1. PURPOSE AND NATURE OF LICENSE
 
-### Section 2. Definitions
+This is a **Source Available** license. It is designed to allow the public to view, modify, and use this software for any internal or personal purpose, free of charge and without obligation to disclose modifications, while strictly prohibiting third parties from commercializing the software as a managed or hosted service or from bundling it into proprietary products distributed to third parties.
 
-For the purposes of this License, the following terms shall have the meanings ascribed to them below:
+**This license is NOT an "Open Source" license as defined by the Open Source Initiative (OSI).** By using, copying, modifying, or distributing this Software, you agree to be bound by the following terms and conditions.
+
+---
+
+## 2. DEFINITIONS
 
 **"Software"** means the IC-Lib source code, object code, documentation, and all associated files made available under this License, including any Derivative Works thereof.
 
-**"Derivative Work"** has the meaning ascribed to it under applicable copyright law and under the AGPL-3.0, and includes any modification, adaptation, translation, abridgment, or other work based upon or incorporating the Software or any substantial portion thereof.
+**"Derivative Work"** means any modification, adaptation, translation, or work based upon or incorporating the Software or any substantial portion thereof.
 
-**"Internal Use"** means deployment and operation of the Software exclusively on infrastructure owned or controlled by the Licensee, for the sole benefit of the Licensee's own employees, contractors, or internal automated systems, where no access to the Software's functionality is made available to any third party.
+**"Internal Use"** means the deployment, operation, and modification of the Software exclusively on infrastructure owned or controlled by the Licensee, for the sole benefit of the Licensee's own employees, contractors, or internal automated systems, where no access to the Software's functionality is made available to any third party.
 
-**"Hosting Service"** means any arrangement by which a party deploys or operates the Software, or any Derivative Work thereof, on infrastructure that is accessible by persons or entities other than that party's own employees or contractors, whether such access is provided for consideration or without charge, and whether such access is direct or mediated through an interface, API, application, or any other mechanism.
+**"Managed Service"** means providing the functionality of the Software, or any Derivative Work thereof, to third parties as a hosted, managed, or remotely accessed service, including without limitation Software-as-a-Service (SaaS) and Platform-as-a-Service (PaaS) arrangements, whether offered for monetary compensation or without charge.
+
+**"Proprietary Product"** means any software application, suite, platform, plugin, extension, integration, or other software or hardware product that: (i) incorporates, embeds, bundles, or links to the Software or any Derivative Work thereof, whether in source or object code form; and (ii) is distributed, sold, licensed, or otherwise made available to third parties under terms that do not comply with the terms of this License.
+
+**"Commercial Use"** means any use of the Software that is intended to generate revenue, provide a commercial advantage, or support a for-profit activity, but expressly excluding Internal Use. For the avoidance of doubt, a for-profit organization deploying the Software solely for its own employees' internal workflows does not constitute Commercial Use under this License. Commercial Use includes, without limitation: operating a Managed Service; incorporating the Software into a Proprietary Product; and charging third parties for access to, or the use of, the Software's functionality in any form.
 
 **"Licensee"** means any individual or legal entity exercising rights under this License.
 
-**"Third Party"** means any individual or legal entity that is not the Licensee.
+**"Licensor"** means Jason Yang, the copyright holder of the Software.
 
 ---
 
-### Section 3. Prohibited Use: Provision of Hosting Services
+## 3. GRANT OF RIGHTS
 
-**3.1 General Prohibition.** Notwithstanding any other provision of the AGPL-3.0, no Licensee shall use the Software, or any Derivative Work thereof, to operate or provide a Hosting Service to any Third Party.
+Subject to the restrictions set forth in Section 4, the Licensor hereby grants the Licensee a worldwide, non-exclusive, no-charge, royalty-free copyright license to:
 
-**3.2 Scope of Prohibition.** The prohibition set forth in Section 3.1 shall apply without regard to:
+(a) reproduce, install, and use the Software for any purpose, including Internal Use and Commercial Internal Use;
 
-(a) whether the Hosting Service is offered for monetary compensation, subscription fees, usage fees, or without charge;
+(b) prepare Derivative Works of the Software for Internal Use without any obligation to disclose or publish such modifications; and
 
-(b) whether the Software is used in unmodified form or as part of a Derivative Work;
-
-(c) whether the Hosting Service is marketed or distributed under the name "IC-Lib" or under any other name, trademark, or brand;
-
-(d) whether access to the Hosting Service is provided through a web interface, application programming interface, desktop client, mobile application, or any other delivery mechanism;
-
-(e) the size, revenue, industry, or commercial status of the Licensee.
-
-**3.3 Illustrative Examples of Prohibited Use.** Without limiting the generality of Section 3.1, the following constitute violations of this License:
-
-(a) deploying the Software on a server and providing access to the Software's functionality to paying customers;
-
-(b) offering a no-cost hosted version of the Software as a means of attracting users to a related commercial product or platform;
-
-(c) incorporating the Software's functionality into a larger software-as-a-service product offered to third parties;
-
-(d) white-labeling or rebranding the Software and offering it as a hosted or managed service;
-
-(e) providing access to the Software's functionality through an API or integration layer as part of a third-party service offering.
-
-**3.4 Illustrative Examples of Permitted Use.** The following constitute permitted uses under this License:
-
-(a) deployment of the Software on the Licensee's own infrastructure for exclusive use by the Licensee's own employees, contractors, or internal automated systems;
-
-(b) use of the Software by an organization of any size, and regardless of annual revenue, as part of the organization's own internal engineering, design, or operations workflow;
-
-(c) deployment of the Software by a consulting firm on a client's own infrastructure, where the Software is operated solely for that client's internal use and access is not extended to any other party.
+(c) distribute the Software or Derivative Works to third parties, provided the Licensee complies with Section 5 of this License.
 
 ---
 
-### Section 4. Copyleft and Source Code Disclosure Obligations
+## 4. PROHIBITED USES
 
-**4.1 Universal Application.** The copyleft and source disclosure obligations set forth in this Section 4 apply to all Licensees, without exception based on organizational size, revenue, or commercial status.
+The rights granted in Section 3 are expressly conditioned upon the Licensee's compliance with the following prohibitions. The following uses are not permitted under any circumstances:
 
-**4.2 Disclosure Requirement.** Any Licensee that modifies the Software and deploys or operates the modified Software — including on a private server accessible to the Licensee's own employees or contractors over a network — shall make the complete, corresponding source code of all modifications publicly available under the terms of this License.
+**4.1 No Managed Services.** The Licensee shall not use the Software, or any Derivative Work thereof, to provide a Managed Service to any third party, whether for compensation or without charge.
 
-**4.3 Manner of Disclosure.** Disclosure pursuant to Section 4.2 shall be made by publishing the modified source code in a publicly accessible repository or by such other means as ensure that the source code is freely available to any member of the public without charge or restriction.
+**4.2 No Proprietary Product Bundling.** The Licensee shall not incorporate, embed, bundle, or otherwise include the Software, or any Derivative Work thereof, in a Proprietary Product. Any distribution of the Software or a Derivative Work to third parties must be made under the terms of this License in its entirety.
 
-**4.4 License of Derivative Works.** Any Derivative Work disclosed pursuant to Section 4.2 shall be made available under the terms of this License in its entirety, including Part I and Part II, and in particular including the prohibition set forth in Section 3. No Licensee may apply terms to a Derivative Work that are more restrictive than, or inconsistent with, the terms of this License.
-
-**4.5 No Waiver.** No commercial relationship, payment, or agreement between any party and the copyright holder shall operate to waive or modify the copyleft obligations set forth in this Section 4, unless expressly agreed to in a written instrument signed by the copyright holder.
+**4.3 No Circumvention.** The Licensee shall not structure any arrangement, transaction, or technical integration with the intent or effect of circumventing the prohibitions set forth in Sections 4.1 or 4.2, including without limitation by interposing a third-party entity, operating through a subsidiary or affiliate, or fragmenting the Software's functionality across multiple products or services to avoid the application of this License.
 
 ---
 
-### Section 5. Availability of Commercial Hosting License
+## 5. DISTRIBUTION AND RECIPROCITY
 
-**5.1 No Current Offering.** As of the date of this License, the copyright holder does not offer, and does not intend to offer, any commercial license that would permit a Licensee to operate a Hosting Service using the Software. Any representation by any party that such a license exists or has been granted is unauthorized and shall be without legal effect.
+The rights to modify the Software under Section 3(b) carry no source disclosure obligation when the Derivative Work is used solely for Internal Use and is not distributed to any third party. The Licensee may freely modify, adapt, and deploy the Software internally without publishing or disclosing those modifications.
 
-**5.2 Future Amendment.** In the event the copyright holder elects in the future to make a commercial hosting license available, such election shall be evidenced solely by an explicit written amendment to this License filed in the official repository for this Software. No oral representation or informal communication shall constitute such an amendment.
+If the Licensee distributes the Software or any Derivative Work to any third party, the following obligations apply:
 
----
+(a) **Release of Source Code.** The Licensee must make the complete, corresponding source code of the distributed version, including all modifications, available to the recipients of the distribution at no charge.
 
-### Section 6. Permitted Commercial Use
+(b) **License Continuity.** The distributed Software or Derivative Work must be licensed to recipients under this License in its entirety. The Licensee may not apply terms that are inconsistent with or more permissive than this License.
 
-Subject to the obligations set forth in Sections 3 and 4, commercial use of the Software is permitted. No payment, registration, or notification to the copyright holder is required for Internal Use of the Software by commercial entities of any size or revenue.
+(c) **Preservation of Notices.** The Licensee must include a copy of this License and all original copyright and attribution notices in the distribution.
 
----
-
-### Section 7. Third-Party Services
-
-This Software is designed to interface with certain third-party services. Nothing in this License grants any rights with respect to those services, which are governed exclusively by their respective terms of use:
-
-- Digikey API: https://www.digikey.com/en/resources/api-solutions
-- Mouser Electronics API: https://www.mouser.com/api-hub/
+For the avoidance of doubt, making the Software available to the Licensee's own employees or contractors over an internal network does not constitute distribution to a third party and does not trigger the obligations set forth in this Section 5.
 
 ---
 
-### Section 8. Contributor License
+## 6. CONTRIBUTOR GRANT
 
-By submitting any contribution to this Software, including without limitation source code, documentation, bug fixes, or other modifications, a contributor hereby represents and warrants that:
+By submitting any contribution to this Software, including without limitation source code, bug fixes, or documentation, the contributor hereby grants to the Licensor a perpetual, irrevocable, worldwide, royalty-free, non-exclusive license to use, reproduce, modify, and distribute the contribution as part of the Software under the terms of this License or any future version of this License published by the Licensor.
 
-(a) the contribution is the contributor's original work or the contributor has sufficient rights to submit it;
+The contributor represents and warrants that: (a) the contribution is the contributor's original work or the contributor has sufficient rights to submit it under these terms; and (b) the submission of the contribution does not violate any third-party intellectual property rights.
 
-(b) the contributor grants to the copyright holder a perpetual, irrevocable, worldwide, royalty-free, non-exclusive license to use, reproduce, modify, distribute, and sublicense the contribution as part of the Software under this License or any successor license adopted by the copyright holder; and
-
-(c) the contribution may be incorporated into the Software and made available under the terms of this License, including Part II, without any further consent or compensation to the contributor.
+No contributor shall be entitled to compensation for contributions unless separately agreed in a written instrument signed by the Licensor.
 
 ---
 
-### Section 9. Disclaimer of Warranties
+## 7. TERMINATION
+
+**7.1 Automatic Termination.** This License and all rights granted hereunder will terminate automatically if the Licensee materially fails to comply with any of its terms.
+
+**7.2 Cure Period.** Notwithstanding Section 7.1, termination shall not occur if the material violation is capable of being fully remedied and the Licensee cures the violation within thirty (30) days of the date on which the Licensee first becomes aware, or reasonably should have become aware, of the violation.
+
+**7.3 Effect of Termination.** Upon termination, the Licensee must cease all use and distribution of the Software and destroy or remove all copies in the Licensee's possession or control. Sections 8, 9, and 10 shall survive termination of this License.
+
+---
+
+## 8. DISCLAIMER OF WARRANTY
 
 THE SOFTWARE IS PROVIDED "AS IS," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH THE LICENSEE.
 
 ---
 
-### Section 10. Limitation of Liability
+## 9. LIMITATION OF LIABILITY
 
-IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE TO ANY PARTY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
-
----
-
-### Section 11. Enforcement and Remedies
-
-Any use of the Software in violation of Section 3 or Section 4 of this License constitutes an infringement of the copyright holder's exclusive rights under applicable copyright law. The copyright holder reserves all rights and remedies available at law and in equity, including without limitation the right to seek injunctive relief, monetary damages, and recovery of attorneys' fees and costs.
+IN NO EVENT SHALL THE LICENSOR BE LIABLE TO THE LICENSEE OR ANY THIRD PARTY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF THE LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
 
 ---
 
-### Section 12. Severability
+## 10. GOVERNING LAW AND JURISDICTION
 
-If any provision of this License is held to be invalid, illegal, or unenforceable under applicable law, such provision shall be modified to the minimum extent necessary to make it enforceable, or if modification is not possible, severed from this License, without affecting the validity or enforceability of the remaining provisions.
-
----
-
-### Section 13. Governing Law
-
-This License shall be governed by and construed in accordance with the laws of the jurisdiction in which the copyright holder is domiciled, without regard to conflict of law principles.
+This License shall be governed by and construed in accordance with the laws of the State of California, United States of America, without regard to its conflict of law principles. Any dispute arising out of or in connection with this License shall be subject to the exclusive jurisdiction of the state and federal courts located in Riverside County, California.
 
 ---
 
-*Contact: [iclib@jasony.org]*
+## 11. SEVERABILITY
 
-*Last revised: February 2026*
+If any provision of this License is held to be invalid, illegal, or unenforceable under applicable law, that provision shall be modified to the minimum extent necessary to make it enforceable, or if modification is not possible, severed from this License, without affecting the validity or enforceability of the remaining provisions.
+
+---
+
+## 12. ENTIRE AGREEMENT
+
+This License constitutes the entire agreement between the parties with respect to the Software and supersedes all prior or contemporaneous understandings, representations, or agreements regarding the subject matter hereof. No amendment to this License shall be effective unless made in a written instrument signed by the Licensor and published in the official repository for this Software.
+
+---
+
+*Contact: iclib@jasony.org*
+
+*Version 1.0 — Last revised: February 2026*
