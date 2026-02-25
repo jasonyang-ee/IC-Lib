@@ -64,13 +64,6 @@ const Dashboard = () => {
 
   // Calculate library quality percentage
   const totalComponents = stats?.totalComponents || 0;
-  const totalMissing = (stats?.missingFootprints || 0) +
-                      (stats?.missingSchematic || 0) +
-                      (stats?.missing3DModel || 0) +
-                      (stats?.missingPspice || 0);
-  const qualityPercentage = totalComponents > 0
-    ? (100 - ((totalMissing / (totalComponents * 4)) * 100)).toFixed(1)
-    : 0;
 
   if (isLoading) {
     return (
@@ -237,54 +230,29 @@ const Dashboard = () => {
               Library Quality
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left column: Overall quality percentage */}
-              <div>
-                <div className="p-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Overall Completion</span>
-                    <span className="text-2xl font-bold text-green-700 dark:text-green-400">{qualityPercentage}%</span>
+            <div className="space-y-3">
+              {[
+                { label: 'Footprint', missing: stats?.missingFootprints || 0 },
+                { label: 'Schematic', missing: stats?.missingSchematic || 0 },
+                { label: '3D Model', missing: stats?.missing3DModel || 0 },
+                { label: 'PSpice', missing: stats?.missingPspice || 0 },
+              ].map(item => {
+                const rate = totalComponents > 0
+                  ? ((totalComponents - item.missing) / totalComponents * 100)
+                  : 0;
+                const colorClass = rate < 50
+                  ? 'text-red-600 dark:text-red-400'
+                  : rate < 80
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : 'text-green-600 dark:text-green-400';
+                return (
+                  <div key={item.label} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Missing: {item.missing}</span>
+                    <span className={`text-sm font-semibold ${colorClass}`}>{rate.toFixed(1)}%</span>
                   </div>
-                  <div className="mt-2 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-green-600 h-2 rounded-full transition-all"
-                      style={{ width: `${qualityPercentage}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="mt-3 space-y-2">
-                  <StatCard small title="Missing Footprints" value={stats?.missingFootprints || 0} />
-                  <StatCard small title="Missing Schematic" value={stats?.missingSchematic || 0} />
-                  <StatCard small title="Missing 3D Model" value={stats?.missing3DModel || 0} />
-                  <StatCard small title="Missing Pspice" value={stats?.missingPspice || 0} />
-                </div>
-              </div>
-
-              {/* Right column: Per-type completion rates */}
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Per-Type Completion</p>
-                {[
-                  { label: 'Footprint', missing: stats?.missingFootprints || 0 },
-                  { label: 'Schematic', missing: stats?.missingSchematic || 0 },
-                  { label: '3D Model', missing: stats?.missing3DModel || 0 },
-                  { label: 'PSpice', missing: stats?.missingPspice || 0 },
-                ].map(item => {
-                  const rate = totalComponents > 0
-                    ? ((totalComponents - item.missing) / totalComponents * 100)
-                    : 0;
-                  const colorClass = rate < 50
-                    ? 'text-red-600 dark:text-red-400'
-                    : rate < 80
-                      ? 'text-yellow-600 dark:text-yellow-400'
-                      : 'text-green-600 dark:text-green-400';
-                  return (
-                    <div key={item.label} className="flex justify-between items-center py-1.5 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
-                      <span className={`text-sm font-semibold ${colorClass}`}>{rate.toFixed(1)}%</span>
-                    </div>
-                  );
-                })}
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>

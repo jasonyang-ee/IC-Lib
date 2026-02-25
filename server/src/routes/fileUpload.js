@@ -115,7 +115,8 @@ function ensureDir(dirPath) {
 }
 
 /**
- * Find file in flat directory first, then fall back to legacy nested directory
+ * Find file in flat directory first, then fall back to legacy nested directory,
+ * then check temp directory for files uploaded during new part creation.
  * Returns the full path if found, null otherwise
  */
 function findFile(category, filename, mfgPartNumber) {
@@ -131,6 +132,14 @@ function findFile(category, filename, mfgPartNumber) {
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
     const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
     if (fs.existsSync(nestedPath)) return nestedPath;
+  }
+
+  // Try temp directory — files during new part creation are here with unique prefix
+  const tempDir = path.join(LIBRARY_BASE, 'temp');
+  if (fs.existsSync(tempDir)) {
+    const tempFiles = fs.readdirSync(tempDir);
+    const match = tempFiles.find(f => f.endsWith('-' + filename));
+    if (match) return path.join(tempDir, match);
   }
 
   return null;
@@ -910,7 +919,7 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
 
     const sanitizedNewFilename = newBaseName + finalExt;
 
-    // Find the file (flat or nested)
+    // Find the file (flat, nested, or temp)
     const oldPath = findFile(category, oldFilename, mfgPartNumber);
     if (!oldPath) {
       return res.status(404).json({ error: 'File not found' });
@@ -918,6 +927,41 @@ router.put('/rename', authenticate, canWrite, async (req, res) => {
 
     if (oldFilename === sanitizedNewFilename) {
       return res.json({ message: 'No changes needed', filename: sanitizedNewFilename });
+    }
+
+    // Check if file is in temp directory (new part creation flow)
+    const tempDir = path.join(LIBRARY_BASE, 'temp');
+    const isInTemp = oldPath.startsWith(tempDir);
+
+    if (isInTemp) {
+      // Rename within temp directory, preserving the unique prefix
+      const tempBasename = path.basename(oldPath);
+      // Extract prefix: everything before the original filename
+      const suffixIndex = tempBasename.lastIndexOf('-' + oldFilename);
+      const prefix = suffixIndex >= 0 ? tempBasename.substring(0, suffixIndex + 1) : '';
+      const newTempFilename = prefix + sanitizedNewFilename;
+      const newTempPath = path.join(tempDir, newTempFilename);
+
+      // Collision check in temp
+      if (fs.existsSync(newTempPath)) {
+        return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists` });
+      }
+      // Also check collision in the actual category directory
+      const flatNewPath = path.join(LIBRARY_BASE, config.subdir, sanitizedNewFilename);
+      if (fs.existsSync(flatNewPath)) {
+        return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists in the ${category} directory` });
+      }
+
+      fs.renameSync(oldPath, newTempPath);
+
+      return res.json({
+        message: 'File renamed in temp',
+        oldFilename,
+        newFilename: sanitizedNewFilename,
+        oldTempFilename: tempBasename,
+        newTempFilename,
+        isTemp: true,
+      });
     }
 
     // Collision check in flat directory

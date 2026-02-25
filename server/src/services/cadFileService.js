@@ -417,6 +417,97 @@ export async function findCadFile(fileName, fileType) {
   return result.rows[0] || null;
 }
 
+// Extension whitelist per file type (used by filesystem scan)
+const SCAN_CATEGORIES = {
+  footprint: {
+    extensions: ['.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra'],
+    subdir: 'footprint',
+    fileType: 'footprint',
+  },
+  symbol: {
+    extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.schlib'],
+    subdir: 'symbol',
+    fileType: 'symbol',
+  },
+  model: {
+    extensions: ['.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t'],
+    subdir: 'model',
+    fileType: 'model',
+  },
+  pspice: {
+    extensions: ['.cir', '.sub', '.inc'],
+    subdir: 'pspice',
+    fileType: 'pspice',
+  },
+  pad: {
+    extensions: ['.pad', '.plb'],
+    subdir: 'pad',
+    fileType: 'pad',
+  },
+};
+
+/**
+ * Scan library directories for untracked CAD files and register them in the database.
+ * Returns the number of newly registered files.
+ */
+export async function scanAndRegisterFiles() {
+  let totalRegistered = 0;
+  for (const [, config] of Object.entries(SCAN_CATEGORIES)) {
+    const dirPath = path.join(LIBRARY_BASE, config.subdir);
+    if (!fs.existsSync(dirPath)) continue;
+
+    const files = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
+    for (const filename of files) {
+      const ext = path.extname(filename).toLowerCase();
+      if (!config.extensions.includes(ext)) continue;
+
+      const existing = await findCadFile(filename, config.fileType);
+      if (!existing) {
+        try {
+          await registerCadFile(filename, config.fileType);
+          totalRegistered++;
+        } catch (e) {
+          console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Scan]\x1b[0m Failed to register ${filename}: ${e.message}`);
+        }
+      }
+    }
+  }
+  return totalRegistered;
+}
+
+/**
+ * Detect files in the database that no longer exist on disk.
+ * Removes stale DB records and regenerates TEXT columns for affected components.
+ * Returns the number of removed records.
+ */
+export async function detectMissingFiles() {
+  const result = await pool.query('SELECT id, file_name, file_type FROM cad_files');
+  let removedCount = 0;
+
+  for (const row of result.rows) {
+    const subdir = TYPE_SUBDIR[row.file_type];
+    if (!subdir) continue;
+
+    const fullPath = path.join(LIBRARY_BASE, subdir, row.file_name);
+    if (!fs.existsSync(fullPath)) {
+      // Get affected components before deletion
+      const affected = await getComponentsByCadFile(row.id);
+
+      // Delete cad_files record (CASCADE removes junction entries)
+      await pool.query('DELETE FROM cad_files WHERE id = $1', [row.id]);
+
+      // Regenerate TEXT columns for affected components
+      for (const comp of affected) {
+        await regenerateCadText(comp.id, row.file_type);
+      }
+
+      removedCount++;
+      console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[Scan]\x1b[0m Removed missing file: ${row.file_name} (${row.file_type})`);
+    }
+  }
+  return removedCount;
+}
+
 /**
  * Sync CAD files from a component's data to the junction table.
  * Accepts arrays of base filenames (no extensions) from TEXT columns.
@@ -567,6 +658,8 @@ export default {
   searchCadFiles,
   getCadFilesForComponentGrouped,
   findCadFile,
+  scanAndRegisterFiles,
+  detectMissingFiles,
   syncComponentCadFiles,
   getComponentsWithCadFiles,
   getComponentsSharingFiles,

@@ -54,19 +54,20 @@ export const getFilesByType = async (req, res) => {
 
 /**
  * Get all file type statistics (distinct filename counts per category).
- * Uses cad_files table for counts.
+ * Filters by physical file existence to match the center column counts.
  */
 export const getFileTypeStats = async (req, res) => {
   try {
-    const stats = await cadFileService.getCadFileStats();
+    const result = {};
+    for (const [routeType, info] of Object.entries(TYPE_MAP)) {
+      const files = await cadFileService.getCadFilesByType(info.fileType);
+      const existing = files.filter(f =>
+        fs.existsSync(path.join(LIBRARY_BASE, info.subdir, f.file_name)),
+      );
+      result[routeType] = existing.length;
+    }
 
-    res.json({
-      footprint: stats.footprint || 0,
-      schematic: stats.symbol || 0,
-      step: stats.model || 0,
-      pspice: stats.pspice || 0,
-      pad: stats.pad || 0,
-    });
+    res.json(result);
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:', error.message);
     res.status(500).json({ error: 'Failed to fetch file type statistics' });
@@ -417,72 +418,17 @@ export const getSharingComponents = async (req, res) => {
 
 /**
  * Scan the library folder for untracked CAD files and register them in the database.
- * Files already registered in cad_files are skipped.
+ * Also detects files that no longer exist on disk and removes stale records.
  */
 export const scanLibraryFiles = async (req, res) => {
   try {
-    const SCAN_CATEGORIES = {
-      footprint: {
-        extensions: ['.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra'],
-        subdir: 'footprint',
-        fileType: 'footprint',
-      },
-      symbol: {
-        extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.schlib'],
-        subdir: 'symbol',
-        fileType: 'symbol',
-      },
-      model: {
-        extensions: ['.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t'],
-        subdir: 'model',
-        fileType: 'model',
-      },
-      pspice: {
-        extensions: ['.cir', '.sub', '.inc'],
-        subdir: 'pspice',
-        fileType: 'pspice',
-      },
-      pad: {
-        extensions: ['.pad', '.plb'],
-        subdir: 'pad',
-        fileType: 'pad',
-      },
-    };
-
-    let totalRegistered = 0;
-    const categories = {};
-
-    for (const [catName, config] of Object.entries(SCAN_CATEGORIES)) {
-      const dirPath = path.join(LIBRARY_BASE, config.subdir);
-      categories[catName] = 0;
-
-      if (!fs.existsSync(dirPath)) continue;
-
-      const files = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
-
-      for (const filename of files) {
-        const ext = path.extname(filename).toLowerCase();
-        if (!config.extensions.includes(ext)) continue;
-
-        // Check if already registered in cad_files
-        const existing = await cadFileService.findCadFile(filename, config.fileType);
-        if (!existing) {
-          // Register the untracked file
-          try {
-            await cadFileService.registerCadFile(filename, config.fileType);
-            categories[catName]++;
-            totalRegistered++;
-          } catch (regErr) {
-            console.error(`[Scan] Failed to register ${filename}: ${regErr.message}`);
-          }
-        }
-      }
-    }
+    const registered = await cadFileService.scanAndRegisterFiles();
+    const removed = await cadFileService.detectMissingFiles();
 
     res.json({
-      message: `Scan complete. ${totalRegistered} new file(s) registered.`,
-      registered: totalRegistered,
-      categories,
+      message: `Scan complete. ${registered} new file(s) registered, ${removed} missing file(s) removed.`,
+      registered,
+      removed,
     });
   } catch (error) {
     console.error('Error scanning library files:', error);

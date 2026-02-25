@@ -1,11 +1,11 @@
 import { FileText } from 'lucide-react';
 
 const FILE_TYPE_LABELS = {
-  pcb_footprint: 'PCB Footprint',
   schematic: 'Schematic Symbol',
+  pcb_footprint: 'PCB Footprint',
+  pad_file: 'Pad File',
   step_model: 'STEP 3D Model',
   pspice: 'PSpice Model',
-  pad_file: 'Pad File',
 };
 
 /**

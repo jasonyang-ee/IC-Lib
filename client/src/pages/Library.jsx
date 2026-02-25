@@ -3528,12 +3528,16 @@ const Library = () => {
                     <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">CIS Filename List</h4>
                     <div className="grid grid-cols-1 gap-3">
                       <CadFieldSection
+                        field="schematic"
+                        values={editData.schematic || []}
+                      />
+                      <CadFieldSection
                         field="pcb_footprint"
                         values={editData.pcb_footprint || []}
                       />
                       <CadFieldSection
-                        field="schematic"
-                        values={editData.schematic || []}
+                        field="pad_file"
+                        values={editData.pad_file || []}
                       />
                       <CadFieldSection
                         field="step_model"
@@ -3542,10 +3546,6 @@ const Library = () => {
                       <CadFieldSection
                         field="pspice"
                         values={editData.pspice || []}
-                      />
-                      <CadFieldSection
-                        field="pad_file"
-                        values={editData.pad_file || []}
                       />
                     </div>
                     {/* File upload and management */}

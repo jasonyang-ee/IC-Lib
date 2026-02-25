@@ -36,6 +36,9 @@ import fileLibraryRoutes from './routes/fileLibrary.js';
 // Import initialization service
 import { initializeAuthentication, getAuthenticationStatus } from './services/initializationService.js';
 
+// Import CAD file scan service
+import { scanAndRegisterFiles, detectMissingFiles } from './services/cadFileService.js';
+
 const app = express();
 const PORT = process.env.PORT || 3500;
 
@@ -149,13 +152,27 @@ async function startServer() {
     await initializeAuthentication();
     
     // Start server
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Running on port ${PORT}`);
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Environment: ${NODE_ENV}`);
       if (BASE_URL) {
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Base URL: ${BASE_URL}`);
       }
       console.log('');
+
+      // Run CAD file scan on startup (non-blocking)
+      try {
+        const registered = await scanAndRegisterFiles();
+        if (registered > 0) {
+          console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Registered ${registered} new file(s)`);
+        }
+        const removed = await detectMissingFiles();
+        if (removed > 0) {
+          console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Removed ${removed} missing file record(s)`);
+        }
+      } catch (scanErr) {
+        console.error(`\x1b[33m[WARN]\x1b[0m \x1b[36m[Scan]\x1b[0m Startup scan failed: ${scanErr.message}`);
+      }
     });
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Failed to start: ${error.message}`);

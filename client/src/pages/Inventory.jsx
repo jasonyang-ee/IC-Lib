@@ -1500,7 +1500,7 @@ const Inventory = () => {
                           }`}
                           title="Copy QR code with manufacturer part number"
                         >
-                          {copiedQRField === `mfg-quick-${item.id}` ? 'Ok' : 'QR'}
+                          {copiedQRField === `mfg-quick-${item.id}` ? 'OK' : 'QR'}
                         </button>
                         {/* Copy button - copies label text */}
                         <button
@@ -1512,7 +1512,7 @@ const Inventory = () => {
                           }`}
                           title="Copy label text"
                         >
-                          {copiedLabel === item.id ? 'Ok' : 'Copy'}
+                          {copiedLabel === item.id ? 'OK' : 'Text'}
                         </button>
                       </div>
                     </td>

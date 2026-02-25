@@ -7,9 +7,9 @@ import ConfirmationModal from '../common/ConfirmationModal';
 import CadFilePickerModal from './CadFilePickerModal';
 
 const CATEGORY_LABELS = {
+  symbol: 'Symbol',
   footprint: 'PCB Footprint',
   pad: 'Pad',
-  symbol: 'Symbol',
   model: '3D Model',
   pspice: 'PSpice',
   libraries: 'Library Archive',
@@ -21,6 +21,9 @@ const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'pspice'];
 // Categories restricted to a single file per component
 const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
 const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: '3D STEP Model' };
+
+// Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
+const normalizeExt = (filename) => filename.replace(/\.[^.]+$/, m => m.toLowerCase());
 
 // Density suffixes that should be preserved when applying MPN as filename
 const DENSITY_SUFFIXES = ['-M', '-L', '-m', '-l'];
@@ -82,6 +85,20 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       }
       const results = response.data.results || [];
+      // Normalize file extensions to lowercase (e.g., .OLB → .olb)
+      for (const r of results) {
+        if (r.filename) r.filename = normalizeExt(r.filename);
+        if (r.extracted) {
+          for (const ef of r.extracted) {
+            if (ef.filename) ef.filename = normalizeExt(ef.filename);
+          }
+        }
+        if (r.collisions) {
+          for (const col of r.collisions) {
+            if (col.filename) col.filename = normalizeExt(col.filename);
+          }
+        }
+      }
       const extracted = results.filter(r => r.type === 'archive');
       const regular = results.filter(r => r.type !== 'archive' && !r.error && !r.collision);
       const collisionFiles = results.filter(r => r.collision && r.filename);
@@ -295,14 +312,27 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (onFileRenamed) {
         onFileRenamed(variables.category, variables.oldFilename, response.data.newFilename);
       }
+      // Handle temp file rename: update tempFiles tracking in parent
+      if (response.data.isTemp && onTempFileRemoved && onTempFileStaged) {
+        onTempFileRemoved(response.data.oldTempFilename);
+        onTempFileStaged({ tempFilename: response.data.newTempFilename, category: variables.category, filename: response.data.newFilename });
+      }
       // Update local uploads cache if applicable
       setLocalUploads(prev => {
         const updated = { ...prev };
         const cat = variables.category;
         if (updated[cat]) {
-          updated[cat] = updated[cat].map(f =>
-            f.name === variables.oldFilename ? { ...f, name: response.data.newFilename } : f
-          );
+          updated[cat] = updated[cat].map(f => {
+            if (f.name === variables.oldFilename) {
+              const newEntry = { ...f, name: response.data.newFilename };
+              // Update tempFilename for temp files
+              if (response.data.isTemp && response.data.newTempFilename) {
+                newEntry.tempFilename = response.data.newTempFilename;
+              }
+              return newEntry;
+            }
+            return f;
+          });
         }
         return updated;
       });
@@ -713,7 +743,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       {/* Empty categories with link buttons (requires MPN) */}
       {mfgPartNumber && canEdit && (componentId || onFileUploaded) && (() => {
-        const ALL_CATEGORIES = ['footprint', 'pad', 'symbol', 'model', 'pspice'];
+        const ALL_CATEGORIES = ['symbol', 'footprint', 'pad', 'model', 'pspice'];
         const emptyCategories = ALL_CATEGORIES.filter(c => !files[c] || files[c].length === 0);
         if (emptyCategories.length === 0) return null;
         return (
