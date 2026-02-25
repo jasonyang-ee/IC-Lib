@@ -69,6 +69,8 @@ The rights granted in Section 3 are expressly conditioned upon the Licensee's co
 
 **4.3 No Circumvention.** The Licensee shall not structure any arrangement, transaction, or technical integration with the intent or effect of circumventing the prohibitions set forth in Sections 4.1 or 4.2, including without limitation by interposing a third-party entity, operating through a subsidiary or affiliate, or fragmenting the Software's functionality across multiple products or services to avoid the application of this License.
 
+**4.4 No Trademark Rights.** This License does not grant any rights to use the IC-Lib name, logo, or any associated trademarks or service marks. All such rights are and remain the exclusive property of the Licensor. The Licensee shall not use the IC-Lib name or marks in any manner that implies endorsement, sponsorship, or affiliation with the Licensor without prior written consent of the Licensor.
+
 ---
 
 ## 5. DISTRIBUTION AND RECIPROCITY
@@ -103,7 +105,7 @@ No contributor shall be entitled to compensation for contributions unless separa
 
 **7.2 Cure Period.** Notwithstanding Section 7.1, termination shall not occur if the material violation is capable of being fully remedied and the Licensee cures the violation within thirty (30) days of the date on which the Licensee first becomes aware, or reasonably should have become aware, of the violation.
 
-**7.3 Effect of Termination.** Upon termination, the Licensee must cease all use and distribution of the Software and destroy or remove all copies in the Licensee's possession or control. Sections 8, 9, and 10 shall survive termination of this License.
+**7.3 Effect of Termination.** Upon termination, the Licensee must cease all use and distribution of the Software and destroy or remove all copies in the Licensee's possession or control. Sections 8, 9, 10, 11, and 12 shall survive termination of this License.
 
 ---
 
