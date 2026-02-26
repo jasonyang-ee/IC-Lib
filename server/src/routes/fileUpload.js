@@ -841,9 +841,9 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
 
       if (dbColumn) {
         try {
-          // Query cad_files via junction table for this component
+          // Query cad_files via junction table for this component (include missing flag)
           const result = await pool.query(`
-            SELECT cf.file_name
+            SELECT cf.file_name, cf.missing
             FROM component_cad_files ccf
             JOIN cad_files cf ON ccf.cad_file_id = cf.id
             JOIN components c ON ccf.component_id = c.id
@@ -853,14 +853,27 @@ router.get('/list/:mfgPartNumber', authenticate, async (req, res) => {
           for (const row of result.rows) {
             const fname = row.file_name;
             const flatPath = path.join(flatDir, fname);
-            if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
+            const existsOnDisk = fs.existsSync(flatPath);
+
+            if (!seenFiles.has(`${category}:${fname}`)) {
               seenFiles.add(`${category}:${fname}`);
-              categoryFiles.push({
-                name: fname,
-                path: path.join(config.subdir, fname),
-                size: fs.statSync(flatPath).size,
-                storage: 'flat',
-              });
+              if (existsOnDisk) {
+                categoryFiles.push({
+                  name: fname,
+                  path: path.join(config.subdir, fname),
+                  size: fs.statSync(flatPath).size,
+                  storage: 'flat',
+                });
+              } else {
+                // File is missing from disk — include with missing flag
+                categoryFiles.push({
+                  name: fname,
+                  path: path.join(config.subdir, fname),
+                  size: 0,
+                  storage: 'flat',
+                  missing: true,
+                });
+              }
             }
           }
         } catch (dbError) {

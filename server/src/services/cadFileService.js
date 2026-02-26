@@ -65,10 +65,11 @@ export async function regenerateAllCadText(componentId) {
  */
 export async function registerCadFile(fileName, fileType, fileSize = null) {
   const result = await pool.query(`
-    INSERT INTO cad_files (file_name, file_type, file_path, file_size)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO cad_files (file_name, file_type, file_path, file_size, missing)
+    VALUES ($1, $2, $3, $4, FALSE)
     ON CONFLICT (file_name, file_type) DO UPDATE SET
       file_size = COALESCE(EXCLUDED.file_size, cad_files.file_size),
+      missing = FALSE,
       updated_at = CURRENT_TIMESTAMP
     RETURNING *
   `, [fileName, fileType, `${TYPE_SUBDIR[fileType]}/${fileName}`, fileSize]);
@@ -477,35 +478,39 @@ export async function scanAndRegisterFiles() {
 
 /**
  * Detect files in the database that no longer exist on disk.
- * Removes stale DB records and regenerates TEXT columns for affected components.
- * Returns the number of removed records.
+ * Tags missing files with missing=TRUE instead of deleting records.
+ * Also clears the missing flag for files that have been restored to disk.
+ * Returns the number of newly tagged missing records.
  */
 export async function detectMissingFiles() {
-  const result = await pool.query('SELECT id, file_name, file_type FROM cad_files');
-  let removedCount = 0;
+  const result = await pool.query('SELECT id, file_name, file_type, missing FROM cad_files');
+  let taggedCount = 0;
+  let restoredCount = 0;
 
   for (const row of result.rows) {
     const subdir = TYPE_SUBDIR[row.file_type];
     if (!subdir) continue;
 
     const fullPath = path.join(LIBRARY_BASE, subdir, row.file_name);
-    if (!fs.existsSync(fullPath)) {
-      // Get affected components before deletion
-      const affected = await getComponentsByCadFile(row.id);
+    const existsOnDisk = fs.existsSync(fullPath);
 
-      // Delete cad_files record (CASCADE removes junction entries)
-      await pool.query('DELETE FROM cad_files WHERE id = $1', [row.id]);
-
-      // Regenerate TEXT columns for affected components
-      for (const comp of affected) {
-        await regenerateCadText(comp.id, row.file_type);
-      }
-
-      removedCount++;
+    if (!existsOnDisk && !row.missing) {
+      // File is missing from disk but not yet tagged — mark as missing
+      await pool.query('UPDATE cad_files SET missing = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
+      taggedCount++;
       console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[Scan]\x1b[0m Removed missing file: ${row.file_name} (${row.file_type})`);
+    } else if (existsOnDisk && row.missing) {
+      // File was previously missing but has been restored — clear the flag
+      await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
+      restoredCount++;
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Restored file: ${row.file_name} (${row.file_type})`);
     }
   }
-  return removedCount;
+
+  if (restoredCount > 0) {
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Restored ${restoredCount} previously missing file(s)`);
+  }
+  return taggedCount;
 }
 
 /**

@@ -232,13 +232,13 @@ const Dashboard = () => {
 
             <div className="space-y-3">
               {[
-                { label: 'Footprint', missing: stats?.missingFootprints || 0 },
-                { label: 'Schematic', missing: stats?.missingSchematic || 0 },
-                { label: '3D Model', missing: stats?.missing3DModel || 0 },
-                { label: 'PSpice', missing: stats?.missingPspice || 0 },
+                { label: 'Footprint', undefined: stats?.undefinedFootprints || 0, missing: stats?.missingFootprints || 0 },
+                { label: 'Schematic', undefined: stats?.undefinedSchematic || 0, missing: stats?.missingSchematic || 0 },
+                { label: '3D Model', undefined: stats?.undefined3DModel || 0, missing: stats?.missing3DModel || 0 },
+                { label: 'PSpice', undefined: stats?.undefinedPspice || 0, missing: stats?.missingPspice || 0 },
               ].map(item => {
                 const rate = totalComponents > 0
-                  ? ((totalComponents - item.missing) / totalComponents * 100)
+                  ? ((totalComponents - item.undefined) / totalComponents * 100)
                   : 0;
                 const colorClass = rate < 50
                   ? 'text-red-600 dark:text-red-400'
@@ -246,10 +246,11 @@ const Dashboard = () => {
                     ? 'text-yellow-600 dark:text-yellow-400'
                     : 'text-green-600 dark:text-green-400';
                 return (
-                  <div key={item.label} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
+                  <div key={item.label} className="grid grid-cols-[5rem_1fr_1fr_3rem] items-center gap-2 py-2 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
                     <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Missing: {item.missing}</span>
-                    <span className={`text-sm font-semibold ${colorClass}`}>{rate.toFixed(1)}%</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Undefined: {item.undefined}</span>
+                    <span className="text-sm text-red-600 dark:text-red-400">{item.missing > 0 ? `Missing: ${item.missing}` : ''}</span>
+                    <span className={`text-sm font-semibold text-right ${colorClass}`}>{rate.toFixed(1)}%</span>
                   </div>
                 );
               })}

@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS cad_files (
     file_type VARCHAR(50) NOT NULL,
     file_path VARCHAR(1000),
     file_size BIGINT,
+    missing BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_file_type CHECK (file_type IN ('footprint', 'symbol', 'model', 'pspice', 'pad')),
     CONSTRAINT uq_cad_file UNIQUE (file_name, file_type)

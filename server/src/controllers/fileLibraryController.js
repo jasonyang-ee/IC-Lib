@@ -351,6 +351,11 @@ export const linkFileToComponent = async (req, res) => {
     const cadFile = cfResult.rows[0];
     await cadFileService.linkCadFileToComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
 
+    // Clear missing flag when user manually links a file (indicates server-side file management)
+    if (cadFile.missing) {
+      await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [cadFileId]);
+    }
+
     console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Linked "${cadFile.file_name}" to component ${componentId}`);
 
     res.json({ success: true, cadFile });
@@ -418,17 +423,17 @@ export const getSharingComponents = async (req, res) => {
 
 /**
  * Scan the library folder for untracked CAD files and register them in the database.
- * Also detects files that no longer exist on disk and removes stale records.
+ * Also detects files that no longer exist on disk and tags them as missing.
  */
 export const scanLibraryFiles = async (req, res) => {
   try {
     const registered = await cadFileService.scanAndRegisterFiles();
-    const removed = await cadFileService.detectMissingFiles();
+    const tagged = await cadFileService.detectMissingFiles();
 
     res.json({
-      message: `Scan complete. ${registered} new file(s) registered, ${removed} missing file(s) removed.`,
+      message: `Scan complete. ${registered} new file(s) registered, ${tagged} missing file(s) tagged.`,
       registered,
-      removed,
+      tagged,
     });
   } catch (error) {
     console.error('Error scanning library files:', error);

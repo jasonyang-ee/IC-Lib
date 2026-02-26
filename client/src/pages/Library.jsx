@@ -692,29 +692,19 @@ const Library = () => {
       setAltManufacturerInputs({});
     }
     
-    // Store vendor data reference for later use
-    let vendorDataReference = null;
-    
-    // Auto-search Digikey SKU if available (for reference only, not auto-populate)
-    const digikeyDist = componentDetails?.distributors?.find(d => 
+
+    // Auto-search Digikey SKU if available (non-blocking — loads in background)
+    const digikeyDist = componentDetails?.distributors?.find(d =>
       d.distributor_name?.toLowerCase() === 'digikey'
     );
     if (digikeyDist?.sku) {
-      try {
-        console.log('Auto-searching Digikey SKU for reference:', digikeyDist.sku);
-        const searchResponse = await api.searchAllVendors(digikeyDist.sku);
-        
-        // Process and store vendor data for DISPLAY ONLY (reference)
+      // Fire async vendor search without awaiting — updates editData when ready
+      api.searchAllVendors(digikeyDist.sku).then(searchResponse => {
         if (searchResponse.data) {
-          const searchResults = searchResponse.data;
-          
-          // Find the Digikey result
-          const digikeyResult = searchResults.digikey?.results?.[0];
-          
+          const digikeyResult = searchResponse.data.digikey?.results?.[0];
           if (digikeyResult) {
-            // Prepare vendor data similar to VendorSearch
-            vendorDataReference = {
-              source: 'digikey', // Explicitly set source
+            const vendorData = {
+              source: 'digikey',
               manufacturerPartNumber: digikeyResult.manufacturerPartNumber,
               manufacturer: digikeyResult.manufacturer,
               description: digikeyResult.description,
@@ -732,11 +722,12 @@ const Library = () => {
                 minimumOrderQuantity: digikeyResult.minimumOrderQuantity
               }
             };
+            setEditData(prev => ({ ...prev, _vendorSearchData: vendorData }));
           }
         }
-      } catch {
+      }).catch(() => {
         // Silent fail - this is just a convenience feature
-      }
+      });
     }
     
     // Load sub-category suggestions based on existing values
@@ -890,8 +881,8 @@ const Library = () => {
             distributors: normalizeDistributors(alt.distributors)
           }))
         : [],
-      // Preserve vendor data reference if it was fetched
-      _vendorSearchData: vendorDataReference
+      // Vendor data loads asynchronously via setEditData update
+      _vendorSearchData: null
     });
     
     // NOW set edit mode - after editData is fully populated

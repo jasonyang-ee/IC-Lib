@@ -33,11 +33,11 @@ This is a **Source Available** license. It is designed to allow the public to vi
 
 **"Derivative Work"** means any modification, adaptation, translation, or work based upon or incorporating the Software or any substantial portion thereof.
 
-**"Internal Use"** means the deployment, operation, and modification of the Software exclusively on infrastructure owned or controlled by the Licensee, for the sole benefit of the Licensee's own employees, contractors, or internal automated systems, where no access to the Software's functionality is made available to any third party.
+**"Internal Use"** means the deployment, operation, and modification of the Software exclusively on infrastructure owned or controlled by the Licensee, for the sole benefit of the Licensee's own employees, contractors, or internal automated systems, where no access to the Software's functionality is made available to any third party. Infrastructure "controlled by" the Licensee includes cloud computing resources provisioned and administered by the Licensee, regardless of the underlying ownership of the physical hardware.
 
 **"Managed Service"** means providing the functionality of the Software, or any Derivative Work thereof, to third parties as a hosted, managed, or remotely accessed service, including without limitation Software-as-a-Service (SaaS) and Platform-as-a-Service (PaaS) arrangements, whether offered for monetary compensation or without charge.
 
-**"Proprietary Product"** means any software application, suite, platform, plugin, extension, integration, or other software or hardware product that: (i) incorporates, embeds, bundles, or links to the Software or any Derivative Work thereof, whether in source or object code form; and (ii) is distributed, sold, licensed, or otherwise made available to third parties under terms that do not comply with the terms of this License.
+**"Proprietary Product"** means any software application, suite, platform, plugin, extension, integration, or other software or hardware product that: (i) incorporates, embeds, bundles, or statically or dynamically links to the Software or any Derivative Work thereof, whether in source or object code form; and (ii) is distributed, sold, licensed, or otherwise made available to third parties under terms that do not comply with the terms of this License. For the avoidance of doubt, interprocess communication with the Software through network protocols, APIs, or standard input/output mechanisms does not, by itself, constitute linking under this definition.
 
 **"Commercial Use"** means any use of the Software that is intended to generate revenue, provide a commercial advantage, or support a for-profit activity, but expressly excluding Internal Use. For the avoidance of doubt, a for-profit organization deploying the Software solely for its own employees' internal workflows does not constitute Commercial Use under this License. Commercial Use includes, without limitation: operating a Managed Service; incorporating the Software into a Proprietary Product; and charging third parties for access to, or the use of, the Software's functionality in any form.
 
@@ -51,11 +51,13 @@ This is a **Source Available** license. It is designed to allow the public to vi
 
 Subject to the restrictions set forth in Section 4, the Licensor hereby grants the Licensee a worldwide, non-exclusive, no-charge, royalty-free copyright license to:
 
-(a) reproduce, install, and use the Software for any purpose, including Internal Use and Commercial Internal Use;
+(a) reproduce, install, and use the Software for any purpose, including Internal Use by for-profit and non-profit entities alike;
 
 (b) prepare Derivative Works of the Software for Internal Use without any obligation to disclose or publish such modifications; and
 
 (c) distribute the Software or Derivative Works to third parties, provided the Licensee complies with Section 5 of this License.
+
+**3.1 Patent Grant.** Subject to the restrictions set forth in Section 4, the Licensor hereby grants to each Licensee a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, have made, use, import, and otherwise practice any patentable inventions owned or controlled by the Licensor that are necessarily infringed by the Software as provided by the Licensor, solely to the extent necessary to exercise the rights granted under this Section 3. This patent grant does not extend to any claims that are infringed only by a Licensee's modifications or combinations of the Software with other software or hardware.
 
 ---
 
@@ -81,7 +83,7 @@ If the Licensee distributes the Software or any Derivative Work to any third par
 
 (a) **Release of Source Code.** The Licensee must make the complete, corresponding source code of the distributed version, including all modifications, available to the recipients of the distribution at no charge.
 
-(b) **License Continuity.** The distributed Software or Derivative Work must be licensed to recipients under this License in its entirety. The Licensee may not apply terms that are inconsistent with or more permissive than this License.
+(b) **License Continuity.** The distributed Software or Derivative Work must be licensed to recipients under this License in its entirety, without any additional or different terms or conditions. The Licensee may not impose terms that alter, restrict, or expand the rights granted under this License.
 
 (c) **Preservation of Notices.** The Licensee must include a copy of this License and all original copyright and attribution notices in the distribution.
 

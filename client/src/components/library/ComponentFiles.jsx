@@ -15,6 +15,9 @@ const CATEGORY_LABELS = {
   libraries: 'Library Archive',
 };
 
+// Deterministic display order for file type categories
+const CATEGORY_ORDER = ['symbol', 'footprint', 'pad', 'model', 'pspice', 'libraries'];
+
 // Categories that support renaming (pad files are excluded)
 const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'pspice'];
 
@@ -631,7 +634,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         <p className="text-xs text-gray-500 dark:text-gray-400">Loading files...</p>
       ) : hasFiles ? (
         <div className="space-y-2 mb-3">
-          {Object.keys(CATEGORY_LABELS).filter(cat => files[cat]?.length > 0).map((category) => (
+          {CATEGORY_ORDER.filter(cat => files[cat]?.length > 0).map((category) => (
             <div key={category}>
               <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 {CATEGORY_LABELS[category] || category}
@@ -674,7 +677,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                   ) : (
                     /* Normal file row */
                     <div className="flex items-start justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
-                      {mfgPartNumber ? (
+                      {file.missing ? (
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={file.name}>
+                          {file.name}
+                          <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
+                        </span>
+                      ) : mfgPartNumber ? (
                         <a
                           href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
                           target="_blank"
@@ -689,9 +697,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                           {file.name}
                         </span>
                       )}
-                      <span className="text-gray-400 dark:text-gray-500 shrink-0">
-                        {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
-                      </span>
+                      {!file.missing && (
+                        <span className="text-gray-400 dark:text-gray-500 shrink-0">
+                          {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                        </span>
+                      )}
                       {canEdit && (
                         <div className="flex items-center gap-1 shrink-0">
                           {showRename && mfgPartNumber && RENAMEABLE_CATEGORIES.includes(category) && (

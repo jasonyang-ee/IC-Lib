@@ -17,25 +17,38 @@ export const getDashboardStats = async (req, res, next) => {
       'SELECT COUNT(*) as count, SUM(quantity) as total_quantity FROM inventory',
     );
 
-    // Get components without footprints (TEXT columns - empty string or null)
-    const missingFootprintsResult = await pool.query(
+    // Get components with undefined CAD files (TEXT columns - empty string or null, never assigned)
+    const undefinedFootprintsResult = await pool.query(
       "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''",
     );
 
-    // Get components without schematic symbols
-    const missingSchematicResult = await pool.query(
+    const undefinedSchematicResult = await pool.query(
       "SELECT COUNT(*) as count FROM components WHERE schematic IS NULL OR schematic = ''",
     );
 
-    // Get components without 3D models
-    const missing3DModelResult = await pool.query(
+    const undefined3DModelResult = await pool.query(
       "SELECT COUNT(*) as count FROM components WHERE step_model IS NULL OR step_model = ''",
     );
 
-    // Get components without Pspice models
-    const missingPspiceResult = await pool.query(
+    const undefinedPspiceResult = await pool.query(
       "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = ''",
     );
+
+    // Get components with missing CAD files (file was assigned but not found on disk)
+    const missingFilesResult = await pool.query(`
+      SELECT
+        cf.file_type,
+        COUNT(DISTINCT ccf.component_id) as count
+      FROM cad_files cf
+      JOIN component_cad_files ccf ON ccf.cad_file_id = cf.id
+      WHERE cf.missing = TRUE
+      GROUP BY cf.file_type
+    `);
+
+    const missingByType = {};
+    missingFilesResult.rows.forEach(row => {
+      missingByType[row.file_type] = parseInt(row.count);
+    });
 
     // Get low stock count
     const lowStockResult = await pool.query(
@@ -68,10 +81,16 @@ export const getDashboardStats = async (req, res, next) => {
       totalCategories: parseInt(totalCategoriesResult.rows[0].count),
       totalInventoryItems: parseInt(totalInventoryResult.rows[0].count),
       totalInventoryQuantity: parseInt(totalInventoryResult.rows[0].total_quantity || 0),
-      missingFootprints: parseInt(missingFootprintsResult.rows[0].count),
-      missingSchematic: parseInt(missingSchematicResult.rows[0].count),
-      missing3DModel: parseInt(missing3DModelResult.rows[0].count),
-      missingPspice: parseInt(missingPspiceResult.rows[0].count),
+      // Undefined: components with no file assigned (blank TEXT column)
+      undefinedFootprints: parseInt(undefinedFootprintsResult.rows[0].count),
+      undefinedSchematic: parseInt(undefinedSchematicResult.rows[0].count),
+      undefined3DModel: parseInt(undefined3DModelResult.rows[0].count),
+      undefinedPspice: parseInt(undefinedPspiceResult.rows[0].count),
+      // Missing: components with assigned file that is missing from disk
+      missingFootprints: missingByType.footprint || 0,
+      missingSchematic: missingByType.symbol || 0,
+      missing3DModel: missingByType.model || 0,
+      missingPspice: missingByType.pspice || 0,
       lowStockAlerts: parseInt(lowStockResult.rows[0].count),
       recentlyAdded: parseInt(recentComponentsResult.rows[0].count),
       approvalStatus: {

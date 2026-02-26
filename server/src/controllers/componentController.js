@@ -1463,6 +1463,8 @@ export const promoteAlternative = async (req, res, next) => {
 /**
  * Update stock and pricing info for a single component
  * Fetches data from vendor APIs and updates database
+ * No inter-request delay — single-component calls are low volume and
+ * vendor caches + deduplication already prevent rate-limit issues.
  */
 export const updateComponentStock = async (req, res, next) => {
   try {
@@ -1473,7 +1475,7 @@ export const updateComponentStock = async (req, res, next) => {
 
     // Get all distributor info for this component (primary + alternatives)
     const distributorsResult = await pool.query(`
-      SELECT 
+      SELECT
         di.id,
         di.component_id,
         di.alternative_id,
@@ -1507,7 +1509,7 @@ export const updateComponentStock = async (req, res, next) => {
         if (vendorData && vendorData.pricing) {
           await pool.query(`
             UPDATE distributor_info
-            SET 
+            SET
               price_breaks = $1,
               stock_quantity = $2,
               in_stock = $3,
@@ -1523,9 +1525,6 @@ export const updateComponentStock = async (req, res, next) => {
           ]);
           updatedCount++;
         }
-
-        // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error) {
         console.error(`Error updating stock for SKU ${dist.sku}:`, error.message);
