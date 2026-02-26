@@ -34,6 +34,7 @@
 - Server file naming: `{entityName}Controller.js`, `{serviceName}Service.js`, `{entityName}.js` for routes.
 - Client file naming: `{PageName}.jsx` for pages, `{ComponentName}.jsx` for components.
 - Database file naming: `init-{type}.sql` for schema, `{number}_{description}.sql` for migrations.
+- `CHANGELOG.md` should be maintained for the `Unreleased` section with clear descriptions of new features and bug fixes. If chat session is doing multiple efforts to fix a bug, please consolidate into one changelog entry for that bug with all relevant details. The change log should be short and concise, not a full description of the debugging process.
 
 ## Project Structure
 

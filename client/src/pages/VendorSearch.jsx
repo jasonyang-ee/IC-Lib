@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
-import { Search, Download, Plus, ExternalLink, X, QrCode, Camera } from 'lucide-react';
 import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
+import { VendorSearchForm, VendorSearchResults, SelectedPartsPanel, PartSelectionModal } from '../components/vendorSearch';
 
 const VendorSearch = () => {
   const navigate = useNavigate();
@@ -710,402 +710,75 @@ const VendorSearch = () => {
     sessionStorage.removeItem('vendorSelectedParts');
   };
 
+  const handleClearSelection = () => {
+    setSelectedParts([]);
+    sessionStorage.removeItem('vendorSelectedParts');
+  };
+
+  const handleClosePartSelectionModal = () => {
+    setShowPartSelectionModal(false);
+    setLibraryPartsForAppend([]);
+    setAllLibraryParts([]);
+    setPartSearchTerm('');
+    setPartSortBy('part_number');
+    setAppendMode('');
+  };
+
+  const handleAddAsNewPart = () => {
+    handleClosePartSelectionModal();
+    handleAddToLibrary();
+  };
+
+  const handleFilterParts = (term, allParts) => {
+    if (term.trim() === '') {
+      setLibraryPartsForAppend(allParts);
+    } else {
+      const filtered = allParts.filter(part =>
+        part.part_number?.toLowerCase().includes(term.toLowerCase()) ||
+        part.manufacturer_pn?.toLowerCase().includes(term.toLowerCase()) ||
+        part.description?.toLowerCase().includes(term.toLowerCase()) ||
+        part.manufacturer_name?.toLowerCase().includes(term.toLowerCase())
+      );
+      setLibraryPartsForAppend(filtered);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
 
-      {/* Search Form */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] shrink-0 mb-6">
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Enter part number or manufacturer part number..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={handleClearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Clear search"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={searchMutation.isPending}
-            className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
-          >
-            {searchMutation.isPending ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-      </div>
+      <VendorSearchForm
+        searchTerm={searchTerm}
+        onSearchTermChange={setSearchTerm}
+        onSearch={handleSearch}
+        isSearchPending={searchMutation.isPending}
+        onClearSearch={handleClearSearch}
+        vendorBarcode={vendorBarcode}
+        onVendorBarcodeChange={setVendorBarcode}
+        vendorBarcodeInputRef={vendorBarcodeInputRef}
+        onVendorBarcodeScan={handleVendorBarcodeScan}
+        onClearVendorBarcode={handleClearVendorBarcode}
+        onStartCameraScanner={startCameraScanner}
+        barcodeDecodeResult={barcodeDecodeResult}
+      />
 
-      {/* Vendor Barcode Scanner */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0 mb-6">
-        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          <QrCode className="w-4 h-4 inline mr-1" />
-          Scan Vendor Barcode
-        </label>
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              ref={vendorBarcodeInputRef}
-              type="text"
-              value={vendorBarcode}
-              onChange={(e) => setVendorBarcode(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleVendorBarcodeScan();
-                }
-              }}
-              placeholder="Scan Digikey or Mouser barcode..."
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-            />
-            <button
-              onClick={handleVendorBarcodeScan}
-              disabled={!vendorBarcode.trim()}
-              className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-            >
-              Decode
-            </button>
-            <button
-              onClick={handleClearVendorBarcode}
-              className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-            >
-              Clear
-            </button>
-            <button
-              onClick={startCameraScanner}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
-              title="Scan with camera"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-          </div>
-          
-          {barcodeDecodeResult && (
-            <div className={`mt-2 p-3 rounded-md text-sm ${
-              barcodeDecodeResult.error
-                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-800 dark:text-red-200'
-                : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50 text-green-800 dark:text-green-200'
-            }`}>
-              {barcodeDecodeResult.error ? (
-                <p>{barcodeDecodeResult.error}</p>
-              ) : (
-                <div className="space-y-1">
-                  <p className="font-semibold">{barcodeDecodeResult.vendor} Barcode Decoded:</p>
-                  {barcodeDecodeResult.manufacturerPN && (
-                    <p>MFG P/N: <span className="font-mono">{barcodeDecodeResult.manufacturerPN}</span></p>
-                  )}
-                  {barcodeDecodeResult.digikeySKU && (
-                    <p>Digikey SKU: <span className="font-mono">{barcodeDecodeResult.digikeySKU}</span></p>
-                  )}
-                  {barcodeDecodeResult.mouserSKU && (
-                    <p>Mouser SKU: <span className="font-mono">{barcodeDecodeResult.mouserSKU}</span></p>
-                  )}
-                  {barcodeDecodeResult.quantity && (
-                    <p>Quantity: {barcodeDecodeResult.quantity}</p>
-                  )}
-                  <p className="text-xs mt-2 opacity-75">Search term updated with MFG P/N</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
-        </p>
-      </div>
+      <VendorSearchResults
+        searchResults={searchResults}
+        selectedParts={selectedParts}
+        togglePartSelection={togglePartSelection}
+        isPartSelected={isPartSelected}
+      />
 
-      {/* Search Results */}
-      {searchResults && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden mb-6">
-          {/* Digikey Results */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-red-50 dark:bg-red-900/20 flex items-center justify-between shrink-0">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Digikey Results</h3>
-              {selectedParts.length > 0 && (
-                <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
-                  {selectedParts.filter(p => searchResults.digikey?.results?.some(dp => dp.partNumber === p.partNumber)).length} selected
-                </span>
-              )}
-            </div>
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-              {searchResults.digikey?.error ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.digikey.error}</p>
-              ) : searchResults.digikey?.results?.length > 0 ? (
-                searchResults.digikey.results.map((part, index) => (
-                  <div
-                    key={index}
-                    onClick={() => togglePartSelection(part)}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors relative ${
-                      isPartSelected(part.partNumber)
-                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
-                    }`}
-                  >
-                    {/* Checkbox */}
-                    <div className="absolute top-3 right-3">
-                      <input
-                        type="checkbox"
-                        checked={isPartSelected(part.partNumber)}
-                        onChange={() => {}} // Handled by div onClick
-                        className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500 cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex justify-between items-start pr-8">
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
-                          {part.partNumber}
-                          {part.manufacturerPartNumber && <span className="font-normal text-sm text-gray-500 dark:text-gray-400"> - MFG P/N: {part.manufacturerPartNumber}</span>}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
-                          <span className="font-medium"> Series:</span> {part.series || '-'} | 
-                          <span className="font-medium"> Category:</span> {part.category || 'N/A'}
-                        </p>
-                        <div className="flex gap-4 mt-2 items-center">
-                          <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
-                          <span className="text-xs text-gray-600 dark:text-gray-400">MOQ: {part.minimumOrderQuantity || 1}</span>
-                        </div>
-                        {/* Pricing Tiers */}
-                        {part.pricing && part.pricing.length > 0 && (
-                          <div className="mt-2 text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Pricing: </span>
-                            {part.pricing.map((price, idx) => (
-                              <span key={idx} className="text-green-600 dark:text-green-400 mr-3">
-                                {price.quantity}+: ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {part.productUrl && (
-                        <a
-                          href={part.productUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No results found</p>
-              )}
-            </div>
-          </div>
-
-          {/* Mouser Results */}
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] bg-blue-50 dark:bg-blue-900/20 flex items-center justify-between shrink-0">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Mouser Results</h3>
-              {selectedParts.length > 0 && (
-                <span className="text-sm text-primary-600 dark:text-primary-400 font-medium">
-                  {selectedParts.filter(p => searchResults.mouser?.results?.some(mp => mp.partNumber === p.partNumber)).length} selected
-                </span>
-              )}
-            </div>
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-              {searchResults.mouser?.error ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{searchResults.mouser.error}</p>
-              ) : searchResults.mouser?.results?.length > 0 ? (
-                searchResults.mouser.results.map((part, index) => (
-                  <div
-                    key={index}
-                    onClick={() => togglePartSelection(part)}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors relative ${
-                      isPartSelected(part.partNumber)
-                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300'
-                    }`}
-                  >
-                    {/* Checkbox */}
-                    <div className="absolute top-3 right-3">
-                      <input
-                        type="checkbox"
-                        checked={isPartSelected(part.partNumber)}
-                        onChange={() => {}} // Handled by div onClick
-                        className="w-5 h-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500 cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex justify-between items-start pr-8">
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">
-                          {part.partNumber}
-                          {part.manufacturerPartNumber && <span className="font-normal text-sm text-gray-500 dark:text-gray-400"> - MFG P/N: {part.manufacturerPartNumber}</span>}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {part.manufacturer && <span className="font-medium">{part.manufacturer}</span>}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{part.description}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          <span className="font-medium">Package:</span> {part.packageType || 'N/A'} | 
-                          <span className="font-medium"> Series:</span> {part.series || '-'} | 
-                          <span className="font-medium"> Category:</span> {part.category || 'N/A'}
-                        </p>
-                        <div className="flex gap-4 mt-2 items-center">
-                          <span className="text-xs text-gray-600 dark:text-gray-400">Stock: {part.stock}</span>
-                          <span className="text-xs text-gray-600 dark:text-gray-400">MOQ: {part.minimumOrderQuantity || 1}</span>
-                        </div>
-                        {/* Pricing Tiers */}
-                        {part.pricing && part.pricing.length > 0 && (
-                          <div className="mt-2 text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">Pricing: </span>
-                            {part.pricing.map((price, idx) => (
-                              <span key={idx} className="text-green-600 dark:text-green-400 mr-3">
-                                {price.quantity}+: ${typeof price.price === 'number' ? price.price.toFixed(4) : price.price}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {part.productUrl && (
-                        <a
-                          href={part.productUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 dark:text-primary-400 hover:text-primary-700"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No results found</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Selected Parts Actions */}
-      {selectedParts.length > 0 && (
-        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Actions for Selected Parts
-            </h3>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {selectedParts.length} part{selectedParts.length > 1 ? 's' : ''} selected
-              </span>
-              <button
-                onClick={() => {
-                  setSelectedParts([]);
-                  sessionStorage.removeItem('vendorSelectedParts');
-                }}
-                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-              >
-                Clear Selection
-              </button>
-            </div>
-          </div>
-          
-          {/* Show selected parts info */}
-          <div className="mb-4 p-3 bg-gray-50 dark:bg-[#1a1a1a] rounded-md">
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium">Selected:</p>
-            <div className="space-y-1">
-              {selectedParts.map((part, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs">
-                  <span className={`px-2 py-0.5 rounded ${
-                    searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber)
-                      ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                  }`}>
-                    {searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber) ? 'Digikey' : 'Mouser'}
-                  </span>
-                  <span className="text-gray-700 dark:text-gray-300 font-mono">{part.partNumber}</span>
-                  <span className="text-gray-500 dark:text-gray-500">-</span>
-                  <span className="text-gray-600 dark:text-gray-400">{part.manufacturerPartNumber}</span>
-                </div>
-              ))}
-            </div>
-            {selectedParts.length > 1 && (
-              <p className="text-xs text-primary-600 dark:text-primary-400 mt-2 italic">
-                ℹ️ Primary data will be from {selectedParts.some(p => searchResults?.digikey?.results?.some(dp => dp.partNumber === p.partNumber)) ? 'Digikey' : 'Mouser'}. All selected parts will be added as distributor SKUs.
-              </p>
-            )}
-          </div>
-
-          <div className="flex gap-3 flex-wrap">
-            {canWrite() && (
-              <>
-                <button 
-                  onClick={handleAddToLibrary}
-                  disabled={addToLibraryMutation.isPending}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  {addToLibraryMutation.isPending ? 'Adding...' : `Add to Library (${selectedParts.length})`}
-                </button>
-                <button 
-                  onClick={handleAppendToExisting}
-                  disabled={selectedParts.length === 0}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-                  title="Append distributor info to existing library part with same MFG P/N"
-                >
-                  <Plus className="w-4 h-4" />
-                  Append to Existing Parts
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => handleDownloadFootprint('ultra-librarian')}
-              disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from Ultra Librarian'}
-            >
-              <Download className="w-4 h-4" />
-              {downloadFootprintMutation.isPending ? 'Downloading...' : 'Ultra Librarian'}
-            </button>
-            <button
-              onClick={() => handleDownloadFootprint('snapeda')}
-              disabled={downloadFootprintMutation.isPending || selectedParts.length === 0}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={selectedParts.length === 0 ? 'Select a part first' : 'Download footprint from SnapEDA'}
-            >
-              <Download className="w-4 h-4" />
-              {downloadFootprintMutation.isPending ? 'Downloading...' : 'SnapEDA'}
-            </button>
-          </div>
-          {addToLibraryMutation.isSuccess && (
-            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-              Part successfully added to library!
-            </p>
-          )}
-          {downloadFootprintMutation.isSuccess && (
-            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-              Footprint download completed! Check the downloads folder.
-            </p>
-          )}
-          {downloadFootprintMutation.isError && (
-            <p className="mt-3 text-sm text-red-600 dark:text-red-400">
-              {downloadFootprintMutation.error?.response?.data?.message || 
-               downloadFootprintMutation.error?.response?.data?.error ||
-               'Failed to download footprint. The API may not be configured.'}
-            </p>
-          )}
-        </div>
-      )}
+      <SelectedPartsPanel
+        selectedParts={selectedParts}
+        searchResults={searchResults}
+        onClearSelection={handleClearSelection}
+        onAddToLibrary={handleAddToLibrary}
+        onAppendToExisting={handleAppendToExisting}
+        onDownloadFootprint={handleDownloadFootprint}
+        addToLibraryMutation={addToLibraryMutation}
+        downloadFootprintMutation={downloadFootprintMutation}
+        canWrite={canWrite()}
+      />
 
       {/* Camera Barcode Scanner */}
       {showCameraScanner && (
@@ -1117,147 +790,20 @@ const VendorSearch = () => {
 
       {/* Part Selection Modal */}
       {showPartSelectionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                {appendMode === 'distributor' ? 'Select Part to Update Distributors' : 'Select Part to Add Alternative'}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowPartSelectionModal(false);
-                  setLibraryPartsForAppend([]);
-                  setAllLibraryParts([]);
-                  setPartSearchTerm('');
-                  setPartSortBy('part_number');
-                  setAppendMode('');
-                }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {appendMode === 'distributor' ? (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Multiple parts found with MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
-                Select which part to append distributor information to.
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  No exact match found for MFG P/N "<strong>{selectedParts[0]?.manufacturerPartNumber}</strong>". 
-                  Select a library part to add this as an alternative part with distributor information.
-                </p>
-                
-                {/* Search and Sort Controls for Alternative Mode */}
-                <div className="mb-4 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search by part number, manufacturer P/N, or description..."
-                    value={partSearchTerm}
-                    onChange={(e) => {
-                      const term = e.target.value;
-                      setPartSearchTerm(term);
-                      
-                      // Filter parts based on search term
-                      if (term.trim() === '') {
-                        setLibraryPartsForAppend(allLibraryParts);
-                      } else {
-                        const filtered = allLibraryParts.filter(part => 
-                          part.part_number?.toLowerCase().includes(term.toLowerCase()) ||
-                          part.manufacturer_pn?.toLowerCase().includes(term.toLowerCase()) ||
-                          part.description?.toLowerCase().includes(term.toLowerCase()) ||
-                          part.manufacturer_name?.toLowerCase().includes(term.toLowerCase())
-                        );
-                        setLibraryPartsForAppend(filtered);
-                      }
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <select
-                    value={partSortBy}
-                    onChange={(e) => setPartSortBy(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="part_number">Sort by Part #</option>
-                    <option value="manufacturer_pn">Sort by MFG P/N</option>
-                    <option value="category_name">Sort by Category</option>
-                    <option value="manufacturer_name">Sort by Manufacturer</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {libraryPartsForAppend.length > 0 ? (
-              <div className="space-y-2 overflow-y-auto custom-scrollbar pr-2">
-                {libraryPartsForAppend
-                  .sort((a, b) => {
-                    // Sort the parts list
-                    const aVal = a[partSortBy] || '';
-                    const bVal = b[partSortBy] || '';
-                    return aVal.toString().localeCompare(bVal.toString());
-                  })
-                  .map((component) => (
-                  <div
-                    key={component.is_alternative ? `alt-${component.id}` : component.id}
-                    onClick={() => handleSelectPartForAppend(component)}
-                    className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-gray-100">
-                            {component.is_alternative ? component.parent_part_number : component.part_number}
-                          </p>
-                          {component.is_alternative && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
-                              Alternative Part
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {component.manufacturer_name} - {component.manufacturer_pn}
-                        </p>
-                        {component.is_alternative && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Alternative to: {component.parent_part_number}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          {component.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-600 dark:text-gray-400">
-                  {appendMode === 'alternative' && partSearchTerm.trim() !== '' 
-                    ? `No parts found matching "${partSearchTerm}". Try a different search term.`
-                    : 'No parts found in library. Please use "Add to Library" instead.'
-                  }
-                </p>
-                <button
-                  onClick={() => {
-                    setShowPartSelectionModal(false);
-                    setLibraryPartsForAppend([]);
-                    setAllLibraryParts([]);
-                    setPartSearchTerm('');
-                    setPartSortBy('part_number');
-                    setAppendMode('');
-                    handleAddToLibrary();
-                  }}
-                  className="mt-4 btn-primary"
-                >
-                  Add as New Part
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <PartSelectionModal
+          appendMode={appendMode}
+          selectedParts={selectedParts}
+          libraryPartsForAppend={libraryPartsForAppend}
+          allLibraryParts={allLibraryParts}
+          partSearchTerm={partSearchTerm}
+          onPartSearchTermChange={setPartSearchTerm}
+          partSortBy={partSortBy}
+          onPartSortByChange={setPartSortBy}
+          onSelectPart={handleSelectPartForAppend}
+          onClose={handleClosePartSelectionModal}
+          onAddAsNewPart={handleAddAsNewPart}
+          onFilterParts={handleFilterParts}
+        />
       )}
     </div>
   );

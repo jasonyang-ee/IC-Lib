@@ -3,3 +3,7 @@ export { default as ConfirmationModal } from './ConfirmationModal';
 export { default as TypeaheadInput } from './TypeaheadInput';
 export { default as Toast } from './Toast';
 export { default as LoadingSpinner } from './LoadingSpinner';
+export { default as SidebarCard } from './SidebarCard';
+export { default as FilterSelect } from './FilterSelect';
+export { default as SearchInput } from './SearchInput';
+export { default as SortControls } from './SortControls';
