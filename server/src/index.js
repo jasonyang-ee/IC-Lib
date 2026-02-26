@@ -38,6 +38,7 @@ import { initializeAuthentication, getAuthenticationStatus } from './services/in
 
 // Import CAD file scan service
 import { scanAndRegisterFiles, detectMissingFiles } from './services/cadFileService.js';
+import pool from './config/database.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -159,6 +160,13 @@ async function startServer() {
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Base URL: ${BASE_URL}`);
       }
       console.log('');
+
+      // Ensure cad_files.missing column exists (online migration)
+      try {
+        await pool.query('ALTER TABLE cad_files ADD COLUMN IF NOT EXISTS missing BOOLEAN DEFAULT FALSE');
+      } catch {
+        // Column may already exist or table not yet created — ignore
+      }
 
       // Run CAD file scan on startup (non-blocking)
       try {

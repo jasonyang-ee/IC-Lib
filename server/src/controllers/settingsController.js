@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as databaseService from '../services/databaseService.js';
@@ -1561,9 +1562,73 @@ export const previewECONumber = async (req, res) => {
     res.json({ preview });
   } catch (error) {
     console.error('Error previewing ECO number:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to preview ECO number',
-      message: error.message, 
+      message: error.message,
     });
+  }
+};
+
+const DATABASE_DIR = path.resolve(__dirname, '../../../database');
+
+/**
+ * GET /api/settings/cis-config
+ * Download the CIS configuration file (ICLIB.DBC)
+ */
+export const downloadCISConfig = async (req, res) => {
+  try {
+    const filePath = path.join(DATABASE_DIR, 'ICLIB.DBC');
+    if (!fsSync.existsSync(filePath)) {
+      return res.status(404).json({ error: 'CIS config file not found' });
+    }
+    res.download(filePath, 'ICLIB.DBC');
+  } catch (error) {
+    console.error('Error downloading CIS config:', error);
+    res.status(500).json({ error: 'Failed to download CIS config' });
+  }
+};
+
+/**
+ * GET /api/settings/label-templates
+ * List available label template files
+ */
+export const listLabelTemplates = async (req, res) => {
+  try {
+    const templateDir = path.join(DATABASE_DIR, 'label-template');
+    if (!fsSync.existsSync(templateDir)) {
+      return res.json([]);
+    }
+    const files = await fs.readdir(templateDir);
+    const templates = [];
+    for (const file of files) {
+      const stat = await fs.stat(path.join(templateDir, file));
+      if (stat.isFile()) {
+        templates.push({ name: file, size: stat.size });
+      }
+    }
+    res.json(templates);
+  } catch (error) {
+    console.error('Error listing label templates:', error);
+    res.status(500).json({ error: 'Failed to list label templates' });
+  }
+};
+
+/**
+ * GET /api/settings/label-templates/:filename
+ * Download a specific label template file
+ */
+export const downloadLabelTemplate = async (req, res) => {
+  try {
+    const { filename } = req.params;
+    // Prevent path traversal
+    const safeName = path.basename(filename);
+    const filePath = path.join(DATABASE_DIR, 'label-template', safeName);
+    if (!fsSync.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Label template not found' });
+    }
+    res.download(filePath, safeName);
+  } catch (error) {
+    console.error('Error downloading label template:', error);
+    res.status(500).json({ error: 'Failed to download label template' });
   }
 };

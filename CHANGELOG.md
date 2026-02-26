@@ -11,15 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `missing` column on `cad_files` table — server scan now tags missing files instead of deleting records, preserving CIS filename references for backup restoration
 - Dashboard library quality section now shows both "Undefined" (no file assigned) and "Missing" (file assigned but not found on disk) counts per file type
+- Dashboard library quality column headers (Type, Undefined, Missing, Health) for clarity
 - Red "Missing" tag on CAD file listings when a linked file is not found on the server disk
+- File Library page: CIS Config download section in sidebar for ICLIB.DBC file
+- Inventory page: Filter by Project — filters inventory to show only parts used in a selected project
+- Inventory page: Label Template section with dropdown and download for label template files from `/database/label-template/`
+- Server endpoints for CIS config download (`GET /api/settings/cis-config`) and label template listing/download (`GET /api/settings/label-templates`)
 
 ### Changed
 
 - File scan (`detectMissingFiles`) sets `missing=TRUE` instead of deleting `cad_files` records, keeping junction table links and TEXT columns intact
 - Dashboard library quality layout uses CSS grid for consistent column alignment across all file type rows
+- Dashboard Missing column always visible (shows count even when 0), with red styling when count > 0
 - CAD file category display order in component detail view now uses explicit array for deterministic ordering (Schematic, Footprint, Pad, 3D Model, PSpice)
 - Single-component stock update (`updateComponentStock`) no longer adds 2-second delays between vendor API calls — vendor service caching prevents rate-limit issues for low-volume requests
 - Edit mode vendor data search (DigiKey) now loads asynchronously without blocking the edit form from appearing
+- File Library sidebar "File Types" and "Categories" headings changed from all-caps to sentence case
+- File Library sidebar fits to content height instead of stretching to full window
+- Startup migration ensures `cad_files.missing` column exists for existing databases
+
+### Refactored
+
+- Extracted inline route handlers from `fileUpload.js`, `specificationTemplates.js`, and `distributors.js` into dedicated controller files (`fileUploadController.js`, `specificationTemplateController.js`, `distributorController.js`)
 
 ### Fixed
 

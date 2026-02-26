@@ -24,6 +24,7 @@ import {
   Unlink,
   ExternalLink,
   Copy,
+  Download,
 } from 'lucide-react';
 
 // View modes
@@ -618,9 +619,9 @@ const FileTypesView = ({
 }) => (
   <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
     {/* Col 1: File type selection sidebar */}
-    <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-3 flex flex-col overflow-hidden">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0 uppercase tracking-wider">File Types</h2>
-      <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1">
+    <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-3 self-start">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0">File Types</h2>
+      <div className="space-y-1.5">
         {fileTypes.map((type) => {
           const Icon = type.icon;
           const isSelected = selectedType === type.id;
@@ -647,6 +648,19 @@ const FileTypesView = ({
             </button>
           );
         })}
+      </div>
+
+      {/* CIS Config Download */}
+      <div className="mt-4 pt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">CIS Config</h3>
+        <a
+          href={`${import.meta.env.VITE_API_URL || '/api'}/settings/cis-config`}
+          download
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          ICLIB.DBC
+        </a>
       </div>
     </div>
 
@@ -880,7 +894,7 @@ const CategoryView = ({
     <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
       {/* Col 1: Category select */}
       <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-3 flex flex-col overflow-hidden">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0 uppercase tracking-wider">Categories</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0">Categories</h2>
         <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1">
           {categories?.map((cat) => {
             const isSelected = selectedCategoryId === cat.id;

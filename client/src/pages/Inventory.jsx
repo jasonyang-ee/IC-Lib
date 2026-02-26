@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
-import { AlertCircle, Search, Edit, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera } from 'lucide-react';
+import { AlertCircle, Search, Edit, QrCode, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw, Camera, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +17,7 @@ const Inventory = () => {
   const location = useLocation();
   const { canWrite } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedProject, setSelectedProject] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [vendorBarcode, setVendorBarcode] = useState('');
   const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
@@ -32,6 +33,7 @@ const Inventory = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [_receiveQtyFromQr, _setReceiveQtyFromQr] = useState(null);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
@@ -72,6 +74,28 @@ const Inventory = () => {
     gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour
   });
 
+  // Fetch projects for filter
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const response = await api.getProjects();
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
+  });
+
+  // Fetch selected project details (component IDs)
+  const { data: selectedProjectData } = useQuery({
+    queryKey: ['project', selectedProject],
+    queryFn: async () => {
+      const response = await api.getProjectById(selectedProject);
+      return response.data;
+    },
+    enabled: !!selectedProject,
+    staleTime: 1000 * 60 * 10,
+  });
+
   // Fetch inventory with aggressive caching
   const { data: inventory, isLoading, refetch: refetchInventory } = useQuery({
     queryKey: ['inventory'],
@@ -96,6 +120,17 @@ const Inventory = () => {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch label templates
+  const { data: labelTemplates } = useQuery({
+    queryKey: ['labelTemplates'],
+    queryFn: async () => {
+      const response = await api.getLabelTemplates();
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 60,
+    gcTime: 1000 * 60 * 120,
+  });
+
   // Update quantity mutation
   const _updateQtyMutation = useMutation({
     mutationFn: async ({ id, quantity, location }) => {
@@ -110,23 +145,29 @@ const Inventory = () => {
     },
   });
 
+  // Build set of component IDs from selected project
+  const projectComponentIds = selectedProject && selectedProjectData?.components
+    ? new Set(selectedProjectData.components.map(c => c.component_id).filter(Boolean))
+    : null;
+
   // Filter inventory
   const filteredInventory = inventory?.filter(item => {
     const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
-    
+    const matchesProject = !projectComponentIds || projectComponentIds.has(item.component_id);
+
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       item.part_number?.toLowerCase().includes(searchLower) ||
       item.manufacturer_pn?.toLowerCase().includes(searchLower) ||
       item.manufacturer_name?.toLowerCase().includes(searchLower) ||
       item.description?.toLowerCase().includes(searchLower) ||
       item.component_id?.toLowerCase().includes(searchLower) ||
       // Check if any alternative part matches the search
-      (alternativesData[item.component_id]?.some(alt => 
+      (alternativesData[item.component_id]?.some(alt =>
         alt.manufacturer_pn?.toLowerCase().includes(searchLower) ||
         alt.manufacturer_name?.toLowerCase().includes(searchLower)
       ));
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesProject && matchesSearch;
   });
 
   // Sort inventory
@@ -1069,6 +1110,25 @@ const Inventory = () => {
           </select>
         </div>
 
+        {/* Project Filter */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Filter by Project
+          </label>
+          <select
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+          >
+            <option value="">All Projects</option>
+            {projects?.map((proj) => (
+              <option key={proj.id} value={proj.id}>
+                {proj.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Search Box */}
         <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -1249,6 +1309,38 @@ const Inventory = () => {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
           </p>
+        </div>
+
+        {/* Label Template */}
+        <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Label Template
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={selectedTemplate}
+              onChange={(e) => setSelectedTemplate(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+            >
+              <option value="">Select template...</option>
+              {labelTemplates?.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <a
+              href={selectedTemplate ? `${import.meta.env.VITE_API_URL || '/api'}/settings/label-templates/${encodeURIComponent(selectedTemplate)}` : undefined}
+              download
+              className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedTemplate
+                  ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 pointer-events-none'
+              }`}
+            >
+              <Download className="w-4 h-4" />
+            </a>
+          </div>
         </div>
 
         {/* Low Stock Alert */}

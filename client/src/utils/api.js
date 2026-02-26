@@ -222,7 +222,10 @@ export const api = {
   getECOSettings: () => apiClient.get('/settings/eco'),
   updateECOSettings: (data) => apiClient.put('/settings/eco', data),
   previewECONumber: () => apiClient.get('/settings/eco/preview'),
-  
+
+  // CIS Config & Label Templates
+  getLabelTemplates: () => apiClient.get('/settings/label-templates'),
+
   // Category Specifications (New Schema)
   getCategorySpecifications: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
   createCategorySpecification: (categoryId, data) => apiClient.post(`/settings/categories/${categoryId}/specifications`, data),

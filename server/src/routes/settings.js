@@ -25,6 +25,9 @@ import {
   getECOSettings,
   updateECOSettings,
   previewECONumber,
+  downloadCISConfig,
+  listLabelTemplates,
+  downloadLabelTemplate,
 } from '../controllers/settingsController.js';
 
 const router = express.Router();
@@ -65,5 +68,12 @@ router.post('/database/clear', clearDatabase);
 router.post('/database/reset', resetDatabase);
 router.get('/database/verify', verifyDatabase);
 router.post('/database/sync-inventory', syncComponentsToInventory);
+
+// CIS config download
+router.get('/cis-config', downloadCISConfig);
+
+// Label template routes
+router.get('/label-templates', listLabelTemplates);
+router.get('/label-templates/:filename', downloadLabelTemplate);
 
 export default router;

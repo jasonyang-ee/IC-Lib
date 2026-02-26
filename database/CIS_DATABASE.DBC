@@ -1,0 +1,5399 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<CFGManager>
+
+  <!--CIS DBC configuration file 17.2 release. Created on (date/time) Mon Mar  7 16:21:14 2022
+-->
+
+  <CISVersion>
+    <Value>CIS Version 17.2</Value>
+  </CISVersion>
+
+  <LastModifiedTime>1646698872</LastModifiedTime>
+
+  <AllowDuplicatePartNumbers>1</AllowDuplicatePartNumbers>
+
+  <PartTypeDelimiter>\</PartTypeDelimiter>
+
+  <TransferBlankProperties>0</TransferBlankProperties>
+
+  <AssignTempPartNoAutomatically>1</AssignTempPartNoAutomatically>
+
+  <TempPartNumberTableName>TMPPRTS</TempPartNumberTableName>
+
+  <TempPartNumberPrefix>TMP-</TempPartNumberPrefix>
+
+  <MultiValuesCellDelimiter>,</MultiValuesCellDelimiter>
+
+  <UseTopSup>Ž‡3u</UseTopSup>
+
+  <DoNotStuffString>Do Not Stuff</DoNotStuffString>
+
+  <MechPartMappingTable>MechPart Mapping Table</MechPartMappingTable>
+
+  <Version>2457</Version>
+
+  <DSNName>OrCAD</DSNName>
+
+  <AssistMode>0</AssistMode>
+
+  <AutoPartTypeRefresh>1</AutoPartTypeRefresh>
+
+  <PartNumber>1</PartNumber>
+
+  <PartRefernce>1</PartRefernce>
+
+  <RefDesAssoc/>
+
+  <DbTableCfg indx="0">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Capacitors</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Dielectric Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Equivalent Series Resistance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Temperature Coefficient</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Tolerance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="1">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Connectors</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Contact Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Contact Gender</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Contact Material</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Contact Plating</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Contact Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Housing Gender</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Housing Material</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Contacts</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Rows</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName></FieldName>
+      <DBFieldName>Pitch</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="38">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="39">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="40">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="2">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Diodes</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>LED Color</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Peak Forward Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Repetitive Reverse Voltage Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Reverse Recovery Time</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Voltage Root Mean Square</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="38">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="3">
+    <NewPartDB>0</NewPartDB>
+    <TableName>ICs</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Propagation Delay</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Supply Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Channels</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Function</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Supply Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Signal to Noise Ratio</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Output Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Gates</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName></FieldName>
+      <DBFieldName>Output Low Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>Voltage Input High</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>Number of I/O</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>Access Time</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>Data Retention In Years</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>Data Retention Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>Memory Depth</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>Memory Page Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>Memory Width</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>Clock Frequency Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>I/O Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>Common Mode Rejection Ratio</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName></FieldName>
+      <DBFieldName>Gain BW Product</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName></FieldName>
+      <DBFieldName>Input Bias Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName></FieldName>
+      <DBFieldName>Input Offset Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName></FieldName>
+      <DBFieldName>Erase Cycles</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="38">
+      <FieldName></FieldName>
+      <DBFieldName>Programming Cycles</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="39">
+      <FieldName></FieldName>
+      <DBFieldName>Drop Out Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="40">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Output Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="41">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="42">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="43">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="44">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="45">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="46">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="47">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="48">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="49">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="50">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="51">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="52">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="53">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="54">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="55">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="56">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="57">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="58">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="4">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Inductors</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Tolerance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>DC Resistance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Q factor</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Self Resonating Frequency</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Test Frequency</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="5">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Resistors</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Temperature Coefficient</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Tolerance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Material</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Elements</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power Per Element</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+  <DbTableCfg indx="6">
+    <NewPartDB>0</NewPartDB>
+    <TableName>Transistors</TableName>
+    <TableUsed>1</TableUsed>
+    <DbFieldDef indx="0">
+      <FieldName>PART_NUMBER</FieldName>
+      <DBFieldName>PART_NUMBER</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>Part Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>2</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
+      <DBFieldName>Description</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="3">
+      <FieldName>Value</FieldName>
+      <DBFieldName>Value</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>1</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="4">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>PCB Footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="5">
+      <FieldName></FieldName>
+      <DBFieldName>Schematic Part</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>3</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="6">
+      <FieldName></FieldName>
+      <DBFieldName>Number of Pins</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="7">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="8">
+      <FieldName></FieldName>
+      <DBFieldName>Operating Temperature Minimum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="9">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>Package Size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="10">
+      <FieldName>Package Height</FieldName>
+      <DBFieldName>Package Height</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="11">
+      <FieldName>Package Type</FieldName>
+      <DBFieldName>Package Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="12">
+      <FieldName></FieldName>
+      <DBFieldName>Company Part Status</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="13">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="14">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="15">
+      <FieldName></FieldName>
+      <DBFieldName>Rated Power</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="16">
+      <FieldName></FieldName>
+      <DBFieldName>Collector Current Maximum</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="17">
+      <FieldName></FieldName>
+      <DBFieldName>Collector-Emitter Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="18">
+      <FieldName></FieldName>
+      <DBFieldName>Drain Gate Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="19">
+      <FieldName></FieldName>
+      <DBFieldName>Drain Saturation Current</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="20">
+      <FieldName></FieldName>
+      <DBFieldName>Drain Source On Resistance</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="21">
+      <FieldName></FieldName>
+      <DBFieldName>Drain Source Saturation Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="22">
+      <FieldName></FieldName>
+      <DBFieldName>Gate Source Voltage</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="23">
+      <FieldName></FieldName>
+      <DBFieldName>Junction Temperature</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="24">
+      <FieldName></FieldName>
+      <DBFieldName>Polarity</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="25">
+      <FieldName></FieldName>
+      <DBFieldName>Small Signal Current Gain</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="26">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="27">
+      <FieldName></FieldName>
+      <DBFieldName>Implementation Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="28">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>PSpiceTemplate</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="29">
+      <FieldName></FieldName>
+      <DBFieldName>Device Type</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="30">
+      <FieldName></FieldName>
+      <DBFieldName>UserField01</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="31">
+      <FieldName></FieldName>
+      <DBFieldName>UserField02</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="32">
+      <FieldName></FieldName>
+      <DBFieldName>UserField03</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="33">
+      <FieldName></FieldName>
+      <DBFieldName>UserField04</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="34">
+      <FieldName></FieldName>
+      <DBFieldName>UserField05</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="35">
+      <FieldName></FieldName>
+      <DBFieldName>UserField06</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="36">
+      <FieldName></FieldName>
+      <DBFieldName>UserField07</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="37">
+      <FieldName></FieldName>
+      <DBFieldName>UserField08</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="38">
+      <FieldName></FieldName>
+      <DBFieldName>UserField09</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="39">
+      <FieldName></FieldName>
+      <DBFieldName>UserField10</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="40">
+      <FieldName>TMP Manufacturer</FieldName>
+      <DBFieldName>TMP Manufacturer</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="41">
+      <FieldName>TMP Manufacturer PN</FieldName>
+      <DBFieldName>TMP Manufacturer PN</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="42">
+      <FieldName></FieldName>
+      <DBFieldName>Activeparts ID</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+    <DbFieldDef indx="43">
+      <FieldName></FieldName>
+      <DBFieldName>CLASS</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+  </DbTableCfg>
+
+</CFGManager>
