@@ -2,6 +2,7 @@
 <CFGManager>
 
   <!--CIS DBC configuration file 17.2 release. Created on (date/time) Mon Oct 13 14:08:44 2025
+  Updated: Field mappings corrected for PostgreSQL active_parts/alternative_parts views
 -->
 
   <CISVersion>
@@ -109,53 +110,45 @@
     <ICASuplierList>NUHorizons</ICASuplierList>
   </SelectedICASupList>
 
+  <!-- ================================================================== -->
+  <!-- Primary parts table: active_parts view (PostgreSQL)                -->
+  <!-- Maps to: components + categories + manufacturers via active_parts  -->
+  <!-- ================================================================== -->
   <DbTableCfg indx="0">
     <NewPartDB>0</NewPartDB>
     <TableName>active_parts</TableName>
     <TableUsed>1</TableUsed>
+
+    <!-- indx 0: Part Number - Primary identifier shown in CIS browser -->
+    <!-- PropertyType=0 (Normal), Browse=1 (enables search), Visibility=0 (visible in table) -->
     <DbFieldDef indx="0">
-      <FieldName></FieldName>
-      <DBFieldName>part_type</DBFieldName>
-      <ICAFieldName>part_type</ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>255</DBFieldPrecision>
-      <DBFieldLength>255</DBFieldLength>
-      <DBFieldScale>32484</DBFieldScale>
-      <DBFieldRadix>32484</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>1</Ignore>
-      <Visibility>0</Visibility>
-      <PropertyType>2</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="1">
-      <FieldName></FieldName>
-      <DBFieldName>category_name</DBFieldName>
-      <ICAFieldName></ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>100</DBFieldPrecision>
-      <DBFieldLength>100</DBFieldLength>
-      <DBFieldScale>0</DBFieldScale>
-      <DBFieldRadix>10</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>0</Ignore>
-      <Visibility>0</Visibility>
-      <PropertyType>0</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="2">
-      <FieldName>part_number</FieldName>
+      <FieldName>Part Number</FieldName>
       <DBFieldName>part_number</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
       <DBFieldPrecision>100</DBFieldPrecision>
-      <DBFieldLength>100</DBFieldLength>
+      <DBFieldLength>200</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 1: Part Type - Category hierarchy (e.g. "Capacitor/Ceramic/0402") -->
+    <!-- PropertyType=2 (Part Type), Ignore=0 so CIS uses it for tree navigation -->
+    <DbFieldDef indx="1">
+      <FieldName>Part Type</FieldName>
+      <DBFieldName>part_type</DBFieldName>
+      <ICAFieldName>part_type</ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
       <DBFieldScale>32484</DBFieldScale>
       <DBFieldRadix>32484</DBFieldRadix>
       <DBFieldNullable>0</DBFieldNullable>
@@ -163,48 +156,15 @@
       <Protected>0</Protected>
       <Key>0</Key>
       <Ignore>0</Ignore>
-      <Visibility>1</Visibility>
-      <PropertyType>1</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="3">
-      <FieldName></FieldName>
-      <DBFieldName>manufacturer_name</DBFieldName>
-      <ICAFieldName></ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>100</DBFieldPrecision>
-      <DBFieldLength>100</DBFieldLength>
-      <DBFieldScale>32484</DBFieldScale>
-      <DBFieldRadix>32484</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>1</Ignore>
       <Visibility>0</Visibility>
-      <PropertyType>0</PropertyType>
+      <PropertyType>2</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
-    <DbFieldDef indx="4">
-      <FieldName></FieldName>
-      <DBFieldName>manufacturer_pn</DBFieldName>
-      <ICAFieldName></ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>200</DBFieldPrecision>
-      <DBFieldLength>200</DBFieldLength>
-      <DBFieldScale>32484</DBFieldScale>
-      <DBFieldRadix>32484</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>1</Ignore>
-      <Visibility>0</Visibility>
-      <PropertyType>0</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="5">
-      <FieldName></FieldName>
+
+    <!-- indx 2: Description - Component description text -->
+    <!-- PropertyType=0 (Normal), Ignore=0 so it transfers to schematic -->
+    <DbFieldDef indx="2">
+      <FieldName>Description</FieldName>
       <DBFieldName>description</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>-1</DBFieldType>
@@ -216,12 +176,15 @@
       <Browse>0</Browse>
       <Protected>0</Protected>
       <Key>0</Key>
-      <Ignore>1</Ignore>
+      <Ignore>0</Ignore>
       <Visibility>0</Visibility>
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
-    <DbFieldDef indx="6">
+
+    <!-- indx 3: Value - Displayed on schematic as key property (e.g. "10uF", "4.7k") -->
+    <!-- Key=1 so it displays on schematic next to ref des -->
+    <DbFieldDef indx="3">
       <FieldName>Value</FieldName>
       <DBFieldName>value</DBFieldName>
       <ICAFieldName></ICAFieldName>
@@ -239,27 +202,12 @@
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
-    <DbFieldDef indx="7">
-      <FieldName>PCB Footprint</FieldName>
-      <DBFieldName>pcb_footprint</DBFieldName>
-      <ICAFieldName></ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>200</DBFieldPrecision>
-      <DBFieldLength>400</DBFieldLength>
-      <DBFieldScale>32484</DBFieldScale>
-      <DBFieldRadix>32484</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>0</Ignore>
-      <Visibility>0</Visibility>
-      <PropertyType>4</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="8">
-      <FieldName>package_size</FieldName>
-      <DBFieldName>package_size</DBFieldName>
+
+    <!-- indx 4: Manufacturer Name - Resolved from manufacturer_id via active_parts view -->
+    <!-- PropertyType=0 (Normal), Ignore=0 so it transfers to schematic/BOM -->
+    <DbFieldDef indx="4">
+      <FieldName>Manufacturer</FieldName>
+      <DBFieldName>manufacturer_name</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
       <DBFieldPrecision>100</DBFieldPrecision>
@@ -275,8 +223,53 @@
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
-    <DbFieldDef indx="9">
-      <FieldName></FieldName>
+
+    <!-- indx 5: Manufacturer Part Number - ICA supplier lookup key -->
+    <!-- PropertyType=1 (Part Number Reference for ICA lookup), Browse=1 -->
+    <DbFieldDef indx="5">
+      <FieldName>Manufacturer Part Number</FieldName>
+      <DBFieldName>manufacturer_pn</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>200</DBFieldPrecision>
+      <DBFieldLength>400</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>1</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 6: PCB Footprint - Allegro/OrCAD footprint name (comma-separated for multi) -->
+    <!-- PropertyType=4 (PCB Footprint), Browse=1 (enables footprint browser) -->
+    <DbFieldDef indx="6">
+      <FieldName>PCB Footprint</FieldName>
+      <DBFieldName>pcb_footprint</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>200</DBFieldPrecision>
+      <DBFieldLength>400</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>1</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>4</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 7: Schematic Part - OrCAD Capture symbol name -->
+    <!-- PropertyType=3 (Schematic Part), Ignore=1 (CIS resolves internally, not a schematic property) -->
+    <DbFieldDef indx="7">
+      <FieldName>Schematic Part</FieldName>
       <DBFieldName>schematic</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
@@ -293,6 +286,49 @@
       <PropertyType>3</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
+
+    <!-- indx 8: Package Size - Physical package dimensions (e.g. "0402", "0805", "SOIC-8") -->
+    <DbFieldDef indx="8">
+      <FieldName>Package Size</FieldName>
+      <DBFieldName>package_size</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>100</DBFieldPrecision>
+      <DBFieldLength>200</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 9: PSpice Template - Simulation model reference -->
+    <!-- PropertyType=5 (PSpice Template) -->
+    <DbFieldDef indx="9">
+      <FieldName>PSpiceTemplate</FieldName>
+      <DBFieldName>pspice</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>255</DBFieldPrecision>
+      <DBFieldLength>510</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>0</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>5</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 10: STEP Model - 3D model filename (not a CIS property, internal tracking only) -->
     <DbFieldDef indx="10">
       <FieldName></FieldName>
       <DBFieldName>step_model</DBFieldName>
@@ -311,25 +347,9 @@
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
+
+    <!-- indx 11: Datasheet URL - Link to datasheet (not a CIS schematic property) -->
     <DbFieldDef indx="11">
-      <FieldName>pspice</FieldName>
-      <DBFieldName>pspice</DBFieldName>
-      <ICAFieldName></ICAFieldName>
-      <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>255</DBFieldPrecision>
-      <DBFieldLength>510</DBFieldLength>
-      <DBFieldScale>32484</DBFieldScale>
-      <DBFieldRadix>32484</DBFieldRadix>
-      <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
-      <Protected>0</Protected>
-      <Key>0</Key>
-      <Ignore>0</Ignore>
-      <Visibility>0</Visibility>
-      <PropertyType>5</PropertyType>
-      <UpdatePartProp>1</UpdatePartProp>
-    </DbFieldDef>
-    <DbFieldDef indx="12">
       <FieldName></FieldName>
       <DBFieldName>datasheet_url</DBFieldName>
       <ICAFieldName></ICAFieldName>
@@ -348,19 +368,16 @@
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
 
-  <DbTableCfg indx="1">
-    <NewPartDB>0</NewPartDB>
-    <TableName>alternative_parts</TableName>
-    <TableUsed>0</TableUsed>
-    <DbFieldDef indx="0">
+    <!-- indx 12: Category Name - Redundant with Part Type tree, kept for internal reference only -->
+    <DbFieldDef indx="12">
       <FieldName></FieldName>
-      <DBFieldName>part_number</DBFieldName>
+      <DBFieldName>category_name</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
-      <DBFieldPrecision>0</DBFieldPrecision>
-      <DBFieldLength>0</DBFieldLength>
-      <DBFieldScale>0</DBFieldScale>
-      <DBFieldRadix>0</DBFieldRadix>
+      <DBFieldPrecision>100</DBFieldPrecision>
+      <DBFieldLength>200</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
       <DBFieldNullable>0</DBFieldNullable>
       <Browse>0</Browse>
       <Protected>0</Protected>
@@ -370,48 +387,88 @@
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
+
+  </DbTableCfg>
+
+  <!-- ================================================================== -->
+  <!-- Alternative parts table: alternative_parts view (PostgreSQL)       -->
+  <!-- Linked to primary table via part_number (RelationModel below)      -->
+  <!-- ================================================================== -->
+  <DbTableCfg indx="1">
+    <NewPartDB>0</NewPartDB>
+    <TableName>alternative_parts</TableName>
+    <TableUsed>1</TableUsed>
+
+    <!-- indx 0: Part Number - Join key to primary parts table -->
+    <DbFieldDef indx="0">
+      <FieldName>Part Number</FieldName>
+      <DBFieldName>part_number</DBFieldName>
+      <ICAFieldName></ICAFieldName>
+      <DBFieldType>12</DBFieldType>
+      <DBFieldPrecision>100</DBFieldPrecision>
+      <DBFieldLength>200</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
+      <DBFieldNullable>0</DBFieldNullable>
+      <Browse>0</Browse>
+      <Protected>0</Protected>
+      <Key>0</Key>
+      <Ignore>1</Ignore>
+      <Visibility>0</Visibility>
+      <PropertyType>0</PropertyType>
+      <UpdatePartProp>1</UpdatePartProp>
+    </DbFieldDef>
+
+    <!-- indx 1: Manufacturer Name - Alternative part manufacturer -->
     <DbFieldDef indx="1">
-      <FieldName></FieldName>
+      <FieldName>Manufacturer</FieldName>
       <DBFieldName>manufacturer_name</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
       <DBFieldPrecision>100</DBFieldPrecision>
-      <DBFieldLength>100</DBFieldLength>
-      <DBFieldScale>0</DBFieldScale>
-      <DBFieldRadix>0</DBFieldRadix>
+      <DBFieldLength>200</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
       <DBFieldNullable>0</DBFieldNullable>
       <Browse>0</Browse>
       <Protected>0</Protected>
       <Key>0</Key>
-      <Ignore>1</Ignore>
+      <Ignore>0</Ignore>
       <Visibility>0</Visibility>
       <PropertyType>0</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
+
+    <!-- indx 2: Manufacturer Part Number - Alternative MPN for ICA lookup -->
     <DbFieldDef indx="2">
-      <FieldName></FieldName>
+      <FieldName>Manufacturer Part Number</FieldName>
       <DBFieldName>manufacturer_pn</DBFieldName>
       <ICAFieldName></ICAFieldName>
       <DBFieldType>12</DBFieldType>
       <DBFieldPrecision>200</DBFieldPrecision>
-      <DBFieldLength>200</DBFieldLength>
-      <DBFieldScale>0</DBFieldScale>
-      <DBFieldRadix>0</DBFieldRadix>
+      <DBFieldLength>400</DBFieldLength>
+      <DBFieldScale>32484</DBFieldScale>
+      <DBFieldRadix>32484</DBFieldRadix>
       <DBFieldNullable>0</DBFieldNullable>
-      <Browse>0</Browse>
+      <Browse>1</Browse>
       <Protected>0</Protected>
       <Key>0</Key>
-      <Ignore>1</Ignore>
+      <Ignore>0</Ignore>
       <Visibility>0</Visibility>
-      <PropertyType>0</PropertyType>
+      <PropertyType>1</PropertyType>
       <UpdatePartProp>1</UpdatePartProp>
     </DbFieldDef>
+
   </DbTableCfg>
 
+  <!-- ================================================================== -->
+  <!-- RelationModel: Links active_parts to alternative_parts             -->
+  <!-- Join key: part_number (present in both views)                      -->
+  <!-- ================================================================== -->
   <RelationModel indx="0">
-    <PrimaryTableName>components_with_part_type</PrimaryTableName>
+    <PrimaryTableName>active_parts</PrimaryTableName>
     <PrimaryKey>part_number</PrimaryKey>
-    <RelationalTableName>components_alternative_with_mfg_name</RelationalTableName>
+    <RelationalTableName>alternative_parts</RelationalTableName>
     <RelationalViewName></RelationalViewName>
     <TransfertoBOM>0</TransfertoBOM>
   </RelationModel>

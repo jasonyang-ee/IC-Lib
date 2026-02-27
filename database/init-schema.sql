@@ -437,11 +437,14 @@ LEFT JOIN users u ON c.approval_user_id = u.id
 WHERE c.approval_status != 'archived' OR c.approval_status IS NULL;
 
 -- Create a view that includes the alternative parts with manufacturer name
+-- Includes part_number from parent component for CIS RelationModel join key
 CREATE OR REPLACE VIEW alternative_parts AS
-SELECT 
+SELECT
     ca.*,
+    c.part_number,
     m.name AS manufacturer_name
 FROM components_alternative ca
+LEFT JOIN components c ON ca.component_id = c.id
 LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id;
 
 -- ============================================================================

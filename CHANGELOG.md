@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `alternative_parts` view now includes `part_number` from parent component, enabling CIS RelationModel join between primary and alternative parts tables
+
+### Changed
+
+- Rewrote `ICLIB.DBC` CIS configuration with corrected field mappings: fixed PropertyTypes (part_number→0, manufacturer_pn→1/ICA lookup, part_type→2, schematic→3, pcb_footprint→4, pspice→5), enabled Browse on part_number/manufacturer_pn/pcb_footprint, un-ignored critical fields (part_type, description, manufacturer_name, manufacturer_pn), set proper FieldNames for CIS property transfer, fixed missing XML closing tag, enabled alternative_parts table, and corrected RelationModel to reference actual view names (active_parts/alternative_parts)
+
+### Added
+
 - `missing` column on `cad_files` table — server scan now tags missing files instead of deleting records, preserving CIS filename references for backup restoration
 - Dashboard library quality section now shows both "Undefined" (no file assigned) and "Missing" (file assigned but not found on disk) counts per file type
 - Dashboard library quality column headers (Type, Undefined, Missing, Health) for clarity
