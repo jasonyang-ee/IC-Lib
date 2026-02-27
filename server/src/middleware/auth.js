@@ -1,6 +1,10 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('\x1b[31m[FATAL]\x1b[0m \x1b[36m[Auth]\x1b[0m JWT_SECRET environment variable is not set. Server cannot start securely.');
+  process.exit(1);
+}
 const JWT_EXPIRES_IN = '24h';
 
 /**

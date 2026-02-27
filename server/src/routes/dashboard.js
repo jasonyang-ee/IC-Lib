@@ -1,5 +1,6 @@
 import express from 'express';
 import * as dashboardController from '../controllers/dashboardController.js';
+import { authenticate, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -12,8 +13,8 @@ router.get('/recent-activities', dashboardController.getRecentActivities);
 // Get all activities (for audit page)
 router.get('/activities/all', dashboardController.getAllActivities);
 
-// Clear all audit logs
-router.delete('/activities/all', dashboardController.clearAllActivities);
+// Clear all audit logs - destructive, requires admin
+router.delete('/activities/all', authenticate, isAdmin, dashboardController.clearAllActivities);
 
 // Get category breakdown
 router.get('/category-breakdown', dashboardController.getCategoryBreakdown);

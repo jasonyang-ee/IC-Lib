@@ -29,45 +29,46 @@ import {
   listLabelTemplates,
   downloadLabelTemplate,
 } from '../controllers/settingsController.js';
+import { authenticate, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Application settings routes
 router.get('/', getSettings);
-router.put('/', updateSettings);
+router.put('/', authenticate, isAdmin, updateSettings);
 
 // ECO settings routes
 router.get('/eco', getECOSettings);
-router.put('/eco', updateECOSettings);
+router.put('/eco', authenticate, isAdmin, updateECOSettings);
 router.get('/eco/preview', previewECONumber);
 
-// Export/Import routes
-router.post('/export', exportAllSettings);
-router.post('/import', importAllSettings);
-router.post('/export/users', exportUsers);
-router.post('/import/users', importUsers);
-router.post('/export/categories', exportCategories);
-router.post('/import/categories', importCategories);
+// Export/Import routes - require admin
+router.post('/export', authenticate, isAdmin, exportAllSettings);
+router.post('/import', authenticate, isAdmin, importAllSettings);
+router.post('/export/users', authenticate, isAdmin, exportUsers);
+router.post('/import/users', authenticate, isAdmin, importUsers);
+router.post('/export/categories', authenticate, isAdmin, exportCategories);
+router.post('/import/categories', authenticate, isAdmin, importCategories);
 
 // Category configuration routes
 router.get('/categories', getCategoryConfigs);
-router.put('/categories/reorder', updateCategoryOrder);
-router.post('/categories', createCategory);
-router.put('/categories/:id', updateCategoryConfig);
+router.put('/categories/reorder', authenticate, isAdmin, updateCategoryOrder);
+router.post('/categories', authenticate, isAdmin, createCategory);
+router.put('/categories/:id', authenticate, isAdmin, updateCategoryConfig);
 
 // Category specifications routes
 router.get('/categories/:categoryId/specifications', getCategorySpecifications);
-router.post('/categories/:categoryId/specifications', createCategorySpecification);
-router.put('/categories/:categoryId/specifications/reorder', reorderCategorySpecifications);
-router.put('/specifications/:id', updateCategorySpecification);
-router.delete('/specifications/:id', deleteCategorySpecification);
+router.post('/categories/:categoryId/specifications', authenticate, isAdmin, createCategorySpecification);
+router.put('/categories/:categoryId/specifications/reorder', authenticate, isAdmin, reorderCategorySpecifications);
+router.put('/specifications/:id', authenticate, isAdmin, updateCategorySpecification);
+router.delete('/specifications/:id', authenticate, isAdmin, deleteCategorySpecification);
 
-// Database management routes
+// Database management routes - require admin
 router.get('/database/status', getDatabaseStatus);
-router.post('/database/clear', clearDatabase);
-router.post('/database/reset', resetDatabase);
+router.post('/database/clear', authenticate, isAdmin, clearDatabase);
+router.post('/database/reset', authenticate, isAdmin, resetDatabase);
 router.get('/database/verify', verifyDatabase);
-router.post('/database/sync-inventory', syncComponentsToInventory);
+router.post('/database/sync-inventory', authenticate, isAdmin, syncComponentsToInventory);
 
 // CIS config download
 router.get('/cis-config', downloadCISConfig);

@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rewrote `ICLIB.DBC` CIS configuration with corrected field mappings: fixed PropertyTypes (part_number→0, manufacturer_pn→1/ICA lookup, part_type→2, schematic→3, pcb_footprint→4, pspice→5), enabled Browse on part_number/manufacturer_pn/pcb_footprint, un-ignored critical fields (part_type, description, manufacturer_name, manufacturer_pn), set proper FieldNames for CIS property transfer, fixed missing XML closing tag, enabled alternative_parts table, and corrected RelationModel to reference actual view names (active_parts/alternative_parts)
 
+### Security
+
+- **JWT_SECRET** no longer falls back to an insecure hardcoded default — server now exits on startup if the environment variable is missing
+- Added `authenticate + isAdmin` middleware to all admin routes (`/api/admin/*`): database init, reset, stats, schema verify were previously unprotected
+- Added `authenticate + isAdmin` middleware to destructive settings routes: database clear, database reset, import, export, and all category/specification/ECO mutation endpoints
+- Added `authenticate` middleware to all vendor search routes (`/api/search/*`) to prevent unauthenticated API quota abuse (DigiKey, Mouser, Ultra Librarian, SnapEDA)
+- Added `authenticate + isAdmin` middleware to `DELETE /api/dashboard/activities/all` (audit log clearing)
+- Sanitized DigiKey OAuth token error logging to only log `error.message` instead of full `error.response.data` which could contain credentials
+
 ### Added
 
 - `missing` column on `cad_files` table — server scan now tags missing files instead of deleting records, preserving CIS filename references for backup restoration

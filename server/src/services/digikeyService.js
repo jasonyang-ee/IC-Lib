@@ -81,7 +81,7 @@ async function getAccessToken() {
     tokenExpiry = Date.now() + (response.data.expires_in * 1000);
     return accessToken;
   } catch (error) {
-    console.error('Error getting Digikey access token:', error.response?.data || error.message);
+    console.error('Error getting Digikey access token:', error.message);
     throw new Error('Failed to authenticate with Digikey API');
   }
 }
