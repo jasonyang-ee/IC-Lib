@@ -238,8 +238,9 @@ const Dashboard = () => {
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-right">Health</span>
               </div>
               {[
-                { label: 'Footprint', undefined: stats?.undefinedFootprints || 0, missing: stats?.missingFootprints || 0 },
                 { label: 'Schematic', undefined: stats?.undefinedSchematic || 0, missing: stats?.missingSchematic || 0 },
+                { label: 'Footprint', undefined: stats?.undefinedFootprints || 0, missing: stats?.missingFootprints || 0 },
+                { label: 'Pad', undefined: stats?.undefinedPad || 0, missing: stats?.missingPad || 0 },
                 { label: '3D Model', undefined: stats?.undefined3DModel || 0, missing: stats?.missing3DModel || 0 },
                 { label: 'PSpice', undefined: stats?.undefinedPspice || 0, missing: stats?.missingPspice || 0 },
               ].map(item => {

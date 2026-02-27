@@ -253,6 +253,10 @@ export const api = {
   resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
   verifyDatabase: () => apiClient.get('/settings/database/verify'),
   syncInventory: () => apiClient.post('/settings/database/sync-inventory'),
+  initSettings: () => apiClient.post('/settings/database/init-settings'),
+  deletePartsData: (confirm) => apiClient.post('/settings/database/delete-parts', { confirm }),
+  deleteLibraryFiles: (confirm) => apiClient.post('/settings/database/delete-library-files', { confirm }),
+  deleteUserRecords: (confirm) => apiClient.post('/settings/database/delete-users', { confirm }),
   
   // Legacy Admin endpoints (if still needed)
   getDatabaseStats: () => apiClient.get('/admin/stats'),

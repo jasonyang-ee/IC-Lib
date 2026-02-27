@@ -28,6 +28,10 @@ import {
   downloadCISConfig,
   listLabelTemplates,
   downloadLabelTemplate,
+  initSettings,
+  deletePartsAndProjectData,
+  deleteLibraryFiles,
+  deleteUserRecords,
 } from '../controllers/settingsController.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 
@@ -69,6 +73,10 @@ router.post('/database/clear', authenticate, isAdmin, clearDatabase);
 router.post('/database/reset', authenticate, isAdmin, resetDatabase);
 router.get('/database/verify', verifyDatabase);
 router.post('/database/sync-inventory', authenticate, isAdmin, syncComponentsToInventory);
+router.post('/database/init-settings', authenticate, isAdmin, initSettings);
+router.post('/database/delete-parts', authenticate, isAdmin, deletePartsAndProjectData);
+router.post('/database/delete-library-files', authenticate, isAdmin, deleteLibraryFiles);
+router.post('/database/delete-users', authenticate, isAdmin, deleteUserRecords);
 
 // CIS config download
 router.get('/cis-config', downloadCISConfig);

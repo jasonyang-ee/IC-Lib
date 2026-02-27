@@ -632,6 +632,66 @@ const Settings = () => {
     },
   });
 
+  const initSettingsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.initSettings();
+      return response;
+    },
+    onSuccess: () => {
+      showSuccess('Default categories, distributors, and specifications initialized successfully!');
+      queryClient.invalidateQueries(['categoryConfigs']);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error initializing settings: ${errorMsg}`);
+    },
+  });
+
+  const deletePartsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.deletePartsData(true);
+      return response;
+    },
+    onSuccess: () => {
+      showSuccess('Parts and project data deleted. Categories, users, and settings preserved.');
+      queryClient.invalidateQueries();
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error deleting parts data: ${errorMsg}`);
+    },
+  });
+
+  const deleteLibraryFilesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.deleteLibraryFiles(true);
+      return response;
+    },
+    onSuccess: () => {
+      showSuccess('Library files deleted and CAD file tracking cleared.');
+      queryClient.invalidateQueries();
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error deleting library files: ${errorMsg}`);
+    },
+  });
+
+  const deleteUsersMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.deleteUserRecords(true);
+      return response;
+    },
+    onSuccess: () => {
+      showSuccess('User records deleted. Admin and guest accounts preserved.');
+      queryClient.invalidateQueries(['users']);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error deleting user records: ${errorMsg}`);
+    },
+  });
+
   const handleEditCategory = (category) => {
     setEditingCategory(category.id);
     setTempConfig({
@@ -658,14 +718,42 @@ const Settings = () => {
   };
 
   const handleDatabaseOperation = (action) => {
-    setConfirmDialog({
-      show: true,
-      action,
-      title: action === 'reset' ? 'Full Database Reset' : 'Verify Database',
-      message: action === 'reset' ?
-               '⚠️ DANGER: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE PERMANENTLY LOST! This cannot be undone. Are you absolutely sure?' :
-               'This will verify the database schema matches the expected structure. Continue?'
-    });
+    const configs = {
+      verify: {
+        title: 'Verify Database',
+        message: 'This will verify the database schema matches the expected structure. Continue?',
+      },
+      'init-settings': {
+        title: 'Init Categories',
+        message: 'This will initialize default categories, distributors, specifications, and ECO defaults. Existing data will NOT be overwritten (ON CONFLICT DO NOTHING). Continue?',
+      },
+      reset: {
+        title: 'Full Database Reset',
+        message: '\u26A0\uFE0F DANGER: This will DROP ALL TABLES and recreate the schema. ALL DATA WILL BE PERMANENTLY LOST! This cannot be undone. Are you absolutely sure?',
+      },
+      'delete-parts': {
+        title: 'Delete Parts and Project Data',
+        message: '\u26A0\uFE0F This will DELETE all component parts, ECO orders, projects, and activity logs. Categories, specifications, users, and settings will be preserved. This cannot be undone.',
+      },
+      'delete-library-files': {
+        title: 'Delete Library Files',
+        message: '\u26A0\uFE0F This will DELETE all files in the library folders (footprint, symbol, model, pspice, pad) and clear CAD file tracking. This cannot be undone.',
+      },
+      'delete-users': {
+        title: 'Delete User Records',
+        message: '\u26A0\uFE0F This will DELETE all user accounts except admin and guest. This cannot be undone.',
+      },
+    };
+
+    const config = configs[action];
+    if (config) {
+      setConfirmDialog({
+        show: true,
+        action,
+        title: config.title,
+        message: config.message,
+      });
+    }
   };
 
   const handleRenameManufacturer = () => {
@@ -708,6 +796,14 @@ const Settings = () => {
       resetDbMutation.mutate();
     } else if (action === 'merge') {
       renameManufacturerMutation.mutate({ oldId, newName });
+    } else if (action === 'init-settings') {
+      initSettingsMutation.mutate();
+    } else if (action === 'delete-parts') {
+      deletePartsMutation.mutate();
+    } else if (action === 'delete-library-files') {
+      deleteLibraryFilesMutation.mutate();
+    } else if (action === 'delete-users') {
+      deleteUsersMutation.mutate();
     }
   };
 
@@ -1111,6 +1207,23 @@ const Settings = () => {
               </>
             )}
           </button>
+          <button
+            onClick={() => handleDatabaseOperation('init-settings')}
+            disabled={initSettingsMutation.isPending}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {initSettingsMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Initializing...
+              </>
+            ) : (
+              <>
+                <Package className="w-4 h-4" />
+                Init Categories
+              </>
+            )}
+          </button>
         </div>
 
         {/* Advanced/Dangerous Operations */}
@@ -1160,23 +1273,76 @@ const Settings = () => {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => handleDatabaseOperation('reset')}
-                disabled={resetDbMutation.isPending}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {resetDbMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Resetting Database...
-                  </>
-                ) : (
-                  <>
-                    <Database className="w-4 h-4" />
-                    Full Database Reset (Drop All Tables)
-                  </>
-                )}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleDatabaseOperation('reset')}
+                  disabled={resetDbMutation.isPending}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {resetDbMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Resetting Database...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="w-4 h-4" />
+                      Full Database Reset (Drop All Tables)
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDatabaseOperation('delete-parts')}
+                  disabled={deletePartsMutation.isPending}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deletePartsMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting Parts Data...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Parts and Project Data
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDatabaseOperation('delete-library-files')}
+                  disabled={deleteLibraryFilesMutation.isPending}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deleteLibraryFilesMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting Library Files...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      Delete Library Files
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDatabaseOperation('delete-users')}
+                  disabled={deleteUsersMutation.isPending}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deleteUsersMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting User Records...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4" />
+                      Delete User Records
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1185,8 +1351,20 @@ const Settings = () => {
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <strong>Verify Schema:</strong> Checks if all required tables exist and match expected schema.
           </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            <strong>Init Categories:</strong> Loads default categories, distributors, specifications, and ECO defaults. Safe to run repeatedly.
+          </p>
           <p className="text-sm text-red-600 dark:text-red-400">
-            <strong>Full Database Reset:</strong> ⚠️ Drops ALL tables and recreates schema. ALL DATA IS LOST!
+            <strong>Full Database Reset:</strong> Drops ALL tables and recreates schema. ALL DATA IS LOST!
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            <strong>Delete Parts and Project Data:</strong> Removes all components, ECOs, projects, and logs. Preserves categories, users, and settings.
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            <strong>Delete Library Files:</strong> Removes all files from library folders and clears CAD file tracking.
+          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            <strong>Delete User Records:</strong> Removes all users except admin and guest.
           </p>
         </div>
       </div>

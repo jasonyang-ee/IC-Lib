@@ -34,6 +34,10 @@ export const getDashboardStats = async (req, res, next) => {
       "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = ''",
     );
 
+    const undefinedPadResult = await pool.query(
+      "SELECT COUNT(*) as count FROM components WHERE pad_file IS NULL OR pad_file = ''",
+    );
+
     // Get components with missing CAD files (file was assigned but not found on disk)
     const missingFilesResult = await pool.query(`
       SELECT
@@ -86,11 +90,13 @@ export const getDashboardStats = async (req, res, next) => {
       undefinedSchematic: parseInt(undefinedSchematicResult.rows[0].count),
       undefined3DModel: parseInt(undefined3DModelResult.rows[0].count),
       undefinedPspice: parseInt(undefinedPspiceResult.rows[0].count),
+      undefinedPad: parseInt(undefinedPadResult.rows[0].count),
       // Missing: components with assigned file that is missing from disk
       missingFootprints: missingByType.footprint || 0,
       missingSchematic: missingByType.symbol || 0,
       missing3DModel: missingByType.model || 0,
       missingPspice: missingByType.pspice || 0,
+      missingPad: missingByType.pad || 0,
       lowStockAlerts: parseInt(lowStockResult.rows[0].count),
       recentlyAdded: parseInt(recentComponentsResult.rows[0].count),
       approvalStatus: {

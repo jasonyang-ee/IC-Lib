@@ -10,10 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `alternative_parts` view now includes `part_number` from parent component, enabling CIS RelationModel join between primary and alternative parts tables
+- **Init Categories** button in Database Operations — initializes default categories, distributors, specifications, and ECO defaults from `init-settings.sql` (safe to run repeatedly, uses ON CONFLICT DO NOTHING)
+- **Delete Parts and Project Data** button in Danger Zone — removes all component parts, ECO orders, projects, activity logs, and CAD file records while preserving categories, specifications, users, and settings
+- **Delete Library Files** button in Danger Zone — removes all files from library folders (footprint, symbol, model, pspice, pad) and clears CAD file tracking in the database
+- **Delete User Records** button in Danger Zone — removes all user accounts except admin and guest
+- Dashboard library quality section now includes **Pad** file type row
 
 ### Changed
 
 - Rewrote `ICLIB.DBC` CIS configuration with corrected field mappings: fixed PropertyTypes (part_number→0, manufacturer_pn→1/ICA lookup, part_type→2, schematic→3, pcb_footprint→4, pspice→5), enabled Browse on part_number/manufacturer_pn/pcb_footprint, un-ignored critical fields (part_type, description, manufacturer_name, manufacturer_pn), set proper FieldNames for CIS property transfer, fixed missing XML closing tag, enabled alternative_parts table, and corrected RelationModel to reference actual view names (active_parts/alternative_parts)
+- Extracted settings INSERTs (categories, distributors, category specifications, ECO defaults) from `init-schema.sql` into new `init-settings.sql` — schema file now only creates tables/views, settings file handles default data separately
+- Database reset and initialization now run `init-settings.sql` after `init-schema.sql` to populate default configuration data
+- Dashboard library quality row order changed to: Schematic, Footprint, Pad, 3D Model, PSpice
 
 ### Security
 

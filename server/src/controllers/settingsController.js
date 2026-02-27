@@ -1632,3 +1632,152 @@ export const downloadLabelTemplate = async (req, res) => {
     res.status(500).json({ error: 'Failed to download label template' });
   }
 };
+
+/**
+ * POST /api/settings/database/init-settings
+ * Initialize default categories, distributors, specifications, and ECO defaults
+ * Safe to run repeatedly — uses ON CONFLICT DO NOTHING
+ */
+export const initSettings = async (req, res) => {
+  try {
+    console.log('Initializing default settings...');
+    const results = await databaseService.initSettings();
+
+    if (results.success) {
+      res.json({
+        success: true,
+        message: results.message,
+        steps: results.steps,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: results.message,
+        errors: results.errors,
+      });
+    }
+  } catch (error) {
+    console.error('Error initializing settings:', error);
+    res.status(500).json({
+      error: 'Failed to initialize settings',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/settings/database/delete-parts
+ * Delete parts and project data only — preserves categories, specs, users, settings
+ * Requires confirmation parameter for safety
+ */
+export const deletePartsAndProjectData = async (req, res) => {
+  try {
+    if (req.body.confirm !== true) {
+      return res.status(400).json({
+        error: 'Confirmation required',
+        message: 'Delete parts data requires { "confirm": true } in request body',
+      });
+    }
+
+    console.log('Deleting parts and project data...');
+    const results = await databaseService.deletePartsAndProjectData();
+
+    if (results.success) {
+      res.json({
+        success: true,
+        message: results.message,
+        clearedTables: results.clearedTables,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: results.message,
+        errors: results.errors,
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting parts data:', error);
+    res.status(500).json({
+      error: 'Failed to delete parts data',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/settings/database/delete-library-files
+ * Delete all library files from disk and clear CAD file tracking
+ * Requires confirmation parameter for safety
+ */
+export const deleteLibraryFiles = async (req, res) => {
+  try {
+    if (req.body.confirm !== true) {
+      return res.status(400).json({
+        error: 'Confirmation required',
+        message: 'Delete library files requires { "confirm": true } in request body',
+      });
+    }
+
+    console.log('Deleting library files...');
+    const results = await databaseService.deleteLibraryFiles();
+
+    if (results.success) {
+      res.json({
+        success: true,
+        message: results.message,
+        deletedFiles: results.deletedFiles,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: results.message,
+        errors: results.errors,
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting library files:', error);
+    res.status(500).json({
+      error: 'Failed to delete library files',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/settings/database/delete-users
+ * Delete all user records except admin and guest
+ * Requires confirmation parameter for safety
+ */
+export const deleteUserRecords = async (req, res) => {
+  try {
+    if (req.body.confirm !== true) {
+      return res.status(400).json({
+        error: 'Confirmation required',
+        message: 'Delete user records requires { "confirm": true } in request body',
+      });
+    }
+
+    console.log('Deleting user records...');
+    const results = await databaseService.deleteUserRecords();
+
+    if (results.success) {
+      res.json({
+        success: true,
+        message: results.message,
+        deletedCount: results.deletedCount,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: results.message,
+        errors: results.errors,
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting user records:', error);
+    res.status(500).json({
+      error: 'Failed to delete user records',
+      message: error.message,
+    });
+  }
+};
