@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { FileText, Download, PieChart, BarChart3 } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
+import { SidebarCard } from '../components/common';
 
 const Reports = () => {
   const [activeReport, setActiveReport] = useState('component-summary');
@@ -329,8 +330,7 @@ const Reports = () => {
       <div className="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
         {/* Report Type Selector */}
         <div className="col-span-3 overflow-y-auto custom-scrollbar">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Report Types</h3>
+          <SidebarCard title="Report Types">
             <div className="space-y-2">
               {reports.map((report) => (
                 <button
@@ -347,7 +347,7 @@ const Reports = () => {
                 </button>
               ))}
             </div>
-          </div>
+          </SidebarCard>
         </div>
 
         {/* Report Content */}
