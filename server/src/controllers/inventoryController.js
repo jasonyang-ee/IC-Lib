@@ -9,6 +9,7 @@ export const getAllInventory = async (req, res, next) => {
         c.part_number,
         c.manufacturer_pn,
         c.description,
+        c.approval_status,
         cat.name as category_name,
         m.name as manufacturer_name
       FROM inventory i

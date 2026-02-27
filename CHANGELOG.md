@@ -9,80 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `alternative_parts` view now includes `part_number` from parent component, enabling CIS RelationModel join between primary and alternative parts tables
-- **Init Categories** button in Database Operations — initializes default categories, distributors, specifications, and ECO defaults from `init-settings.sql` (safe to run repeatedly, uses ON CONFLICT DO NOTHING)
-- **Delete Parts and Project Data** button in Danger Zone — removes all component parts, ECO orders, projects, activity logs, and CAD file records while preserving categories, specifications, users, and settings
-- **Delete Library Files** button in Danger Zone — removes all files from library folders (footprint, symbol, model, pspice, pad) and clears CAD file tracking in the database
-- **Delete User Records** button in Danger Zone — removes all user accounts except admin and guest
-- Dashboard library quality section now includes **Pad** file type row
+- CIS database config (`ICLIB.DBC`) rewritten with corrected field mappings, PropertyTypes, Browse flags, FieldNames, and RelationModel references
+- `alternative_parts` view includes `part_number` from parent component for CIS RelationModel joins
+- CAD file missing-file tracking — `cad_files.missing` column preserves CIS references instead of deleting records
+- Dashboard library quality shows "Undefined" and "Missing" counts per file type with column headers and Pad row
+- File Library: Category view mode, orphan file detection/cleanup, URL deep-linking (`?type=X&file=Y`)
+- `CadFieldSection` component for static file display with unlink, add-existing picker, rename presets
+- `CadFilePickerModal` for selecting existing CAD files from the library
+- New CAD file API endpoints: orphans, available, component/category/sharing lookups, link/unlink
+- Label template section in Inventory sidebar with dropdown and download
+- CIS config download endpoint (`GET /api/settings/cis-config`)
+- Camera barcode scanner for Inventory and Vendor Search pages
+- **Init Categories** button — seeds default categories, distributors, specifications, and ECO defaults (idempotent)
+- **Delete Parts and Project Data** — removes components, ECOs, projects, activity logs; preserves categories/specs/users
+- **Delete Library Files** — clears library folders and CAD file tracking
+- **Delete User Records** — removes all users except admin and guest
+- Inventory page: Filter by Approval Status and Filter by Location (with dynamic location dropdown)
+- Inventory page: Filter by Project
+- Inventory page: Filter by Location with dynamic location options
 
 ### Changed
 
-- Rewrote `ICLIB.DBC` CIS configuration with corrected field mappings: fixed PropertyTypes (part_number→0, manufacturer_pn→1/ICA lookup, part_type→2, schematic→3, pcb_footprint→4, pspice→5), enabled Browse on part_number/manufacturer_pn/pcb_footprint, un-ignored critical fields (part_type, description, manufacturer_name, manufacturer_pn), set proper FieldNames for CIS property transfer, fixed missing XML closing tag, enabled alternative_parts table, and corrected RelationModel to reference actual view names (active_parts/alternative_parts)
-- Extracted settings INSERTs (categories, distributors, category specifications, ECO defaults) from `init-schema.sql` into new `init-settings.sql` — schema file now only creates tables/views, settings file handles default data separately
-- Database reset and initialization now run `init-settings.sql` after `init-schema.sql` to populate default configuration data
-- Dashboard library quality row order changed to: Schematic, Footprint, Pad, 3D Model, PSpice
+- Extracted settings INSERTs from `init-schema.sql` into `init-settings.sql` — schema only creates tables/views, settings file handles defaults
+- Database reset/initialization runs `init-settings.sql` after schema creation
+- Dashboard: standardized all section header font sizes, Stock Status items in horizontal row, removed Database Info icon
+- Dashboard library quality row order: Schematic, Footprint, Pad, 3D Model, PSpice
+- File scan sets `missing=TRUE` instead of deleting `cad_files` records
+- File Library rebuilt with File Types + Category views, slim search bar
+- Library edit mode uses `CadFieldSection` for static file management
+- Removed barcode icons from Inventory and Vendor Search "Scan Vendor Barcode" headers
+- Single-component stock update no longer adds artificial delays between vendor API calls
+- Edit mode vendor data loads asynchronously without blocking the edit form
 
-### Security
+### Fixed
 
-- **JWT_SECRET** no longer falls back to an insecure hardcoded default — server now exits on startup if the environment variable is missing
-- Added `authenticate + isAdmin` middleware to all admin routes (`/api/admin/*`): database init, reset, stats, schema verify were previously unprotected
-- Added `authenticate + isAdmin` middleware to destructive settings routes: database clear, database reset, import, export, and all category/specification/ECO mutation endpoints
-- Added `authenticate` middleware to all vendor search routes (`/api/search/*`) to prevent unauthenticated API quota abuse (DigiKey, Mouser, Ultra Librarian, SnapEDA)
-- Added `authenticate + isAdmin` middleware to `DELETE /api/dashboard/activities/all` (audit log clearing)
-- Sanitized DigiKey OAuth token error logging to only log `error.message` instead of full `error.response.data` which could contain credentials
-
-### Added
-
-- `missing` column on `cad_files` table — server scan now tags missing files instead of deleting records, preserving CIS filename references for backup restoration
-- Dashboard library quality section now shows both "Undefined" (no file assigned) and "Missing" (file assigned but not found on disk) counts per file type
-- Dashboard library quality column headers (Type, Undefined, Missing, Health) for clarity
-- Red "Missing" tag on CAD file listings when a linked file is not found on the server disk
-- File Library page: CIS Config download section in sidebar for ICLIB.DBC file
-- Inventory page: Filter by Project — filters inventory to show only parts used in a selected project
-- Inventory page: Label Template section with dropdown and download for label template files from `/database/label-template/`
-- Server endpoints for CIS config download (`GET /api/settings/cis-config`) and label template listing/download (`GET /api/settings/label-templates`)
-
-### Changed
-
-- File scan (`detectMissingFiles`) sets `missing=TRUE` instead of deleting `cad_files` records, keeping junction table links and TEXT columns intact
-- Dashboard library quality layout uses CSS grid for consistent column alignment across all file type rows
-- Dashboard Missing column always visible (shows count even when 0), with red styling when count > 0
-- CAD file category display order in component detail view now uses explicit array for deterministic ordering (Schematic, Footprint, Pad, 3D Model, PSpice)
-- Single-component stock update (`updateComponentStock`) no longer adds 2-second delays between vendor API calls — vendor service caching prevents rate-limit issues for low-volume requests
-- Edit mode vendor data search (DigiKey) now loads asynchronously without blocking the edit form from appearing
-- File Library sidebar "File Types" and "Categories" headings changed from all-caps to sentence case
-- File Library sidebar fits to content height instead of stretching to full window
-- Startup migration ensures `cad_files.missing` column exists for existing databases
+- PostgreSQL `could not determine data type of parameter $1` in `fileLibraryController.js` and `fileUpload.js`
+- File Library status badge using correct `approval_status` field
+- Schematic row misalignment in dashboard library quality section
 
 ### Refactored
 
-- Extracted inline route handlers from `fileUpload.js`, `specificationTemplates.js`, and `distributors.js` into dedicated controller files (`fileUploadController.js`, `specificationTemplateController.js`, `distributorController.js`)
+- Component-driven frontend architecture — pages decomposed into reusable components under `components/` subdirectories
+- Settings and specification template routes extracted to dedicated route/controller files
+- Inline route handlers extracted from `fileUpload.js`, `specificationTemplates.js`, `distributors.js` into controllers
 
-### Fixed
+### Security
 
-- Fixed schematic row misalignment in dashboard library quality section
-- CAD file tracking system with new `cad_files` and `component_cad_files` database tables (migration 002)
-- `cadFileService.js` — centralized service layer for all CAD file operations (register, link, unlink, rename, delete, search, sync, orphan detection)
-- File Library page: new "Category" view mode — browse by category → component → CAD files → sharing components
-- File Library page: orphan file detection and cleanup — filter and delete CAD files not linked to any component
-- File Library page: URL parameter support (`?type=X&file=Y`) for deep-linking from Library part details
-- `CadFieldSection` component — static file display with unlink, add-existing picker, rename presets (MPN/Package/Custom) in add mode
-- `CadFilePickerModal` component — reusable modal for selecting existing CAD files from the library
-- New API endpoints: `/file-library/orphans`, `/file-library/available`, `/file-library/component/:id`, `/file-library/category/:id`, `/file-library/sharing/:id`, `/file-library/link`, `/file-library/unlink`
-- Component create/update now syncs CAD file junction table via `cadFileService.syncComponentCadFiles()`
-
-### Changed
-
-- File Library page rebuilt with two view modes (File Types + Category), slim top-bar search, and improved layout
-- Library page view mode: CAD files now shown as clickable download links with "View in File Library" buttons
-- Library page edit mode: uses `CadFieldSection` instead of `CadFieldEditor` for static file management
-- Only footprint and pad files support multiple files per part; symbol, model, and pspice are single-file only
-
-### Fixed
-
-- Fixed `could not determine data type of parameter $1` PostgreSQL errors in `fileLibraryController.js` and `fileUpload.js` — cast `$1` to `::text` in `jsonb_build_array()` and use `elem #>> '{}' = $1` for JSONB element comparison
-- Fixed status badge in File Library component table using `approval_status` instead of incorrect `status` field
+- JWT_SECRET no longer falls back to insecure hardcoded default — server exits on startup if missing
+- Added `authenticate + isAdmin` to admin routes, destructive settings routes, and audit log clearing
+- Added `authenticate` to all vendor search routes to prevent API quota abuse
+- Sanitized DigiKey OAuth error logging to prevent credential leaks
 
 ## [1.6.0] - 2026-02-05
 
@@ -114,9 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed redundant part_number update queries in category change, ECO approval, and settings flows
   - User database using uuid v7
 
-### Fixed
-
--
 
 ## [1.5.0] - 2026-02-02
 

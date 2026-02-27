@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Settings, AlertTriangle, Database } from 'lucide-react';
+import { Settings, AlertTriangle } from 'lucide-react';
 
 // Compact stat card component without icon
 const StatCard = ({ title, value, small = false }) => {
@@ -110,11 +110,10 @@ const Dashboard = () => {
 
       {/* Main Layout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Column - Library Status, Approval Status, Category Distribution + DB Info */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Library Status Section */}
+        {/* Row 1: Library Status + Database Info */}
+        <div className="lg:col-span-2">
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
               Library Status
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -125,10 +124,34 @@ const Dashboard = () => {
               <StatCard title="Distributors" value={extendedStats?.totalDistributors || 0} />
             </div>
           </div>
+        </div>
+        <div>
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5 h-full">
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
+              Database Info
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Database Name</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.databaseName || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Host</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.host || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Database Size</span>
+                <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{dbInfo?.size || '-'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
+        {/* Row 2-3: Approval Status + Stock Status (left) | Category Distribution (right, row-span-2) */}
+        <div className="lg:col-span-2 space-y-4">
           {/* Approval Status */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
               Component Approval Status
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -170,66 +193,39 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Category Distribution + Database Info - Same Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Category Distribution */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
-                Category Distribution
-              </h2>
-              <div className="space-y-2.5">
-                {categoryBreakdown?.slice(0, 12).map((cat, i) => (
-                  <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
-                ))}
-              </div>
-            </div>
-
-            {/* Database Info */}
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Database className="w-5 h-5 text-primary-600" />
-                <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                  Database Info
-                </h2>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Database Name</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.databaseName || '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Host</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{dbInfo?.host || '-'}</span>
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Database Size</span>
-                  <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">{dbInfo?.size || '-'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side Column - Stock Status and Library Quality */}
-        <div className="space-y-4">
-          {/* Stock Status Section */}
+          {/* Stock Status */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
             <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
               Stock Status
             </h2>
-            <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
               <StatCard small title="Low Stock" value={stats?.lowStockAlerts || 0} />
               <StatCard small title="Total Qty" value={stats?.totalInventoryQuantity || 0} />
               <StatCard small title="Inventory" value={stats?.totalInventoryItems || 0} />
             </div>
           </div>
+        </div>
 
-          {/* Library Quality Section */}
+        {/* Category Distribution - spans 2 rows on right */}
+        <div className="lg:row-span-2">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5 h-full">
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
+              Category Distribution
+            </h2>
+            <div className="space-y-2.5">
+              {categoryBreakdown?.slice(0, 12).map((cat, i) => (
+                <CategoryBar key={i} name={cat.category} count={cat.count} total={stats?.totalComponents || 1} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 4: Library Quality - full width */}
+        <div className="lg:col-span-3">
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg border border-gray-200 dark:border-[#3a3a3a] p-5">
             <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-4">
               Library Quality
             </h2>
-
             <div className="space-y-3">
               <div className="grid grid-cols-[5rem_1fr_1fr_5.5rem] items-center gap-2 pb-1 border-b border-gray-200 dark:border-gray-600">
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Type</span>

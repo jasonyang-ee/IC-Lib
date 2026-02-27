@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -18,6 +18,8 @@ const Inventory = () => {
   const { canWrite } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
+  const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [vendorBarcode, setVendorBarcode] = useState('');
   const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
@@ -150,10 +152,28 @@ const Inventory = () => {
     ? new Set(selectedProjectData.components.map(c => c.component_id).filter(Boolean))
     : null;
 
+  // Compute unique locations from inventory data for the location filter
+  const locationOptions = useMemo(() => {
+    if (!inventory) return [];
+    const locations = [...new Set(inventory.map(item => item.location || ''))];
+    locations.sort((a, b) => {
+      if (a === '') return -1;
+      if (b === '') return 1;
+      return a.localeCompare(b);
+    });
+    return locations.map(loc => ({
+      value: loc === '' ? '__none__' : loc,
+      label: loc === '' ? 'No Location' : loc,
+    }));
+  }, [inventory]);
+
   // Filter inventory
   const filteredInventory = inventory?.filter(item => {
     const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
     const matchesProject = !projectComponentIds || projectComponentIds.has(item.component_id);
+    const matchesApproval = !selectedApprovalStatus || item.approval_status === selectedApprovalStatus;
+    const matchesLocation = !selectedLocation ||
+      (selectedLocation === '__none__' ? (!item.location || item.location === '') : item.location === selectedLocation);
 
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm ||
@@ -167,7 +187,7 @@ const Inventory = () => {
         alt.manufacturer_pn?.toLowerCase().includes(searchLower) ||
         alt.manufacturer_name?.toLowerCase().includes(searchLower)
       ));
-    return matchesCategory && matchesProject && matchesSearch;
+    return matchesCategory && matchesProject && matchesApproval && matchesLocation && matchesSearch;
   });
 
   // Sort inventory
@@ -1096,6 +1116,11 @@ const Inventory = () => {
         projects={projects}
         selectedProject={selectedProject}
         onProjectChange={setSelectedProject}
+        selectedApprovalStatus={selectedApprovalStatus}
+        onApprovalStatusChange={setSelectedApprovalStatus}
+        selectedLocation={selectedLocation}
+        onLocationChange={setSelectedLocation}
+        locationOptions={locationOptions}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         onSearchClear={() => {

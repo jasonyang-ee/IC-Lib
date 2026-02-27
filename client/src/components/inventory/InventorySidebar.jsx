@@ -1,4 +1,4 @@
-import { Search, QrCode, Camera, AlertCircle, Download } from 'lucide-react';
+import { Search, Camera, AlertCircle, Download } from 'lucide-react';
 import { SidebarCard, FilterSelect, SearchInput, SortControls } from '../common';
 
 const SORT_OPTIONS = [
@@ -17,6 +17,11 @@ const InventorySidebar = ({
   projects,
   selectedProject,
   onProjectChange,
+  selectedApprovalStatus,
+  onApprovalStatusChange,
+  selectedLocation,
+  onLocationChange,
+  locationOptions,
   searchTerm,
   onSearchChange,
   onSearchClear,
@@ -60,6 +65,30 @@ const InventorySidebar = ({
       placeholder="All Projects"
     />
 
+    {/* Approval Status Filter */}
+    <FilterSelect
+      label="Filter by Approval Status"
+      value={selectedApprovalStatus}
+      onChange={onApprovalStatusChange}
+      options={[
+        { value: 'new', label: 'New' },
+        { value: 'approved', label: 'Approved' },
+        { value: 'pending review', label: 'Pending Review' },
+        { value: 'experimental', label: 'Experimental' },
+        { value: 'archived', label: 'Archived' },
+      ]}
+      placeholder="All Statuses"
+    />
+
+    {/* Location Filter */}
+    <FilterSelect
+      label="Filter by Location"
+      value={selectedLocation}
+      onChange={onLocationChange}
+      options={locationOptions || []}
+      placeholder="All Locations"
+    />
+
     {/* Search Box with Sort Controls */}
     <SidebarCard title="Search Inventory">
       <SearchInput
@@ -82,7 +111,7 @@ const InventorySidebar = ({
     </SidebarCard>
 
     {/* Vendor Barcode Scanner */}
-    <SidebarCard title="Scan Vendor Barcode" icon={QrCode}>
+    <SidebarCard title="Scan Vendor Barcode">
       <div className="space-y-2">
         <input
           ref={vendorBarcodeInputRef}

@@ -1,4 +1,4 @@
-import { Search, X, QrCode, Camera } from 'lucide-react';
+import { Search, X, Camera } from 'lucide-react';
 
 const VendorSearchForm = ({
   searchTerm,
@@ -52,7 +52,6 @@ const VendorSearchForm = ({
       {/* Vendor Barcode Scanner */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0 mb-6">
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          <QrCode className="w-4 h-4 inline mr-1" />
           Scan Vendor Barcode
         </label>
         <div className="space-y-2">
