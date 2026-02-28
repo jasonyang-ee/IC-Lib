@@ -1,118 +1,52 @@
 
-## Terminal Commands
+## Commands
 
-- There is a bug where the first character entered in the terminal is not registered. To work around this, always enter a space before typing your actual command.
-
-## Development Workflow
-
-- Run `./check.sh` from the root directory to run all lint and test checks.
-  - `./check.sh --lint-only` to run lint only
-  - `./check.sh --test-only` to run tests only
-  - `./check.sh --coverage` to run tests with coverage
-  - Or use `npm run check`, `npm run check:lint`, `npm run check:test`, `npm run check:coverage`
-- CI/CD uses `.github/workflows/check.yml` which runs lint then test for both client and server.
-- To start the dev server, use `./start.sh` from the root directory.
-
-## Server Log Style
-
-- Always use ASCII characters for server logs.
-- Avoid using unicode characters in server logs to ensure compatibility and readability across different systems.
-- Use this format: `[LEVEL] [ServiceName] Message` with ANSI color codes for terminal output.
-- Example: `[INFO] [AuthController] User login successful`
-
-## Server Setup
-
-- The database server is running on separate hardware from the development environment.
-- Please always try to use postgresql extension to directly connect to the database server (Home-Servers/iclib) from your development environment to get information about the database server.
-- To start the server, use the command `./start.sh` from the root directory.
-
-## Code Style
-
-- Use minimal icons. Avoid unnecessary icon usage in the UI.
-- Use consistent naming conventions: camelCase for variables/functions, PascalCase for components/classes, snake_case for database columns/tables.
-- Keep files small and focused. Break large files into smaller, manageable components and modules.
-- Server file naming: `{entityName}Controller.js`, `{serviceName}Service.js`, `{entityName}.js` for routes.
-- Client file naming: `{PageName}.jsx` for pages, `{ComponentName}.jsx` for components.
-- Database file naming: `init-{type}.sql` for schema, `{number}_{description}.sql` for migrations.
+- `./start.sh` — start dev server (client + server)
+- `./check.sh` — run all lint and tests (`--lint-only`, `--test-only`, `--coverage`)
+- Terminal bug: first character may be dropped; prefix commands with a space
 
 ## Project Structure
 
 ```
 IC-Lib/
-  client/          # React 19 + Vite frontend
-  server/          # Express.js backend API
-  database/        # PostgreSQL schema and migrations
+  client/          # React 19 + Vite + TailwindCSS v4 + React Query 5
+  server/          # Express.js + PostgreSQL + JWT auth
+  database/        # SQL schema (init-{type}.sql) and migrations ({number}_{description}.sql)
+  docker/          # nginx.conf for production reverse proxy
   scripts/         # Utility scripts (CSV import)
-  library/         # CAD file library (footprint, symbol, pad, model, pspice, libraries)
-  example/         # Example CAD files for testing (SamacSys, SnapEDA, UltraLibrarian)
-  .github/         # CI/CD workflows
 ```
 
-## Technology Stack
+## Code Style
 
-### Frontend
-- React 19, Vite, TailwindCSS v4
-- TanStack React Query 5 for data fetching
-- React Router v7 for navigation
-- Lucide React for icons (use sparingly)
-- html5-qrcode and qrcode.react for QR/barcode scanning
+- Naming: camelCase (vars/functions), PascalCase (components), snake_case (DB columns/tables)
+- Server files: `{entity}Controller.js`, `{name}Service.js`, `{entity}.js` (routes)
+- Client files: `{PageName}.jsx` (pages), `{ComponentName}.jsx` (components)
+- Server logs: ASCII only, format `[LEVEL] [ServiceName] Message`
+- UI: minimal icon usage
 
-### Backend
-- Express.js with Node.js (>=22.0.0)
-- PostgreSQL with native UUIDv7 support
-- JWT authentication (jsonwebtoken + bcryptjs)
-- Multer for file uploads, AdmZip for archive handling
-- Nodemailer for email notifications
+## Database
 
-### Database
-- All tables use `UUID PRIMARY KEY DEFAULT uuidv7()` (timestamp embedded in UUID)
-- Use `created_at(id)` function to extract timestamps from UUIDv7 IDs
-- JSONB columns for flexible data (activity_log details, notification preferences, ECO changes)
-- Views: `components_full`, `component_specifications_view`, `active_parts`, `alternative_parts`, `eco_orders_full`
+- PostgreSQL with UUIDv7: `UUID PRIMARY KEY DEFAULT uuidv7()`
+- Extract timestamps: `created_at(id)` function
+- JSONB for flexible data (activity_log, ECO changes, notification preferences)
+- Key views: `components_full`, `component_specifications_view`, `active_parts`, `alternative_parts`, `eco_orders_full`
+- DB runs on separate hardware; use PostgreSQL extension (Home-Servers/iclib) to inspect
+
+## Auth
+
+- JWT via `authenticate` middleware
+- Roles: `read-only`, `read-write`, `approver`, `admin`
+- Middleware: `canWrite`, `isApprover`, `isAdmin`
+- Inventory, project, dashboard routes have NO auth; use `req.user?.id || null`
 
 ## Key Features
 
-### Component Library
-- Full CRUD for electronic components with categories, manufacturers, specifications
-- Alternative parts tracking with separate inventory per alternative
-- Distributor info integration (DigiKey, Mouser APIs)
-- Approval workflow (new -> temporary -> pending review -> experimental -> approved -> archived)
-
-### File Management
-- Flat CAD file storage: `library/[category]/[filename]` (legacy nested paths also supported for reads)
-- Categories: footprint, symbol, model, pspice, pad, libraries
-- `cad_files` table + `component_cad_files` junction table track file-to-component many-to-many relationships
-- TEXT columns on components (pcb_footprint, schematic, step_model, pspice, pad_file) store comma-separated base filenames for OrCAD CIS/ODBC integration — auto-regenerated from junction table
-- ZIP upload with smart extraction (SamacSys, SnapEDA, UltraLibrarian detection)
-- Per-component ZIP export of all associated files
-- File Library page manages files via `cad_files` table; only shows files that physically exist on disk
-
-### ECO (Engineer Change Order)
-- Multi-stage approval workflow with configurable stages
-- Each stage has required number of approvals and eligible roles
-- Tracks component field changes, distributor updates, alternative part modifications
-- Email notifications for ECO events
-
-### Audit Log
-- `activity_log` table tracks all component, inventory, project, ECO, and user events
-- 30+ activity types with JSONB details for flexible change tracking
-- User tracking via `user_id` foreign key on all log entries
-- Frontend with filtering by activity type, date range, search, and pagination
-
-### Projects
-- Project management with component BOM (Bill of Materials)
-- Supports both primary components and alternative parts in projects
-- Bulk inventory consumption for project builds
-
-## Authentication & Authorization
-
-- JWT-based authentication via `authenticate` middleware
-- Roles: `read-only`, `read-write`, `approver`, `admin`
-- `canWrite` middleware restricts mutations to read-write, approver, and admin roles
-- `isApprover` middleware for approval-only operations
-- `isAdmin` middleware for admin-only operations (user management, settings)
-- Note: inventory, project, and dashboard routes do NOT require authentication; `req.user` may be undefined in those controllers (use `req.user?.id || null`)
+- **Component Library**: CRUD with categories, manufacturers, specs, alternative parts, vendor APIs (DigiKey, Mouser), approval workflow (new → temporary → pending review → experimental → approved → archived)
+- **CAD Files**: flat storage `library/[category]/[filename]`, `cad_files` + `component_cad_files` junction table, TEXT columns (pcb_footprint, schematic, step_model, pspice, pad_file) store comma-separated filenames for OrCAD CIS/ODBC — auto-regenerated from junction table, ZIP upload/export
+- **ECO**: multi-stage approval workflow with configurable stages, role-based approvals, email notifications
+- **Projects**: BOM management with primary + alternative parts, bulk inventory consumption
+- **Audit**: `activity_log` table with 30+ activity types, JSONB details, user tracking
 
 ## Versioning
 
-- Please update CHANGELOG.md for every new feature or bug fix implemented in the ## [Unreleased] section, following the format used in previous entries. This helps maintain a clear history of changes and improvements made to the project.
+- Update CHANGELOG.md `## [Unreleased]` section for every feature or fix

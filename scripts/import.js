@@ -12,6 +12,7 @@
  * - Creates manufacturers if they don't exist
  * - Inserts components with specifications
  * - Handles category-specific field mappings
+ * - Links CAD files from /library directories
  * - Supports dry-run mode for testing
  * - Provides detailed logging and error reporting
  *
@@ -79,6 +80,141 @@ async function getCategoryIdByName(categoryName) {
   }
 }
 
+// ===== CAD File Library Scanning =====
+
+const LIBRARY_BASE = path.join(__dirname, '..', 'library');
+
+/**
+ * Scan a library directory and build a case-insensitive lookup map.
+ * Returns Map: lowercased base name (no extension) -> [actual filenames]
+ * Optionally filters by file extensions.
+ */
+function scanDirectory(dirPath, extensions = null) {
+  const map = new Map();
+  if (!fs.existsSync(dirPath)) return map;
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+
+    const ext = path.extname(entry.name).toLowerCase();
+    if (extensions && !extensions.includes(ext)) continue;
+
+    const baseName = path.basename(entry.name, path.extname(entry.name)).toLowerCase();
+    if (!map.has(baseName)) map.set(baseName, []);
+    map.get(baseName).push(entry.name);
+  }
+  return map;
+}
+
+// Pre-scan library directories at startup
+const footprintFileMap = scanDirectory(path.join(LIBRARY_BASE, 'footprint'), ['.dra', '.psm']);
+const symbolFileMap = scanDirectory(path.join(LIBRARY_BASE, 'symbol'), ['.olb']);
+const modelFileMap = scanDirectory(path.join(LIBRARY_BASE, 'model'));
+const pspiceFileMap = scanDirectory(path.join(LIBRARY_BASE, 'pspice'));
+
+console.log(`Library scan: ${footprintFileMap.size} footprint, ${symbolFileMap.size} symbol, ${modelFileMap.size} model, ${pspiceFileMap.size} pspice base names found`);
+
+/**
+ * Register a CAD file in cad_files table and link it to a component.
+ */
+async function registerAndLink(client, fileName, fileType, componentId) {
+  const subdir = fileType; // footprint, symbol, model, pspice
+  const filePath = path.join(LIBRARY_BASE, subdir, fileName);
+  let fileSize = null;
+  try { fileSize = fs.statSync(filePath).size; } catch { /* file may not exist locally */ }
+
+  // Register in cad_files (upsert)
+  const result = await client.query(`
+    INSERT INTO cad_files (file_name, file_type, file_path, file_size)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (file_name, file_type) DO UPDATE SET
+      file_size = COALESCE(EXCLUDED.file_size, cad_files.file_size),
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING id
+  `, [fileName, fileType, `${subdir}/${fileName}`, fileSize]);
+
+  const cadFileId = result.rows[0].id;
+
+  // Link to component (ignore if already linked)
+  await client.query(`
+    INSERT INTO component_cad_files (component_id, cad_file_id)
+    VALUES ($1, $2)
+    ON CONFLICT (component_id, cad_file_id) DO NOTHING
+  `, [componentId, cadFileId]);
+
+  return cadFileId;
+}
+
+/**
+ * Link CAD files for a component based on CSV field values.
+ * Searches pre-scanned library directories for matching files.
+ */
+async function linkCadFiles(client, componentId, record) {
+  let linked = 0;
+
+  // a. Footprint: comma-separated base names -> search .dra and .psm in library/footprint
+  const footprintValue = record['PCB Footprint']?.trim();
+  if (footprintValue) {
+    const baseNames = footprintValue.split(',').map(s => s.trim()).filter(Boolean);
+    for (const baseName of baseNames) {
+      const matches = footprintFileMap.get(baseName.toLowerCase());
+      if (matches) {
+        for (const fileName of matches) {
+          await registerAndLink(client, fileName, 'footprint', componentId);
+          linked++;
+        }
+      }
+    }
+  }
+
+  // b. Schematic: may contain backslash (Filename\InternalName), extract filename
+  //    then search .olb in library/symbol
+  const schematicValue = record['Schematic Part']?.trim();
+  if (schematicValue) {
+    const entries = schematicValue.split(',').map(s => s.trim()).filter(Boolean);
+    for (const entry of entries) {
+      // Extract filename from "Filename\InternalName" format
+      const fileName = entry.split('\\')[0].trim();
+      if (!fileName) continue;
+
+      const matches = symbolFileMap.get(fileName.toLowerCase());
+      if (matches) {
+        for (const fn of matches) {
+          await registerAndLink(client, fn, 'symbol', componentId);
+          linked++;
+        }
+      }
+    }
+  }
+
+  // c. Step model: single base name -> search any file in library/model
+  const stepModelValue = record.STEP_MODEL?.trim();
+  if (stepModelValue && stepModelValue !== 'N/A') {
+    const matches = modelFileMap.get(stepModelValue.toLowerCase());
+    if (matches) {
+      for (const fileName of matches) {
+        await registerAndLink(client, fileName, 'model', componentId);
+        linked++;
+      }
+    }
+  }
+
+  // d. PSpice: single base name -> search any file in library/pspice
+  const pspiceValue = (record.PSPICE || record.PSpice || '').trim();
+  if (pspiceValue && pspiceValue !== 'N/A') {
+    const matches = pspiceFileMap.get(pspiceValue.toLowerCase());
+    if (matches) {
+      for (const fileName of matches) {
+        await registerAndLink(client, fileName, 'pspice', componentId);
+        linked++;
+      }
+    }
+  }
+
+  return linked;
+}
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 const isDryRun = args.includes('--dry-run');
@@ -115,6 +251,7 @@ const stats = {
   failedImports: 0,
   newManufacturers: 0,
   inventoryUpdates: 0,
+  cadFileLinks: 0,
   errors: [],
 };
 
@@ -181,11 +318,11 @@ try {
     });
 
     console.log(
-      `✓ Loaded partsbox.json: ${partsboxData.length} parts, ${partsboxMap.size} with inventory data`,
+      `Loaded partsbox.json: ${partsboxData.length} parts, ${partsboxMap.size} with inventory data`,
     );
   }
 } catch (error) {
-  console.warn(`⚠️  Warning: Could not load partsbox.json: ${error.message}`);
+  console.warn(`Warning: Could not load partsbox.json: ${error.message}`);
 }
 
 /**
@@ -196,15 +333,6 @@ function getInventoryFromPartsbox(manufacturerPN) {
 
   // Direct lookup from pre-built map
   return partsboxMap.get(manufacturerPN) || null;
-}
-
-/**
- * Convert a CSV field value to a JSONB array string for CAD fields.
- * Returns a JSON-stringified array (e.g., '["value"]' or '[]')
- */
-function toJsonbArray(val) {
-  if (!val || val.trim() === '' || val === 'N/A') return '[]';
-  return JSON.stringify([val.trim()]);
 }
 
 /**
@@ -262,7 +390,7 @@ async function getOrCreateManufacturer(client, manufacturerName) {
   );
 
   stats.newManufacturers++;
-  console.log(`  ✓ Created new manufacturer: ${manufacturerName}`);
+  console.log(`  + Created new manufacturer: ${manufacturerName}`);
 
   return insertResult.rows[0].id;
 }
@@ -281,7 +409,7 @@ async function importCSVFile(filePath) {
   console.log(`${'='.repeat(80)}`);
 
   if (!categoryId) {
-    console.warn(`⚠️  Warning: No category mapping found for ${categoryName}`);
+    console.warn(`Warning: No category mapping found for ${categoryName}`);
     console.warn(
       '   You may need to create this category in the database first.',
     );
@@ -344,7 +472,7 @@ async function importCSVFile(filePath) {
         const subCategory3 = partTypeParts[2] || null;
         const subCategory4 = partTypeParts[3] || null;
 
-        // Build component data (CAD fields as JSONB arrays)
+        // Build component data (TEXT columns store raw base filenames)
         const componentData = {
           category_id: categoryId,
           part_number: partNumber,
@@ -352,15 +480,16 @@ async function importCSVFile(filePath) {
           manufacturer_pn: manufacturerPN || null,
           description: record.Description || null,
           value: record.Value || null,
-          pcb_footprint: toJsonbArray(record['PCB Footprint']),
-          schematic: toJsonbArray(record['Schematic Part']),
+          pcb_footprint: record['PCB Footprint']?.trim() || '',
+          schematic: record['Schematic Part']?.trim() || '',
           package_size: record['Package Size'] || null,
           sub_category1: subCategory1,
           sub_category2: subCategory2,
           sub_category3: subCategory3,
           sub_category4: subCategory4,
           datasheet_url: record.Datasheet || null,
-          step_model: toJsonbArray(record.STEP_MODEL),
+          step_model: record.STEP_MODEL?.trim() || '',
+          pspice: (record.PSPICE || record.PSpice || '').trim(),
         };
 
         if (isDryRun) {
@@ -377,19 +506,45 @@ async function importCSVFile(filePath) {
               );
             }
           }
+
+          // Show CAD file matches
+          const fpValue = componentData.pcb_footprint;
+          if (fpValue) {
+            for (const name of fpValue.split(',').map(s => s.trim()).filter(Boolean)) {
+              const matches = footprintFileMap.get(name.toLowerCase());
+              if (matches) console.log(`  Footprint match: ${name} -> ${matches.join(', ')}`);
+            }
+          }
+          const schValue = componentData.schematic;
+          if (schValue) {
+            for (const entry of schValue.split(',').map(s => s.trim()).filter(Boolean)) {
+              const fileName = entry.split('\\')[0].trim();
+              const matches = symbolFileMap.get(fileName.toLowerCase());
+              if (matches) console.log(`  Symbol match: ${fileName} -> ${matches.join(', ')}`);
+            }
+          }
+          if (componentData.step_model) {
+            const matches = modelFileMap.get(componentData.step_model.toLowerCase());
+            if (matches) console.log(`  Model match: ${componentData.step_model} -> ${matches.join(', ')}`);
+          }
         } else {
           // Insert component
           const insertResult = await client.query(
             `INSERT INTO components (
               category_id, part_number, manufacturer_id, manufacturer_pn,
               description, value, pcb_footprint, schematic, package_size,
-              sub_category1, sub_category2, sub_category3, sub_category4, datasheet_url, step_model
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+              sub_category1, sub_category2, sub_category3, sub_category4,
+              datasheet_url, step_model, pspice
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             ON CONFLICT (part_number) DO UPDATE SET
               description = EXCLUDED.description,
               manufacturer_id = EXCLUDED.manufacturer_id,
               manufacturer_pn = EXCLUDED.manufacturer_pn,
               value = EXCLUDED.value,
+              pcb_footprint = EXCLUDED.pcb_footprint,
+              schematic = EXCLUDED.schematic,
+              step_model = EXCLUDED.step_model,
+              pspice = EXCLUDED.pspice,
               sub_category1 = EXCLUDED.sub_category1,
               sub_category2 = EXCLUDED.sub_category2,
               sub_category3 = EXCLUDED.sub_category3,
@@ -412,10 +567,15 @@ async function importCSVFile(filePath) {
               componentData.sub_category4,
               componentData.datasheet_url,
               componentData.step_model,
+              componentData.pspice,
             ],
           );
 
           const componentId = insertResult.rows[0].id;
+
+          // Link CAD files from library directories
+          const cadLinked = await linkCadFiles(client, componentId, record);
+          stats.cadFileLinks += cadLinked;
 
           // Update inventory from partsbox data
           if (manufacturerPN) {
@@ -425,8 +585,8 @@ async function importCSVFile(filePath) {
               await client.query(
                 `INSERT INTO inventory (component_id, quantity, location, updated_at)
                  VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-                 ON CONFLICT (component_id) 
-                 DO UPDATE SET 
+                 ON CONFLICT (component_id)
+                 DO UPDATE SET
                    quantity = EXCLUDED.quantity,
                    location = EXCLUDED.location,
                    updated_at = CURRENT_TIMESTAMP`,
@@ -448,7 +608,7 @@ async function importCSVFile(filePath) {
       } catch (error) {
         await client.query('ROLLBACK');
         console.error(
-          `\n  ✗ Error importing ${record.PART_NUMBER}: ${error.message}`,
+          `\n  x Error importing ${record.PART_NUMBER}: ${error.message}`,
         );
         stats.errors.push({
           file: filename,
@@ -460,9 +620,9 @@ async function importCSVFile(filePath) {
       }
     }
 
-    console.log(`\n\n✓ Successfully imported ${imported} components`);
+    console.log(`\n\nSuccessfully imported ${imported} components`);
     if (skipped > 0) {
-      console.log(`⚠️  Skipped ${skipped} components due to errors`);
+      console.log(`Skipped ${skipped} components due to errors`);
     }
 
     stats.successfulImports += imported;
@@ -480,7 +640,7 @@ async function main() {
   console.log('='.repeat(80));
 
   if (isDryRun) {
-    console.log('\n⚠️  DRY RUN MODE - No data will be inserted\n');
+    console.log('\nDRY RUN MODE - No data will be inserted\n');
   }
 
   const importDir = path.join(__dirname, '..', 'import');
@@ -495,7 +655,7 @@ async function main() {
   if (specificFile) {
     files = files.filter((f) => path.basename(f).includes(specificFile));
     if (files.length === 0) {
-      console.error(`\n✗ No CSV files found matching: ${specificFile}\n`);
+      console.error(`\nNo CSV files found matching: ${specificFile}\n`);
       process.exit(1);
     }
   }
@@ -510,7 +670,7 @@ async function main() {
       stats.totalComponents++;
     } catch (error) {
       console.error(
-        `\n✗ Fatal error processing ${path.basename(file)}: ${error.message}\n`,
+        `\nFatal error processing ${path.basename(file)}: ${error.message}\n`,
       );
       stats.errors.push({
         file: path.basename(file),
@@ -528,6 +688,8 @@ async function main() {
   console.log(`Successful imports:         ${stats.successfulImports}`);
   console.log(`Failed imports:             ${stats.failedImports}`);
   console.log(`New manufacturers created:  ${stats.newManufacturers}`);
+  console.log(`Inventory updates:          ${stats.inventoryUpdates}`);
+  console.log(`CAD file links created:     ${stats.cadFileLinks}`);
 
   if (stats.errors.length > 0) {
     console.log('\n' + '='.repeat(80));
@@ -542,7 +704,7 @@ async function main() {
     });
   }
 
-  console.log('\n✓ Import process completed\n');
+  console.log('\nImport process completed\n');
 
   await pool.end();
 }
@@ -550,7 +712,7 @@ async function main() {
 // Run the script
 if (__filename === process.argv[1]) {
   main().catch((error) => {
-    console.error('\n✗ Fatal error:', error);
+    console.error('\nFatal error:', error);
     pool.end();
     process.exit(1);
   });
