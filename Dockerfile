@@ -42,7 +42,7 @@ COPY server/ .
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 
 # Configure nginx
-COPY nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
 # Create directories for CAD file library
 RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice
