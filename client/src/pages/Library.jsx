@@ -8,6 +8,7 @@ import VendorDataPanel from '../components/library/VendorDataPanel';
 import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
 import SpecificationsView from '../components/library/SpecificationsView';
+import FileConflictModal from '../components/library/FileConflictModal';
 import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
 import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,8 +52,9 @@ const Library = () => {
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
 
-  // Collision file tracking (files that already exist on disk but need DB linking on save)
-  const [collisionFiles, setCollisionFiles] = useState([]);
+  // File conflict modal state (save-time collision resolution)
+  const [fileConflictModal, setFileConflictModal] = useState({ show: false, conflicts: [] });
+  const pendingSaveCallback = useRef(null);
 
   // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
   const [deletedFiles, setDeletedFiles] = useState([]);
@@ -927,15 +929,38 @@ const Library = () => {
           }
         }
 
-        // Finalize temp files and register collision files before saving component
-        if (tempFiles.length > 0 || collisionFiles.length > 0) {
+        // Finalize temp files before saving component
+        if (tempFiles.length > 0) {
+          // Check for save-time collisions
+          const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+          const collisions = collisionResponse.data?.collisions || [];
+
+          if (collisions.length > 0) {
+            // Store continuation: finalize with resolutions, then re-call handleSave
+            pendingSaveCallback.current = async (resolvedFiles) => {
+              const collisionSet = new Map(resolvedFiles.map(r => [r.tempFilename, r.resolution]));
+              await api.finalizeTempFiles({
+                files: tempFiles.map(f => ({
+                  tempFilename: f.tempFilename,
+                  category: f.category,
+                  resolution: collisionSet.get(f.tempFilename),
+                })),
+                mfgPartNumber: editData.manufacturer_pn,
+              });
+              setTempFiles([]);
+              setFileConflictModal({ show: false, conflicts: [] });
+              // Re-call handleSave — tempFiles will be empty so collision check is skipped
+              handleSave();
+            };
+            setFileConflictModal({ show: true, conflicts: collisions });
+            return;
+          }
+
           await api.finalizeTempFiles({
             files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
             mfgPartNumber: editData.manufacturer_pn,
-            collisions: collisionFiles.map(f => ({ filename: f.filename, category: f.category })),
           });
           setTempFiles([]);
-          setCollisionFiles([]);
         }
 
         // Confirm-delete soft-deleted files (permanently remove from temp)
@@ -2026,15 +2051,38 @@ const Library = () => {
       }
 
       if (editData.category_id && editData.part_number) {
-        // Finalize temp files and register collision files before creating component
-        if (tempFiles.length > 0 || collisionFiles.length > 0) {
+        // Finalize temp files before creating component
+        if (tempFiles.length > 0) {
+          // Check for save-time collisions
+          const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+          const collisions = collisionResponse.data?.collisions || [];
+
+          if (collisions.length > 0) {
+            // Store continuation: finalize with resolutions, then re-call handleConfirmAdd
+            pendingSaveCallback.current = async (resolvedFiles) => {
+              const collisionSet = new Map(resolvedFiles.map(r => [r.tempFilename, r.resolution]));
+              await api.finalizeTempFiles({
+                files: tempFiles.map(f => ({
+                  tempFilename: f.tempFilename,
+                  category: f.category,
+                  resolution: collisionSet.get(f.tempFilename),
+                })),
+                mfgPartNumber: editData.manufacturer_pn,
+              });
+              setTempFiles([]);
+              setFileConflictModal({ show: false, conflicts: [] });
+              // Re-call handleConfirmAdd — tempFiles will be empty so collision check is skipped
+              handleConfirmAdd();
+            };
+            setFileConflictModal({ show: true, conflicts: collisions });
+            return;
+          }
+
           await api.finalizeTempFiles({
             files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
             mfgPartNumber: editData.manufacturer_pn,
-            collisions: collisionFiles.map(f => ({ filename: f.filename, category: f.category })),
           });
           setTempFiles([]);
-          setCollisionFiles([]);
         }
 
         // Confirm-delete soft-deleted files (permanently remove from temp)
@@ -2186,7 +2234,6 @@ const Library = () => {
     }
     setIsAddMode(false);
     setEditData({});
-    setCollisionFiles([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
   };
@@ -2205,9 +2252,27 @@ const Library = () => {
       setDeletedFiles([]);
     }
     setIsEditMode(false);
-    setCollisionFiles([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
+  };
+
+  // File conflict resolution handlers
+  const resolveFileConflicts = async (resolutions) => {
+    if (pendingSaveCallback.current) {
+      try {
+        await pendingSaveCallback.current(resolutions);
+      } catch (error) {
+        console.error('Error resolving file conflicts:', error);
+        showError('Failed to save files: ' + (error.response?.data?.error || error.message));
+        setFileConflictModal({ show: false, conflicts: [] });
+      }
+      pendingSaveCallback.current = null;
+    }
+  };
+
+  const abortFileConflicts = () => {
+    setFileConflictModal({ show: false, conflicts: [] });
+    pendingSaveCallback.current = null;
   };
 
   const toggleBulkDeleteMode = () => {
@@ -3169,10 +3234,6 @@ const Library = () => {
                   onSubCat3Change={handleSubCat3Change}
                   selectedComponent={selectedComponent}
                   onTempFileStaged={(info) => setTempFiles(prev => [...prev, info])}
-                  onCollisionFile={(info) => setCollisionFiles(prev => {
-                    if (prev.some(f => f.filename === info.filename && f.category === info.category)) return prev;
-                    return [...prev, info];
-                  })}
                   onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
                   onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
                   setEditData={setEditData}
@@ -3306,6 +3367,15 @@ const Library = () => {
         warningModal={warningModal}
         onClose={() => setWarningModal({ show: false, message: '' })}
       />
+
+      {fileConflictModal.show && (
+        <FileConflictModal
+          conflicts={fileConflictModal.conflicts}
+          onResolve={resolveFileConflicts}
+          onAbort={abortFileConflicts}
+          isProcessing={false}
+        />
+      )}
 
       <AddToProjectModal
         show={showAddToProjectModal}

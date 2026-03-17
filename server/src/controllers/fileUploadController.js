@@ -145,7 +145,7 @@ function findFile(category, filename, mfgPartNumber) {
  * Move file to appropriate category directory (flat structure)
  * Returns { collision, path, filename } or null
  */
-function moveToCategory(sourcePath, category) {
+function moveToCategory(sourcePath, category, overwrite = false) {
   const config = FILE_CATEGORIES[category];
   if (!config) return null;
 
@@ -157,11 +157,15 @@ function moveToCategory(sourcePath, category) {
   const filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
   const targetPath = path.join(targetDir, filename);
 
-  // Collision check: reject if file already exists
+  // Collision check: reject if file already exists (unless overwrite)
   if (fs.existsSync(targetPath)) {
-    // Clean up temp file
-    if (fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
-    return { collision: true, filename };
+    if (overwrite) {
+      fs.unlinkSync(targetPath);
+    } else {
+      // Clean up temp file
+      if (fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
+      return { collision: true, filename };
+    }
   }
 
   fs.renameSync(sourcePath, targetPath);
@@ -259,15 +263,7 @@ function extractSmartZipToTemp(zipPath) {
     }
 
     if (category) {
-      const config = FILE_CATEGORIES[category];
-      // Check collision in actual category directory
-      const categoryDir = path.join(LIBRARY_BASE, config.subdir);
-      if (fs.existsSync(path.join(categoryDir, filename))) {
-        collisions.push({ category, filename, source });
-        continue;
-      }
-
-      // Extract to temp with unique prefix
+      // Extract to temp with unique prefix (collision check deferred to save time)
       const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const tempFilename = uniquePrefix + '-' + filename;
       zip.extractEntryTo(entry, tempDir, false, true);
@@ -454,28 +450,14 @@ export async function uploadTempFile(req, res) {
           continue;
         }
 
-        // Check collision in actual category directory
-        const config = FILE_CATEGORIES[category];
-        const categoryPath = path.join(LIBRARY_BASE, config.subdir, normalizedFilename);
-        if (fs.existsSync(categoryPath)) {
-          // File already exists in library — delete temp, report collision
-          fs.unlinkSync(file.path);
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            filename: normalizedFilename,
-            collision: true,
-          });
-        } else {
-          // File stays in temp with its multer-generated name
-          const tempFilename = path.basename(file.path);
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            filename: normalizedFilename,
-            tempFilename,
-          });
-        }
+        // File stays in temp with its multer-generated name (collision check deferred to save time)
+        const tempFilename = path.basename(file.path);
+        results.push({
+          originalName: file.originalname,
+          type: category,
+          filename: normalizedFilename,
+          tempFilename,
+        });
       }
     }
 
@@ -506,7 +488,7 @@ export async function finalizeTempFile(req, res) {
 
     // Process temp files (move from temp to category directory)
     if (hasFiles) {
-      for (const { tempFilename, category } of files) {
+      for (const { tempFilename, category, resolution } of files) {
         const safeName = path.basename(tempFilename); // prevent traversal
         const tempPath = path.join(LIBRARY_BASE, 'temp', safeName);
 
@@ -516,8 +498,22 @@ export async function finalizeTempFile(req, res) {
           continue;
         }
 
-        // Move from temp to category directory
-        const moveResult = moveToCategory(tempPath, category);
+        // Handle "use_existing" resolution: drop temp file, link existing file
+        if (resolution === 'use_existing') {
+          const rawFilename = safeName.replace(/^\d+-\d+-/, '');
+          const rawExt = path.extname(rawFilename);
+          const filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
+          fs.unlinkSync(tempPath);
+          const fileType = fileTypeMap[category];
+          if (mfgPartNumber && fileType) {
+            await autoLinkFileToComponent(category, filename, mfgPartNumber);
+          }
+          results.push({ filename, type: category, collision: true, linked: true });
+          continue;
+        }
+
+        // Move from temp to category directory (overwrite if resolution says so)
+        const moveResult = moveToCategory(tempPath, category, resolution === 'overwrite');
 
         if (!moveResult) {
           results.push({ filename: safeName, error: 'Invalid category' });
@@ -813,6 +809,34 @@ export function checkCollision(req, res) {
   } catch (error) {
     console.error('Error checking collision:', error);
     res.status(500).json({ error: 'Failed to check file collision' });
+  }
+}
+
+/**
+ * Batch collision check — check multiple temp files against their target category directories.
+ * Called at save time before finalization.
+ */
+export function checkCollisionsBatch(req, res) {
+  try {
+    const { files } = req.body;
+    if (!files || !Array.isArray(files)) {
+      return res.status(400).json({ error: 'files array required' });
+    }
+
+    const collisions = [];
+    for (const { tempFilename, category, filename } of files) {
+      const config = FILE_CATEGORIES[category];
+      if (!config) continue;
+      const targetPath = path.join(LIBRARY_BASE, config.subdir, filename);
+      if (fs.existsSync(targetPath)) {
+        collisions.push({ tempFilename, category, filename });
+      }
+    }
+
+    res.json({ collisions });
+  } catch (error) {
+    console.error('Error checking collisions batch:', error);
+    res.status(500).json({ error: 'Failed to check collisions' });
   }
 }
 

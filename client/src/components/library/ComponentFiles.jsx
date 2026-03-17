@@ -49,7 +49,7 @@ function extractDensitySuffix(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onCollisionFile, onFileSoftDeleted, onTempFileRemoved }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -96,15 +96,9 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             if (ef.filename) ef.filename = normalizeExt(ef.filename);
           }
         }
-        if (r.collisions) {
-          for (const col of r.collisions) {
-            if (col.filename) col.filename = normalizeExt(col.filename);
-          }
-        }
       }
       const extracted = results.filter(r => r.type === 'archive');
-      const regular = results.filter(r => r.type !== 'archive' && !r.error && !r.collision);
-      const collisionFiles = results.filter(r => r.collision && r.filename);
+      const regular = results.filter(r => r.type !== 'archive' && !r.error);
       const errors = results.filter(r => r.error);
 
       // Identify files that conflict with single-file category limits
@@ -154,34 +148,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             onFileUploaded(r.type, r.filename);
           }
         }
-        for (const r of collisionFiles) {
-          if (r.type && r.filename) onFileUploaded(r.type, r.filename);
-        }
         for (const r of extracted) {
           if (r.extracted) {
             for (const ef of r.extracted) {
               if (ef.category && ef.filename && !conflictingKeys.has(`${ef.category}:${ef.filename}`)) {
                 onFileUploaded(ef.category, ef.filename);
               }
-            }
-          }
-          if (r.collisions) {
-            for (const col of r.collisions) {
-              if (col.category && col.filename) onFileUploaded(col.category, col.filename);
-            }
-          }
-        }
-      }
-
-      // Notify parent of collision files (already on disk, need DB registration on save)
-      if (onCollisionFile) {
-        for (const r of collisionFiles) {
-          if (r.type && r.filename) onCollisionFile({ filename: r.filename, category: r.type });
-        }
-        for (const r of extracted) {
-          if (r.collisions) {
-            for (const col of r.collisions) {
-              if (col.category && col.filename) onCollisionFile({ filename: col.filename, category: col.category });
             }
           }
         }
@@ -207,7 +179,6 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
-      if (collisionFiles.length > 0) message += `${collisionFiles.length} file(s) already existed and linked. `;
       if (extracted.length > 0) {
         const totalExtracted = extracted.reduce((sum, e) => sum + (e.filesExtracted || 0), 0);
         message += `${totalExtracted} file(s) extracted from ZIP. `;
@@ -224,26 +195,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           newLocal[r.type].push({ name: r.filename, size: 0, storage: 'temp', tempFilename: r.tempFilename });
         }
       }
-      for (const r of collisionFiles) {
-        if (r.type && r.filename) {
-          if (!newLocal[r.type]) newLocal[r.type] = [];
-          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'local' });
-        }
-      }
       for (const r of extracted) {
         if (r.extracted) {
           for (const ef of r.extracted) {
             if (ef.category && ef.filename) {
               if (!newLocal[ef.category]) newLocal[ef.category] = [];
               newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'temp', tempFilename: ef.tempFilename });
-            }
-          }
-        }
-        if (r.collisions) {
-          for (const col of r.collisions) {
-            if (col.category && col.filename) {
-              if (!newLocal[col.category]) newLocal[col.category] = [];
-              newLocal[col.category].push({ name: col.filename, size: 0, storage: 'local' });
             }
           }
         }

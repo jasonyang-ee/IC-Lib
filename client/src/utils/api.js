@@ -343,6 +343,7 @@ export const api = {
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
   deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
   checkFileCollision: (category, filename) => apiClient.get(`/files/check-collision/${category}/${encodeURIComponent(filename)}`),
+  checkCollisionsBatch: (files) => apiClient.post('/files/check-collisions-batch', { files }),
 
   // File Library - CAD Files (new junction-based)
   getOrphanFiles: (type) => apiClient.get('/file-library/orphans', { params: { type } }),

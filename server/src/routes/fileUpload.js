@@ -8,6 +8,7 @@ import {
   uploadFile,
   uploadPassiveFile,
   checkCollision,
+  checkCollisionsBatch,
   listFiles,
   renameFile,
   deleteFile,
@@ -36,6 +37,9 @@ router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20)
 
 // Check if a file exists in the flat directory (collision check)
 router.get('/check-collision/:category/:filename', authenticate, checkCollision);
+
+// Batch collision check — check multiple files at save time
+router.post('/check-collisions-batch', authenticate, checkCollisionsBatch);
 
 // List files for a component
 router.get('/list/:mfgPartNumber', authenticate, listFiles);

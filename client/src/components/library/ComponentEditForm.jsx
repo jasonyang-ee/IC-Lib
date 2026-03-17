@@ -46,7 +46,6 @@ const ComponentEditForm = ({
   // File management
   selectedComponent,
   onTempFileStaged,
-  onCollisionFile,
   onTempFileRemoved,
   onFileSoftDeleted,
   onFileUploaded: _onFileUploaded,
@@ -304,7 +303,6 @@ const ComponentEditForm = ({
           packageSize={editData.package_size}
           canEdit={true}
           onTempFileStaged={onTempFileStaged}
-          onCollisionFile={onCollisionFile}
           onTempFileRemoved={onTempFileRemoved}
           onFileSoftDeleted={onFileSoftDeleted}
           onFileUploaded={(category, filename) => {
