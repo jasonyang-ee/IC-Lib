@@ -537,18 +537,18 @@ export async function syncComponentCadFiles(componentId, cadData) {
     WHERE ccf.component_id = $1
   `, [componentId]);
 
-  // Build desired base names per file type
+  // Build desired base names per file type (lowercase for case-insensitive matching)
   const desiredBaseNames = {};
   for (const [column, fileType] of Object.entries(columnToFileType)) {
     const names = cadData[column] || [];
     desiredBaseNames[fileType] = new Set(
-      (Array.isArray(names) ? names : []).filter(n => n && typeof n === 'string'),
+      (Array.isArray(names) ? names : []).filter(n => n && typeof n === 'string').map(n => n.toLowerCase()),
     );
   }
 
   // Remove junction records where the base name is no longer desired for that file type
   for (const row of currentLinks.rows) {
-    const baseName = row.file_name.replace(/\.[^.]+$/, '');
+    const baseName = row.file_name.replace(/\.[^.]+$/, '').toLowerCase();
     const desired = desiredBaseNames[row.file_type];
     if (desired && !desired.has(baseName)) {
       await pool.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
@@ -558,7 +558,7 @@ export async function syncComponentCadFiles(componentId, cadData) {
   // Build set of already-linked base names per file type
   const linkedBaseNames = {};
   for (const row of currentLinks.rows) {
-    const baseName = row.file_name.replace(/\.[^.]+$/, '');
+    const baseName = row.file_name.replace(/\.[^.]+$/, '').toLowerCase();
     const desired = desiredBaseNames[row.file_type];
     // Only count as linked if it survived the deletion above
     if (desired && desired.has(baseName)) {
@@ -577,19 +577,19 @@ export async function syncComponentCadFiles(componentId, cadData) {
       if (!baseName || typeof baseName !== 'string') continue;
       if (alreadyLinked.has(baseName)) continue;
 
-      // Find an existing cad_file by base name pattern match
-      const match = await pool.query(`
+      // Find ALL existing cad_files by base name pattern match (case-insensitive)
+      // This ensures both .psm and .dra files get linked for footprints
+      const matches = await pool.query(`
         SELECT id FROM cad_files
-        WHERE file_type = $1 AND regexp_replace(file_name, '\\.[^.]+$', '') = $2
-        LIMIT 1
+        WHERE file_type = $1 AND LOWER(regexp_replace(file_name, '\\.[^.]+$', '')) = LOWER($2)
       `, [fileType, baseName]);
 
-      if (match.rows.length > 0) {
+      for (const match of matches.rows) {
         await pool.query(`
           INSERT INTO component_cad_files (component_id, cad_file_id)
           VALUES ($1, $2)
           ON CONFLICT (component_id, cad_file_id) DO NOTHING
-        `, [componentId, match.rows[0].id]);
+        `, [componentId, match.id]);
       }
     }
   }

@@ -27,9 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inventory page: Filter by Approval Status and Filter by Location (with dynamic location dropdown)
 - Inventory page: Filter by Project
 - Inventory page: Filter by Location with dynamic location options
+- 3D Model files now support rename (MPN, PKG, freeform) in CAD file management section
+- Footprint files: `.psm` and `.dra` pairs are displayed as grouped two-line boxes with fuzzy base-name matching
+- Footprint file rename operates on `.psm`/`.dra` pairs together, applying the same name and case to both
+- "Files" button in component details navigates to File Library Category view filtered by part number
 
 ### Changed
 
+- File Library: "CIS Config" tile renamed to "CIS Configuration File" and aligned to bottom of left sidebar
+- Inventory: "Label Template" tile renamed to "Download Label Template" and moved to bottom of sidebar
 - Extracted settings INSERTs from `init-schema.sql` into `init-settings.sql` — schema only creates tables/views, settings file handles defaults
 - Database reset/initialization runs `init-settings.sql` after schema creation
 - Dashboard: standardized all section header font sizes, Stock Status items in horizontal row, removed Database Info icon
@@ -43,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `.dra` footprint files lost from tracking when saving a component in edit mode without changes — caused by case-sensitive base name comparison and single-file linking in `syncComponentCadFiles`
 - PostgreSQL `could not determine data type of parameter $1` in `fileLibraryController.js` and `fileUpload.js`
 - File Library status badge using correct `approval_status` field
 - Schematic row misalignment in dashboard library quality section

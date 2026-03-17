@@ -45,7 +45,7 @@ const InventorySidebar = ({
   onTemplateChange,
   lowStock,
 }) => (
-  <div className="w-80 shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
+  <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
 
     {/* Category Filter */}
     <FilterSelect
@@ -198,8 +198,23 @@ const InventorySidebar = ({
       </p>
     </SidebarCard>
 
-    {/* Label Template */}
-    <SidebarCard title="Label Template">
+    {/* Low Stock Alert */}
+    {lowStock && lowStock.length > 0 && (
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-4">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500" />
+          <h3 className="font-semibold text-yellow-900 dark:text-yellow-300">Low Stock Alert</h3>
+        </div>
+        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+          {lowStock.length} item(s) running low
+        </p>
+      </div>
+    )}
+
+    <div className="flex-1" />
+
+    {/* Download Label Template */}
+    <SidebarCard title="Download Label Template">
       <div className="flex gap-2">
         <select
           value={selectedTemplate}
@@ -226,19 +241,6 @@ const InventorySidebar = ({
         </a>
       </div>
     </SidebarCard>
-
-    {/* Low Stock Alert */}
-    {lowStock && lowStock.length > 0 && (
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-4">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500" />
-          <h3 className="font-semibold text-yellow-900 dark:text-yellow-300">Low Stock Alert</h3>
-        </div>
-        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-          {lowStock.length} item(s) running low
-        </p>
-      </div>
-    )}
   </div>
 );
 

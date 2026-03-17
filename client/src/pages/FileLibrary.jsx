@@ -72,7 +72,15 @@ const FileLibrary = () => {
   useEffect(() => {
     const typeParam = searchParams.get('type');
     const fileParam = searchParams.get('file');
-    if (typeParam) {
+    const viewParam = searchParams.get('view');
+    const searchParam = searchParams.get('search');
+
+    if (viewParam === 'category' && searchParam) {
+      // Navigate to Category view with a search filter (e.g., from "Files" button in Library)
+      setViewMode(VIEW_CATEGORY);
+      setSearchQuery(decodeURIComponent(searchParam));
+      setSearchParams({}, { replace: true });
+    } else if (typeParam) {
       setSelectedType(typeParam);
       setViewMode(VIEW_FILE_TYPES);
       if (fileParam) {

@@ -30,7 +30,7 @@ const FileTypesView = ({
 }) => (
   <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
     {/* Col 1: File type selection sidebar */}
-    <div className="lg:col-span-1 space-y-4 self-start">
+    <div className="lg:col-span-1 flex flex-col gap-4 overflow-hidden">
       {/* File Types */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">File Types</h2>
@@ -64,9 +64,11 @@ const FileTypesView = ({
         </div>
       </div>
 
-      {/* CIS Config */}
+      <div className="flex-1" />
+
+      {/* CIS Configuration File */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">CIS Config</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">CIS Configuration File</h2>
         <a
           href={`${import.meta.env.VITE_API_URL || '/api'}/settings/cis-config`}
           download

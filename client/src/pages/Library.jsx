@@ -9,7 +9,7 @@ import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
 import SpecificationsView from '../components/library/SpecificationsView';
 import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
-import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -3120,6 +3120,14 @@ const Library = () => {
                     <span>Add to Project</span>
                   </button>
                 )}
+                <button
+                  onClick={() => navigate(`/file-library?view=category&search=${encodeURIComponent(selectedComponent.part_number)}`)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                  title="View associated files in File Library"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Files</span>
+                </button>
               </div>
             )}
             <div className="grid grid-cols-2 gap-4 text-sm">
