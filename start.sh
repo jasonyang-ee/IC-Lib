@@ -246,8 +246,6 @@ else
     echo -e "          ${GREEN}OK${NC} Backend started (PID: $BACKEND_PID)"
     echo -e "          ${GREEN}OK${NC} Services Running"
     echo -e "             ${GREEN}Database:${NC}      ${DB_HOST}:${DB_PORT:-5432}/${DB_NAME:-emd}"
-    echo -e "             ${GREEN}Backend:${NC}       ${BASE_DOMAIN}${BASE_URL}/api"
-    echo -e "             ${GREEN}Frontend:${NC}      ${BASE_DOMAIN}${BASE_URL}"
     echo -e "             ${GREEN}Default Login:${NC} admin/admin123"
     echo ""
 
