@@ -45,6 +45,16 @@ function extractDensitySuffix(filename) {
   return { base: baseName, suffix: '', ext };
 }
 
+/** Enforce lowercase base name for .psm files (PSM files are always fully lowercase) */
+function enforcePsmCase(filename) {
+  if (filename.toLowerCase().endsWith('.psm')) {
+    const ext = filename.substring(filename.lastIndexOf('.'));
+    const base = filename.substring(0, filename.lastIndexOf('.'));
+    return base.toLowerCase() + ext.toLowerCase();
+  }
+  return filename;
+}
+
 /**
  * Component file upload and listing section
  * Shows below distributor info in component detail view
@@ -378,7 +388,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     renameMutation.mutate({
       category: renaming.category,
       oldFilename: renaming.filename,
-      newFilename: renaming.newName + ext,
+      newFilename: enforcePsmCase(renaming.newName + ext),
       pairedFilename: renaming.pairedFilename || undefined,
       pairedNewFilename: renaming.pairedFilename ? renaming.newName + renaming.pairedFilename.substring(renaming.pairedFilename.lastIndexOf('.')) : undefined,
     });
@@ -389,7 +399,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const newFilename = sanitizedMpn + suffix + ext;
+    const newFilename = enforcePsmCase(sanitizedMpn + suffix + ext);
 
     if (newFilename === filename) {
       showSuccess('Filename already matches MPN');
@@ -421,7 +431,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     const sanitizedPkg = packageSize
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const newFilename = sanitizedPkg + suffix + ext;
+    const newFilename = enforcePsmCase(sanitizedPkg + suffix + ext);
 
     if (newFilename === filename) {
       showSuccess('Filename already matches package');

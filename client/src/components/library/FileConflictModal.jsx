@@ -63,6 +63,14 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
     setResolutions(prev => ({ ...prev, [key]: resolution }));
   };
 
+  const handleApplyToAll = (resolution) => {
+    const bulk = {};
+    for (const group of grouped) {
+      bulk[group.key] = resolution;
+    }
+    setResolutions(bulk);
+  };
+
   const handleApply = () => {
     const result = [];
     for (const group of grouped) {
@@ -93,6 +101,23 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4 shrink-0">
           {conflicts.length} file{conflicts.length !== 1 ? 's' : ''} already exist in the library. Choose how to handle each conflict:
         </p>
+
+        {/* Apply to All */}
+        <div className="flex items-center gap-2 mb-3 shrink-0">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Apply to All:</span>
+          <button
+            onClick={() => handleApplyToAll('use_existing')}
+            className="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#444] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          >
+            Use existing library file
+          </button>
+          <button
+            onClick={() => handleApplyToAll('overwrite')}
+            className="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#444] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
+          >
+            Overwrite with new upload
+          </button>
+        </div>
 
         {/* Conflict list */}
         <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 mb-4">

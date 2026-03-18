@@ -55,6 +55,7 @@ const Library = () => {
   // File conflict modal state (save-time collision resolution)
   const [fileConflictModal, setFileConflictModal] = useState({ show: false, conflicts: [] });
   const pendingSaveCallback = useRef(null);
+  const resolvedConflicts = useRef(null); // Pre-resolved conflict resolutions from modal
 
   // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
   const [deletedFiles, setDeletedFiles] = useState([]);
@@ -931,33 +932,34 @@ const Library = () => {
 
         // Finalize temp files before saving component
         if (tempFiles.length > 0) {
-          // Check for save-time collisions
-          const collisionResponse = await api.checkCollisionsBatch(tempFiles);
-          const collisions = collisionResponse.data?.collisions || [];
+          // Check if we have pre-resolved conflict resolutions from the modal
+          const preResolved = resolvedConflicts.current;
+          resolvedConflicts.current = null;
 
-          if (collisions.length > 0) {
-            // Store continuation: finalize with resolutions, then re-call handleSave
-            pendingSaveCallback.current = async (resolvedFiles) => {
-              const collisionSet = new Map(resolvedFiles.map(r => [r.tempFilename, r.resolution]));
-              await api.finalizeTempFiles({
-                files: tempFiles.map(f => ({
-                  tempFilename: f.tempFilename,
-                  category: f.category,
-                  resolution: collisionSet.get(f.tempFilename),
-                })),
-                mfgPartNumber: editData.manufacturer_pn,
-              });
-              setTempFiles([]);
-              setFileConflictModal({ show: false, conflicts: [] });
-              // Re-call handleSave — tempFiles will be empty so collision check is skipped
-              handleSave();
-            };
-            setFileConflictModal({ show: true, conflicts: collisions });
-            return;
+          if (!preResolved) {
+            // First pass: check for save-time collisions
+            const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+            const collisions = collisionResponse.data?.collisions || [];
+
+            if (collisions.length > 0) {
+              // Store which save function to re-call after resolution
+              pendingSaveCallback.current = 'handleSave';
+              setFileConflictModal({ show: true, conflicts: collisions });
+              return;
+            }
           }
 
+          // Build finalize payload with resolutions (if any)
+          const collisionSet = preResolved
+            ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
+            : null;
+
           await api.finalizeTempFiles({
-            files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
+            files: tempFiles.map(f => ({
+              tempFilename: f.tempFilename,
+              category: f.category,
+              resolution: collisionSet?.get(f.tempFilename),
+            })),
             mfgPartNumber: editData.manufacturer_pn,
           });
           setTempFiles([]);
@@ -2053,33 +2055,34 @@ const Library = () => {
       if (editData.category_id && editData.part_number) {
         // Finalize temp files before creating component
         if (tempFiles.length > 0) {
-          // Check for save-time collisions
-          const collisionResponse = await api.checkCollisionsBatch(tempFiles);
-          const collisions = collisionResponse.data?.collisions || [];
+          // Check if we have pre-resolved conflict resolutions from the modal
+          const preResolved = resolvedConflicts.current;
+          resolvedConflicts.current = null;
 
-          if (collisions.length > 0) {
-            // Store continuation: finalize with resolutions, then re-call handleConfirmAdd
-            pendingSaveCallback.current = async (resolvedFiles) => {
-              const collisionSet = new Map(resolvedFiles.map(r => [r.tempFilename, r.resolution]));
-              await api.finalizeTempFiles({
-                files: tempFiles.map(f => ({
-                  tempFilename: f.tempFilename,
-                  category: f.category,
-                  resolution: collisionSet.get(f.tempFilename),
-                })),
-                mfgPartNumber: editData.manufacturer_pn,
-              });
-              setTempFiles([]);
-              setFileConflictModal({ show: false, conflicts: [] });
-              // Re-call handleConfirmAdd — tempFiles will be empty so collision check is skipped
-              handleConfirmAdd();
-            };
-            setFileConflictModal({ show: true, conflicts: collisions });
-            return;
+          if (!preResolved) {
+            // First pass: check for save-time collisions
+            const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+            const collisions = collisionResponse.data?.collisions || [];
+
+            if (collisions.length > 0) {
+              // Store which save function to re-call after resolution
+              pendingSaveCallback.current = 'handleConfirmAdd';
+              setFileConflictModal({ show: true, conflicts: collisions });
+              return;
+            }
           }
 
+          // Build finalize payload with resolutions (if any)
+          const collisionSet = preResolved
+            ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
+            : null;
+
           await api.finalizeTempFiles({
-            files: tempFiles.map(f => ({ tempFilename: f.tempFilename, category: f.category })),
+            files: tempFiles.map(f => ({
+              tempFilename: f.tempFilename,
+              category: f.category,
+              resolution: collisionSet?.get(f.tempFilename),
+            })),
             mfgPartNumber: editData.manufacturer_pn,
           });
           setTempFiles([]);
@@ -2258,21 +2261,25 @@ const Library = () => {
 
   // File conflict resolution handlers
   const resolveFileConflicts = async (resolutions) => {
-    if (pendingSaveCallback.current) {
-      try {
-        await pendingSaveCallback.current(resolutions);
-      } catch (error) {
-        console.error('Error resolving file conflicts:', error);
-        showError('Failed to save files: ' + (error.response?.data?.error || error.message));
-        setFileConflictModal({ show: false, conflicts: [] });
-      }
-      pendingSaveCallback.current = null;
+    const saveType = pendingSaveCallback.current;
+    pendingSaveCallback.current = null;
+    setFileConflictModal({ show: false, conflicts: [] });
+
+    // Store resolutions so the save function can pick them up
+    resolvedConflicts.current = resolutions;
+
+    // Re-invoke the save function — it will see resolvedConflicts and skip collision check
+    if (saveType === 'handleConfirmAdd') {
+      handleConfirmAdd();
+    } else if (saveType === 'handleSave') {
+      handleSave();
     }
   };
 
   const abortFileConflicts = () => {
     setFileConflictModal({ show: false, conflicts: [] });
     pendingSaveCallback.current = null;
+    resolvedConflicts.current = null;
   };
 
   const toggleBulkDeleteMode = () => {
@@ -3233,7 +3240,11 @@ const Library = () => {
                   onSubCat2Change={handleSubCat2Change}
                   onSubCat3Change={handleSubCat3Change}
                   selectedComponent={selectedComponent}
-                  onTempFileStaged={(info) => setTempFiles(prev => [...prev, info])}
+                  onTempFileStaged={(info) => setTempFiles(prev => {
+                    // Deduplicate: skip if same filename+category already tracked (e.g., from ZIP with duplicate subdirs)
+                    if (prev.some(f => f.filename === info.filename && f.category === info.category)) return prev;
+                    return [...prev, info];
+                  })}
                   onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
                   onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
                   setEditData={setEditData}

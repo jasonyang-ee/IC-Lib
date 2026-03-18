@@ -119,7 +119,16 @@ function findFile(category, filename, mfgPartNumber) {
   const config = FILE_CATEGORIES[category];
   if (!config) return null;
 
-  // Try flat path first
+  // Try temp directory first — files during new part creation/editing are here with unique prefix
+  // Temp takes priority so renames during creation don't affect existing library files
+  const tempDir = path.join(LIBRARY_BASE, 'temp');
+  if (fs.existsSync(tempDir)) {
+    const tempFiles = fs.readdirSync(tempDir);
+    const match = tempFiles.find(f => f.endsWith('-' + filename));
+    if (match) return path.join(tempDir, match);
+  }
+
+  // Try flat path
   const flatPath = path.join(LIBRARY_BASE, config.subdir, filename);
   if (fs.existsSync(flatPath)) return flatPath;
 
@@ -128,14 +137,6 @@ function findFile(category, filename, mfgPartNumber) {
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
     const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
     if (fs.existsSync(nestedPath)) return nestedPath;
-  }
-
-  // Try temp directory — files during new part creation are here with unique prefix
-  const tempDir = path.join(LIBRARY_BASE, 'temp');
-  if (fs.existsSync(tempDir)) {
-    const tempFiles = fs.readdirSync(tempDir);
-    const match = tempFiles.find(f => f.endsWith('-' + filename));
-    if (match) return path.join(tempDir, match);
   }
 
   return null;
@@ -154,7 +155,11 @@ function moveToCategory(sourcePath, category, overwrite = false) {
   const rawFilename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
   // Lowercase extension for consistency
   const rawExt = path.extname(rawFilename);
-  const filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
+  let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
+  // .psm files are always fully lowercase
+  if (rawExt.toLowerCase() === '.psm') {
+    filename = filename.toLowerCase();
+  }
   const targetPath = path.join(targetDir, filename);
 
   // Collision check: reject if file already exists (unless overwrite)
@@ -205,6 +210,7 @@ function extractSmartZipToTemp(zipPath) {
   const entries = zip.getEntries();
   const extractedFiles = [];
   const collisions = [];
+  const seenTempFiles = new Set(); // Deduplicate by category:filename (ZIPs often have same file in multiple subdirs)
   const zipFilename = path.basename(zipPath).toLowerCase();
 
   // Detect source
@@ -263,6 +269,16 @@ function extractSmartZipToTemp(zipPath) {
     }
 
     if (category) {
+      // .psm files are always fully lowercase
+      if (ext === '.psm') {
+        filename = filename.toLowerCase();
+      }
+
+      // Skip duplicate files (same filename+category from different subdirs in ZIP)
+      const dedupeKey = `${category}:${filename.toLowerCase()}`;
+      if (seenTempFiles.has(dedupeKey)) continue;
+      seenTempFiles.add(dedupeKey);
+
       // Extract to temp with unique prefix (collision check deferred to save time)
       const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const tempFilename = uniquePrefix + '-' + filename;
@@ -299,6 +315,7 @@ function extractSmartZip(zipPath, _mfgPartNumber) {
   const entries = zip.getEntries();
   const extractedFiles = [];
   const collisions = [];
+  const seenFiles = new Set(); // Deduplicate by category:filename
   const zipFilename = path.basename(zipPath).toLowerCase();
 
   // Analyze ZIP structure to detect source (check both entry names and ZIP filename)
@@ -363,6 +380,16 @@ function extractSmartZip(zipPath, _mfgPartNumber) {
     }
 
     if (category) {
+      // .psm files are always fully lowercase
+      if (ext === '.psm') {
+        filename = filename.toLowerCase();
+      }
+
+      // Skip duplicate files (same filename+category from different subdirs in ZIP)
+      const dedupeKey = `${category}:${filename.toLowerCase()}`;
+      if (seenFiles.has(dedupeKey)) continue;
+      seenFiles.add(dedupeKey);
+
       const config = FILE_CATEGORIES[category];
       // Flat storage: no MPN subdirectory
       const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
@@ -437,7 +464,11 @@ export async function uploadTempFile(req, res) {
         // Regular file - determine category
         // Normalize filename with lowercase extension
         const origExt = path.extname(file.originalname);
-        const normalizedFilename = path.basename(file.originalname, origExt) + origExt.toLowerCase();
+        let normalizedFilename = path.basename(file.originalname, origExt) + origExt.toLowerCase();
+        // .psm files are always fully lowercase
+        if (origExt.toLowerCase() === '.psm') {
+          normalizedFilename = normalizedFilename.toLowerCase();
+        }
         const category = getFileCategory(normalizedFilename);
 
         if (!category) {
@@ -502,7 +533,11 @@ export async function finalizeTempFile(req, res) {
         if (resolution === 'use_existing') {
           const rawFilename = safeName.replace(/^\d+-\d+-/, '');
           const rawExt = path.extname(rawFilename);
-          const filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
+          let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
+          // .psm files are always fully lowercase
+          if (rawExt.toLowerCase() === '.psm') {
+            filename = filename.toLowerCase();
+          }
           fs.unlinkSync(tempPath);
           const fileType = fileTypeMap[category];
           if (mfgPartNumber && fileType) {
@@ -972,7 +1007,12 @@ export async function renameFile(req, res) {
       return res.status(400).json({ error: 'Invalid filename after sanitization' });
     }
 
-    const sanitizedNewFilename = newBaseName + finalExt;
+    let sanitizedNewFilename = newBaseName + finalExt;
+
+    // .psm files are always fully lowercase (base name + extension)
+    if (finalExt === '.psm') {
+      sanitizedNewFilename = sanitizedNewFilename.toLowerCase();
+    }
 
     // Find the file (flat, nested, or temp)
     const oldPath = findFile(category, oldFilename, mfgPartNumber);
@@ -1000,11 +1040,6 @@ export async function renameFile(req, res) {
       // Collision check in temp
       if (fs.existsSync(newTempPath)) {
         return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists` });
-      }
-      // Also check collision in the actual category directory
-      const flatNewPath = path.join(LIBRARY_BASE, config.subdir, sanitizedNewFilename);
-      if (fs.existsSync(flatNewPath)) {
-        return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists in the ${category} directory` });
       }
 
       fs.renameSync(oldPath, newTempPath);
