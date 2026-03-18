@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.8.0] - 2026-03-18
+
+### Added
+
 - Three CIS database views: `active_parts` (approved), `new_parts` (new/pending), `archived_parts` — replacing single combined view
 - CIS file download with dropdown selector on File Library page (ICLIB.DBC, odbc_example.reg, ODBC drivers)
 - `GET /api/settings/cis-files` and `GET /api/settings/cis-files/:filename` endpoints
