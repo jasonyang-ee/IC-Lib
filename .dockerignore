@@ -55,10 +55,6 @@ docs/
 **/__tests__/
 **/__mocks__/
 
-# CAD file library (use volume instead)
-library/
-download/
-
 # Database files (use external database, but keep SQL schemas)
 # Allow .sql files for initialization
 *.db
