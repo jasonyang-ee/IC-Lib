@@ -74,13 +74,19 @@ export const getAllComponents = async (req, res, next) => {
           const paramIndex = paramCount + index;
           const exactParamIndex = paramCount + keywords.length + index; // For exact UUID matching
           return `(
-            c.part_number ILIKE $${paramIndex} 
-            OR c.description ILIKE $${paramIndex} 
+            c.part_number ILIKE $${paramIndex}
+            OR c.description ILIKE $${paramIndex}
             OR c.manufacturer_pn ILIKE $${paramIndex}
             OR c.sub_category1 ILIKE $${paramIndex}
             OR c.sub_category2 ILIKE $${paramIndex}
             OR c.sub_category3 ILIKE $${paramIndex}
             OR c.sub_category4 ILIKE $${paramIndex}
+            OR c.schematic ILIKE $${paramIndex}
+            OR c.pcb_footprint ILIKE $${paramIndex}
+            OR c.step_model ILIKE $${paramIndex}
+            OR c.pspice ILIKE $${paramIndex}
+            OR c.pad_file ILIKE $${paramIndex}
+            OR c.package_size ILIKE $${paramIndex}
             OR get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) ILIKE $${paramIndex}
             OR cat.name ILIKE $${paramIndex}
             OR m.name ILIKE $${paramIndex}
@@ -1686,8 +1692,9 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       WHERE di.sku IS NOT NULL
       AND di.sku != ''
       AND c.category_id IS NOT NULL
+      AND LOWER(d.name) = 'digikey'
       AND NOT EXISTS (
-        SELECT 1 FROM component_specification_values csv 
+        SELECT 1 FROM component_specification_values csv
         WHERE csv.component_id = c.id
       )
       ORDER BY c.part_number
@@ -1715,14 +1722,10 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
         
         let vendorData = null;
 
-        // Fetch from appropriate vendor
+        // Fetch from DigiKey
         if (comp.distributor_name.toLowerCase() === 'digikey') {
           console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Searching Digikey for: ${comp.sku}`);
           const result = await digikeyService.searchPart(comp.sku);
-          vendorData = result.results?.[0];
-        } else if (comp.distributor_name.toLowerCase() === 'mouser') {
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Searching Mouser for: ${comp.sku}`);
-          const result = await mouserService.searchPart(comp.sku);
           vendorData = result.results?.[0];
         }
 

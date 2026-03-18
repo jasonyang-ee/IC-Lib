@@ -732,6 +732,7 @@ const Settings = () => {
   const handleEditCategory = (category) => {
     setEditingCategory(category.id);
     setTempConfig({
+      name: category.name,
       prefix: category.prefix,
       leading_zeros: category.leading_zeros
     });
@@ -743,7 +744,7 @@ const Settings = () => {
 
   const handleCancelEdit = () => {
     setEditingCategory(null);
-    setTempConfig({ prefix: '', leading_zeros: 5 });
+    setTempConfig({ name: '', prefix: '', leading_zeros: 5 });
   };
 
   const handleCreateCategory = () => {
@@ -1024,7 +1025,19 @@ const Settings = () => {
                         <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{category.display_order}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-gray-900 dark:text-gray-100">{category.name}</td>
+                    <td className="py-3 px-4">
+                      {editingCategory === category.id ? (
+                        <input
+                          type="text"
+                          value={tempConfig.name}
+                          onChange={(e) => setTempConfig({ ...tempConfig, name: e.target.value })}
+                          maxLength={100}
+                          className="w-full px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                        />
+                      ) : (
+                        <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       {editingCategory === category.id ? (
                         <input

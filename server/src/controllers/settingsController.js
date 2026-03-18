@@ -309,18 +309,22 @@ export const updateCategoryConfig = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { prefix, leading_zeros } = req.body;
+    const { name, prefix, leading_zeros } = req.body;
 
     // Validate inputs
+    if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+      return res.status(400).json({ error: 'Invalid name: must be a non-empty string' });
+    }
+
     if (prefix !== undefined && (typeof prefix !== 'string' || prefix.length === 0)) {
       return res.status(400).json({ error: 'Invalid prefix: must be a non-empty string' });
     }
-    
+
     if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
       return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
     }
 
-    if (prefix === undefined && leading_zeros === undefined) {
+    if (name === undefined && prefix === undefined && leading_zeros === undefined) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
@@ -385,9 +389,10 @@ export const updateCategoryConfig = async (req, res) => {
     }
 
     // Update the category configuration
+    const newName = name !== undefined ? name.trim() : currentCategory.name;
     await client.query(
-      'UPDATE component_categories SET prefix = $1, leading_zeros = $2 WHERE id = $3',
-      [newPrefix, newLeadingZeros, id],
+      'UPDATE component_categories SET name = $1, prefix = $2, leading_zeros = $3 WHERE id = $4',
+      [newName, newPrefix, newLeadingZeros, id],
     );
 
     // Log activity if parts were updated
@@ -407,7 +412,7 @@ export const updateCategoryConfig = async (req, res) => {
       success: true,
       category: {
         id,
-        name: currentCategory.name,
+        name: newName,
         prefix: newPrefix,
         leading_zeros: newLeadingZeros,
       },
