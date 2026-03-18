@@ -1570,22 +1570,50 @@ export const previewECONumber = async (req, res) => {
   }
 };
 
-const DATABASE_DIR = path.resolve(__dirname, '../../../database');
+const TEMPLATE_DIR = path.resolve(__dirname, '../../../library/template');
+const CIS_DIR = path.join(TEMPLATE_DIR, 'CIS');
+const LABEL_DIR = path.join(TEMPLATE_DIR, 'label');
 
 /**
- * GET /api/settings/cis-config
- * Download the CIS configuration file (ICLIB.DBC)
+ * GET /api/settings/cis-files
+ * List available CIS configuration files
  */
-export const downloadCISConfig = async (req, res) => {
+export const listCISFiles = async (req, res) => {
   try {
-    const filePath = path.join(DATABASE_DIR, 'ICLIB.DBC');
-    if (!fsSync.existsSync(filePath)) {
-      return res.status(404).json({ error: 'CIS config file not found' });
+    if (!fsSync.existsSync(CIS_DIR)) {
+      return res.json([]);
     }
-    res.download(filePath, 'ICLIB.DBC');
+    const files = await fs.readdir(CIS_DIR);
+    const cisFiles = [];
+    for (const file of files) {
+      const stat = await fs.stat(path.join(CIS_DIR, file));
+      if (stat.isFile()) {
+        cisFiles.push({ name: file, size: stat.size });
+      }
+    }
+    res.json(cisFiles);
   } catch (error) {
-    console.error('Error downloading CIS config:', error);
-    res.status(500).json({ error: 'Failed to download CIS config' });
+    console.error('Error listing CIS files:', error);
+    res.status(500).json({ error: 'Failed to list CIS files' });
+  }
+};
+
+/**
+ * GET /api/settings/cis-files/:filename
+ * Download a specific CIS file
+ */
+export const downloadCISFile = async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const safeName = path.basename(filename);
+    const filePath = path.join(CIS_DIR, safeName);
+    if (!fsSync.existsSync(filePath)) {
+      return res.status(404).json({ error: 'CIS file not found' });
+    }
+    res.download(filePath, safeName);
+  } catch (error) {
+    console.error('Error downloading CIS file:', error);
+    res.status(500).json({ error: 'Failed to download CIS file' });
   }
 };
 
@@ -1595,7 +1623,7 @@ export const downloadCISConfig = async (req, res) => {
  */
 export const listLabelTemplates = async (req, res) => {
   try {
-    const templateDir = path.join(DATABASE_DIR, 'label-template');
+    const templateDir = LABEL_DIR;
     if (!fsSync.existsSync(templateDir)) {
       return res.json([]);
     }
@@ -1623,7 +1651,7 @@ export const downloadLabelTemplate = async (req, res) => {
     const { filename } = req.params;
     // Prevent path traversal
     const safeName = path.basename(filename);
-    const filePath = path.join(DATABASE_DIR, 'label-template', safeName);
+    const filePath = path.join(LABEL_DIR, safeName);
     if (!fsSync.existsSync(filePath)) {
       return res.status(404).json({ error: 'Label template not found' });
     }

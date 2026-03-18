@@ -25,13 +25,8 @@ services:
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
       # - MOUSER_API_KEY=your_api_key
-      # - ULTRA_LIBRARIAN_TOKEN=your_token
-      # - SNAPEDA_API_KEY=your_api_key
     volumes:
-      - ./iclib/library/footprint:/app/library/footprint
-      - ./iclib/library/symbol:/app/library/symbol
-      - ./iclib/library/pad:/app/library/pad
-      - ./iclib/library/pspice:/app/library/pspice
+      - ./iclib/library:/app/library
   
   iclib-db:
     image: postgres:18

@@ -224,6 +224,7 @@ export const api = {
   previewECONumber: () => apiClient.get('/settings/eco/preview'),
 
   // CIS Config & Label Templates
+  getCISFiles: () => apiClient.get('/settings/cis-files'),
   getLabelTemplates: () => apiClient.get('/settings/label-templates'),
 
   // Category Specifications

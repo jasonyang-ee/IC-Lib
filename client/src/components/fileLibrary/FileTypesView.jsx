@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import StatusBadge from './StatusBadge';
+import { SidebarCard } from '../common';
 import { fileTypeLabels } from './constants';
 
 const FileTypesView = ({
@@ -29,6 +30,9 @@ const FileTypesView = ({
   onCopyPath,
   canWrite,
   navigate,
+  cisFiles,
+  selectedCISFile,
+  onCISFileChange,
 }) => {
   const fileListRef = useRef(null);
 
@@ -78,18 +82,36 @@ const FileTypesView = ({
 
       <div className="flex-1" />
 
-      {/* CIS Configuration File */}
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">CIS Configuration File</h2>
-        <a
-          href={`${import.meta.env.VITE_API_URL || '/api'}/settings/cis-config`}
-          download
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Download Config
-        </a>
-      </div>
+      {/* CIS Configuration Files */}
+      <SidebarCard title="Download CIS File">
+        <div className="flex gap-2">
+          <select
+            value={selectedCISFile}
+            onChange={(e) => onCISFileChange(e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+          >
+            <option value="">Select file...</option>
+            {cisFiles?.map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <a
+            href={selectedCISFile
+              ? `${import.meta.env.VITE_API_URL || '/api'}/settings/cis-files/${encodeURIComponent(selectedCISFile)}`
+              : undefined}
+            download
+            className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              selectedCISFile
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 pointer-events-none'
+            }`}
+          >
+            <Download className="w-4 h-4" />
+          </a>
+        </div>
+      </SidebarCard>
     </div>
 
     {/* Col 2: File list */}

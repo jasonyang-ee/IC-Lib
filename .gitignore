@@ -15,8 +15,8 @@ build/
 .vscode/
 
 # CAD file library
-/library
-/server/library
+/library/*
+!/library/template
 /import
 
 # Temporary files

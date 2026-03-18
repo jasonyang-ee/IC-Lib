@@ -178,6 +178,21 @@ else
         sleep 2
     done
 
+    # Initialize template files from defaults (preserves admin modifications)
+    if [ -d /app/template-defaults ]; then
+        for subdir in /app/library/template-defaults/*/; do
+            dirname=$(basename "$subdir")
+            for f in "$subdir"*; do
+                [ -f "$f" ] || continue
+                basename=$(basename "$f")
+                if [ ! -f "/app/library/template/$dirname/$basename" ]; then
+                    cp "$f" "/app/library/template/$dirname/$basename"
+                    echo "  Initialized template: $dirname/$basename"
+                fi
+            done
+        done
+    fi
+
     # Start nginx
     nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
     NGINX_PID=$!

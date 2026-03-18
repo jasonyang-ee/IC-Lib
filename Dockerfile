@@ -28,6 +28,7 @@ FROM node:22-alpine
 
 WORKDIR /app
 COPY database/ ./database/
+COPY library/template/ ./template-defaults/
 
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
@@ -45,8 +46,9 @@ COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 COPY docker/nginx-main.conf /etc/nginx/nginx.conf
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
-# Create directories for CAD file library
-RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice
+# Create directories for CAD file library and templates
+RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice \
+             /app/library/template/CIS /app/library/template/label
 
 # Prepare nginx directories for non-root execution
 RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body \

@@ -26,7 +26,8 @@ import {
   getECOSettings,
   updateECOSettings,
   previewECONumber,
-  downloadCISConfig,
+  listCISFiles,
+  downloadCISFile,
   listLabelTemplates,
   downloadLabelTemplate,
   initSettings,
@@ -84,8 +85,9 @@ router.post('/database/delete-users', authenticate, isAdmin, deleteUserRecords);
 router.get('/database/export', authenticate, isAdmin, exportDatabase);
 router.post('/database/import', authenticate, isAdmin, uploadBackup.single('file'), importDatabase);
 
-// CIS config download
-router.get('/cis-config', downloadCISConfig);
+// CIS file routes
+router.get('/cis-files', listCISFiles);
+router.get('/cis-files/:filename', downloadCISFile);
 
 // Label template routes
 router.get('/label-templates', listLabelTemplates);

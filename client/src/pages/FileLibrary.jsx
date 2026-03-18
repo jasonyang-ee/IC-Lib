@@ -54,6 +54,7 @@ const FileLibrary = () => {
   const [selectedType, setSelectedType] = useState('footprint');
   const [selectedFile, setSelectedFile] = useState(null);
   const [showOrphans, setShowOrphans] = useState(false);
+  const [selectedCISFile, setSelectedCISFile] = useState('');
 
   // Category view state
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -103,6 +104,16 @@ const FileLibrary = () => {
     queryKey: ['fileLibraryStats'],
     queryFn: async () => {
       const response = await api.getFileTypeStats();
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // CIS configuration files
+  const { data: cisFilesData } = useQuery({
+    queryKey: ['cisFiles'],
+    queryFn: async () => {
+      const response = await api.getCISFiles();
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
@@ -515,6 +526,9 @@ const FileLibrary = () => {
           onCopyPath={handleCopyPath}
           canWrite={canWrite}
           navigate={navigate}
+          cisFiles={cisFilesData || []}
+          selectedCISFile={selectedCISFile}
+          onCISFileChange={setSelectedCISFile}
         />
       ) : (
         <CategoryView
