@@ -28,6 +28,8 @@ const CategoryView = ({
   canWrite,
   navigate,
 }) => {
+  const isAllCategories = selectedCategoryId === 'all';
+
   // Filter category components by search query
   const filteredComponents = categoryComponents?.components?.filter((comp) => {
     if (!searchQuery || searchQuery.length < 2) return true;
@@ -35,7 +37,8 @@ const CategoryView = ({
     return (
       comp.part_number?.toLowerCase().includes(q) ||
       comp.manufacturer_pn?.toLowerCase().includes(q) ||
-      comp.description?.toLowerCase().includes(q)
+      comp.description?.toLowerCase().includes(q) ||
+      comp.category_name?.toLowerCase().includes(q)
     );
   }) || [];
 
@@ -64,6 +67,19 @@ const CategoryView = ({
       <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-3 flex flex-col overflow-hidden">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0">Categories</h2>
         <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1">
+          <button
+            onClick={() => onCategoryChange('all')}
+            className={`w-full p-2.5 rounded-lg border text-left transition-colors text-sm ${
+              isAllCategories
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 font-medium'
+                : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-gray-900 dark:text-gray-100 truncate">All Categories</span>
+              {isAllCategories && <ChevronRight className="w-3.5 h-3.5 text-primary-500 shrink-0" />}
+            </div>
+          </button>
           {categories?.map((cat) => {
             const isSelected = selectedCategoryId === cat.id;
             return (
@@ -125,7 +141,12 @@ const CategoryView = ({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{comp.part_number}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{comp.manufacturer_pn || comp.description}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {comp.manufacturer_pn || comp.description}
+                        {isAllCategories && comp.category_name && (
+                          <span className="ml-1.5 text-gray-400 dark:text-gray-500">| {comp.category_name}</span>
+                        )}
+                      </p>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full shrink-0 ml-2 ${
                       isSelected

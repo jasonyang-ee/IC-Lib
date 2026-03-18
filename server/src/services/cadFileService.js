@@ -568,14 +568,42 @@ export async function getComponentsWithCadFiles(categoryId) {
       c.value,
       c.package_size,
       m.name as manufacturer_name,
+      cat.name as category_name,
       COUNT(ccf.id) as cad_file_count
     FROM components c
     LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+    LEFT JOIN component_categories cat ON c.category_id = cat.id
     LEFT JOIN component_cad_files ccf ON c.id = ccf.component_id
     WHERE c.category_id = $1
-    GROUP BY c.id, m.name
+    GROUP BY c.id, m.name, cat.name
     ORDER BY c.part_number ASC
   `, [categoryId]);
+  return result.rows;
+}
+
+/**
+ * Get all components across all categories with their CAD file counts.
+ * Used for the "All Categories" view in the File Library page.
+ */
+export async function getAllComponentsWithCadFiles() {
+  const result = await pool.query(`
+    SELECT
+      c.id,
+      c.part_number,
+      c.manufacturer_pn,
+      c.description,
+      c.value,
+      c.package_size,
+      m.name as manufacturer_name,
+      cat.name as category_name,
+      COUNT(ccf.id) as cad_file_count
+    FROM components c
+    LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+    LEFT JOIN component_categories cat ON c.category_id = cat.id
+    LEFT JOIN component_cad_files ccf ON c.id = ccf.component_id
+    GROUP BY c.id, m.name, cat.name
+    ORDER BY c.part_number ASC
+  `);
   return result.rows;
 }
 
@@ -621,5 +649,6 @@ export default {
   detectMissingFiles,
   syncComponentCadFiles,
   getComponentsWithCadFiles,
+  getAllComponentsWithCadFiles,
   getComponentsSharingFiles,
 };

@@ -399,7 +399,9 @@ export const unlinkFileFromComponent = async (req, res) => {
 export const getComponentsByCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const components = await cadFileService.getComponentsWithCadFiles(categoryId);
+    const components = categoryId === 'all'
+      ? await cadFileService.getAllComponentsWithCadFiles()
+      : await cadFileService.getComponentsWithCadFiles(categoryId);
     res.json({ components });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by category:', error.message);

@@ -112,8 +112,9 @@ const footprintFileMap = scanDirectory(path.join(LIBRARY_BASE, 'footprint'), ['.
 const symbolFileMap = scanDirectory(path.join(LIBRARY_BASE, 'symbol'), ['.olb']);
 const modelFileMap = scanDirectory(path.join(LIBRARY_BASE, 'model'));
 const pspiceFileMap = scanDirectory(path.join(LIBRARY_BASE, 'pspice'));
+const padFileMap = scanDirectory(path.join(LIBRARY_BASE, 'pad'));
 
-console.log(`Library scan: ${footprintFileMap.size} footprint, ${symbolFileMap.size} symbol, ${modelFileMap.size} model, ${pspiceFileMap.size} pspice base names found`);
+console.log(`Library scan: ${footprintFileMap.size} footprint, ${symbolFileMap.size} symbol, ${modelFileMap.size} model, ${pspiceFileMap.size} pspice, ${padFileMap.size} pad base names found`);
 
 /**
  * Register a CAD file in cad_files table and link it to a component.
@@ -144,6 +145,37 @@ async function registerAndLink(client, fileName, fileType, componentId) {
   `, [componentId, cadFileId]);
 
   return cadFileId;
+}
+
+// Map cad_files file_type to TEXT column name (mirrors cadFileService.js)
+const FILE_TYPE_TO_COLUMN = {
+  footprint: 'pcb_footprint',
+  symbol: 'schematic',
+  model: 'step_model',
+  pspice: 'pspice',
+  pad: 'pad_file',
+};
+
+/**
+ * Regenerate all TEXT columns for a component from the junction table.
+ * Mirrors cadFileService.regenerateAllCadText() but uses the import client.
+ */
+async function regenerateAllCadText(client, componentId) {
+  for (const [fileType, column] of Object.entries(FILE_TYPE_TO_COLUMN)) {
+    const result = await client.query(`
+      SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',') as text_value
+      FROM component_cad_files ccf
+      JOIN cad_files cf ON ccf.cad_file_id = cf.id
+      WHERE ccf.component_id = $1 AND cf.file_type = $2
+        AND cf.file_name NOT LIKE '%.dra'
+    `, [componentId, fileType]);
+
+    const textValue = result.rows[0]?.text_value || '';
+    await client.query(
+      `UPDATE components SET ${column} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [textValue, componentId],
+    );
+  }
 }
 
 /**
@@ -207,6 +239,18 @@ async function linkCadFiles(client, componentId, record) {
     if (matches) {
       for (const fileName of matches) {
         await registerAndLink(client, fileName, 'pspice', componentId);
+        linked++;
+      }
+    }
+  }
+
+  // e. Pad files: single base name -> search any file in library/pad
+  const padValue = (record.PAD_FILE || record['Pad File'] || '').trim();
+  if (padValue && padValue !== 'N/A') {
+    const matches = padFileMap.get(padValue.toLowerCase());
+    if (matches) {
+      for (const fileName of matches) {
+        await registerAndLink(client, fileName, 'pad', componentId);
         linked++;
       }
     }
@@ -490,6 +534,7 @@ async function importCSVFile(filePath) {
           datasheet_url: record.Datasheet || null,
           step_model: record.STEP_MODEL?.trim() || '',
           pspice: (record.PSPICE || record.PSpice || '').trim(),
+          pad_file: (record.PAD_FILE || record['Pad File'] || '').trim(),
         };
 
         if (isDryRun) {
@@ -527,6 +572,11 @@ async function importCSVFile(filePath) {
             const matches = modelFileMap.get(componentData.step_model.toLowerCase());
             if (matches) console.log(`  Model match: ${componentData.step_model} -> ${matches.join(', ')}`);
           }
+          const padDryValue = componentData.pad_file;
+          if (padDryValue) {
+            const matches = padFileMap.get(padDryValue.toLowerCase());
+            if (matches) console.log(`  Pad match: ${padDryValue} -> ${matches.join(', ')}`);
+          }
         } else {
           // Insert component
           const insertResult = await client.query(
@@ -534,21 +584,25 @@ async function importCSVFile(filePath) {
               category_id, part_number, manufacturer_id, manufacturer_pn,
               description, value, pcb_footprint, schematic, package_size,
               sub_category1, sub_category2, sub_category3, sub_category4,
-              datasheet_url, step_model, pspice
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+              datasheet_url, step_model, pspice, pad_file
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             ON CONFLICT (part_number) DO UPDATE SET
+              category_id = EXCLUDED.category_id,
               description = EXCLUDED.description,
               manufacturer_id = EXCLUDED.manufacturer_id,
               manufacturer_pn = EXCLUDED.manufacturer_pn,
               value = EXCLUDED.value,
               pcb_footprint = EXCLUDED.pcb_footprint,
               schematic = EXCLUDED.schematic,
+              package_size = EXCLUDED.package_size,
               step_model = EXCLUDED.step_model,
               pspice = EXCLUDED.pspice,
+              pad_file = EXCLUDED.pad_file,
               sub_category1 = EXCLUDED.sub_category1,
               sub_category2 = EXCLUDED.sub_category2,
               sub_category3 = EXCLUDED.sub_category3,
               sub_category4 = EXCLUDED.sub_category4,
+              datasheet_url = EXCLUDED.datasheet_url,
               updated_at = CURRENT_TIMESTAMP
             RETURNING id`,
             [
@@ -568,6 +622,7 @@ async function importCSVFile(filePath) {
               componentData.datasheet_url,
               componentData.step_model,
               componentData.pspice,
+              componentData.pad_file,
             ],
           );
 
@@ -576,6 +631,11 @@ async function importCSVFile(filePath) {
           // Link CAD files from library directories
           const cadLinked = await linkCadFiles(client, componentId, record);
           stats.cadFileLinks += cadLinked;
+
+          // Regenerate TEXT columns from junction table (normalized format)
+          if (cadLinked > 0) {
+            await regenerateAllCadText(client, componentId);
+          }
 
           // Update inventory from partsbox data
           if (manufacturerPN) {
