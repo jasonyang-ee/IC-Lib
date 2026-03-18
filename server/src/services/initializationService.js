@@ -94,18 +94,19 @@ async function runMigrations() {
 async function checkPartsTablesExist() {
   try {
     const result = await pool.query(`
-      SELECT 
+      SELECT
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'component_categories') as categories,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'components') as components,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'manufacturers') as manufacturers,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'distributors') as distributors,
         EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'inventory') as inventory,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_log') as activity_log;
+        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_log') as activity_log,
+        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cad_files') as cad_files;
     `);
-    
+
     const tables = result.rows[0];
     const allExist = Object.values(tables).every(exists => exists === true);
-    
+
     return { allExist, tables };
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Error checking parts tables: ${error.message}`);
@@ -135,16 +136,12 @@ async function initializePartsDatabase() {
     // Execute the SQL - wrap in try-catch to handle duplicate trigger/constraint errors
     try {
       await client.query(sql);
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema initialized successfully');
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Tables created: categories, components, manufacturers, distributors, inventory, activity_log, etc.');
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema initialized');
     } catch (initError) {
-      // If error is about existing triggers/constraints or type mismatches on older schemas, that's OK
-      // The migration system will handle column type conversions
       const errorMsg = initError.message || '';
       if (errorMsg.includes('already exists') || errorMsg.includes('duplicate') ||
           errorMsg.includes('operator class') || errorMsg.includes('input syntax for type json')) {
-        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema already exists (some objects were already created)');
-        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Pending migrations will handle any column type changes');
+        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema already exists');
       } else {
         // For other errors, rethrow
         throw initError;

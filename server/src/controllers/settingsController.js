@@ -193,9 +193,6 @@ export const resetDatabase = async (req, res) => {
  */
 export const verifyDatabase = async (req, res) => {
   try {
-    console.log('Verifying database schema...');
-    
-    // Expected tables for the redesigned schema
     const expectedTables = [
       'users',
       'component_categories',
@@ -227,38 +224,53 @@ export const verifyDatabase = async (req, res) => {
       'smtp_settings',
       'email_notification_preferences',
       'email_log',
+      'cad_files',
+      'component_cad_files',
+      'schema_migrations',
     ];
-    
-    const result = await pool.query(`
-      SELECT tablename 
-      FROM pg_tables 
-      WHERE schemaname = 'public'
-      ORDER BY tablename
+
+    const expectedViews = [
+      'active_parts',
+      'new_parts',
+      'archived_parts',
+      'alternative_parts',
+    ];
+
+    const tablesResult = await pool.query(`
+      SELECT tablename AS name, 'table' AS kind
+      FROM pg_tables WHERE schemaname = 'public'
+      UNION ALL
+      SELECT viewname AS name, 'view' AS kind
+      FROM pg_views WHERE schemaname = 'public'
+      ORDER BY name
     `);
-    
-    const existingTables = result.rows.map(row => row.tablename);
-    const missingTables = expectedTables.filter(t => !existingTables.includes(t));
-    const extraTables = existingTables.filter(t => !expectedTables.includes(t));
-    
-    const valid = missingTables.length === 0;
-    
+
+    const existingNames = tablesResult.rows.map(row => row.name);
+    const missingTables = expectedTables.filter(t => !existingNames.includes(t));
+    const missingViews = expectedViews.filter(v => !existingNames.includes(v));
+    const allExpected = [...expectedTables, ...expectedViews];
+    const extraObjects = existingNames.filter(n => !allExpected.includes(n));
+    const valid = missingTables.length === 0 && missingViews.length === 0;
+
     res.json({
       valid,
       message: valid ? 'Database schema is valid' : 'Database schema has issues',
       expectedTables,
-      existingTables,
+      expectedViews,
+      existingTables: existingNames,
       missingTables,
-      extraTables,
+      missingViews,
+      extraTables: extraObjects,
       issues: valid ? [] : [
         ...missingTables.map(t => `Missing table: ${t}`),
-        ...extraTables.map(t => `Unexpected table: ${t}`),
+        ...missingViews.map(v => `Missing view: ${v}`),
       ],
     });
   } catch (error) {
     console.error('Error verifying database:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to verify database',
-      message: error.message, 
+      message: error.message,
     });
   }
 };
@@ -1574,88 +1586,56 @@ const TEMPLATE_DIR = path.resolve(__dirname, '../../../library/template');
 const CIS_DIR = path.join(TEMPLATE_DIR, 'CIS');
 const LABEL_DIR = path.join(TEMPLATE_DIR, 'label');
 
-/**
- * GET /api/settings/cis-files
- * List available CIS configuration files
- */
+async function listFilesInDir(dir) {
+  if (!fsSync.existsSync(dir)) return [];
+  const entries = await fs.readdir(dir);
+  const files = [];
+  for (const entry of entries) {
+    const stat = await fs.stat(path.join(dir, entry));
+    if (stat.isFile()) files.push({ name: entry, size: stat.size });
+  }
+  return files;
+}
+
+function downloadFileFromDir(dir, filename, res) {
+  const safeName = path.basename(filename);
+  const filePath = path.join(dir, safeName);
+  if (!fsSync.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  res.download(filePath, safeName);
+}
+
 export const listCISFiles = async (req, res) => {
   try {
-    if (!fsSync.existsSync(CIS_DIR)) {
-      return res.json([]);
-    }
-    const files = await fs.readdir(CIS_DIR);
-    const cisFiles = [];
-    for (const file of files) {
-      const stat = await fs.stat(path.join(CIS_DIR, file));
-      if (stat.isFile()) {
-        cisFiles.push({ name: file, size: stat.size });
-      }
-    }
-    res.json(cisFiles);
+    res.json(await listFilesInDir(CIS_DIR));
   } catch (error) {
     console.error('Error listing CIS files:', error);
     res.status(500).json({ error: 'Failed to list CIS files' });
   }
 };
 
-/**
- * GET /api/settings/cis-files/:filename
- * Download a specific CIS file
- */
 export const downloadCISFile = async (req, res) => {
   try {
-    const { filename } = req.params;
-    const safeName = path.basename(filename);
-    const filePath = path.join(CIS_DIR, safeName);
-    if (!fsSync.existsSync(filePath)) {
-      return res.status(404).json({ error: 'CIS file not found' });
-    }
-    res.download(filePath, safeName);
+    downloadFileFromDir(CIS_DIR, req.params.filename, res);
   } catch (error) {
     console.error('Error downloading CIS file:', error);
     res.status(500).json({ error: 'Failed to download CIS file' });
   }
 };
 
-/**
- * GET /api/settings/label-templates
- * List available label template files
- */
 export const listLabelTemplates = async (req, res) => {
   try {
-    const templateDir = LABEL_DIR;
-    if (!fsSync.existsSync(templateDir)) {
-      return res.json([]);
-    }
-    const files = await fs.readdir(templateDir);
-    const templates = [];
-    for (const file of files) {
-      const stat = await fs.stat(path.join(templateDir, file));
-      if (stat.isFile()) {
-        templates.push({ name: file, size: stat.size });
-      }
-    }
-    res.json(templates);
+    res.json(await listFilesInDir(LABEL_DIR));
   } catch (error) {
     console.error('Error listing label templates:', error);
     res.status(500).json({ error: 'Failed to list label templates' });
   }
 };
 
-/**
- * GET /api/settings/label-templates/:filename
- * Download a specific label template file
- */
 export const downloadLabelTemplate = async (req, res) => {
   try {
-    const { filename } = req.params;
-    // Prevent path traversal
-    const safeName = path.basename(filename);
-    const filePath = path.join(LABEL_DIR, safeName);
-    if (!fsSync.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Label template not found' });
-    }
-    res.download(filePath, safeName);
+    downloadFileFromDir(LABEL_DIR, req.params.filename, res);
   } catch (error) {
     console.error('Error downloading label template:', error);
     res.status(500).json({ error: 'Failed to download label template' });

@@ -32,9 +32,8 @@ services:
     ports:
       - "80:80"          # All traffic (frontend + API via nginx proxy)
     environment:
-      # Node Environment and API Port
-      - NODE_ENV=production
-      - PORT=3500
+      # Authentication Settings
+      - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
@@ -44,20 +43,12 @@ services:
       - DB_PASSWORD=123456
       - DB_NAME=iclib
       
-      # CORS Configuration
-      - CORS_ORIGIN=*
-      
       # Optional: API Keys for vendor integrations
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
       # - MOUSER_API_KEY=your_api_key
-      # - ULTRA_LIBRARIAN_TOKEN=your_token
-      # - SNAPEDA_API_KEY=your_api_key
     volumes:
-      - ./iclib/library/footprint:/app/library/footprint
-      - ./iclib/library/symbol:/app/library/symbol
-      - ./iclib/library/pad:/app/library/pad
-      - ./iclib/library/pspice:/app/library/pspice
+      - ./iclib/library:/app/library
   
   iclib-db:
     image: postgres:18
@@ -91,7 +82,6 @@ services:
 
 - Linux AMD64
 - Linux ARM64
-- Linux ARMv7
 
 
 ## Local Development

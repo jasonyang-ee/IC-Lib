@@ -9,15 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Three CIS database views: `active_parts` (approved), `new_parts` (new/pending), `archived_parts` — replacing single combined view
+- CIS file download with dropdown selector on File Library page (ICLIB.DBC, odbc_example.reg, ODBC drivers)
+- `GET /api/settings/cis-files` and `GET /api/settings/cis-files/:filename` endpoints
+- Schema verification now validates CIS views (`active_parts`, `new_parts`, `archived_parts`, `alternative_parts`)
+- Startup schema check includes `cad_files` table
+- Docker: nginx runs as non-root user (1000:1000) with custom `nginx-main.conf`
+- Docker: template files (`library/template/`) baked into image and auto-seeded on first boot via `start.sh`
+- Docker: library folder initialization on container startup (symbol, footprint, pad, model, pspice, template)
+- ODBC driver installers (psqlodbc x64/x86) bundled as CIS template files
 
 ### Changed
 
-- 
+- Templates relocated from `database/` to `library/template/{CIS,label}` — single source for both CIS and label files
+- CIS download tile on File Library page uses `SidebarCard` with dropdown, matching Inventory label template style
+- Label template endpoints now read from `library/template/label/` instead of `database/label-template/`
+- Docker base image upgraded to Node 25
+- Docker compose simplified: single `/app/library` bind mount replaces per-type mounts
+- Refactored CIS/label template endpoints into shared `listFilesInDir`/`downloadFileFromDir` helpers
+- Removed example CAD files (SamacSys, SnapEDA, UltraLibrarian samples)
 
 ### Fixed
 
-- 
+- SQL syntax error in CIS views: trailing comma before `FROM` caused `init-schema.sql` to abort mid-execution, leaving database in half-initialized state after reset
+- `verifyDatabase` now checks both tables and views, and includes `cad_files`, `component_cad_files`, `schema_migrations` in expected tables list
+- nginx permission denied errors when running container as non-root user (error log, tmp dirs, pid file)
 
 ## [1.7.0] - 2026-03-17
 

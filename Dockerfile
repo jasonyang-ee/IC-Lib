@@ -62,6 +62,10 @@ RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body \
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
+# Production environment variables (can be overridden at runtime)
+ENV NODE_ENV=production \
+	PORT=80
+
 # Expose only port 80 (nginx handles both frontend and API proxy)
 EXPOSE 80
 
