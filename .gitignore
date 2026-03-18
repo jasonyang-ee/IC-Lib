@@ -18,6 +18,7 @@ build/
 /library/*
 !/library/template
 /import
+/example
 
 # Temporary files
 tmp/
