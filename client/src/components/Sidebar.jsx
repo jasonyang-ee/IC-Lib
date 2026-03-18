@@ -1,13 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, CircuitBoard, CircuitBoardIcon, BrainCircuit, Lightbulb } from 'lucide-react';
+import { LayoutDashboard, Package, Search, FileText, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, CircuitBoard, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
-  
+
   // Check if ECO feature is enabled from environment variable
   const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
 
@@ -29,6 +30,12 @@ const Sidebar = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
+  };
+
+  const toggleSidebar = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('sidebarCollapsed', newState.toString());
   };
 
   const handleLogout = async () => {
@@ -61,36 +68,61 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-52.5 bg-gray-900 text-white h-screen flex flex-col overflow-hidden">
+    <div className={`${isCollapsed ? 'w-15' : 'w-52.5'} transition-all duration-300 bg-gray-900 text-white h-screen flex flex-col overflow-hidden relative`}>
+      {/* Toggle Button */}
+      {isCollapsed ? (
+        <button
+          onClick={toggleSidebar}
+          className="w-full flex justify-center py-3 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors shrink-0"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      ) : (
+        <button
+          onClick={toggleSidebar}
+          className="absolute top-3 right-2 z-10 p-1 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors"
+          title="Collapse sidebar"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      )}
+
       {/* Logo/Title */}
-      <div className="p-5 border-b border-gray-700 shrink-0">
-        <div className="flex items-center gap-3">
-          <img src={logoPath} alt="IC Lib Logo" className="w-12 h-12"/>
-          <div>
-            <h1 className="text-xl font-bold">IC Lib</h1>
-            <p className="text-sm text-gray-400">PCB Parts Library</p>
+      {!isCollapsed && (
+        <div className="p-5 border-b border-gray-700 shrink-0">
+          <div className="flex items-center gap-3">
+            <img src={logoPath} alt="IC Lib Logo" className="w-12 h-12"/>
+            <div>
+              <h1 className="text-xl font-bold">IC Lib</h1>
+              <p className="text-sm text-gray-400">PCB Parts Library</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+      {isCollapsed && (
+        <div className="border-b border-gray-700 shrink-0" />
+      )}
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 overflow-y-auto custom-scrollbar">
+      <nav className={`flex-1 ${isCollapsed ? 'p-2' : 'p-4'} overflow-y-auto custom-scrollbar`}>
         <ul className="space-y-2">
           {menuItems.map((item) => (
             <li key={item.path}>
               <NavLink
                 to={item.path}
                 end={item.path === '/'}
+                title={isCollapsed ? item.label : ''}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  `flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-primary-600 text-white'
                       : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                   }`
                 }
               >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
+                <item.icon className="w-5 h-5 shrink-0" />
+                {!isCollapsed && <span className="font-medium">{item.label}</span>}
               </NavLink>
             </li>
           ))}
@@ -98,61 +130,66 @@ const Sidebar = () => {
       </nav>
 
       {/* Dark Mode Toggle */}
-      <div className="px-4 pb-4 shrink-0">
+      <div className={`${isCollapsed ? 'px-2' : 'px-4'} pb-4 shrink-0`}>
         <button
           onClick={toggleDarkMode}
-          className="w-full flex items-center justify-between px-1 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+          title={isCollapsed ? (darkMode ? 'Dark Mode' : 'Light Mode') : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between px-1'} py-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-gray-300 hover:text-white`}
         >
-          <div className="flex items-center gap-3">
+          <div className={`flex items-center ${isCollapsed ? '' : 'gap-3'}`}>
             {darkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            <span className="font-medium">{darkMode ? 'Dark Mode' : 'Light Mode'}</span>
+            {!isCollapsed && <span className="font-medium">{darkMode ? 'Dark Mode' : 'Light Mode'}</span>}
           </div>
-          <div
-            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
-              darkMode ? 'bg-primary-600' : 'bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                darkMode ? 'translate-x-6' : 'translate-x-1'
+          {!isCollapsed && (
+            <div
+              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${
+                darkMode ? 'bg-primary-600' : 'bg-gray-600'
               }`}
-            />
-          </div>
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  darkMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </div>
+          )}
         </button>
       </div>
 
       {/* User Info and Logout */}
-      <div className="p-4 border-t border-gray-700 space-y-2 shrink-0">
-        {/* User Info */}
-        <div className="flex items-center gap-3 px-3 py-2 bg-gray-800 rounded-lg">
-          <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
-            <User className="w-5 h-5" />
+      <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-gray-700 space-y-2 shrink-0`}>
+        {/* User Info - hidden when collapsed */}
+        {!isCollapsed && (
+          <div className="flex items-center gap-3 px-3 py-2 bg-gray-800 rounded-lg">
+            <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{user?.username}</p>
+              <p className="text-xs text-gray-400 capitalize">{user?.role?.replace('-', ' ')}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user?.username}</p>
-            <p className="text-xs text-gray-400 capitalize">{user?.role?.replace('-', ' ')}</p>
-          </div>
-        </div>
+        )}
 
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-gray-300 hover:text-white"
+          title={isCollapsed ? 'Logout' : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-3'} py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-gray-300 hover:text-white`}
         >
           <LogOut className="w-4 h-4" />
-          <span className="text-sm">Logout</span>
+          {!isCollapsed && <span className="text-sm">Logout</span>}
         </button>
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-700 shrink-0">
-        <p className="text-xs text-gray-500 text-center">
-          Version {__APP_VERSION__}
-        </p>
-        {/* <p className="text-xs text-gray-500 text-center mt-1">
-          AGPL-3.0 License
-        </p> */}
-      </div>
+      {!isCollapsed && (
+        <div className="p-4 border-t border-gray-700 shrink-0">
+          <p className="text-xs text-gray-500 text-center">
+            Version {__APP_VERSION__}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

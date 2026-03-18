@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -13,6 +13,7 @@ import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '
 import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
 
@@ -161,6 +162,16 @@ const Library = () => {
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
+
+  // Debounced search for query optimization (avoids API call per keystroke)
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Ref for virtualizing the component list
+  const componentListRef = useRef(null);
 
   // Ref to track editing mode — immune to stale closures in useEffect
   // This prevents window-focus-triggered query refetches from resetting add/edit state
@@ -334,19 +345,21 @@ const Library = () => {
       const response = await api.getCategories();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, searchTerm, selectedApprovalStatus],
+    queryKey: ['components', selectedCategory, debouncedSearch, selectedApprovalStatus],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
-        search: searchTerm,
+        search: debouncedSearch,
         approvalStatus: selectedApprovalStatus,
       });
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch manufacturers for dropdown
@@ -356,6 +369,7 @@ const Library = () => {
       const response = await api.getManufacturers();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch projects for "Add to Project" modal
@@ -365,6 +379,7 @@ const Library = () => {
       const response = await api.getProjects();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch distributors for dropdown and ID mapping
@@ -374,6 +389,7 @@ const Library = () => {
       const response = await api.getDistributors();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Auto-focus search field on page load
@@ -1614,7 +1630,7 @@ const Library = () => {
       .filter(num => !isNaN(num) && num > 0);
     
     // Find the highest number
-    const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const maxNumber = numbers.length > 0 ? numbers.reduce((max, n) => n > max ? n : max, 0) : 0;
     const nextNumber = maxNumber + 1;
     
     // Format with leading zeros (digits)
@@ -2606,6 +2622,41 @@ const Library = () => {
     }
   };
 
+  // Memoize sorted components to avoid re-sorting on every render
+  const sortedComponents = useMemo(() => {
+    if (!components) return [];
+    return [...components].sort((a, b) => {
+      let aVal = a[sortBy] || '';
+      let bVal = b[sortBy] || '';
+
+      // Handle null/undefined values
+      if (!aVal && !bVal) return 0;
+      if (!aVal) return sortOrder === 'asc' ? 1 : -1;
+      if (!bVal) return sortOrder === 'asc' ? -1 : 1;
+
+      // Handle date fields
+      if (sortBy === 'created_at' || sortBy === 'updated_at') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [components, sortBy, sortOrder]);
+
+  // Virtualizer for component table rows
+  const rowVirtualizer = useVirtualizer({
+    count: sortedComponents.length,
+    getScrollElement: () => componentListRef.current,
+    estimateSize: () => 45,
+    overscan: 20,
+  });
+
   return (
     <div className="h-full flex flex-col library-background" onClick={handlePageClick}>
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
@@ -2903,16 +2954,16 @@ const Library = () => {
             <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col flex-1 overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] shrink-0">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Components ({components?.length || 0})
+                  Components ({sortedComponents.length})
                   {bulkDeleteMode && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
                 </h3>
               </div>
-            <div className="overflow-y-auto custom-scrollbar flex-1">
+            <div ref={componentListRef} className="overflow-y-auto custom-scrollbar flex-1">
               {isLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                 </div>
-              ) : components?.length > 0 ? (
+              ) : sortedComponents.length > 0 ? (
                 <table className="w-full">
                   <colgroup>
                     {bulkDeleteMode && <col style={{width: '48px'}} />}
@@ -2921,7 +2972,7 @@ const Library = () => {
                     <col style={{width: 'auto'}} />
                     <col style={{width: 'auto'}} />
                   </colgroup>
-                  <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0">
+                  <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0 z-10">
                     <tr>
                       {bulkDeleteMode && (
                         <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 w-12">
@@ -2946,58 +2997,42 @@ const Library = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(() => {
-                      // Sort components based on selected sort field and order
-                      const sortedComponents = [...(components || [])].sort((a, b) => {
-                        let aVal = a[sortBy] || '';
-                        let bVal = b[sortBy] || '';
-                        
-                        // Handle null/undefined values
-                        if (!aVal && !bVal) return 0;
-                        if (!aVal) return sortOrder === 'asc' ? 1 : -1;
-                        if (!bVal) return sortOrder === 'asc' ? -1 : 1;
-                        
-                        // Handle date fields
-                        if (sortBy === 'created_at' || sortBy === 'updated_at') {
-                          aVal = new Date(aVal).getTime();
-                          bVal = new Date(bVal).getTime();
-                        } else if (typeof aVal === 'string') {
-                          // Convert to lowercase for string comparison
-                          aVal = aVal.toLowerCase();
-                          bVal = bVal.toLowerCase();
-                        }
-                        
-                        // Compare values
-                        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-                        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-                        return 0;
-                      });
-                      
-                      return sortedComponents.map((component) => (
-                      <tr
-                        key={component.id}
-                        onClick={() => !bulkDeleteMode && handleComponentClick(component)}
-                        className={`cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
-                          selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                        } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                      >
-                        {bulkDeleteMode && (
-                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selectedForDelete.has(component.id)}
-                              onChange={() => toggleSelectForDelete(component.id)}
-                              className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                            />
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{component.part_number}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.value || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{component.description?.substring(0, 80) || 'N/A'}</td>
+                    {rowVirtualizer.getVirtualItems().length > 0 && (
+                      <tr style={{ height: `${rowVirtualizer.getTotalSize()}px`, padding: 0 }}>
+                        <td colSpan={bulkDeleteMode ? 5 : 4} style={{ padding: 0, position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}>
+                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                            const component = sortedComponents[virtualRow.index];
+                            return (
+                              <div
+                                key={component.id}
+                                data-index={virtualRow.index}
+                                ref={rowVirtualizer.measureElement}
+                                onClick={() => !bulkDeleteMode && handleComponentClick(component)}
+                                className={`absolute left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
+                                  selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                                } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                              >
+                                {bulkDeleteMode && (
+                                  <div className="px-4 py-3 w-12 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedForDelete.has(component.id)}
+                                      onChange={() => toggleSelectForDelete(component.id)}
+                                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                    />
+                                  </div>
+                                )}
+                                <div className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap flex-1 min-w-0">{component.part_number}</div>
+                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</div>
+                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.value || 'N/A'}</div>
+                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.description?.substring(0, 80) || 'N/A'}</div>
+                              </div>
+                            );
+                          })}
+                        </td>
                       </tr>
-                    ));
-                    })()}
+                    )}
                   </tbody>
                 </table>
               ) : (

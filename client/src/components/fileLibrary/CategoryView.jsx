@@ -1,3 +1,4 @@
+import { useMemo, useRef } from 'react';
 import {
   FolderOpen,
   ChevronRight,
@@ -8,6 +9,7 @@ import {
   FileBox,
   Link2,
 } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { fileTypeLabels, routeTypeToFileType } from './constants';
 
 const CategoryView = ({
@@ -29,37 +31,51 @@ const CategoryView = ({
   navigate,
 }) => {
   const isAllCategories = selectedCategoryId === 'all';
+  const componentListRef = useRef(null);
 
-  // Filter category components by search query
-  const filteredComponents = categoryComponents?.components?.filter((comp) => {
-    if (!searchQuery || searchQuery.length < 2) return true;
+  // Memoize filtered components
+  const filteredComponents = useMemo(() => {
+    if (!categoryComponents?.components) return [];
+    if (!searchQuery || searchQuery.length < 2) return categoryComponents.components;
     const q = searchQuery.toLowerCase();
-    return (
+    return categoryComponents.components.filter((comp) =>
       comp.part_number?.toLowerCase().includes(q) ||
       comp.manufacturer_pn?.toLowerCase().includes(q) ||
       comp.description?.toLowerCase().includes(q) ||
       comp.category_name?.toLowerCase().includes(q)
     );
-  }) || [];
+  }, [categoryComponents?.components, searchQuery]);
 
-  // Flatten componentFiles grouped data for display
-  const fileEntries = componentFiles?.files
-    ? Object.entries(componentFiles.files).flatMap(([fileType, files]) =>
-        files.map(f => ({ ...f, file_type: fileType }))
-      )
-    : [];
+  // Memoize file entries
+  const fileEntries = useMemo(() => {
+    if (!componentFiles?.files) return [];
+    return Object.entries(componentFiles.files).flatMap(([fileType, files]) =>
+      files.map(f => ({ ...f, file_type: fileType }))
+    );
+  }, [componentFiles?.files]);
 
-  // Group sharing components by file
-  const sharingByFile = {};
-  if (sharingData?.components) {
-    for (const comp of sharingData.components) {
-      const key = `${comp.file_type}:${comp.file_name}`;
-      if (!sharingByFile[key]) sharingByFile[key] = { file_name: comp.file_name, file_type: comp.file_type, components: [] };
-      sharingByFile[key].components.push(comp);
+  // Memoize sharing-by-file grouping
+  const sharingByFile = useMemo(() => {
+    const result = {};
+    if (sharingData?.components) {
+      for (const comp of sharingData.components) {
+        const key = `${comp.file_type}:${comp.file_name}`;
+        if (!result[key]) result[key] = { file_name: comp.file_name, file_type: comp.file_type, components: [] };
+        result[key].components.push(comp);
+      }
     }
-  }
+    return result;
+  }, [sharingData?.components]);
 
   const selectedComp = categoryComponents?.components?.find(c => c.id === selectedComponentId);
+
+  // Virtualizer for component list
+  const rowVirtualizer = useVirtualizer({
+    count: filteredComponents.length,
+    getScrollElement: () => componentListRef.current,
+    estimateSize: () => 56,
+    overscan: 15,
+  });
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
@@ -125,40 +141,46 @@ const CategoryView = ({
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : filteredComponents.length > 0 ? (
-          <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1">
-            {filteredComponents.map((comp) => {
-              const isSelected = selectedComponentId === comp.id;
-              return (
-                <button
-                  key={comp.id}
-                  onClick={() => onComponentSelect(comp.id)}
-                  className={`w-full p-2.5 rounded-lg border text-left transition-colors ${
-                    isSelected
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                      : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{comp.part_number}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {comp.manufacturer_pn || comp.description}
-                        {isAllCategories && comp.category_name && (
-                          <span className="ml-1.5 text-gray-400 dark:text-gray-500">| {comp.category_name}</span>
-                        )}
-                      </p>
-                    </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full shrink-0 ml-2 ${
+          <div ref={componentListRef} className="overflow-y-auto custom-scrollbar flex-1">
+            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const comp = filteredComponents[virtualRow.index];
+                const isSelected = selectedComponentId === comp.id;
+                return (
+                  <button
+                    key={comp.id}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    onClick={() => onComponentSelect(comp.id)}
+                    className={`absolute left-0 w-full p-2.5 rounded-lg border text-left transition-colors ${
                       isSelected
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                    }`}>
-                      {comp.cad_file_count ?? 0}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]'
+                    }`}
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{comp.part_number}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {comp.manufacturer_pn || comp.description}
+                          {isAllCategories && comp.category_name && (
+                            <span className="ml-1.5 text-gray-400 dark:text-gray-500">| {comp.category_name}</span>
+                          )}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-0.5 text-xs rounded-full shrink-0 ml-2 ${
+                        isSelected
+                          ? 'bg-primary-500 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}>
+                        {comp.cad_file_count ?? 0}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">

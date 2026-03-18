@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import {
   ChevronRight,
   FileText,
@@ -7,6 +8,7 @@ import {
   Edit,
   Download,
 } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import StatusBadge from './StatusBadge';
 import { fileTypeLabels } from './constants';
 
@@ -27,7 +29,17 @@ const FileTypesView = ({
   onCopyPath,
   canWrite,
   navigate,
-}) => (
+}) => {
+  const fileListRef = useRef(null);
+
+  const fileVirtualizer = useVirtualizer({
+    count: displayedFiles.length,
+    getScrollElement: () => fileListRef.current,
+    estimateSize: () => 48,
+    overscan: 15,
+  });
+
+  return (
   <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
     {/* Col 1: File type selection sidebar */}
     <div className="lg:col-span-1 flex flex-col gap-4 overflow-hidden">
@@ -94,67 +106,73 @@ const FileTypesView = ({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
       ) : displayedFiles.length > 0 ? (
-        <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1">
-          {displayedFiles.map((file, index) => {
-            const fileName = file.file_name;
-            const count = file.component_count ?? 0;
-            const isSelected = selectedFile === fileName;
-            return (
-              <button
-                key={`${fileName}-${index}`}
-                onClick={() => onSelectFile(fileName)}
-                className={`w-full p-2.5 rounded-lg border text-left transition-colors ${
-                  isSelected
-                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                    : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={fileName}>
-                      {fileName}
-                    </p>
-                    {showOrphans && file.file_type && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fileTypeLabels[file.file_type] || file.file_type}</p>
+        <div ref={fileListRef} className="overflow-y-auto custom-scrollbar flex-1">
+          <div style={{ height: `${fileVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {fileVirtualizer.getVirtualItems().map((virtualRow) => {
+              const file = displayedFiles[virtualRow.index];
+              const fileName = file.file_name;
+              const count = file.component_count ?? 0;
+              const isSelected = selectedFile === fileName;
+              return (
+                <button
+                  key={`${fileName}-${virtualRow.index}`}
+                  data-index={virtualRow.index}
+                  ref={fileVirtualizer.measureElement}
+                  onClick={() => onSelectFile(fileName)}
+                  className={`absolute left-0 w-full p-2.5 rounded-lg border text-left transition-colors ${
+                    isSelected
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                      : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]'
+                  }`}
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={fileName}>
+                        {fileName}
+                      </p>
+                      {showOrphans && file.file_type && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fileTypeLabels[file.file_type] || file.file_type}</p>
+                      )}
+                    </div>
+                    {!showOrphans && (
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCopyPath(fileName);
+                          }}
+                          className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5"
+                          title="Copy file path"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          isSelected
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        }`}>
+                          {count} part{count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
                     )}
-                  </div>
-                  {!showOrphans && (
-                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                    {showOrphans && canWrite() && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onCopyPath(fileName);
+                          onOpenDelete(fileName, selectedType, 0);
                         }}
-                        className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-0.5"
-                        title="Copy file path"
+                        className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1 shrink-0 ml-2"
+                        title="Delete orphan file"
                       >
-                        <Copy className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${
-                        isSelected
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {count} part{count !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  )}
-                  {showOrphans && canWrite() && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenDelete(fileName, selectedType, 0);
-                      }}
-                      className="text-red-500 hover:text-red-700 dark:hover:text-red-300 p-1 shrink-0 ml-2"
-                      title="Delete orphan file"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -251,6 +269,7 @@ const FileTypesView = ({
       )}
     </div>
   </div>
-);
+  );
+};
 
 export default FileTypesView;

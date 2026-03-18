@@ -148,9 +148,10 @@ const Inventory = () => {
   });
 
   // Build set of component IDs from selected project
-  const projectComponentIds = selectedProject && selectedProjectData?.components
-    ? new Set(selectedProjectData.components.map(c => c.component_id).filter(Boolean))
-    : null;
+  const projectComponentIds = useMemo(() => {
+    if (!selectedProject || !selectedProjectData?.components) return null;
+    return new Set(selectedProjectData.components.map(c => c.component_id).filter(Boolean));
+  }, [selectedProject, selectedProjectData?.components]);
 
   // Compute unique locations from inventory data for the location filter
   const locationOptions = useMemo(() => {
@@ -168,54 +169,59 @@ const Inventory = () => {
   }, [inventory]);
 
   // Filter inventory
-  const filteredInventory = inventory?.filter(item => {
-    const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
-    const matchesProject = !projectComponentIds || projectComponentIds.has(item.component_id);
-    const matchesApproval = !selectedApprovalStatus || item.approval_status === selectedApprovalStatus;
-    const matchesLocation = !selectedLocation ||
-      (selectedLocation === '__none__' ? (!item.location || item.location === '') : item.location === selectedLocation);
-
+  const filteredInventory = useMemo(() => {
+    if (!inventory) return [];
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm ||
-      item.part_number?.toLowerCase().includes(searchLower) ||
-      item.manufacturer_pn?.toLowerCase().includes(searchLower) ||
-      item.manufacturer_name?.toLowerCase().includes(searchLower) ||
-      item.description?.toLowerCase().includes(searchLower) ||
-      item.component_id?.toLowerCase().includes(searchLower) ||
-      // Check if any alternative part matches the search
-      (alternativesData[item.component_id]?.some(alt =>
-        alt.manufacturer_pn?.toLowerCase().includes(searchLower) ||
-        alt.manufacturer_name?.toLowerCase().includes(searchLower)
-      ));
-    return matchesCategory && matchesProject && matchesApproval && matchesLocation && matchesSearch;
-  });
+    return inventory.filter(item => {
+      const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
+      const matchesProject = !projectComponentIds || projectComponentIds.has(item.component_id);
+      const matchesApproval = !selectedApprovalStatus || item.approval_status === selectedApprovalStatus;
+      const matchesLocation = !selectedLocation ||
+        (selectedLocation === '__none__' ? (!item.location || item.location === '') : item.location === selectedLocation);
+
+      const matchesSearch = !searchTerm ||
+        item.part_number?.toLowerCase().includes(searchLower) ||
+        item.manufacturer_pn?.toLowerCase().includes(searchLower) ||
+        item.manufacturer_name?.toLowerCase().includes(searchLower) ||
+        item.description?.toLowerCase().includes(searchLower) ||
+        item.component_id?.toLowerCase().includes(searchLower) ||
+        // Check if any alternative part matches the search
+        (alternativesData[item.component_id]?.some(alt =>
+          alt.manufacturer_pn?.toLowerCase().includes(searchLower) ||
+          alt.manufacturer_name?.toLowerCase().includes(searchLower)
+        ));
+      return matchesCategory && matchesProject && matchesApproval && matchesLocation && matchesSearch;
+    });
+  }, [inventory, searchTerm, selectedCategory, projectComponentIds, selectedApprovalStatus, selectedLocation, alternativesData]);
 
   // Sort inventory
-  const sortedInventory = filteredInventory?.slice().sort((a, b) => {
-    let aVal = a[sortBy];
-    let bVal = b[sortBy];
-    
-    // Handle null/undefined values
-    if (aVal == null) aVal = '';
-    if (bVal == null) bVal = '';
-    
-    // Handle numeric fields
-    if (sortBy === 'quantity' || sortBy === 'minimum_quantity') {
-      aVal = Number(aVal) || 0;
-      bVal = Number(bVal) || 0;
-    }
-    
-    // Handle date fields
-    if (sortBy === 'updated_at' || sortBy === 'created_at') {
-      aVal = new Date(aVal).getTime() || 0;
-      bVal = new Date(bVal).getTime() || 0;
-    }
-    
-    // Compare based on sort order
-    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const sortedInventory = useMemo(() => {
+    return filteredInventory.slice().sort((a, b) => {
+      let aVal = a[sortBy];
+      let bVal = b[sortBy];
+
+      // Handle null/undefined values
+      if (aVal == null) aVal = '';
+      if (bVal == null) bVal = '';
+
+      // Handle numeric fields
+      if (sortBy === 'quantity' || sortBy === 'minimum_quantity') {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      }
+
+      // Handle date fields
+      if (sortBy === 'updated_at' || sortBy === 'created_at') {
+        aVal = new Date(aVal).getTime() || 0;
+        bVal = new Date(bVal).getTime() || 0;
+      }
+
+      // Compare based on sort order
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredInventory, sortBy, sortOrder]);
 
 
   // Don't auto-expand rows - let users expand only what they need

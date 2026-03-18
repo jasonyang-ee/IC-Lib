@@ -105,6 +105,7 @@ const FileLibrary = () => {
       const response = await api.getFileTypeStats();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // File storage path for copy-path feature
@@ -125,6 +126,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_FILE_TYPES && !!selectedType && !showOrphans,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Orphan files
@@ -135,6 +137,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_FILE_TYPES && showOrphans,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Components using selected file (File Types view)
@@ -145,6 +148,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_FILE_TYPES && !!selectedFile && !!selectedType && !showOrphans,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Search files
@@ -155,6 +159,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: searchQuery.length > 2,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Categories (for Category view)
@@ -164,6 +169,7 @@ const FileLibrary = () => {
       const response = await api.getCategories();
       return response.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Components in selected category (Category view)
@@ -174,6 +180,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_CATEGORY && !!selectedCategoryId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // CAD files for selected component (Category view)
@@ -184,6 +191,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_CATEGORY && !!selectedComponentId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Components sharing files with selected component (Category view)
@@ -194,6 +202,7 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: viewMode === VIEW_CATEGORY && !!selectedComponentId,
+    staleTime: 5 * 60 * 1000,
   });
 
   // ==============================
