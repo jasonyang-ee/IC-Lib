@@ -2999,7 +2999,7 @@ const Library = () => {
                   <tbody>
                     {rowVirtualizer.getVirtualItems().length > 0 && (
                       <tr style={{ height: `${rowVirtualizer.getTotalSize()}px`, padding: 0 }}>
-                        <td colSpan={bulkDeleteMode ? 5 : 4} style={{ padding: 0, position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}>
+                        <td colSpan={bulkDeleteMode ? 5 : 4} style={{ padding: 0, position: 'relative', height: `${rowVirtualizer.getTotalSize()}px`, verticalAlign: 'top' }}>
                           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                             const component = sortedComponents[virtualRow.index];
                             return (
@@ -3008,7 +3008,7 @@ const Library = () => {
                                 data-index={virtualRow.index}
                                 ref={rowVirtualizer.measureElement}
                                 onClick={() => !bulkDeleteMode && handleComponentClick(component)}
-                                className={`absolute left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
+                                className={`absolute top-0 left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
                                   selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
                                 } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
                                 style={{ transform: `translateY(${virtualRow.start}px)` }}
