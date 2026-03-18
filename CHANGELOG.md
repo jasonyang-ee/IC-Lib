@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.7.0] - 2026-03-17
+
+### Added
+
 - CIS database config (`ICLIB.DBC`) rewritten with corrected field mappings, PropertyTypes, Browse flags, FieldNames, and RelationModel references
 - `alternative_parts` view includes `part_number` from parent component for CIS RelationModel joins
 - CAD file missing-file tracking — `cad_files.missing` column preserves CIS references instead of deleting records
