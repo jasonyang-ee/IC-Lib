@@ -179,17 +179,17 @@ else
     done
 
     # Initialize template files from defaults (preserves admin modifications)
-	for subdir in /app/library/template-defaults/*/; do
-		dirname=$(basename "$subdir")
-		for f in "$subdir"*; do
-			[ -f "$f" ] || continue
-			basename=$(basename "$f")
-			if [ ! -f "/app/library/template/$dirname/$basename" ]; then
-				cp "$f" "/app/library/template/$dirname/$basename"
-				echo "  Initialized template: $dirname/$basename"
-			fi
-		done
-	done
+	# for subdir in /app/library/template-defaults/*/; do
+	# 	dirname=$(basename "$subdir")
+	# 	for f in "$subdir"*; do
+	# 		[ -f "$f" ] || continue
+	# 		basename=$(basename "$f")
+	# 		if [ ! -f "/app/library/template/$dirname/$basename" ]; then
+	# 			cp "$f" "/app/library/template/$dirname/$basename"
+	# 			echo "  Initialized template: $dirname/$basename"
+	# 		fi
+	# 	done
+	# done
 
     # Start nginx
     nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
