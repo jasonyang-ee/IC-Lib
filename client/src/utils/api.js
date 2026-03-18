@@ -226,19 +226,13 @@ export const api = {
   // CIS Config & Label Templates
   getLabelTemplates: () => apiClient.get('/settings/label-templates'),
 
-  // Category Specifications (New Schema)
+  // Category Specifications
   getCategorySpecifications: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
   createCategorySpecification: (categoryId, data) => apiClient.post(`/settings/categories/${categoryId}/specifications`, data),
   updateCategorySpecification: (id, data) => apiClient.put(`/settings/specifications/${id}`, data),
   deleteCategorySpecification: (id) => apiClient.delete(`/settings/specifications/${id}`),
   reorderCategorySpecifications: (categoryId, data) => apiClient.put(`/settings/categories/${categoryId}/specifications/reorder`, data),
-  
-  // Specification Templates (Legacy - kept for backward compatibility)
-  getSpecificationTemplates: (categoryId) => apiClient.get(`/settings/categories/${categoryId}/specifications`),
-  createSpecificationTemplate: (data) => apiClient.post('/specification-templates', data),
-  updateSpecificationTemplate: (id, data) => apiClient.put(`/specification-templates/${id}`, data),
-  deleteSpecificationTemplate: (id) => apiClient.delete(`/specification-templates/${id}`),
-  
+
   // Export/Import Settings
   exportAllSettings: () => apiClient.post('/settings/export'),
   importAllSettings: (data) => apiClient.post('/settings/import', { data }),
@@ -257,11 +251,7 @@ export const api = {
   deletePartsData: (confirm) => apiClient.post('/settings/database/delete-parts', { confirm }),
   deleteLibraryFiles: (confirm) => apiClient.post('/settings/database/delete-library-files', { confirm }),
   deleteUserRecords: (confirm) => apiClient.post('/settings/database/delete-users', { confirm }),
-  
-  // Legacy Admin endpoints (if still needed)
-  getDatabaseStats: () => apiClient.get('/admin/stats'),
-  verifyCISCompliance: () => apiClient.get('/admin/verify-cis'),
-  
+
   // Projects
   getProjects: () => apiClient.get('/projects'),
   getProjectById: (id) => apiClient.get(`/projects/${id}`),
@@ -307,10 +297,6 @@ export const api = {
   },
   
   // File Upload
-  uploadComponentFiles: (mfgPartNumber, formData) => 
-    apiClient.post(`/files/upload/${encodeURIComponent(mfgPartNumber)}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    }),
   uploadTempFiles: (formData) =>
     apiClient.post('/files/upload-temp', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -319,10 +305,6 @@ export const api = {
   cleanupTempFiles: (data) => apiClient.post('/files/cleanup-temp', data),
   restoreDeletedFiles: (files) => apiClient.post('/files/restore-deleted', { files }),
   confirmDeleteFiles: (tempFilenames) => apiClient.post('/files/confirm-delete', { tempFilenames }),
-  uploadPassiveFiles: (formData) =>
-    apiClient.post('/files/upload-passive', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    }),
   listComponentFiles: (mfgPartNumber) => 
     apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
   deleteComponentFile: (category, mfgPartNumber, filename) =>
@@ -342,7 +324,6 @@ export const api = {
   searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
   deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
-  checkFileCollision: (category, filename) => apiClient.get(`/files/check-collision/${category}/${encodeURIComponent(filename)}`),
   checkCollisionsBatch: (files) => apiClient.post('/files/check-collisions-batch', { files }),
 
   // File Library - CAD Files (new junction-based)

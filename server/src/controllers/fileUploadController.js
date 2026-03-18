@@ -50,8 +50,8 @@ const CATEGORY_TO_COLUMN = {
   pad: 'pad_file',
 };
 
-// Passive component categories that can share files
-const PASSIVE_CATEGORIES = ['Capacitors', 'Resistors', 'Inductors'];
+// Valid CAD file categories (excludes 'libraries' which is for ZIPs)
+const VALID_CAD_CATEGORIES = new Set(['footprint', 'symbol', 'model', 'pspice', 'pad']);
 
 // Multer storage configuration
 const storage = multer.diskStorage({
@@ -186,14 +186,10 @@ async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
   const dbColumn = CATEGORY_TO_COLUMN[category];
   if (!dbColumn) return;
 
-  // Map upload category to cad_files file_type
-  const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-  const fileType = fileTypeMap[category];
-
   try {
-    if (fileType) {
-      const cadFile = await cadFileService.registerCadFile(filename, fileType);
-      await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, fileType, filename);
+    if (VALID_CAD_CATEGORIES.has(category)) {
+      const cadFile = await cadFileService.registerCadFile(filename, category);
+      await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, category, filename);
     }
   } catch (error) {
     console.error(`[FileUpload] Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
@@ -307,126 +303,6 @@ function extractSmartZipToTemp(zipPath) {
 }
 
 /**
- * Detect and extract ZIP file from popular EDA tool providers
- * Files are stored in flat structure (no MPN subdirectory)
- */
-function extractSmartZip(zipPath, _mfgPartNumber) {
-  const zip = new AdmZip(zipPath);
-  const entries = zip.getEntries();
-  const extractedFiles = [];
-  const collisions = [];
-  const seenFiles = new Set(); // Deduplicate by category:filename
-  const zipFilename = path.basename(zipPath).toLowerCase();
-
-  // Analyze ZIP structure to detect source (check both entry names and ZIP filename)
-  const filenames = entries.map(e => e.entryName.toLowerCase());
-
-  let source = 'unknown';
-  if (filenames.some(f => f.includes('ultralibrarian') || f.includes('ul_')) || zipFilename.includes('ul_')) {
-    source = 'ultralibrarian';
-  } else if (filenames.some(f => f.includes('snapeda')) || zipFilename.includes('snapeda')) {
-    source = 'snapeda';
-  } else if (filenames.some(f => f.includes('samacsys') || f.includes('component_search_engine')) || zipFilename.includes('samacsys') || zipFilename.startsWith('lib_')) {
-    source = 'samacsys';
-  }
-
-  console.log(`[FileUpload] Detected ZIP source: ${source}`);
-
-  // File extensions that are valid EDA files (used to filter path-based matches)
-  const validEDAExtensions = new Set([
-    '.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra',
-    '.pad', '.plb',
-    '.olb', '.lib', '.kicad_sym', '.bsm', '.schlib', '.edf',
-    '.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t',
-    '.cir', '.sub', '.inc', '.mod',
-    '.dcm', '.asc', '.hkp',
-  ]);
-
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
-
-    const entryName = entry.entryName;
-    let filename = path.basename(entryName);
-    const ext = path.extname(filename).toLowerCase();
-
-    // Lowercase file extension for consistency
-    const rawExt = path.extname(filename);
-    if (rawExt !== rawExt.toLowerCase()) {
-      filename = filename.substring(0, filename.length - rawExt.length) + rawExt.toLowerCase();
-    }
-
-    // Skip hidden files, macOS metadata, and non-EDA files (scripts, docs, etc.)
-    if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
-    if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
-
-    // Determine category based on extension
-    let category = getFileCategory(filename);
-
-    // Additional path-based detection for files not matched by extension
-    // Only apply if the file has a valid EDA extension
-    const lowerPath = entryName.toLowerCase();
-    if (!category && validEDAExtensions.has(ext)) {
-      if (lowerPath.includes('footprint') || lowerPath.includes('pcbfootprint') || (lowerPath.includes('pcb') && !lowerPath.includes('pcblib'))) {
-        category = 'footprint';
-      } else if (lowerPath.includes('symbol') || lowerPath.includes('schematic') || lowerPath.includes('capture')) {
-        category = 'symbol';
-      } else if (lowerPath.includes('3d') || lowerPath.includes('step') || lowerPath.includes('model')) {
-        category = 'model';
-      } else if (lowerPath.includes('spice') || lowerPath.includes('simulation')) {
-        category = 'pspice';
-      } else if (lowerPath.includes('padstack')) {
-        category = 'pad';
-      }
-    }
-
-    if (category) {
-      // .psm files are always fully lowercase
-      if (ext === '.psm') {
-        filename = filename.toLowerCase();
-      }
-
-      // Skip duplicate files (same filename+category from different subdirs in ZIP)
-      const dedupeKey = `${category}:${filename.toLowerCase()}`;
-      if (seenFiles.has(dedupeKey)) continue;
-      seenFiles.add(dedupeKey);
-
-      const config = FILE_CATEGORIES[category];
-      // Flat storage: no MPN subdirectory
-      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
-      const targetPath = path.join(targetDir, filename);
-
-      // Check for collision in flat directory
-      if (fs.existsSync(targetPath)) {
-        collisions.push({ category, filename, source });
-        continue;
-      }
-
-      // Extract file directly to flat directory
-      zip.extractEntryTo(entry, targetDir, false, true);
-      // Rename from original to lowercase extension if needed
-      const originalExtractedName = path.basename(entryName);
-      if (originalExtractedName !== filename) {
-        const originalPath = path.join(targetDir, originalExtractedName);
-        if (fs.existsSync(originalPath)) {
-          fs.renameSync(originalPath, targetPath);
-        }
-      }
-      extractedFiles.push({
-        category,
-        filename,
-        path: targetPath,
-        source,
-      });
-    }
-  }
-
-  // Clean up the zip file
-  fs.unlinkSync(zipPath);
-
-  return { extractedFiles, collisions };
-}
-
-/**
  * Upload files to temp directory (no MPN required).
  * Files stay in library/temp/ until finalized or cleaned up.
  */
@@ -515,7 +391,6 @@ export async function finalizeTempFile(req, res) {
     }
 
     const results = [];
-    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
 
     // Process temp files (move from temp to category directory)
     if (hasFiles) {
@@ -539,8 +414,7 @@ export async function finalizeTempFile(req, res) {
             filename = filename.toLowerCase();
           }
           fs.unlinkSync(tempPath);
-          const fileType = fileTypeMap[category];
-          if (mfgPartNumber && fileType) {
+          if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
             await autoLinkFileToComponent(category, filename, mfgPartNumber);
           }
           results.push({ filename, type: category, collision: true, linked: true });
@@ -558,13 +432,11 @@ export async function finalizeTempFile(req, res) {
         const filename = moveResult.filename;
 
         // Register in DB and optionally link to component
-        const fileType = fileTypeMap[category];
-
-        if (mfgPartNumber && fileType) {
+        if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
           await autoLinkFileToComponent(category, filename, mfgPartNumber);
-        } else if (fileType) {
+        } else if (VALID_CAD_CATEGORIES.has(category)) {
           try {
-            await cadFileService.registerCadFile(filename, fileType);
+            await cadFileService.registerCadFile(filename, category);
           } catch (err) {
             console.error(`[FileUpload] Failed to register ${filename}: ${err.message}`);
           }
@@ -581,8 +453,7 @@ export async function finalizeTempFile(req, res) {
     // Process collision files (already exist on disk — register in DB and link to component)
     if (hasCollisions && mfgPartNumber) {
       for (const { filename, category } of collisions) {
-        const fileType = fileTypeMap[category];
-        if (!fileType) continue;
+        if (!VALID_CAD_CATEGORIES.has(category)) continue;
 
         try {
           await autoLinkFileToComponent(category, filename, mfgPartNumber);
@@ -626,224 +497,6 @@ export async function cleanupTempFiles(req, res) {
   } catch (error) {
     console.error('Error cleaning up temp files:', error);
     res.status(500).json({ error: 'Failed to cleanup temp files' });
-  }
-}
-
-/**
- * Upload files for a component
- */
-export async function uploadFile(req, res) {
-  try {
-    const { mfgPartNumber } = req.params;
-    const { category: explicitCategory } = req.body;
-
-    if (!mfgPartNumber) {
-      return res.status(400).json({ error: 'Manufacturer part number is required' });
-    }
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    const results = [];
-
-    for (const file of req.files) {
-      const ext = path.extname(file.originalname).toLowerCase();
-
-      // Handle ZIP files
-      if (ext === '.zip') {
-        try {
-          const { extractedFiles, collisions } = extractSmartZip(file.path, mfgPartNumber);
-
-          // Auto-link extracted files to component
-          for (const ef of extractedFiles) {
-            await autoLinkFileToComponent(ef.category, ef.filename, mfgPartNumber);
-          }
-
-          // Auto-link collision files (already exist on disk) to component
-          for (const col of collisions) {
-            await autoLinkFileToComponent(col.category, col.filename, mfgPartNumber);
-          }
-
-          results.push({
-            originalName: file.originalname,
-            type: 'archive',
-            extracted: extractedFiles,
-            filesExtracted: extractedFiles.length,
-            collisions: collisions.length > 0 ? collisions : undefined,
-          });
-        } catch (error) {
-          console.error('Error extracting ZIP:', error);
-          // If extraction fails, try to move as library file
-          const moveResult = moveToCategory(file.path, 'libraries');
-          results.push({
-            originalName: file.originalname,
-            type: 'library',
-            path: moveResult?.path,
-            error: 'Could not extract, saved as library file',
-          });
-        }
-      } else {
-        // Regular file - determine category
-        const category = explicitCategory || getFileCategory(file.originalname);
-
-        if (!category) {
-          // Clean up and report error for this file
-          fs.unlinkSync(file.path);
-          results.push({
-            originalName: file.originalname,
-            error: 'Unknown file type',
-            supported: Object.values(FILE_CATEGORIES).flatMap(c => c.extensions),
-          });
-          continue;
-        }
-
-        const moveResult = moveToCategory(file.path, category);
-
-        if (moveResult?.collision) {
-          // Auto-link the existing file to the component even on collision
-          await autoLinkFileToComponent(category, moveResult.filename, mfgPartNumber);
-
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            filename: moveResult.filename,
-            collision: true,
-          });
-        } else {
-          // Auto-link to component
-          await autoLinkFileToComponent(category, moveResult.filename, mfgPartNumber);
-
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            path: moveResult.path,
-            filename: moveResult.filename,
-          });
-        }
-      }
-    }
-
-    res.json({
-      message: 'Files processed successfully',
-      mfgPartNumber,
-      results,
-    });
-  } catch (error) {
-    console.error('Error uploading files:', error);
-    res.status(500).json({ error: 'Failed to process uploaded files' });
-  }
-}
-
-/**
- * Upload shared passive component files (resistor, capacitor, inductor)
- * Files are stored in flat structure
- */
-export async function uploadPassiveFile(req, res) {
-  try {
-    const { value, packageSize, category: componentCategory } = req.body;
-
-    if (!value || !packageSize) {
-      return res.status(400).json({ error: 'Value and package size are required for passive components' });
-    }
-
-    // Verify it's a passive component category
-    if (!PASSIVE_CATEGORIES.includes(componentCategory)) {
-      return res.status(400).json({
-        error: 'This endpoint is only for passive components (Capacitors, Resistors, Inductors)',
-      });
-    }
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    const results = [];
-
-    for (const file of req.files) {
-      const ext = path.extname(file.originalname).toLowerCase();
-
-      // Handle ZIP files
-      if (ext === '.zip') {
-        try {
-          const { extractedFiles, collisions } = extractSmartZip(file.path, '');
-          results.push({
-            originalName: file.originalname,
-            type: 'archive',
-            extracted: extractedFiles,
-            filesExtracted: extractedFiles.length,
-            collisions: collisions.length > 0 ? collisions : undefined,
-          });
-        } catch (error) {
-          console.error('Error extracting ZIP:', error);
-          fs.unlinkSync(file.path);
-          results.push({
-            originalName: file.originalname,
-            error: 'Failed to extract archive',
-          });
-        }
-      } else {
-        // Regular file
-        const category = getFileCategory(file.originalname);
-
-        if (!category) {
-          fs.unlinkSync(file.path);
-          results.push({
-            originalName: file.originalname,
-            error: 'Unknown file type',
-          });
-          continue;
-        }
-
-        const moveResult = moveToCategory(file.path, category);
-        if (moveResult?.collision) {
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            error: `File "${moveResult.filename}" already exists.`,
-            collision: true,
-          });
-        } else {
-          results.push({
-            originalName: file.originalname,
-            type: category,
-            path: moveResult.path,
-            filename: moveResult.filename,
-          });
-        }
-      }
-    }
-
-    res.json({
-      message: 'Passive component files processed successfully',
-      value,
-      packageSize,
-      results,
-    });
-  } catch (error) {
-    console.error('Error uploading passive files:', error);
-    res.status(500).json({ error: 'Failed to process uploaded files' });
-  }
-}
-
-/**
- * Check if a file exists in the flat directory (collision check)
- */
-export function checkCollision(req, res) {
-  try {
-    const { category, filename } = req.params;
-    const config = FILE_CATEGORIES[category];
-    if (!config) {
-      return res.status(400).json({ error: 'Invalid category' });
-    }
-
-    const filePath = path.join(LIBRARY_BASE, config.subdir, filename);
-    const exists = fs.existsSync(filePath);
-
-    res.json({ exists, filename, category });
-  } catch (error) {
-    console.error('Error checking collision:', error);
-    res.status(500).json({ error: 'Failed to check file collision' });
   }
 }
 
@@ -1076,11 +729,9 @@ export async function renameFile(req, res) {
 
     // Update cad_files table and regenerate TEXT columns
     // (Physical rename already done above; just update DB record)
-    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-    const fileType = fileTypeMap[category];
-    if (fileType) {
+    if (VALID_CAD_CATEGORIES.has(category)) {
       try {
-        const cadFile = await cadFileService.findCadFile(oldFilename, fileType);
+        const cadFile = await cadFileService.findCadFile(oldFilename, category);
         if (cadFile) {
           const subdir = config.subdir;
           await pool.query(`
@@ -1090,7 +741,7 @@ export async function renameFile(req, res) {
           // Regenerate TEXT columns for affected components
           const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
           for (const comp of affected) {
-            await cadFileService.regenerateCadText(comp.id, fileType);
+            await cadFileService.regenerateCadText(comp.id, category);
           }
         }
       } catch (dbError) {
@@ -1127,13 +778,10 @@ export async function deleteFile(req, res) {
       return res.status(400).json({ error: 'Invalid category' });
     }
 
-    const fileTypeMap = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-    const fileType = fileTypeMap[category];
-
     // Check if this file is shared (linked to multiple components)
-    if (fileType) {
+    if (VALID_CAD_CATEGORIES.has(category)) {
       try {
-        const cadFile = await cadFileService.findCadFile(filename, fileType);
+        const cadFile = await cadFileService.findCadFile(filename, category);
         if (cadFile) {
           const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
           const linkCount = linkedComponents.length;
@@ -1147,7 +795,7 @@ export async function deleteFile(req, res) {
             const componentId = compResult.rows[0]?.id;
 
             if (componentId) {
-              await cadFileService.unlinkCadFileFromComponent(cadFile.id, componentId, fileType, filename);
+              await cadFileService.unlinkCadFileFromComponent(cadFile.id, componentId, category, filename);
             }
 
             return res.json({
@@ -1186,14 +834,14 @@ export async function deleteFile(req, res) {
     }
 
     // Remove from cad_files table and regenerate TEXT columns
-    if (fileType) {
+    if (VALID_CAD_CATEGORIES.has(category)) {
       try {
-        const cadFile = await cadFileService.findCadFile(filename, fileType);
+        const cadFile = await cadFileService.findCadFile(filename, category);
         if (cadFile) {
           const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
           await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFile.id]);
           for (const comp of affected) {
-            await cadFileService.regenerateCadText(comp.id, fileType);
+            await cadFileService.regenerateCadText(comp.id, category);
           }
         }
       } catch (dbError) {

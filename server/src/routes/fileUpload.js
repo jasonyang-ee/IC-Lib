@@ -5,9 +5,6 @@ import {
   uploadTempFile,
   finalizeTempFile,
   cleanupTempFiles,
-  uploadFile,
-  uploadPassiveFile,
-  checkCollision,
   checkCollisionsBatch,
   listFiles,
   renameFile,
@@ -28,15 +25,6 @@ router.post('/finalize-temp', authenticate, canWrite, finalizeTempFile);
 
 // Cleanup temp files — delete staged files that were not finalized (cancel flow)
 router.post('/cleanup-temp', authenticate, canWrite, cleanupTempFiles);
-
-// Upload files for a component
-router.post('/upload/:mfgPartNumber', authenticate, canWrite, upload.array('files', 20), uploadFile);
-
-// Upload shared passive component files (resistor, capacitor, inductor)
-router.post('/upload-passive', authenticate, canWrite, upload.array('files', 20), uploadPassiveFile);
-
-// Check if a file exists in the flat directory (collision check)
-router.get('/check-collision/:category/:filename', authenticate, checkCollision);
 
 // Batch collision check — check multiple files at save time
 router.post('/check-collisions-batch', authenticate, checkCollisionsBatch);

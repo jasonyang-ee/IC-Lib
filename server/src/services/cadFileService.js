@@ -147,30 +147,6 @@ export async function getCadFilesByType(fileType) {
 }
 
 /**
- * Get file type statistics (counts per type).
- */
-export async function getCadFileStats() {
-  const result = await pool.query(`
-    SELECT
-      cf.file_type,
-      COUNT(DISTINCT cf.id) as file_count,
-      COUNT(DISTINCT ccf.component_id) as component_count
-    FROM cad_files cf
-    LEFT JOIN component_cad_files ccf ON cf.id = ccf.cad_file_id
-    GROUP BY cf.file_type
-    ORDER BY cf.file_type
-  `);
-
-  const stats = {
-    footprint: 0, symbol: 0, model: 0, pspice: 0, pad: 0,
-  };
-  for (const row of result.rows) {
-    stats[row.file_type] = parseInt(row.file_count) || 0;
-  }
-  return stats;
-}
-
-/**
  * Get all components that use a specific CAD file.
  */
 export async function getComponentsByCadFile(cadFileId) {
@@ -209,26 +185,6 @@ export async function getComponentsByFileName(fileName, fileType) {
   }
 
   return [];
-}
-
-/**
- * Get all CAD files linked to a specific component.
- */
-export async function getCadFilesForComponent(componentId) {
-  const result = await pool.query(`
-    SELECT
-      cf.id,
-      cf.file_name,
-      cf.file_type,
-      cf.file_path,
-      cf.file_size,
-      created_at(cf.id) as created_at
-    FROM component_cad_files ccf
-    JOIN cad_files cf ON ccf.cad_file_id = cf.id
-    WHERE ccf.component_id = $1
-    ORDER BY cf.file_type, cf.file_name
-  `, [componentId]);
-  return result.rows;
 }
 
 /**
@@ -653,10 +609,8 @@ export default {
   linkCadFileToComponentByMPN,
   unlinkCadFileFromComponent,
   getCadFilesByType,
-  getCadFileStats,
   getComponentsByCadFile,
   getComponentsByFileName,
-  getCadFilesForComponent,
   renameCadFile,
   deleteCadFile,
   getOrphanCadFiles,

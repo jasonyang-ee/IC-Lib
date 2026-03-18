@@ -14,6 +14,54 @@ import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRigh
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 
+const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+
+/**
+ * Normalize distributor rows to always have 4 entries in standard order,
+ * merging any existing data from the component's saved distributors.
+ */
+function normalizeDistributors(existingDistributors = [], allDistributors) {
+  return DISTRIBUTOR_ORDER.map(distName => {
+    const dist = allDistributors?.find(d => d.name === distName);
+    const existing = existingDistributors?.find(d => {
+      if (!d || !d.distributor_id) return false;
+      const existingDistName = allDistributors?.find(distObj => distObj.id === d.distributor_id)?.name;
+      return existingDistName === distName;
+    });
+    return {
+      distributor_id: dist?.id || null,
+      distributor_name: distName,
+      sku: existing?.sku || '',
+      url: existing?.url || '',
+    };
+  });
+}
+
+/**
+ * Build the 4-slot distributor edit rows by merging a component's saved distributors
+ * with the standard defaults.
+ */
+function buildEditDistributors(componentDistributors = [], allDistributors) {
+  const existingDistMap = new Map();
+  componentDistributors.forEach(dist => {
+    if (dist.distributor_name) existingDistMap.set(dist.distributor_name, dist);
+  });
+  return DISTRIBUTOR_ORDER.map(name => {
+    const existing = existingDistMap.get(name);
+    const dist = allDistributors?.find(d => d.name === name);
+    return {
+      id: existing?.id || undefined,
+      distributor_id: dist?.id || '',
+      distributor_name: name,
+      sku: existing?.sku || '',
+      url: existing?.url || '',
+      in_stock: existing?.in_stock || false,
+      stock_quantity: existing?.stock_quantity || 0,
+      price_breaks: existing?.price_breaks || [],
+    };
+  });
+}
+
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
   const location = useLocation();
@@ -564,28 +612,6 @@ const Library = () => {
   // Update alternatives and selected alternative when data changes
   // Include the primary component from components table as the first alternative
   useEffect(() => {
-    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
-    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    
-    // Helper function to normalize distributors to always have 4 in correct order
-    const normalizeDistributors = (existingDistributors = []) => {
-      return distributorOrder.map(distName => {
-        const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors?.find(d => {
-          if (!d || !d.distributor_id) return false;
-          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
-          return existingDistName === distName;
-        });
-        
-        return {
-          distributor_id: dist?.id || null,
-          distributor_name: distName,
-          sku: existing?.sku || '',
-          url: existing?.url || ''
-        };
-      });
-    };
-    
     if (selectedComponent && !isAddMode) {
       // Create primary alternative from component data
       const primaryAlternative = {
@@ -611,7 +637,7 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            distributors: normalizeDistributors(alt.distributors)
+            distributors: normalizeDistributors(alt.distributors, distributors)
           }))
         }));
       }
@@ -774,33 +800,8 @@ const Library = () => {
     }
     
     // Always show all 4 supported distributors in edit mode
-    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    const existingDistributors = componentDetails?.distributors || [];
-    
-    // Create a map of existing distributors by name
-    const existingDistMap = new Map();
-    existingDistributors.forEach(dist => {
-      if (dist.distributor_name) {
-        existingDistMap.set(dist.distributor_name, dist);
-      }
-    });
-    
-    // Merge: always show all 4 distributors with existing values or empty
-    const editDistributors = defaultDistributorNames.map(name => {
-      const existing = existingDistMap.get(name);
-      const dist = distributors?.find(d => d.name === name);
-      return {
-        id: existing?.id || undefined, // Keep existing ID if updating
-        distributor_id: dist?.id || '',
-        distributor_name: name,
-        sku: existing?.sku || '',
-        url: existing?.url || '',
-        in_stock: existing?.in_stock || false,
-        stock_quantity: existing?.stock_quantity || 0,
-        price_breaks: existing?.price_breaks || []
-      };
-    });
-    
+    const editDistributors = buildEditDistributors(componentDetails?.distributors || [], distributors);
+
     // Fetch all category specifications and merge with existing component specifications
     let editSpecifications = componentDetails?.specifications || [];
     if (componentDetails?.category_id) {
@@ -838,28 +839,6 @@ const Library = () => {
       }
     }
     
-    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
-    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    
-    // Helper function to normalize alternative distributors to always have 4 in correct order
-    const normalizeDistributors = (existingDistributors = []) => {
-      return distributorOrder.map(distName => {
-        const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors?.find(d => {
-          if (!d || !d.distributor_id) return false;
-          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
-          return existingDistName === distName;
-        });
-        
-        return {
-          distributor_id: dist?.id || null,
-          distributor_name: distName,
-          sku: existing?.sku || '',
-          url: existing?.url || ''
-        };
-      });
-    };
-    
     // Map all fields properly for editing, including alternatives
     setEditData({
       ...componentDetails,
@@ -879,7 +858,7 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            distributors: normalizeDistributors(alt.distributors)
+            distributors: normalizeDistributors(alt.distributors, distributors)
           }))
         : [],
       // Vendor data loads asynchronously via setEditData update
@@ -890,6 +869,47 @@ const Library = () => {
     // This prevents the form from rendering with empty data
     setIsEditMode(true);
     setIsAddMode(false);
+  };
+
+  /**
+   * Finalize temp files and confirm soft-deletes.
+   * Returns false if interrupted by conflict resolution modal (caller should return early).
+   */
+  const finalizeFiles = async (callerName) => {
+    if (tempFiles.length > 0) {
+      const preResolved = resolvedConflicts.current;
+      resolvedConflicts.current = null;
+
+      if (!preResolved) {
+        const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+        const collisions = collisionResponse.data?.collisions || [];
+        if (collisions.length > 0) {
+          pendingSaveCallback.current = callerName;
+          setFileConflictModal({ show: true, conflicts: collisions });
+          return false;
+        }
+      }
+
+      const collisionSet = preResolved
+        ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
+        : null;
+
+      await api.finalizeTempFiles({
+        files: tempFiles.map(f => ({
+          tempFilename: f.tempFilename,
+          category: f.category,
+          resolution: collisionSet?.get(f.tempFilename),
+        })),
+        mfgPartNumber: editData.manufacturer_pn,
+      });
+      setTempFiles([]);
+    }
+
+    if (deletedFiles.length > 0) {
+      await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
+      setDeletedFiles([]);
+    }
+    return true;
   };
 
   const handleSave = async () => {
@@ -930,46 +950,9 @@ const Library = () => {
           }
         }
 
-        // Finalize temp files before saving component
-        if (tempFiles.length > 0) {
-          // Check if we have pre-resolved conflict resolutions from the modal
-          const preResolved = resolvedConflicts.current;
-          resolvedConflicts.current = null;
-
-          if (!preResolved) {
-            // First pass: check for save-time collisions
-            const collisionResponse = await api.checkCollisionsBatch(tempFiles);
-            const collisions = collisionResponse.data?.collisions || [];
-
-            if (collisions.length > 0) {
-              // Store which save function to re-call after resolution
-              pendingSaveCallback.current = 'handleSave';
-              setFileConflictModal({ show: true, conflicts: collisions });
-              return;
-            }
-          }
-
-          // Build finalize payload with resolutions (if any)
-          const collisionSet = preResolved
-            ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
-            : null;
-
-          await api.finalizeTempFiles({
-            files: tempFiles.map(f => ({
-              tempFilename: f.tempFilename,
-              category: f.category,
-              resolution: collisionSet?.get(f.tempFilename),
-            })),
-            mfgPartNumber: editData.manufacturer_pn,
-          });
-          setTempFiles([]);
-        }
-
-        // Confirm-delete soft-deleted files (permanently remove from temp)
-        if (deletedFiles.length > 0) {
-          await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
-          setDeletedFiles([]);
-        }
+        // Finalize temp files and confirm soft-deletes
+        const canContinue = await finalizeFiles('handleSave');
+        if (!canContinue) return;
 
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
@@ -1228,31 +1211,8 @@ const Library = () => {
     }
     
     // Always show all 4 supported distributors in ECO mode
-    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    const existingDistributors = componentDetails?.distributors || [];
-    
-    const existingDistMap = new Map();
-    existingDistributors.forEach(dist => {
-      if (dist.distributor_name) {
-        existingDistMap.set(dist.distributor_name, dist);
-      }
-    });
-    
-    const editDistributors = defaultDistributorNames.map(name => {
-      const existing = existingDistMap.get(name);
-      const dist = distributors?.find(d => d.name === name);
-      return {
-        id: existing?.id || undefined,
-        distributor_id: dist?.id || '',
-        distributor_name: name,
-        sku: existing?.sku || '',
-        url: existing?.url || '',
-        in_stock: existing?.in_stock || false,
-        stock_quantity: existing?.stock_quantity || 0,
-        price_breaks: existing?.price_breaks || []
-      };
-    });
-    
+    const editDistributors = buildEditDistributors(componentDetails?.distributors || [], distributors);
+
     // Fetch category specifications and merge with existing
     let editSpecifications = componentDetails?.specifications || [];
     if (componentDetails?.category_id) {
@@ -1285,28 +1245,7 @@ const Library = () => {
         console.error('[ECO] Error fetching category specifications:', error);
       }
     }
-    
-    // Define the standard distributor order for alternatives
-    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    
-    const normalizeDistributors = (existingDistributors = []) => {
-      return distributorOrder.map(distName => {
-        const dist = distributors?.find(d => d.name === distName);
-        const existing = existingDistributors?.find(d => {
-          if (!d || !d.distributor_id) return false;
-          const existingDistName = distributors?.find(distObj => distObj.id === d.distributor_id)?.name;
-          return existingDistName === distName;
-        });
-        
-        return {
-          distributor_id: dist?.id || null,
-          distributor_name: distName,
-          sku: existing?.sku || '',
-          url: existing?.url || ''
-        };
-      });
-    };
-    
+
     // Populate editData with all component details including alternatives
     const preparedData = {
       ...componentDetails,
@@ -1320,7 +1259,7 @@ const Library = () => {
             id: alt.id,
             manufacturer_id: alt.manufacturer_id,
             manufacturer_pn: alt.manufacturer_pn,
-            distributors: normalizeDistributors(alt.distributors)
+            distributors: normalizeDistributors(alt.distributors, distributors)
           }))
         : [],
       _vendorSearchData: vendorDataReference
@@ -1613,19 +1552,7 @@ const Library = () => {
     // Reset manufacturer input for type-ahead
     setManufacturerInput('');
     setAltManufacturerInputs({});
-    
-    // Prepare default distributors with IDs
-    const defaultDistributorNames = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    const defaultDistributors = distributors ? defaultDistributorNames.map(name => {
-      const dist = distributors.find(d => d.name === name);
-      return {
-        distributor_id: dist?.id || '',
-        distributor_name: name,
-        sku: '',
-        url: ''
-      };
-    }) : [];
-    
+
     setEditData({
       category_id: '',
       part_number: '', // Will be auto-generated based on category
@@ -1646,7 +1573,7 @@ const Library = () => {
       datasheet_url: '',
       approval_status: 'new', // Default to new for new parts
       specifications: [], // Array of {spec_name, spec_value, unit}
-      distributors: defaultDistributors, // Default four distributors with IDs
+      distributors: normalizeDistributors([], distributors), // Default four distributors with IDs
       alternatives: [], // Initialize empty alternatives array
     });
   };
@@ -2053,46 +1980,9 @@ const Library = () => {
       }
 
       if (editData.category_id && editData.part_number) {
-        // Finalize temp files before creating component
-        if (tempFiles.length > 0) {
-          // Check if we have pre-resolved conflict resolutions from the modal
-          const preResolved = resolvedConflicts.current;
-          resolvedConflicts.current = null;
-
-          if (!preResolved) {
-            // First pass: check for save-time collisions
-            const collisionResponse = await api.checkCollisionsBatch(tempFiles);
-            const collisions = collisionResponse.data?.collisions || [];
-
-            if (collisions.length > 0) {
-              // Store which save function to re-call after resolution
-              pendingSaveCallback.current = 'handleConfirmAdd';
-              setFileConflictModal({ show: true, conflicts: collisions });
-              return;
-            }
-          }
-
-          // Build finalize payload with resolutions (if any)
-          const collisionSet = preResolved
-            ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
-            : null;
-
-          await api.finalizeTempFiles({
-            files: tempFiles.map(f => ({
-              tempFilename: f.tempFilename,
-              category: f.category,
-              resolution: collisionSet?.get(f.tempFilename),
-            })),
-            mfgPartNumber: editData.manufacturer_pn,
-          });
-          setTempFiles([]);
-        }
-
-        // Confirm-delete soft-deleted files (permanently remove from temp)
-        if (deletedFiles.length > 0) {
-          await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
-          setDeletedFiles([]);
-        }
+        // Finalize temp files and confirm soft-deletes
+        const canContinue = await finalizeFiles('handleConfirmAdd');
+        if (!canContinue) return;
 
         // Extract specifications and distributors from editData
         const { specifications, distributors, ...componentData } = editData;
@@ -2540,20 +2430,6 @@ const Library = () => {
 
   // Alternative Parts Management Handlers
   const handleAddAlternative = () => {
-    // Define the standard distributor order: Digikey, Mouser, Arrow, Newark
-    const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
-    
-    // Initialize with 4 predefined distributor rows in specific order
-    const defaultDistributors = distributorOrder.map(distName => {
-      const dist = distributors?.find(d => d.name === distName);
-      return {
-        distributor_id: dist?.id || null,
-        distributor_name: distName,
-        sku: '',
-        url: ''
-      };
-    });
-    
     setEditData((prev) => ({
       ...prev,
       alternatives: [
@@ -2561,7 +2437,7 @@ const Library = () => {
         {
           manufacturer_id: '',
           manufacturer_pn: '',
-          distributors: defaultDistributors
+          distributors: normalizeDistributors([], distributors)
         }
       ]
     }));

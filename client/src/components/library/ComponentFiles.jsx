@@ -28,6 +28,72 @@ const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: '3D STEP Model' 
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
 const normalizeExt = (filename) => filename.replace(/\.[^.]+$/, m => m.toLowerCase());
 
+/**
+ * Iterate over all individual upload results (regular + extracted from archives).
+ * Calls `fn({ category, filename, tempFilename, type })` for each file.
+ */
+function forEachUploadResult(results, fn) {
+  for (const r of results) {
+    if (r.type === 'archive' && r.extracted) {
+      for (const ef of r.extracted) {
+        if (ef.category && ef.filename) {
+          fn({ category: ef.category, filename: ef.filename, tempFilename: ef.tempFilename, type: ef.category });
+        }
+      }
+    } else if (r.type && r.type !== 'archive' && !r.error && r.filename) {
+      fn({ category: r.type, filename: r.filename, tempFilename: r.tempFilename, type: r.type });
+    }
+  }
+}
+
+/**
+ * Reusable rename confirmation modal (used for MPN rename and Package rename).
+ */
+const RenameConfirmationModal = ({ show, title, oldFilename, newFilename, onConfirm, onDismiss, isPending }) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onDismiss}>
+      <div
+        className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
+          <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
+          {title}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
+          This will physically rename the file on disk.
+        </p>
+        <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 font-mono text-sm">
+          <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current</div>
+          <div className="text-gray-700 dark:text-gray-300 break-all">{oldFilename}</div>
+          <div className="text-gray-400 text-center my-2">&darr;</div>
+          <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New</div>
+          <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{newFilename}</div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onDismiss}
+            disabled={isPending}
+            className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+          >
+            {isPending ? 'Renaming...' : 'Rename'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Density suffixes that should be preserved when applying MPN as filename
 const DENSITY_SUFFIXES = ['-M', '-L', '-m', '-l'];
 
@@ -116,76 +182,31 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       const conflictingKeys = new Set();
       let firstConflict = null;
 
-      for (const r of regular) {
-        if (r.type && SINGLE_FILE_CATEGORIES.includes(r.type) && priorFiles[r.type]?.length > 0) {
-          conflictingKeys.add(`${r.type}:${r.filename}`);
+      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
+        if (SINGLE_FILE_CATEGORIES.includes(category) && priorFiles[category]?.length > 0) {
+          conflictingKeys.add(`${category}:${filename}`);
           if (!firstConflict) {
             firstConflict = {
-              category: r.type,
-              categoryLabel: SINGLE_FILE_LABELS[r.type] || CATEGORY_LABELS[r.type] || r.type,
-              existingFile: priorFiles[r.type][0].name,
-              newFile: r.filename,
-              newTempFilename: r.tempFilename,
+              category,
+              categoryLabel: SINGLE_FILE_LABELS[category] || CATEGORY_LABELS[category] || category,
+              existingFile: priorFiles[category][0].name,
+              newFile: filename,
+              newTempFilename: tempFilename,
               isLink: false,
             };
           }
         }
-      }
-      for (const r of extracted) {
-        if (r.extracted) {
-          for (const ef of r.extracted) {
-            if (ef.category && SINGLE_FILE_CATEGORIES.includes(ef.category) && priorFiles[ef.category]?.length > 0) {
-              conflictingKeys.add(`${ef.category}:${ef.filename}`);
-              if (!firstConflict) {
-                firstConflict = {
-                  category: ef.category,
-                  categoryLabel: SINGLE_FILE_LABELS[ef.category] || CATEGORY_LABELS[ef.category] || ef.category,
-                  existingFile: priorFiles[ef.category][0].name,
-                  newFile: ef.filename,
-                  newTempFilename: ef.tempFilename,
-                  isLink: false,
-                };
-              }
-            }
-          }
-        }
-      }
+      });
 
       // Notify parent of uploaded files — SKIP conflicting ones (deferred to conflict modal)
-      if (onFileUploaded) {
-        for (const r of regular) {
-          if (r.type && r.filename && !conflictingKeys.has(`${r.type}:${r.filename}`)) {
-            onFileUploaded(r.type, r.filename);
-          }
+      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
+        const key = `${category}:${filename}`;
+        if (conflictingKeys.has(key)) return;
+        if (onFileUploaded) onFileUploaded(category, filename);
+        if (onTempFileStaged && tempFilename) {
+          onTempFileStaged({ tempFilename, category, filename });
         }
-        for (const r of extracted) {
-          if (r.extracted) {
-            for (const ef of r.extracted) {
-              if (ef.category && ef.filename && !conflictingKeys.has(`${ef.category}:${ef.filename}`)) {
-                onFileUploaded(ef.category, ef.filename);
-              }
-            }
-          }
-        }
-      }
-
-      // Notify parent of temp-staged files — SKIP conflicting ones
-      if (onTempFileStaged) {
-        for (const r of regular) {
-          if (r.tempFilename && r.type && r.filename && !conflictingKeys.has(`${r.type}:${r.filename}`)) {
-            onTempFileStaged({ tempFilename: r.tempFilename, category: r.type, filename: r.filename });
-          }
-        }
-        for (const r of extracted) {
-          if (r.extracted) {
-            for (const ef of r.extracted) {
-              if (ef.tempFilename && ef.category && ef.filename && !conflictingKeys.has(`${ef.category}:${ef.filename}`)) {
-                onTempFileStaged({ tempFilename: ef.tempFilename, category: ef.category, filename: ef.filename });
-              }
-            }
-          }
-        }
-      }
+      });
 
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
@@ -199,22 +220,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       // Track uploaded files locally (for display when server junction table may be empty)
       const newLocal = {};
-      for (const r of regular) {
-        if (r.type && r.filename) {
-          if (!newLocal[r.type]) newLocal[r.type] = [];
-          newLocal[r.type].push({ name: r.filename, size: 0, storage: 'temp', tempFilename: r.tempFilename });
-        }
-      }
-      for (const r of extracted) {
-        if (r.extracted) {
-          for (const ef of r.extracted) {
-            if (ef.category && ef.filename) {
-              if (!newLocal[ef.category]) newLocal[ef.category] = [];
-              newLocal[ef.category].push({ name: ef.filename, size: 0, storage: 'temp', tempFilename: ef.tempFilename });
-            }
-          }
-        }
-      }
+      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
+        if (!newLocal[category]) newLocal[category] = [];
+        newLocal[category].push({ name: filename, size: 0, storage: 'temp', tempFilename });
+      });
       if (Object.keys(newLocal).length > 0) {
         setLocalUploads(prev => {
           const merged = { ...prev };
@@ -995,90 +1004,26 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       />
 
       {/* MPN Rename confirmation modal */}
-      {mpnRenameConfirm.show && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={dismissMpnRenameConfirm}>
-          <div
-            className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
-              <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Rename to MPN
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-              This will physically rename the file on disk.
-            </p>
-            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 font-mono text-sm">
-              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current</div>
-              <div className="text-gray-700 dark:text-gray-300 break-all">{mpnRenameConfirm.oldFilename}</div>
-              <div className="text-gray-400 text-center my-2">&darr;</div>
-              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New</div>
-              <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{mpnRenameConfirm.newFilename}</div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={dismissMpnRenameConfirm}
-                disabled={renameMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmMpnRename}
-                disabled={renameMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
-              >
-                {renameMutation.isPending ? 'Renaming...' : 'Rename'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RenameConfirmationModal
+        show={mpnRenameConfirm.show}
+        title="Rename to MPN"
+        oldFilename={mpnRenameConfirm.oldFilename}
+        newFilename={mpnRenameConfirm.newFilename}
+        onConfirm={confirmMpnRename}
+        onDismiss={dismissMpnRenameConfirm}
+        isPending={renameMutation.isPending}
+      />
 
       {/* PKG Rename confirmation modal */}
-      {pkgRenameConfirm.show && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={dismissPkgRenameConfirm}>
-          <div
-            className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
-              <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-              Rename to Package
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-              This will physically rename the file on disk.
-            </p>
-            <div className="bg-gray-50 dark:bg-[#333333] rounded-lg p-3 mb-6 font-mono text-sm">
-              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">Current</div>
-              <div className="text-gray-700 dark:text-gray-300 break-all">{pkgRenameConfirm.oldFilename}</div>
-              <div className="text-gray-400 text-center my-2">&darr;</div>
-              <div className="text-gray-500 dark:text-gray-400 text-xs mb-1">New</div>
-              <div className="text-primary-600 dark:text-primary-400 break-all font-semibold">{pkgRenameConfirm.newFilename}</div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={dismissPkgRenameConfirm}
-                disabled={renameMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmPkgRename}
-                disabled={renameMutation.isPending}
-                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
-              >
-                {renameMutation.isPending ? 'Renaming...' : 'Rename'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RenameConfirmationModal
+        show={pkgRenameConfirm.show}
+        title="Rename to Package"
+        oldFilename={pkgRenameConfirm.oldFilename}
+        newFilename={pkgRenameConfirm.newFilename}
+        onConfirm={confirmPkgRename}
+        onDismiss={dismissPkgRenameConfirm}
+        isPending={renameMutation.isPending}
+      />
 
       {/* Link existing file picker modal */}
       <CadFilePickerModal
