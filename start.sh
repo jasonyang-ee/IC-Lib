@@ -178,23 +178,6 @@ else
         sleep 2
     done
 
-    # Initialize template files from defaults
-	if [ ! -d "/app/library/template" ]; then
-		mkdir -p /app/library/template
-	fi
-	for subdir in /app/template-defaults/*/; do
-		dirname=$(basename "$subdir")
-		mkdir -p "/app/library/template/$dirname"
-		for f in "$subdir"*; do
-			[ -f "$f" ] || continue
-			basename=$(basename "$f")
-			if [ ! -f "/app/library/template/$dirname/$basename" ]; then
-				cp "$f" "/app/library/template/$dirname/$basename"
-				echo "  Initialized template: $dirname/$basename"
-			fi
-		done
-	done
-
     # Start nginx
     nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
     NGINX_PID=$!
@@ -216,6 +199,23 @@ else
         kill $NGINX_PID 2>/dev/null || true
         exit 1
     fi
+
+    # Initialize template files from defaults
+	if [ ! -d "/app/library/template" ]; then
+		mkdir -p /app/library/template
+	fi
+	for subdir in /app/template-defaults/*/; do
+		dirname=$(basename "$subdir")
+		mkdir -p "/app/library/template/$dirname"
+		for f in "$subdir"*; do
+			[ -f "$f" ] || continue
+			basename=$(basename "$f")
+			if [ ! -f "/app/library/template/$dirname/$basename" ]; then
+				cp "$f" "/app/library/template/$dirname/$basename"
+				echo -e "${GREEN}OK${NC} Initialized template: $dirname/$basename"
+			fi
+		done
+	done
 
     echo ""
     echo -e "${GREEN}OK${NC} nginx started (PID: $NGINX_PID)"

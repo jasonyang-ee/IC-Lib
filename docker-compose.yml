@@ -1,9 +1,5 @@
 services:
   iclib:
-    build:
-      context: .
-      args:
-        - VITE_CONFIG_ECO=${CONFIG_ECO:-false}
     image: iclib:latest
     container_name: iclib
     restart: unless-stopped

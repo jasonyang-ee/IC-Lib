@@ -400,26 +400,66 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- Create a view that includes the computed part_type
+-- Create a CIS table view for approved parts
 CREATE OR REPLACE VIEW active_parts AS
 SELECT 
-    c.*,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-    m.name AS manufacturer_name,
+    c.part_number,
     cat.name AS category_name,
-    u.username AS approval_user_name
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+	c.value,
+	c.package_size,
+	c.manufacturer_pn,
+    m.name AS manufacturer_name,
+	c.schematic,
+	c.pcb_footprint,
+	c.description,
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-LEFT JOIN users u ON c.approval_user_id = u.id
-WHERE c.approval_status != 'archived' OR c.approval_status IS NULL;
+WHERE c.approval_status = 'approved';
+
+-- Create a CIS table view for unapproved parts
+CREATE OR REPLACE VIEW new_parts AS
+SELECT 
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+	c.value,
+	c.package_size,
+	c.manufacturer_pn,
+    m.name AS manufacturer_name,
+	c.schematic,
+	c.pcb_footprint,
+	c.description,
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'new' OR c.approval_status = 'pending review';
+
+-- Create a CIS table view for old parts
+CREATE OR REPLACE VIEW archived_parts AS
+SELECT 
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+	c.value,
+	c.package_size,
+	c.manufacturer_pn,
+    m.name AS manufacturer_name,
+	c.schematic,
+	c.pcb_footprint,
+	c.description,
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'archived';
 
 -- Create a view that includes the alternative parts with manufacturer name
 -- Includes part_number from parent component for CIS RelationModel join key
 CREATE OR REPLACE VIEW alternative_parts AS
 SELECT
-    ca.*,
     c.part_number,
+    ca.manufacturer_pn,
     m.name AS manufacturer_name
 FROM components_alternative ca
 LEFT JOIN components c ON ca.component_id = c.id
