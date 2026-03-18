@@ -184,6 +184,7 @@ else
 	fi
 	for subdir in /app/template-defaults/*/; do
 		dirname=$(basename "$subdir")
+		mkdir -p "/app/library/template/$dirname"
 		for f in "$subdir"*; do
 			[ -f "$f" ] || continue
 			basename=$(basename "$f")
