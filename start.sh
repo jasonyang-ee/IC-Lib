@@ -200,6 +200,8 @@ else
         exit 1
     fi
 
+    echo ""
+
     # Initialize template files from defaults
 	if [ ! -d "/app/library/template" ]; then
 		mkdir -p /app/library/template
@@ -212,19 +214,18 @@ else
 			basename=$(basename "$f")
 			if [ ! -f "/app/library/template/$dirname/$basename" ]; then
 				cp "$f" "/app/library/template/$dirname/$basename"
-				echo -e "${GREEN}OK${NC} Initialized template: $dirname/$basename"
+				echo -e "      ${GREEN}OK${NC} Initialized template: $dirname/$basename"
 			fi
 		done
 	done
 
-    echo ""
-    echo -e "${GREEN}OK${NC} nginx started (PID: $NGINX_PID)"
-    echo -e "${GREEN}OK${NC} Backend started (PID: $BACKEND_PID)"
-    echo -e "${GREEN}OK${NC} Services Running"
-    echo -e "  ${GREEN}Database:${NC}      ${DB_HOST}:${DB_PORT:-5432}/${DB_NAME:-emd}"
-    echo -e "  ${GREEN}Backend:${NC}       ${BASE_DOMAIN}${BASE_URL}/api"
-    echo -e "  ${GREEN}Frontend:${NC}      ${BASE_DOMAIN}${BASE_URL}"
-    echo -e "  ${GREEN}Default Login:${NC} admin/admin123"
+    echo -e "      ${GREEN}OK${NC} nginx started (PID: $NGINX_PID)"
+    echo -e "      ${GREEN}OK${NC} Backend started (PID: $BACKEND_PID)"
+    echo -e "      ${GREEN}OK${NC} Services Running"
+    echo -e "        ${GREEN}Database:${NC}      ${DB_HOST}:${DB_PORT:-5432}/${DB_NAME:-emd}"
+    echo -e "        ${GREEN}Backend:${NC}       ${BASE_DOMAIN}${BASE_URL}/api"
+    echo -e "        ${GREEN}Frontend:${NC}      ${BASE_DOMAIN}${BASE_URL}"
+    echo -e "        ${GREEN}Default Login:${NC} admin/admin123"
     echo ""
 
     # Wait for either process to exit

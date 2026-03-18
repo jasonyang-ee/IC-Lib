@@ -412,7 +412,7 @@ SELECT
     m.name AS manufacturer_name,
 	c.schematic,
 	c.pcb_footprint,
-	c.description,
+	c.description
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
@@ -430,7 +430,7 @@ SELECT
     m.name AS manufacturer_name,
 	c.schematic,
 	c.pcb_footprint,
-	c.description,
+	c.description
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
@@ -448,7 +448,7 @@ SELECT
     m.name AS manufacturer_name,
 	c.schematic,
 	c.pcb_footprint,
-	c.description,
+	c.description
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id

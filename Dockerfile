@@ -2,7 +2,7 @@
 # Builds both frontend and backend in a single container
 
 # Stage 1: Build Frontend
-FROM node:22-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 # Accept build arguments for environment variables
 ARG VITE_CONFIG_ECO=false
@@ -24,7 +24,7 @@ RUN sed -i "s/__VITE_CONFIG_ECO__/${VITE_CONFIG_ECO}/g" .env.production
 RUN npm run build
 
 # Stage 2: Build Backend and Final Image
-FROM node:22-alpine
+FROM node:26-alpine
 
 WORKDIR /app
 COPY database/ ./database/
