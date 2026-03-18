@@ -29,6 +29,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY database/ ./database/
 COPY library/template/ ./template-defaults/
+RUN mkdir -p library/template
 
 # Install bash for our startup script and nginx for frontend
 RUN apk add --no-cache bash nginx wget
