@@ -202,10 +202,33 @@ else
 
     echo ""
 
-    # Initialize template files from defaults
+    # Initialize library folders
+	if [ ! -d "/app/library/symbol" ]; then
+		mkdir -p /app/library/symbol
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: symbol"
+	fi
+	if [ ! -d "/app/library/footprint" ]; then
+		mkdir -p /app/library/footprint
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: footprint"
+	fi
+	if [ ! -d "/app/library/pad" ]; then
+		mkdir -p /app/library/pad
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: pad"
+	fi
+	if [ ! -d "/app/library/model" ]; then
+		mkdir -p /app/library/model
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: model"
+	fi
+	if [ ! -d "/app/library/pspice" ]; then
+		mkdir -p /app/library/pspice
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: pspice"
+	fi
 	if [ ! -d "/app/library/template" ]; then
 		mkdir -p /app/library/template
+		echo -e "          ${GREEN}OK${NC} Initialized library folder: template"
 	fi
+
+	# Copy default templates if they don't already exist
 	for subdir in /app/template-defaults/*/; do
 		dirname=$(basename "$subdir")
 		mkdir -p "/app/library/template/$dirname"
