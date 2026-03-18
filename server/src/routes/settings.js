@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
   getSettings,
   updateSettings,
@@ -32,10 +33,13 @@ import {
   deletePartsAndProjectData,
   deleteLibraryFiles,
   deleteUserRecords,
+  exportDatabase,
+  importDatabase,
 } from '../controllers/settingsController.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+const uploadBackup = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 // Application settings routes
 router.get('/', getSettings);
@@ -77,6 +81,8 @@ router.post('/database/init-settings', authenticate, isAdmin, initSettings);
 router.post('/database/delete-parts', authenticate, isAdmin, deletePartsAndProjectData);
 router.post('/database/delete-library-files', authenticate, isAdmin, deleteLibraryFiles);
 router.post('/database/delete-users', authenticate, isAdmin, deleteUserRecords);
+router.get('/database/export', authenticate, isAdmin, exportDatabase);
+router.post('/database/import', authenticate, isAdmin, uploadBackup.single('file'), importDatabase);
 
 // CIS config download
 router.get('/cis-config', downloadCISConfig);

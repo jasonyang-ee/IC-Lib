@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, AlertCircle, CheckCircle, Loader2, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, Users, RefreshCw, Package, GripVertical, Mail, Settings as SettingsIcon } from 'lucide-react';
+import { Database, AlertCircle, CheckCircle, Loader2, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, Users, RefreshCw, Package, GripVertical, Mail, Settings as SettingsIcon, Download, Upload } from 'lucide-react';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
@@ -692,6 +692,43 @@ const Settings = () => {
     },
   });
 
+  const exportDbMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.exportDatabase();
+      return response.data;
+    },
+    onSuccess: (blob) => {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `iclib-backup-${timestamp}.json.gz`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showSuccess('Database exported successfully');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Export failed: ${errorMsg}`);
+    },
+  });
+
+  const importDbMutation = useMutation({
+    mutationFn: async (file) => {
+      const response = await api.importDatabase(file);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      showSuccess(data.message || 'Database imported successfully');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Import failed: ${errorMsg}`);
+    },
+  });
+
   const handleEditCategory = (category) => {
     setEditingCategory(category.id);
     setTempConfig({
@@ -1224,6 +1261,53 @@ const Settings = () => {
               </>
             )}
           </button>
+          <button
+            onClick={() => exportDbMutation.mutate()}
+            disabled={exportDbMutation.isPending}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {exportDbMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Export Database
+              </>
+            )}
+          </button>
+          <label
+            className={`bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer ${importDbMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            {importDbMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                Import Database
+              </>
+            )}
+            <input
+              type="file"
+              accept=".gz,.json.gz"
+              className="hidden"
+              disabled={importDbMutation.isPending}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  if (window.confirm('This will replace ALL existing data in the database. Are you sure?')) {
+                    importDbMutation.mutate(file);
+                  }
+                  e.target.value = '';
+                }
+              }}
+            />
+          </label>
         </div>
 
         {/* Advanced/Dangerous Operations */}

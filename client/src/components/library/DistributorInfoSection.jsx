@@ -1,3 +1,5 @@
+import { Search } from 'lucide-react';
+
 /**
  * DistributorInfoSection - Distributor display for the selected alternative/primary in view mode.
  *
@@ -8,12 +10,14 @@
  * - selectedAlternative: object
  * - onCopy: (text, label) => void
  * - copiedText: string   currently-copied label (for "Copied!" indicator)
+ * - onSearchVendor: () => void   navigate to vendor search
  */
 const DistributorInfoSection = ({
   selectedComponent,
   selectedAlternative,
   onCopy,
   copiedText,
+  onSearchVendor,
 }) => {
   // Sort distributors in the standard order: Digikey, Mouser, Arrow, Newark
   const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
@@ -30,7 +34,19 @@ const DistributorInfoSection = ({
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-3 border border-gray-200 dark:border-[#3a3a3a]">
-      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 text-lg">Distributor Information</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">Distributor Information</h3>
+        {onSearchVendor && (
+          <button
+            onClick={onSearchVendor}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+            title="Search Vendor"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Search Vendor</span>
+          </button>
+        )}
+      </div>
       {selectedComponent && sortedDistributors.length > 0 ? (
         <div className="space-y-4">
           {sortedDistributors.map((dist, index) => (

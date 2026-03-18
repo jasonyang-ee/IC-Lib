@@ -78,6 +78,7 @@ const FileLibrary = () => {
     if (viewParam === 'category' && searchParam) {
       // Navigate to Category view with a search filter (e.g., from "Files" button in Library)
       setViewMode(VIEW_CATEGORY);
+      setSelectedCategoryId(searchParams.get('category') || 'all');
       setSearchQuery(decodeURIComponent(searchParam));
       setSearchParams({}, { replace: true });
     } else if (typeParam) {

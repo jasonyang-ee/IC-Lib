@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { gzipSync, gunzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
 
@@ -1779,5 +1780,213 @@ export const deleteUserRecords = async (req, res) => {
       error: 'Failed to delete user records',
       message: error.message,
     });
+  }
+};
+
+// ===== Database Export/Import =====
+
+// Tables to export, in dependency order for correct import
+const EXPORT_TABLES = [
+  'users',
+  'activity_types',
+  'component_categories',
+  'manufacturers',
+  'distributors',
+  'components',
+  'category_specifications',
+  'cad_files',
+  'eco_approval_stages',
+  'eco_settings',
+  'projects',
+  'component_specification_values',
+  'components_alternative',
+  'inventory',
+  'inventory_alternative',
+  'distributor_info',
+  'footprint_sources',
+  'component_cad_files',
+  'activity_log',
+  'user_activity_log',
+  'project_components',
+  'eco_orders',
+  'eco_stage_approvers',
+  'eco_approvals',
+  'eco_changes',
+  'eco_distributors',
+  'eco_alternative_parts',
+  'eco_specifications',
+  'smtp_settings',
+  'email_notification_preferences',
+  'email_log',
+  'schema_version',
+];
+
+/**
+ * GET /api/settings/database/export - Export entire database as gzipped JSON
+ */
+export const exportDatabase = async (req, res) => {
+  try {
+    console.log('[INFO] [Settings] Starting database export...');
+    const data = { _exportVersion: 1, _exportDate: new Date().toISOString(), tables: {} };
+
+    for (const table of EXPORT_TABLES) {
+      try {
+        const result = await pool.query(`SELECT * FROM "${table}"`);
+        data.tables[table] = result.rows;
+      } catch {
+        // Table may not exist in older schemas — skip silently
+        data.tables[table] = [];
+      }
+    }
+
+    const json = JSON.stringify(data);
+    const compressed = gzipSync(Buffer.from(json, 'utf-8'));
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `iclib-backup-${timestamp}.json.gz`;
+
+    res.set({
+      'Content-Type': 'application/gzip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': compressed.length,
+    });
+    res.send(compressed);
+
+    console.log(`[INFO] [Settings] Database export complete: ${Object.keys(data.tables).length} tables, ${compressed.length} bytes`);
+  } catch (error) {
+    console.error('[ERROR] [Settings] Database export failed:', error.message);
+    res.status(500).json({ error: 'Failed to export database', message: error.message });
+  }
+};
+
+/**
+ * POST /api/settings/database/import - Import database from gzipped JSON
+ * Expects raw gzipped body (Content-Type: application/gzip or multipart with file)
+ */
+export const importDatabase = async (req, res) => {
+  try {
+    console.log('[INFO] [Settings] Starting database import...');
+
+    if (req.body.confirm !== true && !req.file) {
+      // If sent as JSON with confirm flag, the file must be in req.file (multipart)
+    }
+
+    let compressed;
+    if (req.file) {
+      compressed = req.file.buffer;
+    } else if (req.body && Buffer.isBuffer(req.body)) {
+      compressed = req.body;
+    } else {
+      return res.status(400).json({ error: 'No backup file provided' });
+    }
+
+    // Decompress
+    let data;
+    try {
+      const json = gunzipSync(compressed).toString('utf-8');
+      data = JSON.parse(json);
+    } catch {
+      return res.status(400).json({ error: 'Invalid backup file: could not decompress or parse JSON' });
+    }
+
+    // Validate structure
+    if (!data.tables || typeof data.tables !== 'object') {
+      return res.status(400).json({ error: 'Invalid backup file: missing tables object' });
+    }
+
+    const client = await pool.connect();
+    const importStats = { tablesImported: 0, rowsImported: 0, errors: [] };
+
+    try {
+      await client.query('BEGIN');
+
+      // Disable triggers during import for performance and to avoid side effects
+      await client.query('SET session_replication_role = replica');
+
+      // Clear existing data in reverse dependency order
+      for (let i = EXPORT_TABLES.length - 1; i >= 0; i--) {
+        const table = EXPORT_TABLES[i];
+        try {
+          await client.query(`DELETE FROM "${table}"`);
+        } catch {
+          // Table may not exist
+        }
+      }
+
+      // Import data in dependency order
+      for (const table of EXPORT_TABLES) {
+        const rows = data.tables[table];
+        if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
+
+        try {
+          // Get column info for this table
+          const colResult = await client.query(`
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = $1
+            ORDER BY ordinal_position
+          `, [table]);
+          const validColumns = new Set(colResult.rows.map(c => c.column_name));
+          const columnTypes = Object.fromEntries(colResult.rows.map(c => [c.column_name, c.data_type]));
+
+          // Filter row keys to only valid columns
+          const sampleRow = rows[0];
+          const columns = Object.keys(sampleRow).filter(k => validColumns.has(k));
+          if (columns.length === 0) continue;
+
+          // Build batch insert
+          const placeholders = [];
+          const values = [];
+          let paramIndex = 1;
+
+          for (const row of rows) {
+            const rowPlaceholders = [];
+            for (const col of columns) {
+              let val = row[col];
+              // Convert JSONB strings back to proper format
+              if (val !== null && typeof val === 'object' && (columnTypes[col] === 'jsonb' || columnTypes[col] === 'json')) {
+                val = JSON.stringify(val);
+              }
+              rowPlaceholders.push(`$${paramIndex++}`);
+              values.push(val);
+            }
+            placeholders.push(`(${rowPlaceholders.join(', ')})`);
+          }
+
+          const quotedColumns = columns.map(c => `"${c}"`).join(', ');
+          await client.query(
+            `INSERT INTO "${table}" (${quotedColumns}) VALUES ${placeholders.join(', ')} ON CONFLICT DO NOTHING`,
+            values,
+          );
+
+          importStats.tablesImported++;
+          importStats.rowsImported += rows.length;
+        } catch (err) {
+          importStats.errors.push({ table, error: err.message });
+          console.error(`[ERROR] [Settings] Import table ${table}: ${err.message}`);
+        }
+      }
+
+      // Re-enable triggers
+      await client.query('SET session_replication_role = DEFAULT');
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    console.log(`[INFO] [Settings] Database import complete: ${importStats.tablesImported} tables, ${importStats.rowsImported} rows`);
+    res.json({
+      success: true,
+      message: `Imported ${importStats.tablesImported} tables with ${importStats.rowsImported} rows`,
+      exportDate: data._exportDate,
+      ...importStats,
+    });
+  } catch (error) {
+    console.error('[ERROR] [Settings] Database import failed:', error.message);
+    res.status(500).json({ error: 'Failed to import database', message: error.message });
   }
 };

@@ -251,6 +251,14 @@ export const api = {
   deletePartsData: (confirm) => apiClient.post('/settings/database/delete-parts', { confirm }),
   deleteLibraryFiles: (confirm) => apiClient.post('/settings/database/delete-library-files', { confirm }),
   deleteUserRecords: (confirm) => apiClient.post('/settings/database/delete-users', { confirm }),
+  exportDatabase: () => apiClient.get('/settings/database/export', { responseType: 'blob' }),
+  importDatabase: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/settings/database/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   // Projects
   getProjects: () => apiClient.get('/projects'),

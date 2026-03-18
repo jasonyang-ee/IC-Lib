@@ -3044,20 +3044,6 @@ const Library = () => {
                   <Package className="w-3.5 h-3.5" />
                   <span>Inventory</span>
                 </button>
-                <button
-                  onClick={() => {
-                    // Navigate to Vendor Search with manufacturer part number from selected alternative
-                    const manufacturerPN = selectedAlternative?.manufacturer_pn || selectedComponent.manufacturer_pn;
-                    navigate('/vendor-search', { 
-                      state: { searchFromLibrary: manufacturerPN } 
-                    });
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                  title="Search Vendor"
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  <span>Search Vendor</span>
-                </button>
                 {canWrite() && (
                   <button
                     onClick={() => setShowAddToProjectModal(true)}
@@ -3069,7 +3055,7 @@ const Library = () => {
                   </button>
                 )}
                 <button
-                  onClick={() => navigate(`/file-library?view=category&search=${encodeURIComponent(selectedComponent.part_number)}`)}
+                  onClick={() => navigate(`/file-library?view=category&category=all&search=${encodeURIComponent(selectedComponent.part_number)}`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
                   title="View associated files in File Library"
                 >
@@ -3150,6 +3136,10 @@ const Library = () => {
               selectedAlternative={selectedAlternative}
               onCopy={handleCopyToClipboard}
               copiedText={copiedText}
+              onSearchVendor={() => {
+                const manufacturerPN = selectedAlternative?.manufacturer_pn || selectedComponent.manufacturer_pn;
+                navigate('/vendor-search', { state: { searchFromLibrary: manufacturerPN } });
+              }}
             />
           )}
 

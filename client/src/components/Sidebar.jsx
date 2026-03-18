@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit, FileBox, CircuitBoard, CircuitBoardIcon, BrainCircuit, Lightbulb } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Package, Search, FileText, Box, Settings, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, CircuitBoard, CircuitBoardIcon, BrainCircuit, Lightbulb } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,7 +39,7 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/library', icon: CircuitBoard, label: 'Parts Library' },
-    { path: '/file-library', icon: FileBox, label: 'File Library' },
+    { path: '/file-library', icon: FolderOpen, label: 'File Library' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
     { path: '/projects', icon: FolderKanban, label: 'Projects' },
@@ -149,9 +149,9 @@ const Sidebar = () => {
         <p className="text-xs text-gray-500 text-center">
           Version {__APP_VERSION__}
         </p>
-        <p className="text-xs text-gray-500 text-center mt-1">
+        {/* <p className="text-xs text-gray-500 text-center mt-1">
           AGPL-3.0 License
-        </p>
+        </p> */}
       </div>
     </div>
   );
