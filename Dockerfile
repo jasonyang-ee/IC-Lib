@@ -41,18 +41,27 @@ COPY server/ .
 # Copy built frontend to nginx html directory
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 
-# Configure nginx
+# Configure nginx for non-root execution
+COPY docker/nginx-main.conf /etc/nginx/nginx.conf
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
 # Create directories for CAD file library
 RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice
+
+# Prepare nginx directories for non-root execution
+RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body \
+             /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi \
+             /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi \
+             /run/nginx && \
+    chown -R 1000:1000 /var/lib/nginx /var/log/nginx /run/nginx \
+                       /usr/share/nginx/html /app
 
 # Copy startup script
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Expose only port 80 (nginx handles both frontend and API proxy)
-EXPOSE 80 
+EXPOSE 80
 
 # Set working directory back to /app
 WORKDIR /app
