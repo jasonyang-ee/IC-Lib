@@ -10,7 +10,7 @@ import AlternativePartsEditor from '../components/library/AlternativePartsEditor
 import SpecificationsView from '../components/library/SpecificationsView';
 import FileConflictModal from '../components/library/FileConflictModal';
 import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
-import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen } from 'lucide-react';
+import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -2964,77 +2964,64 @@ const Library = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                 </div>
               ) : sortedComponents.length > 0 ? (
-                <table className="w-full">
-                  <colgroup>
-                    {bulkDeleteMode && <col style={{width: '48px'}} />}
-                    <col style={{width: 'auto'}} />
-                    <col style={{width: 'auto'}} />
-                    <col style={{width: 'auto'}} />
-                    <col style={{width: 'auto'}} />
-                  </colgroup>
-                  <thead className="bg-gray-50 dark:bg-[#333333] sticky top-0 z-10">
-                    <tr>
-                      {bulkDeleteMode && (
-                        <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 w-12">
-                          <input
-                            type="checkbox"
-                            checked={selectedForDelete.size === components.length}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedForDelete(new Set(components.map(c => c.id)));
-                              } else {
-                                setSelectedForDelete(new Set());
-                              }
-                            }}
-                            className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          />
-                        </th>
-                      )}
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">P/N</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG P/N</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rowVirtualizer.getVirtualItems().length > 0 && (
-                      <tr style={{ height: `${rowVirtualizer.getTotalSize()}px`, padding: 0 }}>
-                        <td colSpan={bulkDeleteMode ? 5 : 4} style={{ padding: 0, position: 'relative', height: `${rowVirtualizer.getTotalSize()}px`, verticalAlign: 'top' }}>
-                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                            const component = sortedComponents[virtualRow.index];
-                            return (
-                              <div
-                                key={component.id}
-                                data-index={virtualRow.index}
-                                ref={rowVirtualizer.measureElement}
-                                onClick={() => !bulkDeleteMode && handleComponentClick(component)}
-                                className={`absolute top-0 left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
-                                  selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                                } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                                style={{ transform: `translateY(${virtualRow.start}px)` }}
-                              >
-                                {bulkDeleteMode && (
-                                  <div className="px-4 py-3 w-12 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedForDelete.has(component.id)}
-                                      onChange={() => toggleSelectForDelete(component.id)}
-                                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                    />
-                                  </div>
-                                )}
-                                <div className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap flex-1 min-w-0">{component.part_number}</div>
-                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</div>
-                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.value || 'N/A'}</div>
-                                <div className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate">{component.description?.substring(0, 80) || 'N/A'}</div>
-                              </div>
-                            );
-                          })}
-                        </td>
-                      </tr>
+                <div>
+                  {/* Header */}
+                  <div className="flex items-center bg-gray-50 dark:bg-[#333333] sticky top-0 z-10 border-b border-gray-200 dark:border-[#3a3a3a]">
+                    {bulkDeleteMode && (
+                      <div className="w-12 shrink-0 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedForDelete.size === components.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedForDelete(new Set(components.map(c => c.id)));
+                            } else {
+                              setSelectedForDelete(new Set());
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                      </div>
                     )}
-                  </tbody>
-                </table>
+                    <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">P/N</div>
+                    <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG P/N</div>
+                    <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</div>
+                    <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</div>
+                  </div>
+                  {/* Virtual rows */}
+                  <div style={{ position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}>
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const component = sortedComponents[virtualRow.index];
+                      return (
+                        <div
+                          key={component.id}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          onClick={() => !bulkDeleteMode && handleComponentClick(component)}
+                          className={`absolute top-0 left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
+                            selectedComponent?.id === component.id && !bulkDeleteMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                          } ${selectedForDelete.has(component.id) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          {bulkDeleteMode && (
+                            <div className="w-12 shrink-0 px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedForDelete.has(component.id)}
+                                onChange={() => toggleSelectForDelete(component.id)}
+                                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0 px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{component.part_number}</div>
+                          <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</div>
+                          <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.value || 'N/A'}</div>
+                          <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.description?.substring(0, 80) || 'N/A'}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
                 <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                   No components found
@@ -3079,16 +3066,6 @@ const Library = () => {
                   <Package className="w-3.5 h-3.5" />
                   <span>Inventory</span>
                 </button>
-                {canWrite() && (
-                  <button
-                    onClick={() => setShowAddToProjectModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                    title="Add to Project"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add to Project</span>
-                  </button>
-                )}
                 <button
                   onClick={() => navigate(`/file-library?view=category&category=all&search=${encodeURIComponent(selectedComponent.part_number)}`)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
@@ -3097,6 +3074,16 @@ const Library = () => {
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>Files</span>
                 </button>
+                {canWrite() && (
+                  <button
+                    onClick={() => setShowAddToProjectModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                    title="Add to Project"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Add to Project</span>
+                  </button>
+                )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-4 text-sm">

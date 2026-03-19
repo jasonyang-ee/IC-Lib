@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Search, FileText, ClipboardList, Sun, Moon, FolderKanban, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, CircuitBoard, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Package, Search, FileText, Sun, Moon, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, ChevronLeft, ChevronRight, Layers, Cpu, TriangleAlert } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -45,13 +45,13 @@ const Sidebar = () => {
 
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/library', icon: CircuitBoard, label: 'Parts Library' },
+    { path: '/library', icon: Cpu, label: 'Parts Library' },
     { path: '/file-library', icon: FolderOpen, label: 'File Library' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
-    { path: '/projects', icon: FolderKanban, label: 'Projects' },
+    { path: '/projects', icon: Layers, label: 'Projects' },
     { path: '/reports', icon: FileText, label: 'Reports' },
-    { path: '/audit', icon: ClipboardList, label: 'Audit Log' },
+    { path: '/audit', icon: TriangleAlert, label: 'Audit Log' },
   ];
 
   // Add ECO menu item if feature is enabled
