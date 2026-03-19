@@ -274,6 +274,42 @@ const Settings = () => {
     },
   });
 
+  // Global prefix configuration
+  const { data: globalPrefixData } = useQuery({
+    queryKey: ['globalPrefix'],
+    queryFn: async () => {
+      const response = await api.get('/settings/global-prefix');
+      return response.data;
+    },
+  });
+  const [globalPrefixLocal, setGlobalPrefixLocal] = useState(null);
+  useEffect(() => {
+    if (globalPrefixData && !globalPrefixLocal) {
+      setGlobalPrefixLocal(globalPrefixData);
+    }
+  }, [globalPrefixData]);
+
+  const updateGlobalPrefixMutation = useMutation({
+    mutationFn: async (config) => {
+      const response = await api.put('/settings/global-prefix', config);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['globalPrefix']);
+      queryClient.invalidateQueries(['categoryConfigs']);
+      queryClient.invalidateQueries(['categories']);
+      if (data.updatedCategories > 0) {
+        showSuccess(`Global prefix applied to ${data.updatedCategories} categories.`);
+      } else {
+        showSuccess('Global prefix settings saved.');
+      }
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.error || error.message;
+      showError(`Error updating global prefix: ${errorMsg}`);
+    },
+  });
+
   // Fetch manufacturers
   const { data: manufacturers } = useQuery({
     queryKey: ['manufacturers'],
@@ -662,20 +698,6 @@ const Settings = () => {
     },
   });
 
-  const deleteLibraryFilesMutation = useMutation({
-    mutationFn: async () => {
-      const response = await api.deleteLibraryFiles(true);
-      return response;
-    },
-    onSuccess: () => {
-      showSuccess('Library files deleted and CAD file tracking cleared.');
-      queryClient.invalidateQueries();
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      showError(`Error deleting library files: ${errorMsg}`);
-    },
-  });
 
   const deleteUsersMutation = useMutation({
     mutationFn: async () => {
@@ -748,8 +770,8 @@ const Settings = () => {
   };
 
   const handleCreateCategory = () => {
-    if (!newCategory.name || !newCategory.prefix) {
-      showError('Name and prefix are required!');
+    if (!newCategory.name || (!globalPrefixLocal?.enabled && !newCategory.prefix)) {
+      showError('Category name is required!');
       return;
     }
     createCategoryMutation.mutate(newCategory);
@@ -772,10 +794,6 @@ const Settings = () => {
       'delete-parts': {
         title: 'Delete Parts and Project Data',
         message: '\u26A0\uFE0F This will DELETE all component parts, ECO orders, projects, and activity logs. Categories, specifications, users, and settings will be preserved. This cannot be undone.',
-      },
-      'delete-library-files': {
-        title: 'Delete Library Files',
-        message: '\u26A0\uFE0F This will DELETE all files in the library folders (footprint, symbol, model, pspice, pad) and clear CAD file tracking. This cannot be undone.',
       },
       'delete-users': {
         title: 'Delete User Records',
@@ -838,8 +856,6 @@ const Settings = () => {
       initSettingsMutation.mutate();
     } else if (action === 'delete-parts') {
       deletePartsMutation.mutate();
-    } else if (action === 'delete-library-files') {
-      deleteLibraryFilesMutation.mutate();
     } else if (action === 'delete-users') {
       deleteUsersMutation.mutate();
     }
@@ -921,6 +937,64 @@ const Settings = () => {
           </button>
         </div>
 
+        {/* Global Prefix Configuration */}
+        {globalPrefixLocal && (
+          <div className="mb-6 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={globalPrefixLocal.enabled}
+                  onChange={(e) => setGlobalPrefixLocal({ ...globalPrefixLocal, enabled: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Enable Global Prefix</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400">Prefix</label>
+                <input
+                  type="text"
+                  value={globalPrefixLocal.prefix}
+                  onChange={(e) => setGlobalPrefixLocal({ ...globalPrefixLocal, prefix: e.target.value.toUpperCase() })}
+                  disabled={!globalPrefixLocal.enabled}
+                  maxLength={10}
+                  placeholder="e.g., PN"
+                  className="w-28 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm disabled:opacity-50"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-gray-600 dark:text-gray-400">Leading Zeros</label>
+                <input
+                  type="number"
+                  value={globalPrefixLocal.leading_zeros}
+                  onChange={(e) => setGlobalPrefixLocal({ ...globalPrefixLocal, leading_zeros: parseInt(e.target.value) || 5 })}
+                  disabled={!globalPrefixLocal.enabled}
+                  min="1"
+                  max="10"
+                  className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm disabled:opacity-50"
+                />
+              </div>
+              {globalPrefixLocal.enabled && globalPrefixLocal.prefix && (
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                  Example: {globalPrefixLocal.prefix}-{String(1).padStart(globalPrefixLocal.leading_zeros, '0')}
+                </span>
+              )}
+              <button
+                onClick={() => updateGlobalPrefixMutation.mutate(globalPrefixLocal)}
+                disabled={updateGlobalPrefixMutation.isPending}
+                className="ml-auto px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded transition-colors disabled:opacity-50 shrink-0"
+              >
+                {updateGlobalPrefixMutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+            {globalPrefixLocal.enabled && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                All categories will use this prefix and leading zeros. New categories will automatically inherit these values.
+              </p>
+            )}
+          </div>
+        )}
+
         {isAddingCategory && (
           <div className="mb-6 p-4 bg-gray-50 dark:bg-[#333333] rounded-lg border border-gray-200 dark:border-[#444444]">
             <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">New Category</h4>
@@ -936,25 +1010,27 @@ const Settings = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Prefix *</label>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Prefix *{globalPrefixLocal?.enabled ? ' (global)' : ''}</label>
                 <input
                   type="text"
-                  value={newCategory.prefix}
+                  value={globalPrefixLocal?.enabled ? globalPrefixLocal.prefix : newCategory.prefix}
                   onChange={(e) => setNewCategory({ ...newCategory, prefix: e.target.value.toUpperCase() })}
+                  disabled={globalPrefixLocal?.enabled}
                   placeholder="e.g., CAP"
                   maxLength={10}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm disabled:opacity-50"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Leading Zeros</label>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Leading Zeros{globalPrefixLocal?.enabled ? ' (global)' : ''}</label>
                 <input
                   type="number"
-                  value={newCategory.leading_zeros}
+                  value={globalPrefixLocal?.enabled ? globalPrefixLocal.leading_zeros : newCategory.leading_zeros}
                   onChange={(e) => setNewCategory({ ...newCategory, leading_zeros: parseInt(e.target.value) || 5 })}
+                  disabled={globalPrefixLocal?.enabled}
                   min="1"
                   max="10"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm disabled:opacity-50"
                 />
               </div>
               <div className="md:col-span-2">
@@ -969,6 +1045,15 @@ const Settings = () => {
               </div>
             </div>
             <div className="mt-3 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setIsAddingCategory(false);
+                  setNewCategory({ name: '', description: '', prefix: '', leading_zeros: 5 });
+                }}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleCreateCategory}
                 disabled={createCategoryMutation.isPending}
@@ -1402,23 +1487,6 @@ const Settings = () => {
                     <>
                       <Trash2 className="w-4 h-4" />
                       Delete Parts and Project Data
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleDatabaseOperation('delete-library-files')}
-                  disabled={deleteLibraryFilesMutation.isPending}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {deleteLibraryFilesMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Deleting Library Files...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-4 h-4" />
-                      Delete Library Files
                     </>
                   )}
                 </button>

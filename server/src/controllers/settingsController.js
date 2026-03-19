@@ -101,6 +101,78 @@ export const updateSettings = async (req, res) => {
 };
 
 /**
+ * GET /api/settings/global-prefix - Get global prefix configuration
+ */
+export const getGlobalPrefix = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT global_prefix_enabled, global_prefix, global_leading_zeros FROM admin_settings LIMIT 1');
+    if (result.rows.length === 0) {
+      return res.json({ enabled: false, prefix: '', leading_zeros: 5 });
+    }
+    const row = result.rows[0];
+    res.json({ enabled: row.global_prefix_enabled, prefix: row.global_prefix, leading_zeros: row.global_leading_zeros });
+  } catch (error) {
+    console.error('Error reading global prefix settings:', error);
+    res.status(500).json({ error: 'Failed to read global prefix settings', message: error.message });
+  }
+};
+
+/**
+ * PUT /api/settings/global-prefix - Update global prefix and apply to all categories
+ */
+export const updateGlobalPrefix = async (req, res) => {
+  try {
+    const { enabled, prefix, leading_zeros } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+
+    if (enabled) {
+      if (!prefix || typeof prefix !== 'string' || prefix.trim().length === 0) {
+        return res.status(400).json({ error: 'prefix is required when enabled' });
+      }
+      if (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10) {
+        return res.status(400).json({ error: 'leading_zeros must be a number between 1 and 10' });
+      }
+    }
+
+    const cleanPrefix = prefix ? prefix.trim() : '';
+    const cleanLeadingZeros = leading_zeros || 5;
+
+    // Upsert into admin_settings (singleton row)
+    await pool.query(`
+      INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros)
+      VALUES ($1, $2, $3)
+      ON CONFLICT ((1)) DO UPDATE SET
+        global_prefix_enabled = EXCLUDED.global_prefix_enabled,
+        global_prefix = EXCLUDED.global_prefix,
+        global_leading_zeros = EXCLUDED.global_leading_zeros,
+        updated_at = CURRENT_TIMESTAMP
+    `, [enabled, cleanPrefix, cleanLeadingZeros]);
+
+    // If enabled, update all categories to use the global prefix and leading zeros
+    let updatedCount = 0;
+    if (enabled) {
+      const result = await pool.query(
+        'UPDATE component_categories SET prefix = $1, leading_zeros = $2',
+        [cleanPrefix, cleanLeadingZeros],
+      );
+      updatedCount = result.rowCount;
+    }
+
+    res.json({
+      success: true,
+      globalPrefix: { enabled, prefix: cleanPrefix, leading_zeros: cleanLeadingZeros },
+      updatedCategories: updatedCount,
+    });
+  } catch (error) {
+    console.error('Error updating global prefix settings:', error);
+    res.status(500).json({ error: 'Failed to update global prefix settings', message: error.message });
+  }
+};
+
+/**
  * GET /api/settings/database/status - Get database status
  */
 export const getDatabaseStatus = async (req, res) => {
@@ -226,7 +298,7 @@ export const verifyDatabase = async (req, res) => {
       'email_log',
       'cad_files',
       'component_cad_files',
-      'schema_migrations',
+      'admin_settings',
     ];
 
     const expectedViews = [
@@ -441,13 +513,23 @@ export const updateCategoryConfig = async (req, res) => {
  */
 export const createCategory = async (req, res) => {
   try {
-    const { name, prefix, leading_zeros } = req.body;
+    let { name, prefix, leading_zeros } = req.body;
 
     // Validate required fields
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({ error: 'Category name is required' });
     }
-    
+
+    // Check global prefix settings and override if enabled
+    const adminResult = await pool.query('SELECT global_prefix_enabled, global_prefix, global_leading_zeros FROM admin_settings LIMIT 1');
+    if (adminResult.rows.length > 0) {
+      const adminRow = adminResult.rows[0];
+      if (adminRow.global_prefix_enabled && adminRow.global_prefix) {
+        prefix = adminRow.global_prefix;
+        leading_zeros = adminRow.global_leading_zeros;
+      }
+    }
+
     if (!prefix || typeof prefix !== 'string' || prefix.trim().length === 0) {
       return res.status(400).json({ error: 'Category prefix is required' });
     }

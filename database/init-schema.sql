@@ -879,9 +879,42 @@ CREATE TABLE IF NOT EXISTS email_log (
 CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);
 
 -- ============================================================================
--- PART 15: MIGRATIONS FOR EXISTING DATABASES
+-- PART 15: ADMIN SETTINGS TABLE
+-- ============================================================================
+
+-- Table: admin_settings
+-- Singleton table for admin-level application configuration.
+-- Add new settings as columns; expand over time.
+CREATE TABLE IF NOT EXISTS admin_settings (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
+    global_prefix VARCHAR(20) NOT NULL DEFAULT '',
+    global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Only one record should ever exist (singleton pattern)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
+
+CREATE OR REPLACE TRIGGER update_admin_settings_updated_at
+    BEFORE UPDATE ON admin_settings
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- PART 16: MIGRATIONS FOR EXISTING DATABASES
 -- ============================================================================
 
 -- Add file_storage_path to users table (for per-user library path)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS file_storage_path VARCHAR(1000);
+
+-- Create admin_settings table for existing databases
+CREATE TABLE IF NOT EXISTS admin_settings (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
+    global_prefix VARCHAR(20) NOT NULL DEFAULT '',
+    global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
 

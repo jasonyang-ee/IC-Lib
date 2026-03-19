@@ -7,6 +7,8 @@ import {
   clearDatabase,
   resetDatabase,
   verifyDatabase,
+  getGlobalPrefix,
+  updateGlobalPrefix,
   getCategoryConfigs,
   updateCategoryConfig,
   createCategory,
@@ -58,6 +60,10 @@ router.post('/export/users', authenticate, isAdmin, exportUsers);
 router.post('/import/users', authenticate, isAdmin, importUsers);
 router.post('/export/categories', authenticate, isAdmin, exportCategories);
 router.post('/import/categories', authenticate, isAdmin, importCategories);
+
+// Global prefix configuration
+router.get('/global-prefix', getGlobalPrefix);
+router.put('/global-prefix', authenticate, isAdmin, updateGlobalPrefix);
 
 // Category configuration routes
 router.get('/categories', getCategoryConfigs);

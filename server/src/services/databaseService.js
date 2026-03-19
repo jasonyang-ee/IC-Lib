@@ -145,7 +145,11 @@ export const resetDatabase = async () => {
     const settingsPath = join(__dirname, '..', '..', '..', 'database', 'init-settings.sql');
     const settingsSql = readFileSync(settingsPath, 'utf8');
     await client.query(settingsSql);
-    results.steps.push('Initialized default categories, distributors, and specifications');
+    results.steps.push('Initialized default distributors, ECO defaults, and specifications');
+
+    // Wipe categories so the user starts with a clean slate
+    await client.query('TRUNCATE component_categories CASCADE');
+    results.steps.push('Cleared category configurations');
 
     results.success = true;
     results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized with default admin user.';

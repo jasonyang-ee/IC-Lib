@@ -19,7 +19,7 @@ INSERT INTO component_categories (name, description, prefix, leading_zeros, disp
     ('Transistor', 'BJTs, MOSFETs, and other transistors', 'FET', 5, 5),
     ('IC', 'Integrated circuits', 'IC', 5, 6),
     ('Connector', 'Connectors and headers', 'CONN', 5, 7),
-    ('Switche', 'Switches and buttons', 'SW', 5, 8),
+    ('Switch', 'Switches and buttons', 'SW', 5, 8),
     ('Oscillator', 'Crystals, oscillators, and resonators', 'XTAL', 5, 9),
     ('MCU', 'Microcontroller', 'IC', 5, 10),
     ('Mechanical', 'Mechanical Parts', 'MECH', 5, 11),
@@ -54,6 +54,14 @@ WHERE NOT EXISTS (SELECT 1 FROM eco_approval_stages);
 INSERT INTO eco_settings (prefix, leading_zeros, next_number)
 SELECT 'ECO-', 6, 1
 WHERE NOT EXISTS (SELECT 1 FROM eco_settings);
+
+-- ============================================================================
+-- Default Admin Settings
+-- ============================================================================
+
+INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros)
+SELECT false, '', 5
+WHERE NOT EXISTS (SELECT 1 FROM admin_settings);
 
 -- ============================================================================
 -- Default Category Specifications (Master Spec Definitions)
