@@ -104,11 +104,65 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
       WHERE ea.eco_id = $1 ORDER BY ea.id
     `, [currentId]);
 
+    const distributors = await client.query(`
+      SELECT ed.*, d.name as distributor_name,
+        ca.manufacturer_pn as alternative_manufacturer_pn,
+        m.name as alternative_manufacturer_name
+      FROM eco_distributors ed
+      LEFT JOIN distributors d ON ed.distributor_id = d.id
+      LEFT JOIN components_alternative ca ON ed.alternative_id = ca.id
+      LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id
+      WHERE ed.eco_id = $1 ORDER BY ed.id
+    `, [currentId]);
+
+    const alternativesResult = await client.query(`
+      SELECT ea.id, ea.eco_id, ea.alternative_id, ea.action,
+        ea.manufacturer_id, ea.manufacturer_pn, ea.distributors,
+        COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
+        ca.manufacturer_pn as existing_manufacturer_pn,
+        cam.name as existing_manufacturer_name
+      FROM eco_alternative_parts ea
+      LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
+      LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
+      LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
+      WHERE ea.eco_id = $1 ORDER BY ea.id
+    `, [currentId]);
+
+    // Enrich embedded distributor data in alternatives
+    const enrichedAlternatives = await Promise.all(alternativesResult.rows.map(async (alt) => {
+      let dists = alt.distributors || [];
+      if (typeof dists === 'string') {
+        try { dists = JSON.parse(dists); } catch { dists = []; }
+      }
+      if (dists.length > 0) {
+        const distIds = [...new Set(dists.map(d => d.distributor_id).filter(Boolean))];
+        if (distIds.length > 0) {
+          const distNames = await client.query(
+            'SELECT id, name FROM distributors WHERE id = ANY($1)',
+            [distIds],
+          );
+          const nameMap = Object.fromEntries(distNames.rows.map(r => [r.id, r.name]));
+          dists = dists.map(d => ({ ...d, distributor_name: nameMap[d.distributor_id] || null }));
+        }
+      }
+      return { ...alt, distributors: dists };
+    }));
+
+    const cadFiles = await client.query(`
+      SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
+      FROM eco_cad_files ecf
+      LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
+      WHERE ecf.eco_id = $1 ORDER BY ecf.id
+    `, [currentId]);
+
     chain.push({
       ...parentEco,
       changes: changes.rows,
       specifications: specs.rows,
       approvals: approvals.rows,
+      distributors: distributors.rows,
+      alternatives: enrichedAlternatives,
+      cad_files: cadFiles.rows,
     });
 
     currentId = parentEco.parent_eco_id;
@@ -167,6 +221,21 @@ export const getAllECOs = async (req, res) => {
     query += ' ORDER BY eo.id DESC';
 
     const result = await pool.query(query, params);
+
+    // For rejected view, only show the latest ECO per eco_number
+    // (older rejections appear in the rejection history chain when expanded)
+    if (status === 'rejected') {
+      const seen = new Set();
+      const deduped = [];
+      for (const row of result.rows) {
+        if (!seen.has(row.eco_number)) {
+          seen.add(row.eco_number);
+          deduped.push(row);
+        }
+      }
+      return res.json(deduped);
+    }
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching ECO orders:', error);
@@ -450,11 +519,45 @@ export const getLastRejectedECOByComponent = async (req, res) => {
       WHERE ea.eco_id = $1 ORDER BY ea.id
     `, [eco.id]);
 
+    // Fetch alternative parts changes
+    const alternativesResult = await client.query(`
+      SELECT
+        ea.id, ea.eco_id, ea.alternative_id, ea.action,
+        ea.manufacturer_id, ea.manufacturer_pn, ea.distributors,
+        COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
+        ca.manufacturer_pn as existing_manufacturer_pn,
+        cam.name as existing_manufacturer_name
+      FROM eco_alternative_parts ea
+      LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
+      LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
+      LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
+      WHERE ea.eco_id = $1 ORDER BY ea.id
+    `, [eco.id]);
+
+    // Fetch distributor changes
+    const distributorsResult = await client.query(`
+      SELECT ed.*, d.name as distributor_name
+      FROM eco_distributors ed
+      LEFT JOIN distributors d ON ed.distributor_id = d.id
+      WHERE ed.eco_id = $1 ORDER BY ed.id
+    `, [eco.id]);
+
+    // Fetch CAD file changes
+    const cadFilesResult = await client.query(`
+      SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
+      FROM eco_cad_files ecf
+      LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
+      WHERE ecf.eco_id = $1 ORDER BY ecf.id
+    `, [eco.id]);
+
     res.json({
       ...eco,
       changes: changesResult.rows,
       specifications: specificationsResult.rows,
       approvals: approvalsResult.rows,
+      alternatives: alternativesResult.rows,
+      distributors: distributorsResult.rows,
+      cad_files: cadFilesResult.rows,
     });
   } catch (error) {
     console.error('[ECO] Error fetching last rejected ECO:', error);
@@ -501,9 +604,16 @@ export const createECO = async (req, res) => {
       parent_eco_id,
     } = req.body;
     
-    // Generate ECO number
-    const ecoNumberResult = await client.query('SELECT generate_eco_number() as eco_number');
-    const ecoNumber = ecoNumberResult.rows[0].eco_number;
+    // Generate ECO number (reuse parent's number for retries)
+    let ecoNumber;
+    if (parent_eco_id) {
+      const parentResult = await client.query('SELECT eco_number FROM eco_orders WHERE id = $1', [parent_eco_id]);
+      ecoNumber = parentResult.rows[0]?.eco_number;
+    }
+    if (!ecoNumber) {
+      const ecoNumberResult = await client.query('SELECT generate_eco_number() as eco_number');
+      ecoNumber = ecoNumberResult.rows[0].eco_number;
+    }
 
     // Detect pipeline type based on changes
     const pipelineType = detectPipelineType(changes, specifications, cad_files, distributors, alternatives);

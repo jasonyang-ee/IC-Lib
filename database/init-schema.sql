@@ -648,7 +648,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_eco_settings_singleton ON eco_settings((1)
 -- Stores ECO header information
 CREATE TABLE IF NOT EXISTS eco_orders (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    eco_number VARCHAR(20) UNIQUE NOT NULL, -- Format: ECO-XXXXXX (6 digit sequential)
+    eco_number VARCHAR(20) NOT NULL, -- Format: ECO-XXXXXX (reused across retries of same ECO)
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
     initiated_by UUID REFERENCES users(id),
@@ -1065,4 +1065,8 @@ END $$;
 -- Add parent_eco_id for ECO retry/rejection chain tracking
 ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS parent_eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_eco_orders_parent ON eco_orders(parent_eco_id);
+
+-- Remove UNIQUE constraint on eco_number (retries reuse the same ECO number)
+ALTER TABLE eco_orders DROP CONSTRAINT IF EXISTS eco_orders_eco_number_key;
+DROP INDEX IF EXISTS eco_orders_eco_number_key;
 

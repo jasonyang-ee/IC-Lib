@@ -667,19 +667,27 @@ const ECOListItem = ({
                               Proposed Changes:
                             </p>
                             <div className="space-y-0.5">
-                              {parentEco.changes.map((change, cIdx) => (
-                                <div key={cIdx} className="text-xs text-gray-600 dark:text-gray-400">
-                                  <span className="font-medium">
-                                    {change.field_name === '_status_proposal' ? 'Status Change' :
-                                      change.field_name === 'category_id' ? 'Category' :
-                                      change.field_name === 'manufacturer_id' ? 'Manufacturer' :
-                                      change.field_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
-                                  </span>{' '}
-                                  <span className="text-gray-400 dark:text-gray-500">{change.old_value || '(empty)'}</span>
-                                  {' → '}
-                                  <span className="text-gray-800 dark:text-gray-200">{change.new_value || '(empty)'}</span>
-                                </div>
-                              ))}
+                              {parentEco.changes.map((change, cIdx) => {
+                                const getVal = (isOld) => {
+                                  const raw = isOld ? change.old_value : change.new_value;
+                                  if (change.field_name === 'category_id') return (isOld ? change.old_category_name : change.new_category_name) || raw;
+                                  if (change.field_name === 'manufacturer_id') return (isOld ? change.old_manufacturer_name : change.new_manufacturer_name) || raw;
+                                  return raw;
+                                };
+                                return (
+                                  <div key={cIdx} className="text-xs text-gray-600 dark:text-gray-400">
+                                    <span className="font-medium">
+                                      {change.field_name === '_status_proposal' ? 'Status Change' :
+                                        change.field_name === 'category_id' ? 'Category' :
+                                        change.field_name === 'manufacturer_id' ? 'Manufacturer' :
+                                        change.field_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                                    </span>{' '}
+                                    <span className="text-gray-400 dark:text-gray-500">{getVal(true) || '(empty)'}</span>
+                                    {' → '}
+                                    <span className="text-gray-800 dark:text-gray-200">{getVal(false) || '(empty)'}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -691,10 +699,88 @@ const ECOListItem = ({
                             <div className="space-y-0.5">
                               {parentEco.specifications.map((spec, sIdx) => (
                                 <div key={sIdx} className="text-xs text-gray-600 dark:text-gray-400">
-                                  <span className="font-medium">{spec.spec_name || 'Spec'}:</span>{' '}
+                                  <span className="font-medium">{spec.spec_name || 'Spec'}{spec.unit ? ` (${spec.unit})` : ''}:</span>{' '}
                                   <span className="text-gray-400 dark:text-gray-500">{spec.old_value || '(empty)'}</span>
                                   {' → '}
                                   <span className="text-gray-800 dark:text-gray-200">{spec.new_value || '(empty)'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {parentEco.alternatives && parentEco.alternatives.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Alternative Parts Changes:
+                            </p>
+                            <div className="space-y-1">
+                              {parentEco.alternatives.map((alt, aIdx) => {
+                                const altDists = Array.isArray(alt.distributors) ? alt.distributors : [];
+                                return (
+                                  <div key={aIdx} className="text-xs text-gray-600 dark:text-gray-400 ml-1">
+                                    <span className={`inline-block px-1 py-0.5 rounded text-xs font-medium mr-1 ${
+                                      alt.action === 'add' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                      alt.action === 'delete' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                      'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                    }`}>{alt.action}</span>
+                                    <span className="font-medium">{alt.manufacturer_name || 'Unknown'}</span>
+                                    {' — MFG P/N: '}{alt.manufacturer_pn || '-'}
+                                    {alt.action !== 'add' && alt.existing_manufacturer_name && (
+                                      <span className="text-gray-400 ml-1">(was: {alt.existing_manufacturer_name} / {alt.existing_manufacturer_pn || '-'})</span>
+                                    )}
+                                    {altDists.length > 0 && (
+                                      <div className="ml-4 mt-0.5 space-y-0.5">
+                                        {altDists.map((dist, dIdx) => (
+                                          <div key={dIdx} className="text-xs text-gray-500 dark:text-gray-400">
+                                            <span className={`${
+                                              dist.action === 'add' ? 'text-green-600' : dist.action === 'delete' ? 'text-red-600' : 'text-blue-600'
+                                            } font-medium`}>[{dist.action}]</span>
+                                            {' '}{dist.distributor_name || 'Distributor'}
+                                            {dist.sku && ` | SKU: ${dist.sku}`}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {parentEco.distributors && parentEco.distributors.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Distributor Changes:
+                            </p>
+                            <div className="space-y-0.5">
+                              {parentEco.distributors.map((dist, dIdx) => (
+                                <div key={dIdx} className="text-xs text-gray-600 dark:text-gray-400">
+                                  <span className={`inline-block px-1 py-0.5 rounded text-xs font-medium mr-1 ${
+                                    dist.action === 'add' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                    dist.action === 'delete' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                    'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                  }`}>{dist.action}</span>
+                                  <span className="font-medium">{dist.distributor_name}</span>
+                                  {dist.sku && <span> | SKU: {dist.sku}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {parentEco.cad_files && parentEco.cad_files.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              CAD File Changes:
+                            </p>
+                            <div className="space-y-0.5">
+                              {parentEco.cad_files.map((cf, cfIdx) => (
+                                <div key={cfIdx} className="text-xs text-gray-600 dark:text-gray-400">
+                                  <span className={`inline-block px-1 py-0.5 rounded text-xs font-medium mr-1 ${
+                                    cf.action === 'link' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                    'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                  }`}>{cf.action}</span>
+                                  {cf.file_name || cf.existing_file_name}
+                                  <span className="text-gray-400 ml-1">({cf.file_type || cf.existing_file_type})</span>
                                 </div>
                               ))}
                             </div>

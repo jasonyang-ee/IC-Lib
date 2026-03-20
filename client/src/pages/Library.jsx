@@ -99,6 +99,7 @@ const Library = () => {
   const [ecoStatusProposal, setEcoStatusProposal] = useState(null); // { old_value, new_value }
   const [lastRejectedECO, setLastRejectedECO] = useState(null);
   const [parentEcoId, setParentEcoId] = useState(null);
+  const [retryEcoNumber, setRetryEcoNumber] = useState(null);
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
@@ -1170,6 +1171,7 @@ const Library = () => {
     setEcoStatusProposal(null);
     setLastRejectedECO(null);
     setParentEcoId(null);
+    setRetryEcoNumber(null);
 
     // Fetch last rejected ECO for this component (non-blocking)
     api.getLastRejectedECO(component.id)
@@ -1302,6 +1304,7 @@ const Library = () => {
   // Retry a rejected ECO — pre-populate edit form with the rejected ECO's proposed new values
   const handleRetryECO = (rejectedEco) => {
     setParentEcoId(rejectedEco.id);
+    setRetryEcoNumber(rejectedEco.eco_number);
 
     const newEditData = { ...editData };
 
@@ -1315,9 +1318,13 @@ const Library = () => {
           });
         } else {
           newEditData[change.field_name] = change.new_value;
-          // Also update manufacturer_part_number alias
           if (change.field_name === 'manufacturer_pn') {
             newEditData.manufacturer_part_number = change.new_value;
+          }
+          // Update primary manufacturer input for type-ahead
+          if (change.field_name === 'manufacturer_id') {
+            const mfr = manufacturers?.find(m => m.id === change.new_value);
+            if (mfr) setManufacturerInput(mfr.name);
           }
         }
       }
@@ -1337,11 +1344,87 @@ const Library = () => {
       }));
     }
 
+    // Apply alternative parts changes from the rejected ECO
+    if (rejectedEco.alternatives?.length > 0) {
+      const newAltMfrInputs = { ...altManufacturerInputs };
+      let alts = [...(newEditData.alternatives || [])];
+
+      for (const ecoAlt of rejectedEco.alternatives) {
+        if (ecoAlt.action === 'add') {
+          // Add new alternative entry
+          const newAlt = {
+            id: `retry-new-${Date.now()}-${Math.random()}`,
+            manufacturer_id: ecoAlt.manufacturer_id || (ecoAlt.manufacturer_name ? `NEW:${ecoAlt.manufacturer_name}` : ''),
+            manufacturer_pn: ecoAlt.manufacturer_pn || '',
+            distributors: normalizeDistributors(
+              Array.isArray(ecoAlt.distributors)
+                ? ecoAlt.distributors.map(d => ({
+                    distributor_id: d.distributor_id,
+                    sku: d.sku || '',
+                    url: d.url || '',
+                  }))
+                : [],
+              distributors,
+            ),
+          };
+          alts.push(newAlt);
+          newAltMfrInputs[alts.length - 1] = ecoAlt.manufacturer_name || '';
+        } else if (ecoAlt.action === 'update' && ecoAlt.alternative_id) {
+          // Update existing alternative
+          const idx = alts.findIndex(a => a.id === ecoAlt.alternative_id);
+          if (idx >= 0) {
+            alts[idx] = {
+              ...alts[idx],
+              manufacturer_id: ecoAlt.manufacturer_id || alts[idx].manufacturer_id,
+              manufacturer_pn: ecoAlt.manufacturer_pn || alts[idx].manufacturer_pn,
+            };
+            // Apply distributor changes for this alternative
+            if (Array.isArray(ecoAlt.distributors) && ecoAlt.distributors.length > 0) {
+              const altDists = [...alts[idx].distributors];
+              for (const distChange of ecoAlt.distributors) {
+                const dIdx = altDists.findIndex(d => d.distributor_id === distChange.distributor_id);
+                if (dIdx >= 0 && distChange.action !== 'delete') {
+                  altDists[dIdx] = { ...altDists[dIdx], sku: distChange.sku || '', url: distChange.url || '' };
+                } else if (dIdx >= 0 && distChange.action === 'delete') {
+                  altDists[dIdx] = { ...altDists[dIdx], sku: '', url: '' };
+                }
+              }
+              alts[idx] = { ...alts[idx], distributors: altDists };
+            }
+            newAltMfrInputs[idx] = ecoAlt.manufacturer_name || newAltMfrInputs[idx] || '';
+          }
+        } else if (ecoAlt.action === 'delete' && ecoAlt.alternative_id) {
+          // Remove deleted alternative
+          alts = alts.filter(a => a.id !== ecoAlt.alternative_id);
+        }
+      }
+
+      newEditData.alternatives = alts;
+      setAltManufacturerInputs(newAltMfrInputs);
+    }
+
+    // Apply primary distributor changes from the rejected ECO
+    if (rejectedEco.distributors?.length > 0 && newEditData.distributors) {
+      const primaryDists = rejectedEco.distributors.filter(d => !d.alternative_id);
+      if (primaryDists.length > 0) {
+        const updatedDists = [...newEditData.distributors];
+        for (const distChange of primaryDists) {
+          const dIdx = updatedDists.findIndex(d => d.distributor_id === distChange.distributor_id);
+          if (dIdx >= 0 && distChange.action !== 'delete') {
+            updatedDists[dIdx] = { ...updatedDists[dIdx], sku: distChange.sku || '', url: distChange.url || '' };
+          } else if (dIdx >= 0 && distChange.action === 'delete') {
+            updatedDists[dIdx] = { ...updatedDists[dIdx], sku: '', url: '' };
+          }
+        }
+        newEditData.distributors = updatedDists;
+      }
+    }
+
     // Pre-populate notes
     setEcoNotes(`Retry of ${rejectedEco.eco_number}`);
 
     setEditData(newEditData);
-    setLastRejectedECO(null); // Hide the retry panel after applying
+    setLastRejectedECO(null);
   };
 
   const handleSubmitECO = async () => {
@@ -1596,6 +1679,7 @@ const Library = () => {
       setEcoStatusProposal(null);
       setParentEcoId(null);
       setLastRejectedECO(null);
+      setRetryEcoNumber(null);
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['ecos']);
       queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
@@ -1617,6 +1701,7 @@ const Library = () => {
     setEcoStatusProposal(null);
     setParentEcoId(null);
     setLastRejectedECO(null);
+    setRetryEcoNumber(null);
   };
 
   const _handleDelete = () => {
@@ -2943,6 +3028,12 @@ const Library = () => {
                 </>
               ) : isEditMode ? (
                 <>
+                  {isECOMode && retryEcoNumber && (
+                    <div className="w-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-center">
+                      <span className="text-xs text-amber-600 dark:text-amber-400">Retrying as</span>
+                      <p className="font-bold text-amber-800 dark:text-amber-200">{retryEcoNumber}</p>
+                    </div>
+                  )}
                   <button
                     onClick={isECOMode ? handleSubmitECO : handleSave}
                     className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"

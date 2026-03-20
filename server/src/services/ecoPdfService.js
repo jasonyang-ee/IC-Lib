@@ -541,17 +541,138 @@ export const generateECOPdf = (ecoData, options = {}) => {
           .text(`Reason: ${parentEco.rejection_reason}`, PAGE.marginLeft, doc.y, { width: contentWidth });
       }
 
-      // Proposed changes table
+      // Component changes table (with resolved names)
       if (parentEco.changes && parentEco.changes.length > 0) {
         doc.y += 4;
         const changeHeaders = ['Field', 'Old Value', 'New Value'];
         const changeColWidths = [contentWidth * 0.25, contentWidth * 0.375, contentWidth * 0.375];
-        const changeRows = parentEco.changes.map(c => [
-          formatFieldName(c.field_name),
-          c.old_value || '-',
-          c.new_value || '-',
-        ]);
+        const changeRows = parentEco.changes.map(c => {
+          let oldVal = c.old_value || '-';
+          let newVal = c.new_value || '-';
+          if (c.field_name === 'category_id') {
+            oldVal = c.old_category_name || oldVal;
+            newVal = c.new_category_name || newVal;
+          } else if (c.field_name === 'manufacturer_id') {
+            oldVal = c.old_manufacturer_name || oldVal;
+            newVal = c.new_manufacturer_name || newVal;
+          } else if (c.field_name === '_status_proposal') {
+            oldVal = getApprovalStatusLabel(oldVal);
+            newVal = getApprovalStatusLabel(newVal);
+          }
+          return [formatFieldName(c.field_name), oldVal, newVal];
+        });
         drawTable(doc, changeHeaders, changeRows, changeColWidths);
+      }
+
+      // Specification changes table
+      if (parentEco.specifications && parentEco.specifications.length > 0) {
+        doc.y += 4;
+        checkPage(doc, 30);
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.darkText)
+          .text('Specification Changes:', PAGE.marginLeft, doc.y);
+        doc.y += 2;
+        const specHeaders = ['Specification', 'Old Value', 'New Value'];
+        const specColWidths = [contentWidth * 0.30, contentWidth * 0.35, contentWidth * 0.35];
+        const specRows = parentEco.specifications.map(s => [
+          `${s.spec_name || '-'}${s.unit ? ` (${s.unit})` : ''}`,
+          s.old_value || '-',
+          s.new_value || '-',
+        ]);
+        drawTable(doc, specHeaders, specRows, specColWidths);
+      }
+
+      // Distributor changes table
+      if (parentEco.distributors && parentEco.distributors.length > 0) {
+        doc.y += 4;
+        checkPage(doc, 30);
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.darkText)
+          .text('Distributor Changes:', PAGE.marginLeft, doc.y);
+        doc.y += 2;
+        const distHeaders = ['Action', 'Distributor', 'SKU', 'URL'];
+        const distColWidths = [contentWidth * 0.12, contentWidth * 0.25, contentWidth * 0.25, contentWidth * 0.38];
+        const distRows = parentEco.distributors.map(d => [
+          d.action?.toUpperCase() || '-',
+          d.distributor_name || '-',
+          d.sku || '-',
+          d.url || '-',
+        ]);
+        drawTable(doc, distHeaders, distRows, distColWidths);
+      }
+
+      // Alternative parts changes
+      if (parentEco.alternatives && parentEco.alternatives.length > 0) {
+        doc.y += 4;
+        checkPage(doc, 30);
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.darkText)
+          .text('Alternative Parts Changes:', PAGE.marginLeft, doc.y);
+        doc.y += 4;
+
+        for (const alt of parentEco.alternatives) {
+          checkPage(doc, 30);
+          const actionLabel = (alt.action || '').toUpperCase();
+          const actionColor = alt.action === 'add' ? COLORS.green : alt.action === 'delete' ? COLORS.red : COLORS.blue;
+
+          doc
+            .fontSize(FONT_SIZE.small)
+            .font('Helvetica-Bold')
+            .fillColor(actionColor)
+            .text(`[${actionLabel}]`, PAGE.marginLeft + 8, doc.y, { continued: true })
+            .fillColor(COLORS.darkText)
+            .text(`  ${alt.manufacturer_name || 'Unknown'} — MFG P/N: ${alt.manufacturer_pn || '-'}`);
+
+          if (alt.action !== 'add' && alt.existing_manufacturer_name) {
+            doc
+              .fontSize(FONT_SIZE.small)
+              .font('Helvetica')
+              .fillColor(COLORS.mutedText)
+              .text(`Previous: ${alt.existing_manufacturer_name} / ${alt.existing_manufacturer_pn || '-'}`, PAGE.marginLeft + 16, doc.y);
+          }
+
+          const altDists = Array.isArray(alt.distributors) ? alt.distributors : [];
+          if (altDists.length > 0) {
+            for (const dist of altDists) {
+              checkPage(doc, 12);
+              const dColor = dist.action === 'add' ? COLORS.green : dist.action === 'delete' ? COLORS.red : COLORS.blue;
+              doc
+                .fontSize(FONT_SIZE.small)
+                .font('Helvetica')
+                .fillColor(dColor)
+                .text(`[${(dist.action || '').toUpperCase()}]`, PAGE.marginLeft + 20, doc.y, { continued: true })
+                .fillColor(COLORS.darkText)
+                .text(`  ${dist.distributor_name || 'Distributor'}${dist.sku ? ` | SKU: ${dist.sku}` : ''}${dist.url ? ` | ${dist.url}` : ''}`);
+            }
+          }
+          doc.y += 3;
+        }
+      }
+
+      // CAD file changes
+      if (parentEco.cad_files && parentEco.cad_files.length > 0) {
+        doc.y += 4;
+        checkPage(doc, 30);
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.darkText)
+          .text('CAD File Changes:', PAGE.marginLeft, doc.y);
+        doc.y += 2;
+        const cadHeaders = ['Action', 'File Name', 'File Type'];
+        const cadColWidths = [contentWidth * 0.15, contentWidth * 0.55, contentWidth * 0.30];
+        const cadRows = parentEco.cad_files.map(cf => [
+          (cf.action || '').toUpperCase(),
+          cf.file_name || cf.existing_file_name || '-',
+          cf.file_type || cf.existing_file_type || '-',
+        ]);
+        drawTable(doc, cadHeaders, cadRows, cadColWidths);
       }
 
       // Votes
