@@ -28,6 +28,8 @@ import {
   getECOSettings,
   updateECOSettings,
   previewECONumber,
+  getEcoLogoFilename,
+  updateEcoLogoFilename,
   listCISFiles,
   downloadCISFile,
   listLabelTemplates,
@@ -51,6 +53,8 @@ router.put('/', authenticate, isAdmin, updateSettings);
 // ECO settings routes
 router.get('/eco', getECOSettings);
 router.put('/eco', authenticate, isAdmin, updateECOSettings);
+router.get('/eco/logo', getEcoLogoFilename);
+router.put('/eco/logo', authenticate, isAdmin, updateEcoLogoFilename);
 router.get('/eco/preview', previewECONumber);
 
 // Export/Import routes - require admin

@@ -172,7 +172,7 @@ const AlternativeCard = ({
                       className="w-full text-left px-3 py-2 hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium text-sm flex items-center gap-2"
                     >
                       <Plus className="w-4 h-4" />
-                      Use new: &quot;{manufacturerInput.trim()}&quot; (will be added on save)
+                      &quot;{manufacturerInput.trim()}&quot;
                     </button>
                   )}
                   {filtered.length > 0 ? (

@@ -622,9 +622,9 @@ CREATE TABLE IF NOT EXISTS eco_approval_stages (
     required_approvals INTEGER NOT NULL DEFAULT 1,
     required_role VARCHAR(50) NOT NULL DEFAULT 'approver',
     is_active BOOLEAN NOT NULL DEFAULT true,
+    pipeline_types TEXT[] NOT NULL DEFAULT '{general}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_stage_order UNIQUE(stage_order)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Default ECO approval stage is in init-settings.sql
@@ -653,13 +653,15 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
     initiated_by UUID REFERENCES users(id),
     status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'in_review', 'approved', 'rejected'
-    current_stage_id UUID REFERENCES eco_approval_stages(id),
+    current_stage_order INTEGER, -- tracks which stage_order group the ECO is at
+    pipeline_type VARCHAR(50) NOT NULL DEFAULT 'general',
     approved_by UUID REFERENCES users(id),
     approved_at TIMESTAMP,
     rejection_reason TEXT,
     notes TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected'))
+    CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected')),
+    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('status_change', 'spec_cad', 'distributor', 'general'))
 );
 
 -- Table: eco_stage_approvers
@@ -813,16 +815,16 @@ SELECT
     c.description as component_description,
     cc.name as category_name,
     m.name as manufacturer_name,
-    eas.stage_name as current_stage_name,
-    eas.stage_order as current_stage_order,
-    eas.required_approvals as current_stage_required_approvals
+    (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
+     FROM eco_approval_stages eas
+     WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+    ) as current_stage_names
 FROM eco_orders eo
 LEFT JOIN users u1 ON eo.initiated_by = u1.id
 LEFT JOIN users u2 ON eo.approved_by = u2.id
 LEFT JOIN components c ON eo.component_id = c.id
 LEFT JOIN component_categories cc ON c.category_id = cc.id
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-LEFT JOIN eco_approval_stages eas ON eo.current_stage_id = eas.id
 ORDER BY eo.id DESC;
 
 -- ============================================================================
@@ -923,6 +925,7 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
     global_prefix VARCHAR(20) NOT NULL DEFAULT '',
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    eco_logo_filename VARCHAR(200) DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -947,6 +950,7 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
     global_prefix VARCHAR(20) NOT NULL DEFAULT '',
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    eco_logo_filename VARCHAR(200) DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
@@ -968,4 +972,28 @@ ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS distributors JSONB DE
 
 -- Add manufacturer_name text column - stored as string for staging (find-or-create on approval)
 ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS manufacturer_name VARCHAR(200);
+
+-- Add eco_logo_filename to admin_settings
+ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS eco_logo_filename VARCHAR(200) DEFAULT '';
+
+-- Remove unique constraint on stage_order to allow parallel stages (same order = parallel)
+ALTER TABLE eco_approval_stages DROP CONSTRAINT IF EXISTS unique_stage_order;
+
+-- Add pipeline_types to eco_approval_stages (which pipeline types a stage participates in)
+ALTER TABLE eco_approval_stages ADD COLUMN IF NOT EXISTS pipeline_types TEXT[] NOT NULL DEFAULT '{general}';
+
+-- Migrate eco_orders from current_stage_id to current_stage_order
+ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS current_stage_order INTEGER;
+ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS pipeline_type VARCHAR(50) NOT NULL DEFAULT 'general';
+
+-- Backfill current_stage_order from current_stage_id for existing records
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'eco_orders' AND column_name = 'current_stage_id') THEN
+    UPDATE eco_orders eo SET current_stage_order = (
+      SELECT stage_order FROM eco_approval_stages WHERE id = eo.current_stage_id
+    ) WHERE eo.current_stage_id IS NOT NULL AND eo.current_stage_order IS NULL;
+    ALTER TABLE eco_orders DROP COLUMN IF EXISTS current_stage_id;
+  END IF;
+END $$;
 

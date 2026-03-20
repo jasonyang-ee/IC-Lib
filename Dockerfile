@@ -48,7 +48,8 @@ COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
 # Create directories for CAD file library and templates
 RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice \
-             /app/library/template/CIS /app/library/template/label
+             /app/library/template/CIS /app/library/template/label \
+             /app/image
 
 # Prepare nginx directories for non-root execution
 RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body \

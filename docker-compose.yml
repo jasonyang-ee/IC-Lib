@@ -23,6 +23,8 @@ services:
       # - MOUSER_API_KEY=your_api_key
     volumes:
       - ./iclib/library:/app/library
+      # Optional: mount a directory containing your company logo for ECO PDFs
+      # - ./iclib/image:/app/image
   
   iclib-db:
     image: postgres:18

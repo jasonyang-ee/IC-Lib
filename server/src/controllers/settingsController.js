@@ -1550,6 +1550,35 @@ export const importCategories = async (req, res) => {
 /**
  * GET /api/settings/eco - Get ECO settings
  */
+// Get ECO logo filename from admin_settings
+export const getEcoLogoFilename = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT eco_logo_filename FROM admin_settings LIMIT 1');
+    res.json({ eco_logo_filename: result.rows[0]?.eco_logo_filename || '' });
+  } catch (error) {
+    console.error('Error reading ECO logo filename:', error);
+    res.status(500).json({ error: 'Failed to read ECO logo filename' });
+  }
+};
+
+// Update ECO logo filename in admin_settings
+export const updateEcoLogoFilename = async (req, res) => {
+  try {
+    const { eco_logo_filename } = req.body;
+    await pool.query(`
+      INSERT INTO admin_settings (eco_logo_filename)
+      VALUES ($1)
+      ON CONFLICT ((1)) DO UPDATE SET
+        eco_logo_filename = EXCLUDED.eco_logo_filename,
+        updated_at = CURRENT_TIMESTAMP
+    `, [eco_logo_filename || '']);
+    res.json({ success: true, eco_logo_filename: eco_logo_filename || '' });
+  } catch (error) {
+    console.error('Error updating ECO logo filename:', error);
+    res.status(500).json({ error: 'Failed to update ECO logo filename' });
+  }
+};
+
 export const getECOSettings = async (req, res) => {
   try {
     // Ensure eco_settings table exists and has data

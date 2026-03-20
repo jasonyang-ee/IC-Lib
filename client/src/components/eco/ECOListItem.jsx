@@ -37,6 +37,20 @@ const getApprovalStatusBadge = (status) => {
   return styles[status] || styles.new;
 };
 
+const PIPELINE_TYPE_COLORS = {
+  general: '',
+  status_change: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  spec_cad: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  distributor: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+};
+
+const PIPELINE_TYPE_LABELS = {
+  general: 'General',
+  status_change: 'Status Change',
+  spec_cad: 'Spec/CAD',
+  distributor: 'Distributor',
+};
+
 const isPendingApproval = (status) => status === 'pending' || status === 'in_review';
 
 const ECOListItem = ({
@@ -56,6 +70,20 @@ const ECOListItem = ({
 }) => {
   const isExpanded = expandedECO === eco.id;
 
+  // Group stages by stage_order for parallel display
+  const groupStagesByOrder = (stages) => {
+    if (!stages) return [];
+    const groups = {};
+    stages.forEach((stage) => {
+      const order = stage.stage_order;
+      if (!groups[order]) groups[order] = [];
+      groups[order].push(stage);
+    });
+    return Object.entries(groups)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([order, stagesInGroup]) => ({ order: Number(order), stages: stagesInGroup }));
+  };
+
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
       {/* ECO Header */}
@@ -66,6 +94,12 @@ const ECOListItem = ({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {eco.eco_number}
               </h3>
+              {/* Pipeline type badge (non-general only) */}
+              {eco.pipeline_type && eco.pipeline_type !== 'general' && (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[eco.pipeline_type] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                  {PIPELINE_TYPE_LABELS[eco.pipeline_type] || eco.pipeline_type}
+                </span>
+              )}
               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getStatusBadge(eco.status)}`}>
                 {getStatusIcon(eco.status)}
                 {getStatusLabel(eco.status)}
@@ -93,10 +127,10 @@ const ECOListItem = ({
               </div>
 
               {/* Approval Stage Progress */}
-              {isPendingApproval(eco.status) && eco.current_stage_name && (
+              {isPendingApproval(eco.status) && (eco.current_stage_names || eco.current_stage_name) && (
                 <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
                   <p className="text-blue-700 dark:text-blue-400 text-xs">
-                    <strong>Current Stage:</strong> {eco.current_stage_name}
+                    <strong>Current Stage:</strong> {eco.current_stage_names || eco.current_stage_name}
                     {eco.current_stage_required_approvals && (
                       <span className="ml-2">
                         ({eco.current_stage_approval_count || 0}/{eco.current_stage_required_approvals} approvals)
@@ -185,6 +219,16 @@ const ECOListItem = ({
           ) : ecoDetails ? (
             <div className="space-y-4">
 
+              {/* Pipeline type badge in details */}
+              {ecoDetails.pipeline_type && ecoDetails.pipeline_type !== 'general' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline:</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[ecoDetails.pipeline_type] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    {PIPELINE_TYPE_LABELS[ecoDetails.pipeline_type] || ecoDetails.pipeline_type}
+                  </span>
+                </div>
+              )}
+
               {/* Approval Progress (stages and votes) */}
               {ecoDetails.stages && ecoDetails.stages.length > 0 && (
                 <div>
@@ -192,32 +236,47 @@ const ECOListItem = ({
                     Approval Progress
                   </h4>
                   <div className="flex gap-2 flex-wrap mb-3">
-                    {ecoDetails.stages.map((stage) => {
-                      const isCurrent = ecoDetails.current_stage_id === stage.id;
-                      const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
-                      const isPast = stage.stage_order < ecoDetails.current_stage_order;
+                    {groupStagesByOrder(ecoDetails.stages).map((group) => {
+                      const isParallel = group.stages.length > 1;
                       return (
                         <div
-                          key={stage.id}
-                          className={`px-3 py-2 rounded border text-sm ${
-                            isCurrent
-                              ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                              : isPast || isComplete
-                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400'
-                                : 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400'
-                          }`}
+                          key={group.order}
+                          className={`flex gap-1 ${isParallel ? 'p-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#2a2a2a]' : ''}`}
                         >
-                          <div className="font-medium">{stage.stage_name}</div>
-                          <div className="text-xs mt-0.5">
-                            {stage.approval_count}/{stage.required_approvals} approvals
-                            {(isPast || isComplete) && ecoDetails.status !== 'rejected' && ' (complete)'}
-                            {isCurrent && !isComplete && ' (current)'}
-                          </div>
-                          {stage.assigned_approvers?.length > 0 && (
-                            <div className="text-xs mt-0.5 opacity-70">
-                              {stage.assigned_approvers.map(a => a.username).join(', ')}
-                            </div>
-                          )}
+                          {group.stages.map((stage) => {
+                            const isCurrent = ecoDetails.current_stage_order === stage.stage_order;
+                            const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
+                            const isPast = stage.stage_order < ecoDetails.current_stage_order;
+                            return (
+                              <div
+                                key={stage.id}
+                                className={`px-3 py-2 rounded border text-sm ${
+                                  isCurrent
+                                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400'
+                                    : isPast || isComplete
+                                      ? 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400'
+                                      : 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400'
+                                }`}
+                              >
+                                <div className="font-medium">{stage.stage_name}</div>
+                                <div className="text-xs mt-0.5">
+                                  {stage.approval_count}/{stage.required_approvals} approvals
+                                  {(isPast || isComplete) && ecoDetails.status !== 'rejected' && ' (complete)'}
+                                  {isCurrent && !isComplete && ' (current)'}
+                                </div>
+                                {isParallel && (
+                                  <div className="text-xs mt-0.5 opacity-50">
+                                    order {stage.stage_order}
+                                  </div>
+                                )}
+                                {stage.assigned_approvers?.length > 0 && (
+                                  <div className="text-xs mt-0.5 opacity-70">
+                                    {stage.assigned_approvers.map(a => a.username).join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}

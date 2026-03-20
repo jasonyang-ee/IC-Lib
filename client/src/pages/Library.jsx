@@ -1427,7 +1427,8 @@ const Library = () => {
 
       // Track alternative parts changes (with embedded distributors)
       if (editData.alternatives) {
-        for (const alt of editData.alternatives) {
+        for (let altIdx = 0; altIdx < editData.alternatives.length; altIdx++) {
+          const alt = editData.alternatives[altIdx];
           const oldAlt = alternatives?.find(a => a.id === alt.id);
 
           // Resolve manufacturer_id: extract name if NEW: prefix
@@ -1436,10 +1437,18 @@ const Library = () => {
           if (typeof mfgId === 'string' && mfgId.startsWith('NEW:')) {
             mfgName = mfgId.substring(4);
             mfgId = null; // no UUID yet — will be created on approval
-          } else {
+          } else if (mfgId) {
             // Resolve name from manufacturers list for display in ECO details
             const mfr = manufacturers?.find(m => m.id === mfgId);
             mfgName = mfr?.name || null;
+          }
+          // Fallback: use the typed input text if name still not resolved
+          if (!mfgName && altManufacturerInputs[altIdx]) {
+            mfgName = altManufacturerInputs[altIdx];
+            // If no manufacturer_id yet, treat the typed name as a new manufacturer
+            if (!mfgId) {
+              mfgId = null; // will be created on approval via manufacturer_name
+            }
           }
 
           if (oldAlt) {

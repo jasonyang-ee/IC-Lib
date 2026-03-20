@@ -1,6 +1,14 @@
 import { forwardRef } from 'react';
 import { Search, X, Filter } from 'lucide-react';
 
+const PIPELINE_TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All Types' },
+  { value: 'general', label: 'General' },
+  { value: 'status_change', label: 'Status Change' },
+  { value: 'spec_cad', label: 'Spec/CAD' },
+  { value: 'distributor', label: 'Distributor' },
+];
+
 const ECOSidebar = forwardRef(({
   selectedStatus,
   onStatusChange,
@@ -10,7 +18,9 @@ const ECOSidebar = forwardRef(({
   onEcoNumberFilterChange,
   initiatedByFilter,
   onInitiatedByFilterChange,
-  uniqueInitiators
+  uniqueInitiators,
+  pipelineTypeFilter,
+  onPipelineTypeFilterChange
 }, ref) => {
   return (
     <div className="w-80 shrink-0 space-y-4 overflow-y-auto custom-scrollbar">
@@ -113,6 +123,24 @@ const ECOSidebar = forwardRef(({
           {uniqueInitiators.map((user) => (
             <option key={user} value={user}>
               {user}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Pipeline Type Filter */}
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          Pipeline Type
+        </label>
+        <select
+          value={pipelineTypeFilter || ''}
+          onChange={(e) => onPipelineTypeFilterChange(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+        >
+          {PIPELINE_TYPE_FILTER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>

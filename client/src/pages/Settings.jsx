@@ -6,6 +6,91 @@ import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
 import { UserManagement, CategorySpecificationsManager, ApprovalStagesSettings } from '../components/settings';
 
+// ECO Logo Filename Setting Component
+const EcoLogoFilenameSetting = () => {
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotification();
+  const [logoFilename, setLogoFilename] = useState('');
+  const [hasLogoChanges, setHasLogoChanges] = useState(false);
+
+  // Fetch logo filename
+  const { data: logoData } = useQuery({
+    queryKey: ['ecoLogoFilename'],
+    queryFn: async () => {
+      const response = await api.getEcoLogoFilename();
+      return response.data;
+    }
+  });
+
+  // Keep in sync with fetched data
+  if (logoData?.eco_logo_filename !== undefined && !hasLogoChanges && logoFilename !== (logoData.eco_logo_filename || '')) {
+    setLogoFilename(logoData.eco_logo_filename || '');
+  }
+
+  // Save mutation
+  const saveLogoMutation = useMutation({
+    mutationFn: (filename) => api.updateEcoLogoFilename(filename),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ecoLogoFilename'] });
+      setHasLogoChanges(false);
+      showSuccess('Logo filename saved successfully!');
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.error || error.message;
+      showError(`Error saving logo filename: ${errorMsg}`);
+    }
+  });
+
+  const handleLogoSave = () => {
+    saveLogoMutation.mutate(logoFilename);
+  };
+
+  return (
+    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-[#3a3a3a]">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        Company Logo Filename
+      </h3>
+      <div className="max-w-md">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Logo Image File
+        </label>
+        <input
+          type="text"
+          value={logoFilename}
+          onChange={(e) => {
+            setLogoFilename(e.target.value);
+            setHasLogoChanges(true);
+          }}
+          placeholder="e.g. company-logo.png"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
+        />
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Place your logo image (PNG/JPG) in the image directory, then enter the filename here.
+        </p>
+      </div>
+      <div className="mt-3">
+        <button
+          onClick={handleLogoSave}
+          disabled={!hasLogoChanges || saveLogoMutation.isPending}
+          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-2 text-sm"
+        >
+          {saveLogoMutation.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Check className="w-4 h-4" />
+              Save Logo Filename
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ECO Settings Component
 const ECOSettings = () => {
   const queryClient = useQueryClient();
@@ -225,6 +310,9 @@ const ECOSettings = () => {
           Existing ECO numbers will not be modified.
         </p>
       </div>
+
+      {/* Company Logo Filename */}
+      <EcoLogoFilenameSetting />
     </div>
   );
 };

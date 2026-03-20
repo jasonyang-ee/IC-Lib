@@ -19,6 +19,7 @@ const ECO = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [ecoNumberFilter, setEcoNumberFilter] = useState('');
   const [initiatedByFilter, setInitiatedByFilter] = useState('');
+  const [pipelineTypeFilter, setPipelineTypeFilter] = useState('');
   const searchInputRef = useRef(null);
 
   // Auto-focus search field on page load
@@ -53,7 +54,10 @@ const ECO = () => {
     const matchesInitiatedBy = !initiatedByFilter ||
       eco.initiated_by_name === initiatedByFilter;
 
-    return matchesSearch && matchesEcoNumber && matchesInitiatedBy;
+    const matchesPipelineType = !pipelineTypeFilter ||
+      eco.pipeline_type === pipelineTypeFilter;
+
+    return matchesSearch && matchesEcoNumber && matchesInitiatedBy && matchesPipelineType;
   });
 
   // Fetch ECO details when expanded
@@ -136,7 +140,7 @@ const ECO = () => {
     setApprovalComments('');
   };
 
-  const hasActiveFilters = searchTerm || ecoNumberFilter || initiatedByFilter;
+  const hasActiveFilters = searchTerm || ecoNumberFilter || initiatedByFilter || pipelineTypeFilter;
 
   return (
     <div className="h-full flex flex-col">
@@ -154,6 +158,8 @@ const ECO = () => {
           initiatedByFilter={initiatedByFilter}
           onInitiatedByFilterChange={setInitiatedByFilter}
           uniqueInitiators={uniqueInitiators}
+          pipelineTypeFilter={pipelineTypeFilter}
+          onPipelineTypeFilterChange={setPipelineTypeFilter}
         />
 
         {/* Right Side - ECO List */}

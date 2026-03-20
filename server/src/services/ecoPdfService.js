@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 
 // Colors
 const COLORS = {
@@ -186,9 +188,10 @@ const formatFieldName = (field) => {
 /**
  * Generate a PDF document for an ECO order.
  * @param {Object} ecoData - Full ECO data from getECOById (with changes, distributors, etc.)
+ * @param {Object} options - Optional settings (logoFilename, etc.)
  * @returns {PDFDocument} - A PDFKit document stream
  */
-export const generateECOPdf = (ecoData) => {
+export const generateECOPdf = (ecoData, options = {}) => {
   const doc = new PDFDocument({
     size: 'LETTER',
     margins: {
@@ -205,52 +208,77 @@ export const generateECOPdf = (ecoData) => {
     bufferPages: true,
   });
 
+  // ===== LOGO =====
+  let headerStartY = PAGE.marginTop;
+
+  if (options.logoFilename) {
+    const imageDir = process.env.NODE_ENV === 'production'
+      ? '/app/image'
+      : path.join(process.cwd(), 'image');
+    const logoPath = path.join(imageDir, options.logoFilename);
+
+    try {
+      if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, PAGE.marginLeft, PAGE.marginTop, { height: 40 });
+        headerStartY = PAGE.marginTop + 48; // shift title below logo
+      }
+    } catch (err) {
+      console.warn('ECO PDF logo not found or unreadable:', err.message);
+    }
+  }
+
   // ===== HEADER =====
   doc
     .fontSize(FONT_SIZE.title)
     .font('Helvetica-Bold')
     .fillColor(COLORS.darkText)
-    .text(`ECO: ${ecoData.eco_number}`, PAGE.marginLeft, PAGE.marginTop);
+    .text(`ECO: ${ecoData.eco_number}`, PAGE.marginLeft, headerStartY);
 
   // Status badge
   const statusColor = getStatusColor(ecoData.status);
   const statusText = getStatusLabel(ecoData.status);
   const statusX = PAGE.width - PAGE.marginRight - 80;
   doc
-    .rect(statusX, PAGE.marginTop, 80, 18)
+    .rect(statusX, headerStartY, 80, 18)
     .fill(statusColor);
   doc
     .fontSize(FONT_SIZE.body)
     .font('Helvetica-Bold')
     .fillColor(COLORS.white)
-    .text(statusText, statusX, PAGE.marginTop + 5, { width: 80, align: 'center' });
+    .text(statusText, statusX, headerStartY + 5, { width: 80, align: 'center', lineBreak: false });
 
-  doc.y = PAGE.marginTop + 26;
+  doc.y = headerStartY + 26;
 
-  // Meta info
-  const metaLines = [];
-  if (ecoData.component_part_number || ecoData.part_number) {
-    metaLines.push(`Part Number: ${ecoData.component_part_number || ecoData.part_number}`);
-  }
-  if (ecoData.component_description) {
-    metaLines.push(`Description: ${ecoData.component_description}`);
-  }
-  metaLines.push(`Initiated By: ${ecoData.initiated_by_name || 'Unknown'}`);
-  if (ecoData.created_at) {
-    metaLines.push(`Date: ${new Date(ecoData.created_at).toLocaleString()}`);
-  }
-  if (ecoData.approved_by_name) {
-    const action = ecoData.status === 'approved' ? 'Approved' : 'Rejected';
-    metaLines.push(`${action} By: ${ecoData.approved_by_name}${ecoData.approved_at ? ` on ${new Date(ecoData.approved_at).toLocaleString()}` : ''}`);
-  }
-
-  for (const line of metaLines) {
+  // Part info
+  const renderMetaLine = (line) => {
     doc
       .fontSize(FONT_SIZE.subtitle)
       .font('Helvetica')
       .fillColor(COLORS.gray)
       .text(line, PAGE.marginLeft, doc.y);
     doc.y += 2;
+  };
+
+  if (ecoData.component_part_number || ecoData.part_number) {
+    renderMetaLine(`Part Number: ${ecoData.component_part_number || ecoData.part_number}`);
+  }
+  if (ecoData.component_description) {
+    renderMetaLine(`Description: ${ecoData.component_description}`);
+  }
+
+  // Extra gap between part info and initiator info
+  doc.y += 6;
+
+  renderMetaLine(`Initiated By: ${ecoData.initiated_by_name || 'Unknown'}`);
+  if (ecoData.created_at) {
+    renderMetaLine(`Date: ${new Date(ecoData.created_at).toLocaleString()}`);
+  }
+  // "Approved By" removed — redundant with Approval Progress table
+
+  // Pipeline type
+  if (ecoData.pipeline_type && ecoData.pipeline_type !== 'general') {
+    const typeLabels = { status_change: 'Status Change', spec_cad: 'Spec/CAD', distributor: 'Distributor' };
+    renderMetaLine(`Pipeline: ${typeLabels[ecoData.pipeline_type] || ecoData.pipeline_type}`);
   }
 
   // Notes
@@ -285,12 +313,13 @@ export const generateECOPdf = (ecoData) => {
     const stageColWidths = [contentWidth * 0.25, contentWidth * 0.15, contentWidth * 0.35, contentWidth * 0.25];
     const stageRows = ecoData.stages.map(stage => {
       const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
-      const isCurrent = ecoData.current_stage_id === stage.id;
+      const isCurrent = ecoData.current_stage_order === stage.stage_order;
+      const isPast = stage.stage_order < (ecoData.current_stage_order ?? Infinity);
       const approvers = stage.assigned_approvers
         ?.map(a => a.username)
         .join(', ') || '-';
       let status = 'Pending';
-      if (isComplete) status = 'Complete';
+      if (isPast || isComplete) status = 'Complete';
       if (isCurrent && !isComplete) status = 'Current';
       return [
         stage.stage_name,
@@ -457,22 +486,31 @@ export const generateECOPdf = (ecoData) => {
   const pages = doc.bufferedPageRange();
   for (let i = 0; i < pages.count; i++) {
     doc.switchToPage(i);
+
+    const footerY = PAGE.height - PAGE.marginBottom + 10;
+
     doc
       .fontSize(FONT_SIZE.small)
       .font('Helvetica')
-      .fillColor(COLORS.mutedText)
-      .text(
-        `Generated: ${new Date().toLocaleString()}`,
-        PAGE.marginLeft,
-        PAGE.height - PAGE.marginBottom + 10,
-        { width: contentWidth / 2, align: 'left' },
-      )
-      .text(
-        `Page ${i + 1} of ${pages.count}`,
-        PAGE.marginLeft + contentWidth / 2,
-        PAGE.height - PAGE.marginBottom + 10,
-        { width: contentWidth / 2, align: 'right' },
-      );
+      .fillColor(COLORS.mutedText);
+
+    // Left-aligned timestamp
+    doc.text(
+      `Generated: ${new Date().toLocaleString()}`,
+      PAGE.marginLeft,
+      footerY,
+      { lineBreak: false },
+    );
+
+    // Right-aligned page number (manual positioning)
+    const pageText = `Page ${i + 1} of ${pages.count}`;
+    const pageTextWidth = doc.widthOfString(pageText);
+    doc.text(
+      pageText,
+      PAGE.width - PAGE.marginRight - pageTextWidth,
+      footerY,
+      { lineBreak: false },
+    );
   }
 
   doc.end();

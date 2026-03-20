@@ -222,6 +222,8 @@ export const api = {
   getECOSettings: () => apiClient.get('/settings/eco'),
   updateECOSettings: (data) => apiClient.put('/settings/eco', data),
   previewECONumber: () => apiClient.get('/settings/eco/preview'),
+  getEcoLogoFilename: () => apiClient.get('/settings/eco/logo'),
+  updateEcoLogoFilename: (filename) => apiClient.put('/settings/eco/logo', { eco_logo_filename: filename }),
 
   // CIS Config & Label Templates
   getCISFiles: () => apiClient.get('/settings/cis-files'),
@@ -295,7 +297,7 @@ export const api = {
   createApprovalStage: (data) => apiClient.post('/eco/stages', data),
   updateApprovalStage: (id, data) => apiClient.put(`/eco/stages/${id}`, data),
   deleteApprovalStage: (id) => apiClient.delete(`/eco/stages/${id}`),
-  reorderApprovalStages: (stageIds) => apiClient.put('/eco/stages/reorder', { stage_ids: stageIds }),
+  reorderApprovalStages: (data) => apiClient.put('/eco/stages/reorder', data),
   setStageApprovers: (stageId, userIds) => apiClient.put(`/eco/stages/${stageId}/approvers`, { user_ids: userIds }),
   
   // SMTP Settings
