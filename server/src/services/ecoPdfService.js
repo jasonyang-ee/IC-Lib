@@ -235,7 +235,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     .fillColor(COLORS.darkText)
     .text('Engineer Change Order', PAGE.marginLeft, headerStartY);
 
-  doc.y = headerStartY + 20;
+  doc.y = headerStartY + 30;
 
   // ECO number
   doc
@@ -257,7 +257,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     .fillColor(COLORS.white)
     .text(statusText, statusX, headerStartY + 5, { width: 80, align: 'center', lineBreak: false });
 
-  doc.y = headerStartY + 40;
+  doc.y = headerStartY + 50;
 
   // Part info
   const renderMetaLine = (line) => {
@@ -331,6 +331,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
       let status = 'Pending';
       if (isPast || isComplete) status = 'Complete';
       if (isCurrent && !isComplete) status = 'Current';
+      if (ecoData.status === 'rejected' && isCurrent) status = 'Rejected';
       return [
         stage.stage_name,
         `${stage.approval_count}/${stage.required_approvals}`,
@@ -350,13 +351,14 @@ export const generateECOPdf = (ecoData, options = {}) => {
         .text('Vote History', PAGE.marginLeft, doc.y);
       doc.y += 4;
 
-      const voteHeaders = ['Stage', 'User', 'Decision', 'Comments', 'Date'];
+      const voteHeaders = ['Stage', 'User', 'Role', 'Decision', 'Comments', 'Date'];
       const voteColWidths = [
-        contentWidth * 0.18, contentWidth * 0.15, contentWidth * 0.12,
-        contentWidth * 0.35, contentWidth * 0.20];
+        contentWidth * 0.16, contentWidth * 0.13, contentWidth * 0.10,
+        contentWidth * 0.10, contentWidth * 0.31, contentWidth * 0.20];
       const voteRows = ecoData.approvals.map(a => [
         a.stage_name || '-',
         a.user_name || '-',
+        a.user_role || '-',
         a.decision || '-',
         a.comments || '-',
         a.created_at ? new Date(a.created_at).toLocaleString() : '-',
@@ -490,6 +492,88 @@ export const generateECOPdf = (ecoData, options = {}) => {
       cf.file_type || cf.existing_file_type || '-',
     ]);
     drawTable(doc, cadHeaders, cadRows, cadColWidths);
+  }
+
+  // ===== REJECTION HISTORY =====
+  if (ecoData.rejection_history && ecoData.rejection_history.length > 0) {
+    drawSectionHeading(doc, 'Rejection History');
+
+    for (const parentEco of ecoData.rejection_history) {
+      checkPage(doc, 60);
+
+      // Parent ECO header
+      doc
+        .fontSize(FONT_SIZE.body + 1)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.red)
+        .text(parentEco.eco_number, PAGE.marginLeft, doc.y, { lineBreak: false });
+
+      const dateStr = parentEco.created_at
+        ? `  (${new Date(parentEco.created_at).toLocaleString()})`
+        : '';
+      doc
+        .fontSize(FONT_SIZE.small)
+        .font('Helvetica')
+        .fillColor(COLORS.mutedText)
+        .text(dateStr, { lineBreak: true });
+
+      doc.y += 2;
+
+      // Rejected by info
+      if (parentEco.approved_by_name) {
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica')
+          .fillColor(COLORS.red)
+          .text(
+            `Rejected by: ${parentEco.approved_by_name}${parentEco.approved_at ? ` on ${new Date(parentEco.approved_at).toLocaleString()}` : ''}`,
+            PAGE.marginLeft, doc.y,
+          );
+      }
+
+      // Rejection reason
+      if (parentEco.rejection_reason) {
+        doc.y += 2;
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Oblique')
+          .fillColor(COLORS.darkText)
+          .text(`Reason: ${parentEco.rejection_reason}`, PAGE.marginLeft, doc.y, { width: contentWidth });
+      }
+
+      // Proposed changes table
+      if (parentEco.changes && parentEco.changes.length > 0) {
+        doc.y += 4;
+        const changeHeaders = ['Field', 'Old Value', 'New Value'];
+        const changeColWidths = [contentWidth * 0.25, contentWidth * 0.375, contentWidth * 0.375];
+        const changeRows = parentEco.changes.map(c => [
+          formatFieldName(c.field_name),
+          c.old_value || '-',
+          c.new_value || '-',
+        ]);
+        drawTable(doc, changeHeaders, changeRows, changeColWidths);
+      }
+
+      // Votes
+      if (parentEco.approvals && parentEco.approvals.length > 0) {
+        doc.y += 2;
+        parentEco.approvals.forEach(vote => {
+          checkPage(doc, 12);
+          doc
+            .fontSize(FONT_SIZE.small)
+            .font('Helvetica')
+            .fillColor(vote.decision === 'approved' ? COLORS.green : COLORS.red)
+            .text(
+              `${vote.user_name} — ${vote.decision}${vote.user_role ? ` (${vote.user_role})` : ''}${vote.comments ? `: ${vote.comments}` : ''}`,
+              PAGE.marginLeft, doc.y, { width: contentWidth },
+            );
+        });
+      }
+
+      doc.y += 6;
+      drawHR(doc, doc.y);
+      doc.y += 6;
+    }
   }
 
   // ===== FOOTER on all pages =====

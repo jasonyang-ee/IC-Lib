@@ -97,6 +97,8 @@ const Library = () => {
   const [_ecoChanges, setEcoChanges] = useState([]);
   const [ecoNotes, setEcoNotes] = useState('');
   const [ecoStatusProposal, setEcoStatusProposal] = useState(null); // { old_value, new_value }
+  const [lastRejectedECO, setLastRejectedECO] = useState(null);
+  const [parentEcoId, setParentEcoId] = useState(null);
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
@@ -1166,6 +1168,13 @@ const Library = () => {
     setEcoChanges([]);
     setEcoNotes('');
     setEcoStatusProposal(null);
+    setLastRejectedECO(null);
+    setParentEcoId(null);
+
+    // Fetch last rejected ECO for this component (non-blocking)
+    api.getLastRejectedECO(component.id)
+      .then(res => { if (res.data) setLastRejectedECO(res.data); })
+      .catch(() => {}); // Silently ignore if no rejected ECO
     
     // Load the component for editing (reuse handleEdit logic)
     setSelectedComponent(component);
@@ -1288,6 +1297,51 @@ const Library = () => {
     setIsECOMode(true);
     setIsEditMode(true);
     setIsAddMode(false);
+  };
+
+  // Retry a rejected ECO — pre-populate edit form with the rejected ECO's proposed new values
+  const handleRetryECO = (rejectedEco) => {
+    setParentEcoId(rejectedEco.id);
+
+    const newEditData = { ...editData };
+
+    // Apply field changes from the rejected ECO
+    if (rejectedEco.changes) {
+      for (const change of rejectedEco.changes) {
+        if (change.field_name === '_status_proposal') {
+          setEcoStatusProposal({
+            old_value: change.old_value,
+            new_value: change.new_value,
+          });
+        } else {
+          newEditData[change.field_name] = change.new_value;
+          // Also update manufacturer_part_number alias
+          if (change.field_name === 'manufacturer_pn') {
+            newEditData.manufacturer_part_number = change.new_value;
+          }
+        }
+      }
+    }
+
+    // Apply specification changes from the rejected ECO
+    if (rejectedEco.specifications?.length > 0 && newEditData.specifications) {
+      const specMap = new Map();
+      rejectedEco.specifications.forEach(spec => {
+        specMap.set(spec.category_spec_id, spec.new_value);
+      });
+      newEditData.specifications = newEditData.specifications.map(spec => ({
+        ...spec,
+        spec_value: specMap.has(spec.category_spec_id)
+          ? specMap.get(spec.category_spec_id)
+          : spec.spec_value,
+      }));
+    }
+
+    // Pre-populate notes
+    setEcoNotes(`Retry of ${rejectedEco.eco_number}`);
+
+    setEditData(newEditData);
+    setLastRejectedECO(null); // Hide the retry panel after applying
   };
 
   const handleSubmitECO = async () => {
@@ -1530,7 +1584,8 @@ const Library = () => {
         distributors,
         alternatives: alternativesParts,
         cad_files: cadFileChanges,
-        notes: ecoNotes
+        notes: ecoNotes,
+        parent_eco_id: parentEcoId,
       });
 
       // Reset states
@@ -1539,6 +1594,8 @@ const Library = () => {
       setEcoChanges([]);
       setEcoNotes('');
       setEcoStatusProposal(null);
+      setParentEcoId(null);
+      setLastRejectedECO(null);
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['ecos']);
       queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
@@ -1558,6 +1615,8 @@ const Library = () => {
     setEcoChanges([]);
     setEcoNotes('');
     setEcoStatusProposal(null);
+    setParentEcoId(null);
+    setLastRejectedECO(null);
   };
 
   const _handleDelete = () => {
@@ -3326,6 +3385,59 @@ const Library = () => {
               onCopy={handleCopyToClipboard}
               copiedText={copiedText}
             />
+          )}
+
+          {/* Retry Panel - Show last rejected ECO when initiating new ECO */}
+          {isECOMode && lastRejectedECO && (
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg shadow-md p-4 border border-red-200 dark:border-red-800">
+              <h3 className="font-semibold text-red-900 dark:text-red-100 mb-3 text-sm">
+                Previous Rejected ECO
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-red-700 dark:text-red-300">
+                    {lastRejectedECO.eco_number}
+                  </span>
+                  <span className="text-red-500 dark:text-red-400 text-xs">
+                    {lastRejectedECO.created_at ? new Date(lastRejectedECO.created_at).toLocaleDateString() : ''}
+                  </span>
+                </div>
+                {lastRejectedECO.approved_by_name && (
+                  <p className="text-red-600 dark:text-red-400 text-xs">
+                    Rejected by: {lastRejectedECO.approved_by_name}
+                  </p>
+                )}
+                {lastRejectedECO.rejection_reason && (
+                  <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded text-xs text-red-700 dark:text-red-300">
+                    <strong>Reason:</strong> {lastRejectedECO.rejection_reason}
+                  </div>
+                )}
+                {lastRejectedECO.changes?.length > 0 && (
+                  <div className="text-xs text-red-500 dark:text-red-400 space-y-0.5">
+                    {lastRejectedECO.changes.map((change, idx) => (
+                      <div key={idx}>
+                        <span className="font-medium">
+                          {change.field_name === '_status_proposal' ? 'Status' :
+                            change.field_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                        </span>{' '}
+                        {change.old_value || '(empty)'} → {change.new_value || '(empty)'}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {lastRejectedECO.specifications?.length > 0 && (
+                  <p className="text-xs text-red-500 dark:text-red-400">
+                    + {lastRejectedECO.specifications.length} spec change(s)
+                  </p>
+                )}
+                <button
+                  onClick={() => handleRetryECO(lastRejectedECO)}
+                  className="w-full mt-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors"
+                >
+                  Retry — Load Previous Changes
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Component Specifications - Only shown in View Mode */}

@@ -659,6 +659,7 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     approved_at TIMESTAMP,
     rejection_reason TEXT,
     notes TEXT,
+    parent_eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL, -- Links to rejected predecessor ECO for retry chain
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected')),
     CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'))
@@ -1060,4 +1061,8 @@ BEGIN
   -- Update approval stages pipeline_types array
   UPDATE eco_approval_stages SET pipeline_types = array_replace(pipeline_types, 'status_change', 'proto_status_change');
 END $$;
+
+-- Add parent_eco_id for ECO retry/rejection chain tracking
+ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS parent_eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_eco_orders_parent ON eco_orders(parent_eco_id);
 

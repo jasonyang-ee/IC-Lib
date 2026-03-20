@@ -14,6 +14,7 @@ import {
   deleteApprovalStage,
   reorderApprovalStages,
   setStageApprovers,
+  getLastRejectedECOByComponent,
 } from '../controllers/ecoController.js';
 
 const router = express.Router();
@@ -31,6 +32,9 @@ router.put('/stages/:id/approvers', isAdmin, setStageApprovers);
 
 // Get all ECO orders (all authenticated users can view)
 router.get('/', getAllECOs);
+
+// Get last rejected ECO for a component (for retry panel) — must be before /:id
+router.get('/component/:componentId/last-rejected', getLastRejectedECOByComponent);
 
 // Get single ECO order by ID (all authenticated users can view)
 router.get('/:id', getECOById);

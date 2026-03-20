@@ -142,16 +142,6 @@ const ECOListItem = ({
                 </div>
               )}
 
-              {eco.approved_by_name && (
-                <div className="flex items-center gap-1">
-                  <User className="w-4 h-4" />
-                  <span>
-                    {eco.status === 'approved' ? 'Approved' : 'Rejected'} by: {eco.approved_by_name}
-                    {eco.approved_at && ` on ${new Date(eco.approved_at).toLocaleString()}`}
-                  </span>
-                </div>
-              )}
-
               {eco.rejection_reason && (
                 <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
                   <p className="text-red-700 dark:text-red-400 text-xs">
@@ -249,22 +239,31 @@ const ECOListItem = ({
                             const isCurrent = ecoDetails.current_stage_order === stage.stage_order;
                             const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
                             const isPast = stage.stage_order < ecoDetails.current_stage_order;
+                            const isRejected = ecoDetails.status === 'rejected' && isCurrent;
+
+                            // Color priority: rejected (red) > complete (green) > current (blue) > future (gray)
+                            let stageColorClass;
+                            if (isRejected) {
+                              stageColorClass = 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600 text-red-700 dark:text-red-400';
+                            } else if (isPast || isComplete) {
+                              stageColorClass = 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400';
+                            } else if (isCurrent) {
+                              stageColorClass = 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400';
+                            } else {
+                              stageColorClass = 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400';
+                            }
+
                             return (
                               <div
                                 key={stage.id}
-                                className={`px-3 py-2 rounded border text-sm ${
-                                  isCurrent
-                                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400'
-                                    : isPast || isComplete
-                                      ? 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400'
-                                      : 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400'
-                                }`}
+                                className={`px-3 py-2 rounded border text-sm ${stageColorClass}`}
                               >
                                 <div className="font-medium">{stage.stage_name}</div>
                                 <div className="text-xs mt-0.5">
                                   {stage.approval_count}/{stage.required_approvals} approvals
-                                  {(isPast || isComplete) && ecoDetails.status !== 'rejected' && ' (complete)'}
-                                  {isCurrent && !isComplete && ' (current)'}
+                                  {isRejected && ' (rejected)'}
+                                  {(isPast || isComplete) && !isRejected && ' (complete)'}
+                                  {isCurrent && !isComplete && !isRejected && ' (current)'}
                                 </div>
                                 {isParallel && (
                                   <div className="text-xs mt-0.5 opacity-50">
@@ -292,6 +291,7 @@ const ECOListItem = ({
                           <tr>
                             <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Stage</th>
                             <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">User</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Role</th>
                             <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Decision</th>
                             <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comments</th>
                             <th className="px-4 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Date</th>
@@ -305,6 +305,9 @@ const ECOListItem = ({
                               </td>
                               <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">
                                 {approval.user_name}
+                              </td>
+                              <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs capitalize">
+                                {approval.user_role?.replace('-', ' ') || '-'}
                               </td>
                               <td className="px-4 py-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -625,6 +628,103 @@ const ECOListItem = ({
                 <p className="text-gray-500 dark:text-gray-400 text-sm italic">
                   No changes recorded in this ECO
                 </p>
+              )}
+
+              {/* Rejection History Chain */}
+              {ecoDetails.rejection_history && ecoDetails.rejection_history.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    Rejection History
+                  </h4>
+                  <div className="space-y-3">
+                    {ecoDetails.rejection_history.map((parentEco, idx) => (
+                      <div
+                        key={parentEco.id || idx}
+                        className="bg-red-50 dark:bg-red-900/10 rounded border border-red-200 dark:border-red-800 p-3"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-red-700 dark:text-red-400 text-sm">
+                            {parentEco.eco_number}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {parentEco.created_at ? new Date(parentEco.created_at).toLocaleString() : ''}
+                          </span>
+                        </div>
+                        {parentEco.approved_by_name && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mb-1">
+                            Rejected by: {parentEco.approved_by_name}
+                            {parentEco.approved_at && ` on ${new Date(parentEco.approved_at).toLocaleString()}`}
+                          </p>
+                        )}
+                        {parentEco.rejection_reason && (
+                          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded text-xs text-red-700 dark:text-red-300 mb-2">
+                            <strong>Reason:</strong> {parentEco.rejection_reason}
+                          </div>
+                        )}
+                        {parentEco.changes && parentEco.changes.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Proposed Changes:
+                            </p>
+                            <div className="space-y-0.5">
+                              {parentEco.changes.map((change, cIdx) => (
+                                <div key={cIdx} className="text-xs text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">
+                                    {change.field_name === '_status_proposal' ? 'Status Change' :
+                                      change.field_name === 'category_id' ? 'Category' :
+                                      change.field_name === 'manufacturer_id' ? 'Manufacturer' :
+                                      change.field_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                                  </span>{' '}
+                                  <span className="text-gray-400 dark:text-gray-500">{change.old_value || '(empty)'}</span>
+                                  {' → '}
+                                  <span className="text-gray-800 dark:text-gray-200">{change.new_value || '(empty)'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {parentEco.specifications && parentEco.specifications.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Spec Changes:
+                            </p>
+                            <div className="space-y-0.5">
+                              {parentEco.specifications.map((spec, sIdx) => (
+                                <div key={sIdx} className="text-xs text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">{spec.spec_name || 'Spec'}:</span>{' '}
+                                  <span className="text-gray-400 dark:text-gray-500">{spec.old_value || '(empty)'}</span>
+                                  {' → '}
+                                  <span className="text-gray-800 dark:text-gray-200">{spec.new_value || '(empty)'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {parentEco.approvals && parentEco.approvals.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                              Votes:
+                            </p>
+                            <div className="space-y-0.5">
+                              {parentEco.approvals.map((vote, vIdx) => (
+                                <div key={vIdx} className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                  <span className="font-medium">{vote.user_name}</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    vote.decision === 'approved'
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                  }`}>{vote.decision}</span>
+                                  {vote.user_role && <span className="capitalize opacity-70">({vote.user_role.replace('-', ' ')})</span>}
+                                  {vote.comments && <span>— {vote.comments}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ) : (

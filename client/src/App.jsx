@@ -20,6 +20,8 @@ function App() {
   const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
   // Roles that have full navigation access (everything except reviewer)
   const fullAccessRoles = ['read-only', 'read-write', 'approver', 'admin'];
+  // Roles that include reviewer (for ECO and User Settings)
+  const ecoAndSettingsRoles = ['read-only', 'reviewer', 'read-write', 'approver', 'admin'];
 
   return (
     <AuthProvider>
@@ -45,11 +47,11 @@ function App() {
           <Route path="reports" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Reports /></ProtectedRoute>} />
           <Route path="audit" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Audit /></ProtectedRoute>} />
 
-          {/* ECO route - only if feature is enabled, not for reviewer */}
-          {ecoEnabled && <Route path="eco" element={<ProtectedRoute allowedRoles={fullAccessRoles}><ECO /></ProtectedRoute>} />}
+          {/* ECO route - only if feature is enabled, includes reviewer */}
+          {ecoEnabled && <Route path="eco" element={<ProtectedRoute allowedRoles={ecoAndSettingsRoles}><ECO /></ProtectedRoute>} />}
 
-          {/* User Settings - not for reviewer */}
-          <Route path="user-settings" element={<ProtectedRoute allowedRoles={fullAccessRoles}><UserSettings /></ProtectedRoute>} />
+          {/* User Settings - includes reviewer */}
+          <Route path="user-settings" element={<ProtectedRoute allowedRoles={ecoAndSettingsRoles}><UserSettings /></ProtectedRoute>} />
 
           {/* Admin Settings - admin only */}
           <Route

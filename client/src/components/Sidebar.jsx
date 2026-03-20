@@ -61,15 +61,13 @@ const Sidebar = () => {
     );
   }
 
-  // Add ECO menu item if feature is enabled (not for reviewer)
-  if (ecoEnabled && !isReviewer) {
+  // Add ECO menu item if feature is enabled (reviewers can approve ECOs)
+  if (ecoEnabled) {
     menuItems.push({ path: '/eco', icon: FileEdit, label: 'ECO' });
   }
 
-  // User Settings available to all users except reviewer
-  if (!isReviewer) {
-    menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
-  }
+  // User Settings available to all authenticated users
+  menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
 
   // Only show Admin Settings for admin users
   if (isAdmin()) {

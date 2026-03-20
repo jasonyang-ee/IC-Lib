@@ -35,13 +35,13 @@ IC-Lib/
 ## Auth
 
 - JWT via `authenticate` middleware
-- Roles: `read-only`, `read-write`, `approver`, `admin`
-- Middleware: `canWrite`, `isApprover`, `isAdmin`
+- Roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
+- Middleware: `canWrite`, `canApprove`, `isAdmin`
 - Inventory, project, dashboard routes have NO auth; use `req.user?.id || null`
 
 ## Key Features
 
-- **Component Library**: CRUD with categories, manufacturers, specs, alternative parts, vendor APIs (DigiKey, Mouser), approval workflow (new → temporary → pending review → experimental → approved → archived)
+- **Component Library**: CRUD with categories, manufacturers, specs, alternative parts, vendor APIs (DigiKey, Mouser), approval workflow (new → reviewing → prototype → production → archived)
 - **CAD Files**: flat storage `library/[category]/[filename]`, `cad_files` + `component_cad_files` junction table, TEXT columns (pcb_footprint, schematic, step_model, pspice, pad_file) store comma-separated filenames for OrCAD CIS/ODBC — auto-regenerated from junction table, ZIP upload/export
 - **ECO**: multi-stage approval workflow with configurable stages, role-based approvals, email notifications
 - **Projects**: BOM management with primary + alternative parts, bulk inventory consumption

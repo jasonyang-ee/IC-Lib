@@ -49,6 +49,74 @@ const getECOForEmail = async (client, ecoId) => {
   return result.rows[0];
 };
 
+// Shared helper: fetch rejection history chain for an ECO by walking parent_eco_id
+const fetchRejectionHistory = async (client, parentEcoId) => {
+  const chain = [];
+  let currentId = parentEcoId;
+  const visited = new Set();
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+
+    const ecoResult = await client.query(`
+      SELECT eo.*,
+        created_at(eo.id) as created_at,
+        u1.username as initiated_by_name,
+        u2.username as approved_by_name
+      FROM eco_orders eo
+      LEFT JOIN users u1 ON eo.initiated_by = u1.id
+      LEFT JOIN users u2 ON eo.approved_by = u2.id
+      WHERE eo.id = $1
+    `, [currentId]);
+
+    if (ecoResult.rows.length === 0) break;
+    const parentEco = ecoResult.rows[0];
+
+    const changes = await client.query(`
+      SELECT ec.*,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.old_value) END as old_category_name,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.new_value) END as new_category_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.old_value) END as old_manufacturer_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+        WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
+          SUBSTRING(ec.new_value FROM 5) END as new_manufacturer_name
+      FROM eco_changes ec WHERE eco_id = $1 ORDER BY id
+    `, [currentId]);
+
+    const specs = await client.query(`
+      SELECT es.*, cs.spec_name, cs.unit
+      FROM eco_specifications es
+      LEFT JOIN category_specifications cs ON es.category_spec_id = cs.id
+      WHERE es.eco_id = $1 ORDER BY cs.display_order
+    `, [currentId]);
+
+    const approvals = await client.query(`
+      SELECT ea.*, created_at(ea.id) as created_at,
+        u.username as user_name, u.role as user_role,
+        eas.stage_name
+      FROM eco_approvals ea
+      LEFT JOIN users u ON ea.user_id = u.id
+      LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
+      WHERE ea.eco_id = $1 ORDER BY ea.id
+    `, [currentId]);
+
+    chain.push({
+      ...parentEco,
+      changes: changes.rows,
+      specifications: specs.rows,
+      approvals: approvals.rows,
+    });
+
+    currentId = parentEco.parent_eco_id;
+  }
+
+  return chain;
+};
+
 // Get all ECO orders with details
 export const getAllECOs = async (req, res) => {
   try {
@@ -223,6 +291,7 @@ export const getECOById = async (req, res) => {
         ea.*,
         created_at(ea.id) as created_at,
         u.username as user_name,
+        u.role as user_role,
         eas.stage_name,
         eas.stage_order
       FROM eco_approvals ea
@@ -233,7 +302,8 @@ export const getECOById = async (req, res) => {
     `, [id]);
 
     // Get all active approval stages for this ECO's pipeline type, with assigned approvers
-    const stagesResult = await client.query(`
+    // Fallback: if no stages match the pipeline type, show ALL active stages
+    const stagesQuery = `
       SELECT
         eas.*,
         (SELECT COUNT(*) FROM eco_approvals ea
@@ -247,9 +317,20 @@ export const getECOById = async (req, res) => {
           ), '[]'::json
         ) as assigned_approvers
       FROM eco_approval_stages eas
-      WHERE eas.is_active = true AND $2 = ANY(eas.pipeline_types)
+      WHERE eas.is_active = true
       ORDER BY eas.stage_order
-    `, [id, eco.pipeline_type]);
+    `;
+    let stagesResult = await client.query(stagesQuery, [id]);
+    // Filter by pipeline type if the ECO has one
+    if (eco.pipeline_type) {
+      const filtered = stagesResult.rows.filter(s =>
+        Array.isArray(s.pipeline_types) && s.pipeline_types.includes(eco.pipeline_type),
+      );
+      // Only use filtered results if at least one stage matches; otherwise show all
+      if (filtered.length > 0) {
+        stagesResult = { rows: filtered };
+      }
+    }
 
     // Get CAD file changes
     const cadFilesResult = await client.query(`
@@ -283,6 +364,11 @@ export const getECOById = async (req, res) => {
       return { ...alt, distributors: dists };
     }));
 
+    // Fetch rejection history chain if this ECO has a parent
+    const rejectionHistory = eco.parent_eco_id
+      ? await fetchRejectionHistory(client, eco.parent_eco_id)
+      : [];
+
     res.json({
       ...eco,
       changes: changesResult.rows,
@@ -292,10 +378,87 @@ export const getECOById = async (req, res) => {
       approvals: approvalsResult.rows,
       stages: stagesResult.rows,
       cad_files: cadFilesResult.rows,
+      rejection_history: rejectionHistory,
     });
   } catch (error) {
     console.error('Error fetching ECO details:', error);
     res.status(500).json({ error: 'Failed to fetch ECO details' });
+  } finally {
+    client.release();
+  }
+};
+
+// Get last rejected ECO for a specific component (for retry panel)
+export const getLastRejectedECOByComponent = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { componentId } = req.params;
+
+    const ecoResult = await client.query(`
+      SELECT
+        eo.*,
+        created_at(eo.id) as created_at,
+        u1.username as initiated_by_name,
+        u2.username as approved_by_name,
+        c.part_number as component_part_number,
+        c.description as component_description
+      FROM eco_orders eo
+      LEFT JOIN users u1 ON eo.initiated_by = u1.id
+      LEFT JOIN users u2 ON eo.approved_by = u2.id
+      LEFT JOIN components c ON eo.component_id = c.id
+      WHERE eo.component_id = $1 AND eo.status = 'rejected'
+      ORDER BY eo.id DESC
+      LIMIT 1
+    `, [componentId]);
+
+    if (ecoResult.rows.length === 0) {
+      return res.json(null);
+    }
+
+    const eco = ecoResult.rows[0];
+
+    // Fetch full change data for the rejected ECO
+    const changesResult = await client.query(`
+      SELECT ec.*,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.old_value) END as old_category_name,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.new_value) END as new_category_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.old_value) END as old_manufacturer_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+        WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
+          SUBSTRING(ec.new_value FROM 5) END as new_manufacturer_name
+      FROM eco_changes ec WHERE eco_id = $1 ORDER BY id
+    `, [eco.id]);
+
+    const specificationsResult = await client.query(`
+      SELECT es.*, cs.spec_name, cs.unit
+      FROM eco_specifications es
+      LEFT JOIN category_specifications cs ON es.category_spec_id = cs.id
+      WHERE es.eco_id = $1 ORDER BY cs.display_order
+    `, [eco.id]);
+
+    const approvalsResult = await client.query(`
+      SELECT ea.*, created_at(ea.id) as created_at,
+        u.username as user_name, u.role as user_role,
+        eas.stage_name
+      FROM eco_approvals ea
+      LEFT JOIN users u ON ea.user_id = u.id
+      LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
+      WHERE ea.eco_id = $1 ORDER BY ea.id
+    `, [eco.id]);
+
+    res.json({
+      ...eco,
+      changes: changesResult.rows,
+      specifications: specificationsResult.rows,
+      approvals: approvalsResult.rows,
+    });
+  } catch (error) {
+    console.error('[ECO] Error fetching last rejected ECO:', error);
+    res.status(500).json({ error: 'Failed to fetch last rejected ECO' });
   } finally {
     client.release();
   }
@@ -335,6 +498,7 @@ export const createECO = async (req, res) => {
       specifications,
       cad_files,
       notes,
+      parent_eco_id,
     } = req.body;
     
     // Generate ECO number
@@ -353,10 +517,10 @@ export const createECO = async (req, res) => {
 
     // Create ECO order with current_stage_order and pipeline_type
     const ecoResult = await client.query(`
-      INSERT INTO eco_orders (eco_number, component_id, part_number, initiated_by, notes, current_stage_order, pipeline_type)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO eco_orders (eco_number, component_id, part_number, initiated_by, notes, current_stage_order, pipeline_type, parent_eco_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [ecoNumber, component_id, part_number, req.user.id, notes || null, firstStageOrder, pipelineType]);
+    `, [ecoNumber, component_id, part_number, req.user.id, notes || null, firstStageOrder, pipelineType, parent_eco_id || null]);
     
     const ecoId = ecoResult.rows[0].id;
     
@@ -1350,6 +1514,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
       SELECT
         ea.*, created_at(ea.id) as created_at,
         u.username as user_name,
+        u.role as user_role,
         eas.stage_name, eas.stage_order
       FROM eco_approvals ea
       LEFT JOIN users u ON ea.user_id = u.id
@@ -1358,7 +1523,8 @@ export const generateECOPDFEndpoint = async (req, res) => {
       ORDER BY eas.stage_order, ea.id
     `, [id]);
 
-    const stagesResult = await client.query(`
+    // Get all active stages - fallback to all if pipeline filter yields nothing
+    const pdfStagesQuery = `
       SELECT
         eas.*,
         (SELECT COUNT(*) FROM eco_approvals ea
@@ -1372,9 +1538,18 @@ export const generateECOPDFEndpoint = async (req, res) => {
           ), '[]'::json
         ) as assigned_approvers
       FROM eco_approval_stages eas
-      WHERE eas.is_active = true AND $2 = ANY(eas.pipeline_types)
+      WHERE eas.is_active = true
       ORDER BY eas.stage_order
-    `, [id, eco.pipeline_type]);
+    `;
+    let stagesResult = await client.query(pdfStagesQuery, [id]);
+    if (eco.pipeline_type) {
+      const filtered = stagesResult.rows.filter(s =>
+        Array.isArray(s.pipeline_types) && s.pipeline_types.includes(eco.pipeline_type),
+      );
+      if (filtered.length > 0) {
+        stagesResult = { rows: filtered };
+      }
+    }
 
     const cadFilesResult = await client.query(`
       SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
@@ -1401,6 +1576,11 @@ export const generateECOPDFEndpoint = async (req, res) => {
       return { ...alt, distributors: dists };
     }));
 
+    // Fetch rejection history chain for PDF
+    const rejectionHistory = eco.parent_eco_id
+      ? await fetchRejectionHistory(client, eco.parent_eco_id)
+      : [];
+
     const ecoData = {
       ...eco,
       changes: changesResult.rows,
@@ -1410,6 +1590,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
       approvals: approvalsResult.rows,
       stages: stagesResult.rows,
       cad_files: cadFilesResult.rows,
+      rejection_history: rejectionHistory,
     };
 
     // Fetch logo filename from admin settings

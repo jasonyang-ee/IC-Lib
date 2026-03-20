@@ -291,6 +291,7 @@ export const api = {
   rejectECO: (id, data) => apiClient.post(`/eco/${id}/reject`, data),
   deleteECO: (id) => apiClient.delete(`/eco/${id}`),
   downloadECOPDF: (id) => apiClient.get(`/eco/${id}/pdf`, { responseType: 'blob' }),
+  getLastRejectedECO: (componentId) => apiClient.get(`/eco/component/${componentId}/last-rejected`),
 
   // ECO Approval Stages
   getApprovalStages: () => apiClient.get('/eco/stages'),
