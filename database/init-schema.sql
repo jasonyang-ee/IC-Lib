@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS components (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Constraints
-    CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'approved', 'archived', 'pending review', 'experimental'))
+    CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'production', 'archived', 'reviewing', 'prototype'))
 );
 
 -- ============================================================================
@@ -434,7 +434,7 @@ SELECT
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'new' OR c.approval_status = 'pending review';
+WHERE c.approval_status = 'new' OR c.approval_status = 'reviewing';
 
 -- Create a CIS table view for unapproved parts
 CREATE OR REPLACE VIEW prototype_parts AS
@@ -452,7 +452,7 @@ SELECT
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'experimental';
+WHERE c.approval_status = 'prototype';
 
 -- Create a CIS table view for old parts
 CREATE OR REPLACE VIEW archived_parts AS
@@ -661,7 +661,7 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     notes TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected')),
-    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('status_change', 'spec_cad', 'distributor', 'general'))
+    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'))
 );
 
 -- Table: eco_stage_approvers
@@ -995,5 +995,69 @@ BEGIN
     ) WHERE eo.current_stage_id IS NOT NULL AND eo.current_stage_order IS NULL;
     ALTER TABLE eco_orders DROP COLUMN IF EXISTS current_stage_id;
   END IF;
+END $$;
+
+-- Add reviewer role to users table
+DO $$
+BEGIN
+  -- Update CHECK constraint to include reviewer role
+  ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+  ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('read-only', 'reviewer', 'read-write', 'approver', 'admin'));
+END $$;
+
+-- Rename approval statuses: approved->production, experimental->prototype, pending review->reviewing
+DO $$
+BEGIN
+  -- Drop old constraint, rename values, add new constraint
+  ALTER TABLE components DROP CONSTRAINT IF EXISTS check_approval_status;
+  UPDATE components SET approval_status = 'production' WHERE approval_status = 'approved';
+  UPDATE components SET approval_status = 'prototype' WHERE approval_status = 'experimental';
+  UPDATE components SET approval_status = 'reviewing' WHERE approval_status = 'pending review';
+  ALTER TABLE components ADD CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'production', 'archived', 'reviewing', 'prototype'));
+END $$;
+
+-- Recreate views with updated status names
+CREATE OR REPLACE VIEW unapproved_parts AS
+SELECT
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+    c.value,
+    c.package_size,
+    c.manufacturer_pn,
+    m.name AS manufacturer_name,
+    c.schematic,
+    c.pcb_footprint,
+    c.description
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'new' OR c.approval_status = 'reviewing';
+
+CREATE OR REPLACE VIEW prototype_parts AS
+SELECT
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+    c.value,
+    c.package_size,
+    c.manufacturer_pn,
+    m.name AS manufacturer_name,
+    c.schematic,
+    c.pcb_footprint,
+    c.description
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'prototype';
+
+-- Split status_change pipeline type into proto_status_change and prod_status_change
+DO $$
+BEGIN
+  ALTER TABLE eco_orders DROP CONSTRAINT IF EXISTS check_pipeline_type;
+  UPDATE eco_orders SET pipeline_type = 'proto_status_change' WHERE pipeline_type = 'status_change';
+  ALTER TABLE eco_orders ADD CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'));
+  -- Update approval stages pipeline_types array
+  UPDATE eco_approval_stages SET pipeline_types = array_replace(pipeline_types, 'status_change', 'proto_status_change');
 END $$;
 

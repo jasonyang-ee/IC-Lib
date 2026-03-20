@@ -4,7 +4,8 @@ import { Search, X, Filter } from 'lucide-react';
 const PIPELINE_TYPE_FILTER_OPTIONS = [
   { value: '', label: 'All Types' },
   { value: 'general', label: 'General' },
-  { value: 'status_change', label: 'Status Change' },
+  { value: 'proto_status_change', label: 'Prototype Status Change' },
+  { value: 'prod_status_change', label: 'Production Status Change' },
   { value: 'spec_cad', label: 'Spec/CAD' },
   { value: 'distributor', label: 'Distributor' },
 ];

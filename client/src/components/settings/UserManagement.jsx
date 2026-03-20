@@ -192,6 +192,8 @@ const UserManagement = () => {
         return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200';
       case 'read-write':
         return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200';
+      case 'reviewer':
+        return 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200';
       case 'read-only':
         return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300';
       default:
@@ -376,6 +378,7 @@ const UserManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 >
                   <option value="read-only">Read Only</option>
+                  <option value="reviewer">Reviewer</option>
                   <option value="read-write">Read Write</option>
                   <option value="approver">Approver</option>
                   <option value="admin">Admin</option>
@@ -447,6 +450,7 @@ const UserManagement = () => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 >
                   <option value="read-only">Read Only</option>
+                  <option value="reviewer">Reviewer</option>
                   <option value="read-write">Read Write</option>
                   <option value="approver">Approver</option>
                   <option value="admin">Admin</option>

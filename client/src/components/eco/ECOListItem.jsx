@@ -28,10 +28,10 @@ const getStatusLabel = (status) => {
 
 const getApprovalStatusBadge = (status) => {
   const styles = {
-    approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+    production: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
     archived: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-    experimental: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-    'pending review': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+    prototype: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+    reviewing: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
     new: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
   };
   return styles[status] || styles.new;
@@ -39,14 +39,16 @@ const getApprovalStatusBadge = (status) => {
 
 const PIPELINE_TYPE_COLORS = {
   general: '',
-  status_change: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  proto_status_change: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  prod_status_change: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   spec_cad: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   distributor: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 };
 
 const PIPELINE_TYPE_LABELS = {
   general: 'General',
-  status_change: 'Status Change',
+  proto_status_change: 'Prototype Status Change',
+  prod_status_change: 'Production Status Change',
   spec_cad: 'Spec/CAD',
   distributor: 'Distributor',
 };

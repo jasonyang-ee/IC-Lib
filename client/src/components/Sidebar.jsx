@@ -6,8 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, hasRole } = useAuth();
   const navigate = useNavigate();
+  const isReviewer = hasRole('reviewer');
 
   // Check if ECO feature is enabled from environment variable
   const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
@@ -43,24 +44,32 @@ const Sidebar = () => {
     navigate('/login');
   };
 
+  // Reviewer role: only Dashboard + Parts Library
   const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/library', icon: Cpu, label: 'Parts Library' },
-    { path: '/file-library', icon: FolderOpen, label: 'File Library' },
-    { path: '/inventory', icon: Package, label: 'Inventory' },
-    { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
-    { path: '/projects', icon: Layers, label: 'Projects' },
-    { path: '/reports', icon: FileText, label: 'Reports' },
-    { path: '/audit', icon: TriangleAlert, label: 'Audit Log' },
   ];
 
-  // Add ECO menu item if feature is enabled
-  if (ecoEnabled) {
+  if (!isReviewer) {
+    menuItems.push(
+      { path: '/file-library', icon: FolderOpen, label: 'File Library' },
+      { path: '/inventory', icon: Package, label: 'Inventory' },
+      { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
+      { path: '/projects', icon: Layers, label: 'Projects' },
+      { path: '/reports', icon: FileText, label: 'Reports' },
+      { path: '/audit', icon: TriangleAlert, label: 'Audit Log' },
+    );
+  }
+
+  // Add ECO menu item if feature is enabled (not for reviewer)
+  if (ecoEnabled && !isReviewer) {
     menuItems.push({ path: '/eco', icon: FileEdit, label: 'ECO' });
   }
 
-  // User Settings available to all users
-  menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
+  // User Settings available to all users except reviewer
+  if (!isReviewer) {
+    menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
+  }
 
   // Only show Admin Settings for admin users
   if (isAdmin()) {

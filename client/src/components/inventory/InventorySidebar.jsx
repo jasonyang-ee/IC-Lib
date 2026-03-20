@@ -72,9 +72,9 @@ const InventorySidebar = ({
       onChange={onApprovalStatusChange}
       options={[
         { value: 'new', label: 'New' },
-        { value: 'approved', label: 'Approved' },
-        { value: 'pending review', label: 'Pending Review' },
-        { value: 'experimental', label: 'Experimental' },
+        { value: 'production', label: 'Production' },
+        { value: 'reviewing', label: 'Reviewing' },
+        { value: 'prototype', label: 'Prototype' },
         { value: 'archived', label: 'Archived' },
       ]}
       placeholder="All Statuses"

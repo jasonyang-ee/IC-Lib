@@ -78,8 +78,8 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => hasRole('admin');
   const canWrite = () => hasRole('read-write', 'approver', 'admin');
-  const canApprove = () => hasRole('approver', 'admin');
-  const canRead = () => hasRole('read-only', 'read-write', 'approver', 'admin');
+  const canApprove = () => hasRole('reviewer', 'approver', 'admin');
+  const canRead = () => hasRole('read-only', 'reviewer', 'read-write', 'approver', 'admin');
 
   const value = {
     user,

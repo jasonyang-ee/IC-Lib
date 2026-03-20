@@ -165,10 +165,10 @@ const getStatusColor = (status) => {
 
 const getApprovalStatusLabel = (status) => {
   const labels = {
-    approved: 'Approved',
+    production: 'Production',
     archived: 'Archived',
-    experimental: 'Experimental',
-    'pending review': 'Pending Review',
+    prototype: 'Prototype',
+    reviewing: 'Reviewing',
     new: 'New',
   };
   return labels[status] || status || '';
@@ -277,7 +277,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
 
   // Pipeline type
   if (ecoData.pipeline_type && ecoData.pipeline_type !== 'general') {
-    const typeLabels = { status_change: 'Status Change', spec_cad: 'Spec/CAD', distributor: 'Distributor' };
+    const typeLabels = { proto_status_change: 'Prototype Status Change', prod_status_change: 'Production Status Change', spec_cad: 'Spec/CAD', distributor: 'Distributor' };
     renderMetaLine(`Pipeline: ${typeLabels[ecoData.pipeline_type] || ecoData.pipeline_type}`);
   }
 

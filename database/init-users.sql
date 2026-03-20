@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuidv7(),
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'read-write', 'approver', 'admin')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'reviewer', 'read-write', 'approver', 'admin')),
   email VARCHAR(255),
   display_name VARCHAR(100),
   notification_preferences JSONB DEFAULT '{

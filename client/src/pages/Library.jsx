@@ -2852,9 +2852,9 @@ const Library = () => {
                 >
                   <option value="">All Status</option>
                   <option value="new">New</option>
-                  <option value="pending review">Pending Review</option>
-                  <option value="experimental">Experimental</option>
-                  <option value="approved">Approved</option>
+                  <option value="reviewing">Reviewing</option>
+                  <option value="prototype">Prototype</option>
+                  <option value="production">Production</option>
                   <option value="archived">Archived</option>
                 </select>
               </div>
@@ -3230,9 +3230,9 @@ const Library = () => {
                   <div className="flex flex-wrap gap-2">
                     {componentDetails.approval_status === 'new' && (
                       <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'new', new_value: 'experimental' })}
+                        onClick={() => setEcoStatusProposal({ old_value: 'new', new_value: 'prototype' })}
                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'experimental'
+                          ecoStatusProposal?.new_value === 'prototype'
                             ? 'bg-purple-600 text-white'
                             : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
                         }`}
@@ -3240,16 +3240,16 @@ const Library = () => {
                         Propose Prototype
                       </button>
                     )}
-                    {componentDetails.approval_status === 'experimental' && (
+                    {componentDetails.approval_status === 'prototype' && (
                       <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'experimental', new_value: 'approved' })}
+                        onClick={() => setEcoStatusProposal({ old_value: 'prototype', new_value: 'production' })}
                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'approved'
+                          ecoStatusProposal?.new_value === 'production'
                             ? 'bg-green-600 text-white'
                             : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
                         }`}
                       >
-                        Propose Approved
+                        Propose Production
                       </button>
                     )}
                     {componentDetails.approval_status !== 'archived' && (
@@ -3266,14 +3266,14 @@ const Library = () => {
                     )}
                     {componentDetails.approval_status === 'archived' && (
                       <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'archived', new_value: 'approved' })}
+                        onClick={() => setEcoStatusProposal({ old_value: 'archived', new_value: 'production' })}
                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'approved'
+                          ecoStatusProposal?.new_value === 'production'
                             ? 'bg-green-600 text-white'
                             : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
                         }`}
                       >
-                        Propose Re-Approve
+                        Propose Re-Production
                       </button>
                     )}
                     {ecoStatusProposal && (

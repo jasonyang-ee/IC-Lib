@@ -165,23 +165,23 @@ const Dashboard = () => {
               <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Pending</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Reviewing</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.pending_review || 0}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.reviewing || 0}</p>
               </div>
               <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500"></span>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Production</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.approved || 0}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.production || 0}</p>
               </div>
               <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Experimental</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Prototype</p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.experimental || 0}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats?.approvalStatus?.prototype || 0}</p>
               </div>
               <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 border border-gray-200 dark:border-[#3a3a3a]">
                 <div className="flex items-center gap-2 mb-2">

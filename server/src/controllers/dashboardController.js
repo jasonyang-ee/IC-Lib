@@ -102,9 +102,9 @@ export const getDashboardStats = async (req, res, next) => {
       approvalStatus: {
         new: approvalStatusCounts.new || 0,
         temporary: approvalStatusCounts.temporary || 0,
-        pending_review: approvalStatusCounts['pending review'] || 0,
-        experimental: approvalStatusCounts.experimental || 0,
-        approved: approvalStatusCounts.approved || 0,
+        reviewing: approvalStatusCounts['reviewing'] || 0,
+        prototype: approvalStatusCounts.prototype || 0,
+        production: approvalStatusCounts.production || 0,
         archived: approvalStatusCounts.archived || 0,
       },
     });

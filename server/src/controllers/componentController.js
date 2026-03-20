@@ -2132,16 +2132,16 @@ export const updateComponentApproval = async (req, res, next) => {
     // Determine new approval status based on action
     switch (action) {
       case 'approve':
-        newApprovalStatus = 'approved';
+        newApprovalStatus = 'production';
         break;
       case 'archive':
         newApprovalStatus = 'archived';
         break;
       case 'send_to_review':
-        newApprovalStatus = 'pending review';
+        newApprovalStatus = 'reviewing';
         break;
       case 'send_to_prototype':
-        newApprovalStatus = 'experimental';
+        newApprovalStatus = 'prototype';
         break;
       default:
         return res.status(400).json({ error: 'Invalid action. Must be approve, deny, send_to_review, or send_to_prototype' });

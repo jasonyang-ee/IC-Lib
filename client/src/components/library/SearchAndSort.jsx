@@ -135,9 +135,9 @@ const SearchAndSort = ({
           >
             <option value="">All Status</option>
             <option value="new">New</option>
-            <option value="pending_review">Pending Review</option>
-            <option value="experimental">Experimental</option>
-            <option value="approved">Approved</option>
+            <option value="reviewing">Reviewing</option>
+            <option value="prototype">Prototype</option>
+            <option value="production">Production</option>
             <option value="archived">Archived</option>
           </select>
         </div>

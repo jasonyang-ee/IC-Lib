@@ -312,7 +312,8 @@ const detectPipelineType = (changes = [], specifications = [], cad_files = [], d
 
   if (hasStatusChange && !hasSpecChanges && !hasCadChanges && !hasFieldChanges && !hasDistributorChanges && !hasAlternativeChanges) {
     const statusChange = changes.find(c => c.field_name === '_status_proposal');
-    if (statusChange?.new_value === 'experimental') return 'status_change';
+    if (statusChange?.new_value === 'prototype') return 'proto_status_change';
+    if (statusChange?.new_value === 'production') return 'prod_status_change';
   }
   if (hasSpecChanges || hasCadChanges) return 'spec_cad';
   if ((hasDistributorChanges || hasAlternativeChanges) && !hasFieldChanges && !hasSpecChanges && !hasCadChanges && !hasStatusChange) return 'distributor';
@@ -1498,7 +1499,7 @@ export const createApprovalStage = async (req, res) => {
     }
 
     // Validate pipeline_types values
-    const validPipelineTypes = ['status_change', 'spec_cad', 'distributor', 'general'];
+    const validPipelineTypes = ['proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'];
     const resolvedPipelineTypes = Array.isArray(pipeline_types) && pipeline_types.length > 0
       ? pipeline_types
       : ['general'];
@@ -1534,7 +1535,7 @@ export const updateApprovalStage = async (req, res) => {
 
     // Validate pipeline_types if provided
     if (pipeline_types !== undefined) {
-      const validPipelineTypes = ['status_change', 'spec_cad', 'distributor', 'general'];
+      const validPipelineTypes = ['proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'];
       if (!Array.isArray(pipeline_types) || pipeline_types.length === 0) {
         return res.status(400).json({ error: 'pipeline_types must be a non-empty array' });
       }

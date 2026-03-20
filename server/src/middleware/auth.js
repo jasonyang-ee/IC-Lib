@@ -112,7 +112,7 @@ export const canApprove = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'approver' && req.user.role !== 'admin') {
+  if (req.user.role !== 'approver' && req.user.role !== 'admin' && req.user.role !== 'reviewer') {
     return res.status(403).json({ 
       error: 'Access denied',
       message: 'Approver or admin access required', 
@@ -132,7 +132,7 @@ export const canWrite = (req, res, next) => {
     });
   }
 
-  if (req.user.role === 'read-only') {
+  if (req.user.role === 'read-only' || req.user.role === 'reviewer') {
     return res.status(403).json({ 
       error: 'Access denied',
       message: 'Write access required', 
