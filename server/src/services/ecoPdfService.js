@@ -1,0 +1,480 @@
+import PDFDocument from 'pdfkit';
+
+// Colors
+const COLORS = {
+  primary: '#1a56db',
+  green: '#15803d',
+  red: '#b91c1c',
+  yellow: '#a16207',
+  purple: '#7e22ce',
+  blue: '#1d4ed8',
+  gray: '#4b5563',
+  lightGray: '#e5e7eb',
+  darkText: '#111827',
+  mutedText: '#6b7280',
+  headerBg: '#f3f4f6',
+  white: '#ffffff',
+  tableBorder: '#d1d5db',
+};
+
+const FONT_SIZE = {
+  title: 16,
+  subtitle: 11,
+  heading: 10,
+  body: 8.5,
+  small: 7.5,
+};
+
+const PAGE = {
+  width: 612,   // Letter width in points
+  height: 792,  // Letter height in points
+  marginLeft: 40,
+  marginRight: 40,
+  marginTop: 40,
+  marginBottom: 50,
+};
+
+const contentWidth = PAGE.width - PAGE.marginLeft - PAGE.marginRight;
+
+// Helper: draw a horizontal rule
+const drawHR = (doc, y, width = contentWidth) => {
+  doc
+    .moveTo(PAGE.marginLeft, y)
+    .lineTo(PAGE.marginLeft + width, y)
+    .strokeColor(COLORS.lightGray)
+    .lineWidth(0.5)
+    .stroke();
+};
+
+// Helper: check if we need a new page
+const checkPage = (doc, needed = 30) => {
+  if (doc.y + needed > PAGE.height - PAGE.marginBottom) {
+    doc.addPage();
+    doc.y = PAGE.marginTop;
+    return true;
+  }
+  return false;
+};
+
+// Helper: draw a section heading
+const drawSectionHeading = (doc, title) => {
+  checkPage(doc, 40);
+  doc.y += 8;
+  doc
+    .fontSize(FONT_SIZE.heading)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.darkText)
+    .text(title, PAGE.marginLeft, doc.y);
+  doc.y += 3;
+  drawHR(doc, doc.y);
+  doc.y += 6;
+};
+
+// Helper: draw a simple table
+const drawTable = (doc, headers, rows, colWidths) => {
+  const tableX = PAGE.marginLeft;
+  const rowHeight = 16;
+  const cellPadding = 4;
+
+  // Header row
+  checkPage(doc, rowHeight * 2);
+  const headerY = doc.y;
+  doc.rect(tableX, headerY, contentWidth, rowHeight).fill(COLORS.headerBg);
+
+  let x = tableX;
+  for (let i = 0; i < headers.length; i++) {
+    doc
+      .fontSize(FONT_SIZE.small)
+      .font('Helvetica-Bold')
+      .fillColor(COLORS.gray)
+      .text(headers[i], x + cellPadding, headerY + 4, {
+        width: colWidths[i] - cellPadding * 2,
+        lineBreak: false,
+      });
+    x += colWidths[i];
+  }
+  doc.y = headerY + rowHeight;
+
+  // Data rows
+  for (const row of rows) {
+    // Calculate row height based on content
+    let maxHeight = rowHeight;
+    const cellHeights = [];
+    for (let i = 0; i < row.length; i++) {
+      const text = String(row[i] || '');
+      const h = doc.heightOfString(text, {
+        width: colWidths[i] - cellPadding * 2,
+        fontSize: FONT_SIZE.body,
+      });
+      cellHeights.push(Math.max(rowHeight, h + 8));
+      maxHeight = Math.max(maxHeight, cellHeights[i]);
+    }
+
+    checkPage(doc, maxHeight);
+
+    // Draw bottom border
+    const rowY = doc.y;
+    doc
+      .moveTo(tableX, rowY + maxHeight)
+      .lineTo(tableX + contentWidth, rowY + maxHeight)
+      .strokeColor(COLORS.lightGray)
+      .lineWidth(0.3)
+      .stroke();
+
+    x = tableX;
+    for (let i = 0; i < row.length; i++) {
+      const text = String(row[i] ?? '-');
+      doc
+        .fontSize(FONT_SIZE.body)
+        .font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+        .fillColor(COLORS.darkText)
+        .text(text, x + cellPadding, rowY + 4, {
+          width: colWidths[i] - cellPadding * 2,
+          lineBreak: true,
+        });
+      x += colWidths[i];
+    }
+    doc.y = rowY + maxHeight;
+  }
+
+  doc.y += 4;
+};
+
+// Helper: get status badge text
+const getStatusLabel = (status) => {
+  const labels = {
+    pending: 'PENDING',
+    in_review: 'IN REVIEW',
+    approved: 'APPROVED',
+    rejected: 'REJECTED',
+  };
+  return labels[status] || status?.toUpperCase() || 'UNKNOWN';
+};
+
+const getStatusColor = (status) => {
+  const colors = {
+    pending: COLORS.yellow,
+    in_review: COLORS.blue,
+    approved: COLORS.green,
+    rejected: COLORS.red,
+  };
+  return colors[status] || COLORS.gray;
+};
+
+const getApprovalStatusLabel = (status) => {
+  const labels = {
+    approved: 'Approved',
+    archived: 'Archived',
+    experimental: 'Experimental',
+    'pending review': 'Pending Review',
+    new: 'New',
+  };
+  return labels[status] || status || '';
+};
+
+const formatFieldName = (field) => {
+  if (field === 'category_id') return 'Category';
+  if (field === 'manufacturer_id') return 'Manufacturer';
+  if (field === '_status_proposal') return 'Status Change';
+  if (field === 'manufacturer_pn') return "Manufacturer's P/N";
+  if (field === 'pcb_footprint') return 'PCB Footprint';
+  if (field === 'package_size') return 'Package Size';
+  if (field === 'datasheet_url') return 'Datasheet URL';
+  return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
+
+/**
+ * Generate a PDF document for an ECO order.
+ * @param {Object} ecoData - Full ECO data from getECOById (with changes, distributors, etc.)
+ * @returns {PDFDocument} - A PDFKit document stream
+ */
+export const generateECOPdf = (ecoData) => {
+  const doc = new PDFDocument({
+    size: 'LETTER',
+    margins: {
+      top: PAGE.marginTop,
+      bottom: PAGE.marginBottom,
+      left: PAGE.marginLeft,
+      right: PAGE.marginRight,
+    },
+    info: {
+      Title: `ECO ${ecoData.eco_number}`,
+      Author: 'IC-Lib',
+      Subject: `Engineering Change Order - ${ecoData.eco_number}`,
+    },
+    bufferPages: true,
+  });
+
+  // ===== HEADER =====
+  doc
+    .fontSize(FONT_SIZE.title)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.darkText)
+    .text(`ECO: ${ecoData.eco_number}`, PAGE.marginLeft, PAGE.marginTop);
+
+  // Status badge
+  const statusColor = getStatusColor(ecoData.status);
+  const statusText = getStatusLabel(ecoData.status);
+  const statusX = PAGE.width - PAGE.marginRight - 80;
+  doc
+    .rect(statusX, PAGE.marginTop, 80, 18)
+    .fill(statusColor);
+  doc
+    .fontSize(FONT_SIZE.body)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.white)
+    .text(statusText, statusX, PAGE.marginTop + 5, { width: 80, align: 'center' });
+
+  doc.y = PAGE.marginTop + 26;
+
+  // Meta info
+  const metaLines = [];
+  if (ecoData.component_part_number || ecoData.part_number) {
+    metaLines.push(`Part Number: ${ecoData.component_part_number || ecoData.part_number}`);
+  }
+  if (ecoData.component_description) {
+    metaLines.push(`Description: ${ecoData.component_description}`);
+  }
+  metaLines.push(`Initiated By: ${ecoData.initiated_by_name || 'Unknown'}`);
+  if (ecoData.created_at) {
+    metaLines.push(`Date: ${new Date(ecoData.created_at).toLocaleString()}`);
+  }
+  if (ecoData.approved_by_name) {
+    const action = ecoData.status === 'approved' ? 'Approved' : 'Rejected';
+    metaLines.push(`${action} By: ${ecoData.approved_by_name}${ecoData.approved_at ? ` on ${new Date(ecoData.approved_at).toLocaleString()}` : ''}`);
+  }
+
+  for (const line of metaLines) {
+    doc
+      .fontSize(FONT_SIZE.subtitle)
+      .font('Helvetica')
+      .fillColor(COLORS.gray)
+      .text(line, PAGE.marginLeft, doc.y);
+    doc.y += 2;
+  }
+
+  // Notes
+  if (ecoData.notes) {
+    doc.y += 4;
+    doc
+      .fontSize(FONT_SIZE.body)
+      .font('Helvetica-Oblique')
+      .fillColor(COLORS.mutedText)
+      .text(`Notes: ${ecoData.notes}`, PAGE.marginLeft, doc.y, { width: contentWidth });
+  }
+
+  // Rejection reason
+  if (ecoData.rejection_reason) {
+    doc.y += 4;
+    doc
+      .fontSize(FONT_SIZE.body)
+      .font('Helvetica-Bold')
+      .fillColor(COLORS.red)
+      .text(`Rejection Reason: ${ecoData.rejection_reason}`, PAGE.marginLeft, doc.y, { width: contentWidth });
+  }
+
+  doc.y += 6;
+  drawHR(doc, doc.y);
+  doc.y += 8;
+
+  // ===== APPROVAL PROGRESS =====
+  if (ecoData.stages && ecoData.stages.length > 0) {
+    drawSectionHeading(doc, 'Approval Progress');
+
+    const stageHeaders = ['Stage', 'Approvals', 'Assigned', 'Status'];
+    const stageColWidths = [contentWidth * 0.25, contentWidth * 0.15, contentWidth * 0.35, contentWidth * 0.25];
+    const stageRows = ecoData.stages.map(stage => {
+      const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
+      const isCurrent = ecoData.current_stage_id === stage.id;
+      const approvers = stage.assigned_approvers
+        ?.map(a => a.username)
+        .join(', ') || '-';
+      let status = 'Pending';
+      if (isComplete) status = 'Complete';
+      if (isCurrent && !isComplete) status = 'Current';
+      return [
+        stage.stage_name,
+        `${stage.approval_count}/${stage.required_approvals}`,
+        approvers,
+        status,
+      ];
+    });
+    drawTable(doc, stageHeaders, stageRows, stageColWidths);
+
+    // Vote history
+    if (ecoData.approvals && ecoData.approvals.length > 0) {
+      doc.y += 2;
+      doc
+        .fontSize(FONT_SIZE.small)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.gray)
+        .text('Vote History', PAGE.marginLeft, doc.y);
+      doc.y += 4;
+
+      const voteHeaders = ['Stage', 'User', 'Decision', 'Comments', 'Date'];
+      const voteColWidths = [
+        contentWidth * 0.18, contentWidth * 0.15, contentWidth * 0.12,
+        contentWidth * 0.35, contentWidth * 0.20];
+      const voteRows = ecoData.approvals.map(a => [
+        a.stage_name || '-',
+        a.user_name || '-',
+        a.decision || '-',
+        a.comments || '-',
+        a.created_at ? new Date(a.created_at).toLocaleString() : '-',
+      ]);
+      drawTable(doc, voteHeaders, voteRows, voteColWidths);
+    }
+  }
+
+  // ===== COMPONENT CHANGES =====
+  if (ecoData.changes && ecoData.changes.length > 0) {
+    drawSectionHeading(doc, 'Component Changes');
+
+    const changeHeaders = ['Field', 'Old Value', 'New Value'];
+    const changeColWidths = [contentWidth * 0.25, contentWidth * 0.375, contentWidth * 0.375];
+    const changeRows = ecoData.changes.map(c => {
+      let oldVal = c.old_value || '';
+      let newVal = c.new_value || '';
+
+      if (c.field_name === 'category_id') {
+        oldVal = c.old_category_name || oldVal;
+        newVal = c.new_category_name || newVal;
+      } else if (c.field_name === 'manufacturer_id') {
+        oldVal = c.old_manufacturer_name || oldVal;
+        newVal = c.new_manufacturer_name || newVal;
+      } else if (c.field_name === '_status_proposal') {
+        oldVal = getApprovalStatusLabel(oldVal);
+        newVal = getApprovalStatusLabel(newVal);
+      }
+
+      return [formatFieldName(c.field_name), oldVal, newVal];
+    });
+    drawTable(doc, changeHeaders, changeRows, changeColWidths);
+  }
+
+  // ===== SPECIFICATION CHANGES =====
+  if (ecoData.specifications && ecoData.specifications.length > 0) {
+    drawSectionHeading(doc, 'Specification Changes');
+
+    const specHeaders = ['Specification', 'Old Value', 'New Value'];
+    const specColWidths = [contentWidth * 0.30, contentWidth * 0.35, contentWidth * 0.35];
+    const specRows = ecoData.specifications.map(s => [
+      `${s.spec_name || '-'}${s.unit ? ` (${s.unit})` : ''}`,
+      s.old_value || '-',
+      s.new_value || '-',
+    ]);
+    drawTable(doc, specHeaders, specRows, specColWidths);
+  }
+
+  // ===== DISTRIBUTOR CHANGES =====
+  if (ecoData.distributors && ecoData.distributors.length > 0) {
+    drawSectionHeading(doc, 'Distributor Changes');
+
+    const distHeaders = ['Action', 'Distributor', 'SKU', 'URL'];
+    const distColWidths = [contentWidth * 0.12, contentWidth * 0.25, contentWidth * 0.25, contentWidth * 0.38];
+    const distRows = ecoData.distributors.map(d => [
+      d.action?.toUpperCase() || '-',
+      d.distributor_name || '-',
+      d.sku || '-',
+      d.url || '-',
+    ]);
+    drawTable(doc, distHeaders, distRows, distColWidths);
+  }
+
+  // ===== ALTERNATIVE PARTS CHANGES =====
+  if (ecoData.alternatives && ecoData.alternatives.length > 0) {
+    drawSectionHeading(doc, 'Alternative Parts Changes');
+
+    for (const alt of ecoData.alternatives) {
+      checkPage(doc, 40);
+
+      // Action badge + manufacturer
+      const actionLabel = (alt.action || '').toUpperCase();
+      const actionColor = alt.action === 'add' ? COLORS.green : alt.action === 'delete' ? COLORS.red : COLORS.blue;
+
+      doc
+        .fontSize(FONT_SIZE.body)
+        .font('Helvetica-Bold')
+        .fillColor(actionColor)
+        .text(`[${actionLabel}]`, PAGE.marginLeft, doc.y, { continued: true })
+        .fillColor(COLORS.darkText)
+        .text(`  ${alt.manufacturer_name || 'Unknown'} — MFG P/N: ${alt.manufacturer_pn || '-'}`);
+
+      // Previous info for updates/deletes
+      if (alt.action !== 'add' && alt.existing_manufacturer_name) {
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica')
+          .fillColor(COLORS.mutedText)
+          .text(`Previous: ${alt.existing_manufacturer_name} / ${alt.existing_manufacturer_pn || '-'}`, PAGE.marginLeft + 12, doc.y);
+      }
+
+      // Nested distributors
+      const altDists = Array.isArray(alt.distributors) ? alt.distributors : [];
+      if (altDists.length > 0) {
+        doc.y += 2;
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.gray)
+          .text('Distributors:', PAGE.marginLeft + 12, doc.y);
+        doc.y += 2;
+
+        for (const dist of altDists) {
+          checkPage(doc, 14);
+          const dActionColor = dist.action === 'add' ? COLORS.green : dist.action === 'delete' ? COLORS.red : COLORS.blue;
+          doc
+            .fontSize(FONT_SIZE.small)
+            .font('Helvetica')
+            .fillColor(dActionColor)
+            .text(`[${(dist.action || '').toUpperCase()}]`, PAGE.marginLeft + 20, doc.y, { continued: true })
+            .fillColor(COLORS.darkText)
+            .text(`  ${dist.distributor_name || 'Distributor'}${dist.sku ? ` | SKU: ${dist.sku}` : ''}${dist.url ? ` | ${dist.url}` : ''}`);
+        }
+      }
+
+      doc.y += 6;
+      drawHR(doc, doc.y, contentWidth - 20);
+      doc.y += 4;
+    }
+  }
+
+  // ===== CAD FILE CHANGES =====
+  if (ecoData.cad_files && ecoData.cad_files.length > 0) {
+    drawSectionHeading(doc, 'CAD File Changes');
+
+    const cadHeaders = ['Action', 'File Name', 'File Type'];
+    const cadColWidths = [contentWidth * 0.15, contentWidth * 0.55, contentWidth * 0.30];
+    const cadRows = ecoData.cad_files.map(cf => [
+      (cf.action || '').toUpperCase(),
+      cf.file_name || cf.existing_file_name || '-',
+      cf.file_type || cf.existing_file_type || '-',
+    ]);
+    drawTable(doc, cadHeaders, cadRows, cadColWidths);
+  }
+
+  // ===== FOOTER on all pages =====
+  const pages = doc.bufferedPageRange();
+  for (let i = 0; i < pages.count; i++) {
+    doc.switchToPage(i);
+    doc
+      .fontSize(FONT_SIZE.small)
+      .font('Helvetica')
+      .fillColor(COLORS.mutedText)
+      .text(
+        `Generated: ${new Date().toLocaleString()}`,
+        PAGE.marginLeft,
+        PAGE.height - PAGE.marginBottom + 10,
+        { width: contentWidth / 2, align: 'left' },
+      )
+      .text(
+        `Page ${i + 1} of ${pages.count}`,
+        PAGE.marginLeft + contentWidth / 2,
+        PAGE.height - PAGE.marginBottom + 10,
+        { width: contentWidth / 2, align: 'right' },
+      );
+  }
+
+  doc.end();
+  return doc;
+};

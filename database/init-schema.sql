@@ -452,7 +452,7 @@ SELECT
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'exprimental';
+WHERE c.approval_status = 'experimental';
 
 -- Create a CIS table view for old parts
 CREATE OR REPLACE VIEW archived_parts AS
@@ -726,6 +726,7 @@ CREATE TABLE IF NOT EXISTS eco_alternative_parts (
     action VARCHAR(20) NOT NULL, -- 'add', 'update', 'delete'
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200),
+    manufacturer_name VARCHAR(200), -- stored as string for staging (find-or-create on approval)
     distributors JSONB DEFAULT '[]'::jsonb, -- embedded distributor changes for this alternative
     CONSTRAINT check_eco_alt_action CHECK (action IN ('add', 'update', 'delete'))
 );
@@ -964,4 +965,7 @@ CREATE INDEX IF NOT EXISTS idx_eco_cad_files_cad_file ON eco_cad_files(cad_file_
 
 -- Add distributors JSONB column to eco_alternative_parts for existing databases
 ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS distributors JSONB DEFAULT '[]'::jsonb;
+
+-- Add manufacturer_name text column - stored as string for staging (find-or-create on approval)
+ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS manufacturer_name VARCHAR(200);
 

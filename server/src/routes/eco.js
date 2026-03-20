@@ -7,6 +7,7 @@ import {
   approveECO,
   rejectECO,
   deleteECO,
+  generateECOPDFEndpoint,
   getApprovalStages,
   createApprovalStage,
   updateApprovalStage,
@@ -33,6 +34,9 @@ router.get('/', getAllECOs);
 
 // Get single ECO order by ID (all authenticated users can view)
 router.get('/:id', getECOById);
+
+// Generate PDF for an ECO order (all authenticated users)
+router.get('/:id/pdf', generateECOPDFEndpoint);
 
 // Create new ECO order (write, approver, admin)
 router.post('/', canWrite, createECO);

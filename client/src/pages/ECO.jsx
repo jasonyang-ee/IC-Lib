@@ -116,6 +116,21 @@ const ECO = () => {
     }
   };
 
+  const handleDownloadPDF = async (ecoId, ecoNumber) => {
+    try {
+      const response = await api.downloadECOPDF(ecoId);
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${ecoNumber || 'ECO'}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showError('Failed to download ECO PDF.');
+    }
+  };
+
   const toggleExpanded = (ecoId) => {
     setExpandedECO(expandedECO === ecoId ? null : ecoId);
     setApprovalComments('');
@@ -168,6 +183,7 @@ const ECO = () => {
                   onToggleExpanded={toggleExpanded}
                   onApprove={handleApprove}
                   onReject={(ecoId) => setShowRejectModal(ecoId)}
+                  onDownloadPDF={handleDownloadPDF}
                   approvePending={approveMutation.isPending}
                   rejectPending={rejectMutation.isPending}
                 />

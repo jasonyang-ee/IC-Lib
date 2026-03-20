@@ -1311,7 +1311,7 @@ const Library = () => {
       for (const field of fieldsToTrack) {
         const oldValue = componentDetails?.[field];
         const newValue = editData[field];
-        
+
         if (oldValue !== newValue && newValue !== undefined) {
           changes.push({
             field_name: field,
@@ -1430,6 +1430,18 @@ const Library = () => {
         for (const alt of editData.alternatives) {
           const oldAlt = alternatives?.find(a => a.id === alt.id);
 
+          // Resolve manufacturer_id: extract name if NEW: prefix
+          let mfgId = alt.manufacturer_id;
+          let mfgName = null;
+          if (typeof mfgId === 'string' && mfgId.startsWith('NEW:')) {
+            mfgName = mfgId.substring(4);
+            mfgId = null; // no UUID yet — will be created on approval
+          } else {
+            // Resolve name from manufacturers list for display in ECO details
+            const mfr = manufacturers?.find(m => m.id === mfgId);
+            mfgName = mfr?.name || null;
+          }
+
           if (oldAlt) {
             const mfgChanged = oldAlt.manufacturer_id !== alt.manufacturer_id;
             const pnChanged = oldAlt.manufacturer_pn !== alt.manufacturer_pn;
@@ -1439,8 +1451,9 @@ const Library = () => {
               alternativesParts.push({
                 alternative_id: alt.id,
                 action: 'update',
-                manufacturer_id: alt.manufacturer_id,
+                manufacturer_id: mfgId,
                 manufacturer_pn: alt.manufacturer_pn,
+                manufacturer_name: mfgName,
                 distributors: altDistChanges,
               });
             }
@@ -1457,8 +1470,9 @@ const Library = () => {
             alternativesParts.push({
               alternative_id: null,
               action: 'add',
-              manufacturer_id: alt.manufacturer_id,
+              manufacturer_id: mfgId,
               manufacturer_pn: alt.manufacturer_pn,
+              manufacturer_name: mfgName,
               distributors: newDists,
             });
           }

@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Link2, Unlink2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Link2, Unlink2, Download } from 'lucide-react';
 
 const getStatusBadge = (status) => {
   const styles = {
@@ -50,6 +50,7 @@ const ECOListItem = ({
   onToggleExpanded,
   onApprove,
   onReject,
+  onDownloadPDF,
   approvePending,
   rejectPending
 }) => {
@@ -136,12 +137,22 @@ const ECOListItem = ({
 
         {/* Action Buttons - Separate Row */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-200 dark:border-[#3a3a3a]">
-          <button
-            onClick={() => onToggleExpanded(eco.id)}
-            className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
-          >
-            {isExpanded ? '- Hide Details' : '+ Expand Details'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => onToggleExpanded(eco.id)}
+              className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
+            >
+              {isExpanded ? '- Hide Details' : '+ Expand Details'}
+            </button>
+            <button
+              onClick={() => onDownloadPDF(eco.id, eco.eco_number)}
+              className="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+              title="Download PDF"
+            >
+              <Download className="w-4 h-4" />
+              PDF
+            </button>
+          </div>
 
           {isPendingApproval(eco.status) && canApprove && (
             <div className="flex items-center gap-2">

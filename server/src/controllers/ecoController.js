@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import { sendECONotification } from '../services/emailService.js';
 import { regenerateCadText } from '../services/cadFileService.js';
+import { generateECOPdf } from '../services/ecoPdfService.js';
 
 // Whitelist of valid component field names to prevent SQL injection
 const VALID_COMPONENT_FIELDS = [
@@ -137,22 +138,24 @@ export const getECOById = async (req, res) => {
     
     // Get all changes (with category name resolution for category_id changes)
     const changesResult = await client.query(`
-      SELECT 
+      SELECT
         ec.*,
-        CASE WHEN ec.field_name = 'category_id' THEN 
+        CASE WHEN ec.field_name = 'category_id' THEN
           (SELECT name FROM component_categories WHERE id::text = ec.old_value)
         END as old_category_name,
-        CASE WHEN ec.field_name = 'category_id' THEN 
+        CASE WHEN ec.field_name = 'category_id' THEN
           (SELECT name FROM component_categories WHERE id::text = ec.new_value)
         END as new_category_name,
-        CASE WHEN ec.field_name = 'manufacturer_id' THEN 
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN
           (SELECT name FROM manufacturers WHERE id::text = ec.old_value)
         END as old_manufacturer_name,
-        CASE WHEN ec.field_name = 'manufacturer_id' THEN 
+        CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
           (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+        WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
+          SUBSTRING(ec.new_value FROM 5)
         END as new_manufacturer_name
-      FROM eco_changes ec 
-      WHERE eco_id = $1 
+      FROM eco_changes ec
+      WHERE eco_id = $1
       ORDER BY id
     `, [id]);
     
@@ -175,7 +178,7 @@ export const getECOById = async (req, res) => {
     const alternativesResult = await client.query(`
       SELECT
         ea.*,
-        m.name as manufacturer_name,
+        COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
         ca.manufacturer_pn as existing_manufacturer_pn,
         cam.name as existing_manufacturer_name
       FROM eco_alternative_parts ea
@@ -340,13 +343,13 @@ export const createECO = async (req, res) => {
       for (const dist of distributors) {
         await client.query(`
           INSERT INTO eco_distributors (
-            eco_id, alternative_id, distributor_id, action, sku, url, 
-            currency, in_stock, stock_quantity, minimum_order_quantity, 
+            eco_id, alternative_id, distributor_id, action, sku, url,
+            currency, in_stock, stock_quantity, minimum_order_quantity,
             packaging, price_breaks
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         `, [
-          ecoId, dist.alternative_id || null, dist.distributor_id, dist.action,
+          ecoId, dist.alternative_id || null, dist.distributor_id || null, dist.action,
           dist.sku, dist.url, dist.currency || 'USD', dist.in_stock || false,
           dist.stock_quantity, dist.minimum_order_quantity || 1,
           dist.packaging, JSON.stringify(dist.price_breaks || []),
@@ -359,12 +362,13 @@ export const createECO = async (req, res) => {
       for (const alt of alternatives) {
         await client.query(`
           INSERT INTO eco_alternative_parts (
-            eco_id, alternative_id, action, manufacturer_id, manufacturer_pn, distributors
+            eco_id, alternative_id, action, manufacturer_id, manufacturer_pn, manufacturer_name, distributors
           )
-          VALUES ($1, $2, $3, $4, $5, $6)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
         `, [
           ecoId, alt.alternative_id || null, alt.action,
-          alt.manufacturer_id, alt.manufacturer_pn,
+          alt.manufacturer_id || null, alt.manufacturer_pn || null,
+          alt.manufacturer_name || null,
           JSON.stringify(alt.distributors || []),
         ]);
       }
@@ -478,6 +482,18 @@ const applyECOChanges = async (client, eco, id) => {
       for (const change of regularChanges) {
         if (VALID_COMPONENT_FIELDS.includes(change.field_name) && !change.field_name.startsWith('_')) {
           overrides[change.field_name] = change.new_value;
+        }
+      }
+
+      // Resolve manufacturer_id if it's a NEW: prefixed name
+      if (overrides.manufacturer_id && typeof overrides.manufacturer_id === 'string' && overrides.manufacturer_id.startsWith('NEW:')) {
+        const mfgName = overrides.manufacturer_id.substring(4);
+        const existing = await client.query('SELECT id FROM manufacturers WHERE name = $1', [mfgName]);
+        if (existing.rows.length > 0) {
+          overrides.manufacturer_id = existing.rows[0].id;
+        } else {
+          const created = await client.query('INSERT INTO manufacturers (name) VALUES ($1) RETURNING id', [mfgName]);
+          overrides.manufacturer_id = created.rows[0].id;
         }
       }
 
@@ -606,8 +622,23 @@ const applyECOChanges = async (client, eco, id) => {
     for (const change of regularChanges) {
       if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) continue;
       if (change.field_name.startsWith('_')) continue; // Skip virtual fields
+
+      let value = change.new_value;
+
+      // Handle manufacturer_id: find-or-create if value is a "NEW:" prefixed name
+      if (change.field_name === 'manufacturer_id' && typeof value === 'string' && value.startsWith('NEW:')) {
+        const mfgName = value.substring(4);
+        const existing = await client.query('SELECT id FROM manufacturers WHERE name = $1', [mfgName]);
+        if (existing.rows.length > 0) {
+          value = existing.rows[0].id;
+        } else {
+          const created = await client.query('INSERT INTO manufacturers (name) VALUES ($1) RETURNING id', [mfgName]);
+          value = created.rows[0].id;
+        }
+      }
+
       updateFields.push(`${change.field_name} = $${paramIndex}`);
-      updateValues.push(change.new_value);
+      updateValues.push(value);
       paramIndex++;
     }
 
@@ -697,13 +728,31 @@ const applyECOChanges = async (client, eco, id) => {
       try { altDistributors = JSON.parse(altDistributors); } catch { altDistributors = []; }
     }
 
+    // Resolve manufacturer: find-or-create by name if manufacturer_id is missing
+    let resolvedManufacturerId = alt.manufacturer_id;
+    if (!resolvedManufacturerId && alt.manufacturer_name) {
+      const existing = await client.query(
+        'SELECT id FROM manufacturers WHERE name = $1',
+        [alt.manufacturer_name],
+      );
+      if (existing.rows.length > 0) {
+        resolvedManufacturerId = existing.rows[0].id;
+      } else {
+        const created = await client.query(
+          'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
+          [alt.manufacturer_name],
+        );
+        resolvedManufacturerId = created.rows[0].id;
+      }
+    }
+
     if (alt.action === 'add') {
       // Create the new alternative and get its ID
       const newAltResult = await client.query(`
         INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn)
         VALUES ($1, $2, $3)
         RETURNING id
-      `, [targetComponentId, alt.manufacturer_id, alt.manufacturer_pn]);
+      `, [targetComponentId, resolvedManufacturerId, alt.manufacturer_pn]);
 
       // Apply embedded distributor data for this new alternative
       if (newAltResult.rows.length > 0 && altDistributors.length > 0) {
@@ -731,7 +780,7 @@ const applyECOChanges = async (client, eco, id) => {
         UPDATE components_alternative
         SET manufacturer_id = $1, manufacturer_pn = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
-      `, [alt.manufacturer_id, alt.manufacturer_pn, alt.alternative_id]);
+      `, [resolvedManufacturerId, alt.manufacturer_pn, alt.alternative_id]);
 
       // Apply embedded distributor updates for existing alternative
       if (altDistributors.length > 0) {
@@ -1098,6 +1147,170 @@ export const rejectECO = async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error rejecting ECO order:', error);
     res.status(500).json({ error: 'Failed to reject ECO order' });
+  } finally {
+    client.release();
+  }
+};
+
+// Generate PDF for an ECO order
+export const generateECOPDFEndpoint = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+
+    // Reuse the same data-fetching logic as getECOById
+    const ecoResult = await client.query(`
+      SELECT
+        eo.*,
+        created_at(eo.id) as created_at,
+        u1.username as initiated_by_name,
+        u2.username as approved_by_name,
+        c.part_number as component_part_number,
+        c.description as component_description,
+        eas_current.id as current_stage_id,
+        eas_current.stage_name as current_stage_name,
+        eas_current.stage_order as current_stage_order
+      FROM eco_orders eo
+      LEFT JOIN users u1 ON eo.initiated_by = u1.id
+      LEFT JOIN users u2 ON eo.approved_by = u2.id
+      LEFT JOIN components c ON eo.component_id = c.id
+      LEFT JOIN eco_approval_stages eas_current ON eo.current_stage = eas_current.id
+      WHERE eo.id = $1
+    `, [id]);
+
+    if (ecoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'ECO order not found' });
+    }
+
+    const eco = ecoResult.rows[0];
+
+    const changesResult = await client.query(`
+      SELECT
+        ec.*,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.old_value)
+        END as old_category_name,
+        CASE WHEN ec.field_name = 'category_id' THEN
+          (SELECT name FROM component_categories WHERE id::text = ec.new_value)
+        END as new_category_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.old_value)
+        END as old_manufacturer_name,
+        CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
+          (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+        WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
+          SUBSTRING(ec.new_value FROM 5)
+        END as new_manufacturer_name
+      FROM eco_changes ec
+      WHERE eco_id = $1
+      ORDER BY id
+    `, [id]);
+
+    const distributorsResult = await client.query(`
+      SELECT ed.*, d.name as distributor_name
+      FROM eco_distributors ed
+      LEFT JOIN distributors d ON ed.distributor_id = d.id
+      WHERE ed.eco_id = $1
+      ORDER BY ed.id
+    `, [id]);
+
+    const alternativesResult = await client.query(`
+      SELECT
+        ea.*,
+        COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
+        ca.manufacturer_pn as existing_manufacturer_pn,
+        cam.name as existing_manufacturer_name
+      FROM eco_alternative_parts ea
+      LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
+      LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
+      LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
+      WHERE ea.eco_id = $1
+      ORDER BY ea.id
+    `, [id]);
+
+    const specificationsResult = await client.query(`
+      SELECT es.*, cs.spec_name, cs.unit
+      FROM eco_specifications es
+      LEFT JOIN category_specifications cs ON es.category_spec_id = cs.id
+      WHERE es.eco_id = $1
+      ORDER BY cs.display_order
+    `, [id]);
+
+    const approvalsResult = await client.query(`
+      SELECT
+        ea.*, created_at(ea.id) as created_at,
+        u.username as user_name,
+        eas.stage_name, eas.stage_order
+      FROM eco_approvals ea
+      LEFT JOIN users u ON ea.user_id = u.id
+      LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
+      WHERE ea.eco_id = $1
+      ORDER BY eas.stage_order, ea.id
+    `, [id]);
+
+    const stagesResult = await client.query(`
+      SELECT
+        eas.*,
+        (SELECT COUNT(*) FROM eco_approvals ea
+         WHERE ea.eco_id = $1 AND ea.stage_id = eas.id AND ea.decision = 'approved'
+        ) as approval_count,
+        COALESCE(
+          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'role', u.role))
+           FROM eco_stage_approvers esa
+           JOIN users u ON esa.user_id = u.id
+           WHERE esa.stage_id = eas.id
+          ), '[]'::json
+        ) as assigned_approvers
+      FROM eco_approval_stages eas
+      WHERE eas.is_active = true
+      ORDER BY eas.stage_order
+    `, [id]);
+
+    const cadFilesResult = await client.query(`
+      SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
+      FROM eco_cad_files ecf
+      LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
+      WHERE ecf.eco_id = $1
+      ORDER BY ecf.id
+    `, [id]);
+
+    // Enrich alternatives with distributor names
+    const enrichedAlternatives = await Promise.all(alternativesResult.rows.map(async (alt) => {
+      let dists = alt.distributors || [];
+      if (typeof dists === 'string') {
+        try { dists = JSON.parse(dists); } catch { dists = []; }
+      }
+      if (dists.length > 0) {
+        const distIds = [...new Set(dists.map(d => d.distributor_id).filter(Boolean))];
+        if (distIds.length > 0) {
+          const distNames = await client.query('SELECT id, name FROM distributors WHERE id = ANY($1)', [distIds]);
+          const nameMap = Object.fromEntries(distNames.rows.map(r => [r.id, r.name]));
+          dists = dists.map(d => ({ ...d, distributor_name: nameMap[d.distributor_id] || null }));
+        }
+      }
+      return { ...alt, distributors: dists };
+    }));
+
+    const ecoData = {
+      ...eco,
+      changes: changesResult.rows,
+      distributors: distributorsResult.rows,
+      alternatives: enrichedAlternatives,
+      specifications: specificationsResult.rows,
+      approvals: approvalsResult.rows,
+      stages: stagesResult.rows,
+      cad_files: cadFilesResult.rows,
+    };
+
+    // Generate PDF
+    const pdfDoc = generateECOPdf(ecoData);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${eco.eco_number}.pdf"`);
+    pdfDoc.pipe(res);
+  } catch (error) {
+    console.error('Error generating ECO PDF:', error);
+    res.status(500).json({ error: 'Failed to generate ECO PDF' });
   } finally {
     client.release();
   }
