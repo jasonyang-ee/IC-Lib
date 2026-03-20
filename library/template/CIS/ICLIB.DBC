@@ -62,7 +62,7 @@
 
   <DbTableCfg indx="0">
     <NewPartDB>0</NewPartDB>
-    <TableName>active_parts</TableName>
+    <TableName>production_parts</TableName>
     <TableUsed>1</TableUsed>
     <DbFieldDef indx="0">
       <FieldName>Part Number</FieldName>
@@ -865,7 +865,7 @@
   </DbTableCfg>
 
   <RelationModel indx="0">
-    <PrimaryTableName>active_parts</PrimaryTableName>
+    <PrimaryTableName>production_parts</PrimaryTableName>
     <PrimaryKey>part_number</PrimaryKey>
     <RelationalTableName>alternative_parts</RelationalTableName>
     <RelationalViewName>Alternative</RelationalViewName>

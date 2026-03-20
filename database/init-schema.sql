@@ -1019,7 +1019,7 @@ BEGIN
 END $$;
 
 -- Recreate views with updated status names
-CREATE OR REPLACE VIEW active_parts AS
+CREATE OR REPLACE VIEW production_parts AS
 SELECT
     c.part_number,
     cat.name AS category_name,
@@ -1036,7 +1036,7 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
 WHERE c.approval_status = 'production';
 
-CREATE OR REPLACE VIEW unapproved_parts AS
+CREATE OR REPLACE VIEW new_parts AS
 SELECT
     c.part_number,
     cat.name AS category_name,
