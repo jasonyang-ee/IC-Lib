@@ -46,47 +46,39 @@ const EcoLogoFilenameSetting = () => {
   };
 
   return (
-    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-[#3a3a3a]">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-        Company Logo Filename
-      </h3>
-      <div className="max-w-md">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Logo Image File
-        </label>
-        <input
-          type="text"
-          value={logoFilename}
-          onChange={(e) => {
-            setLogoFilename(e.target.value);
-            setHasLogoChanges(true);
-          }}
-          placeholder="e.g. company-logo.png"
-          className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-        />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Place your logo image (PNG/JPG) in the image directory, then enter the filename here.
-        </p>
+    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">
+            Company Logo
+          </h3>
+          <input
+            type="text"
+            value={logoFilename}
+            onChange={(e) => {
+              setLogoFilename(e.target.value);
+              setHasLogoChanges(true);
+            }}
+            placeholder="e.g. company-logo.png"
+            className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+          />
+          <button
+            onClick={handleLogoSave}
+            disabled={!hasLogoChanges || saveLogoMutation.isPending}
+            className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm shrink-0"
+          >
+            {saveLogoMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            )}
+            Save
+          </button>
+        </div>
       </div>
-      <div className="mt-3">
-        <button
-          onClick={handleLogoSave}
-          disabled={!hasLogoChanges || saveLogoMutation.isPending}
-          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-2 text-sm"
-        >
-          {saveLogoMutation.isPending ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Check className="w-4 h-4" />
-              Save Logo Filename
-            </>
-          )}
-        </button>
-      </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+        Place your logo image (PNG/JPG) in the container&apos;s /image directory, then enter the filename here. Used in ECO PDF exports.
+      </p>
     </div>
   );
 };
@@ -310,9 +302,6 @@ const ECOSettings = () => {
           Existing ECO numbers will not be modified.
         </p>
       </div>
-
-      {/* Company Logo Filename */}
-      <EcoLogoFilenameSetting />
     </div>
   );
 };
@@ -1008,6 +997,7 @@ const Settings = () => {
       <div className="space-y-6">
         <ECOSettings />
         <ApprovalStagesSettings />
+        <EcoLogoFilenameSetting />
       </div>
       )}
 

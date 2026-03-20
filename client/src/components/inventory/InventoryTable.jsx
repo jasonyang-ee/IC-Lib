@@ -102,8 +102,8 @@ const InventoryTable = ({
             <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 min-w-40 ">Location</th>
             <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Quantity</th>
             <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Min Qty</th>
-            <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Library</th>
-            <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>
+            {!editMode && <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Library</th>}
+            {!editMode && <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Label</th>}
           </tr>
         </thead>
         <tbody>
@@ -172,34 +172,34 @@ const InventoryTable = ({
                 {/* Quantity */}
                 <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                   {editMode ? (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Set to:</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Set</span>
                         <input
                           type="number"
                           value={editedItem.quantity}
                           onChange={(e) => onEditChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                         />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Consume:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
                         <input
                           type="number"
                           value={editedItem.consumeQty || ''}
                           onChange={(e) => onEditChange(item.id, 'consumeQty', parseInt(e.target.value) || 0)}
                           placeholder="0"
-                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                         />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Receive:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
                         <input
                           type="number"
                           value={editedItem.receiveQty || ''}
                           onChange={(e) => onEditChange(item.id, 'receiveQty', parseInt(e.target.value) || 0)}
                           placeholder="0"
-                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                         />
                       </div>
                     </div>
@@ -230,6 +230,7 @@ const InventoryTable = ({
                 </td>
 
                 {/* Library Jump Link */}
+                {!editMode && (
                 <td className="px-4 py-3 text-sm" style={{width: '70px'}} onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => onJumpToLibrary(item.component_id)}
@@ -239,8 +240,10 @@ const InventoryTable = ({
                     <ExternalLink className="w-5 h-5" />
                   </button>
                 </td>
+                )}
 
                 {/* Label Actions */}
+                {!editMode && (
                 <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
                     {/* All button - shows full QR modal */}
@@ -277,6 +280,7 @@ const InventoryTable = ({
                     </button>
                   </div>
                 </td>
+                )}
               </tr>
 
               {/* Alternative Parts Rows */}
@@ -334,34 +338,34 @@ const InventoryTable = ({
                     {/* Quantity */}
                     <td className="px-4 py-2 text-sm">
                       {editMode ? (
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Set to:</span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Set</span>
                             <input
                               type="number"
                               value={editingAlt.quantity}
                               onChange={(e) => onAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
-                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Consume:</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
                             <input
                               type="number"
                               value={editingAlt.consumeQty || ''}
                               onChange={(e) => onAlternativeEdit(alt.id, 'consumeQty', parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600 dark:text-gray-400 w-12 shrink-0">Receive:</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
                             <input
                               type="number"
                               value={editingAlt.receiveQty || ''}
                               onChange={(e) => onAlternativeEdit(alt.id, 'receiveQty', parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
                             />
                           </div>
                         </div>
@@ -385,6 +389,7 @@ const InventoryTable = ({
                     </td>
 
                     {/* Library Jump Link for Alternative */}
+                    {!editMode && (
                     <td className="px-4 py-2 text-sm">
                       <button
                         onClick={() => onJumpToLibrary(alt.manufacturer_pn, false)}
@@ -394,8 +399,10 @@ const InventoryTable = ({
                         <ExternalLink className="w-5 h-5" />
                       </button>
                     </td>
+                    )}
 
                     {/* Label Actions */}
+                    {!editMode && (
                     <td className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         {/* All button - shows full QR modal */}
@@ -432,6 +439,7 @@ const InventoryTable = ({
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 );
               })}

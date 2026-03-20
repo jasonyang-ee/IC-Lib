@@ -45,7 +45,7 @@ const InventorySidebar = ({
   onTemplateChange,
   lowStock,
 }) => (
-  <div className="w-80 shrink-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+  <div className="w-64 shrink-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
 
     {/* Category Filter */}
     <FilterSelect

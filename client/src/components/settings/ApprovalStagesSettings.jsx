@@ -239,7 +239,7 @@ const ApprovalStagesSettings = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Required Approvals</label>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Required Approval Counts</label>
               <input
                 type="number"
                 value={newStage.required_approvals}
@@ -331,12 +331,13 @@ const ApprovalStagesSettings = () => {
                   return (
                     <div
                       key={stage.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${
+                      className={`rounded-lg border ${
                         stage.is_active
                           ? 'border-gray-200 dark:border-[#3a3a3a] bg-white dark:bg-[#2a2a2a]'
                           : 'border-gray-200 dark:border-[#3a3a3a] bg-gray-100 dark:bg-[#333] opacity-60'
                       }`}
                     >
+                      <div className="flex items-start gap-3 p-3">
                       {/* Order controls */}
                       <div className="flex flex-col gap-0.5">
                         <button
@@ -366,30 +367,38 @@ const ApprovalStagesSettings = () => {
                       {editingStage?.id === stage.id ? (
                         <div className="flex-1 space-y-2">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                            <input
-                              type="text"
-                              value={editingStage.stage_name}
-                              onChange={(e) => setEditingStage(prev => ({ ...prev, stage_name: e.target.value }))}
-                              className="px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                              placeholder="Stage name"
-                            />
-                            <input
-                              type="number"
-                              value={editingStage.required_approvals}
-                              onChange={(e) => setEditingStage(prev => ({ ...prev, required_approvals: Math.max(1, parseInt(e.target.value) || 1) }))}
-                              min={1}
-                              className="px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                              placeholder="Required approvals"
-                            />
-                            <select
-                              value={editingStage.required_role}
-                              onChange={(e) => setEditingStage(prev => ({ ...prev, required_role: e.target.value }))}
-                              className="px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                            >
-                              {ROLE_OPTIONS.map(r => (
-                                <option key={r.value} value={r.value}>{r.label}</option>
-                              ))}
-                            </select>
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Stage Name</label>
+                              <input
+                                type="text"
+                                value={editingStage.stage_name}
+                                onChange={(e) => setEditingStage(prev => ({ ...prev, stage_name: e.target.value }))}
+                                className="w-full px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                                placeholder="Stage name"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Required Approval Counts</label>
+                              <input
+                                type="number"
+                                value={editingStage.required_approvals}
+                                onChange={(e) => setEditingStage(prev => ({ ...prev, required_approvals: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                min={1}
+                                className="w-full px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Minimum Role</label>
+                              <select
+                                value={editingStage.required_role}
+                                onChange={(e) => setEditingStage(prev => ({ ...prev, required_role: e.target.value }))}
+                                className="w-full px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+                              >
+                                {ROLE_OPTIONS.map(r => (
+                                  <option key={r.value} value={r.value}>{r.label}</option>
+                                ))}
+                              </select>
+                            </div>
                             <div>
                               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Stage Order</label>
                               <input
@@ -435,18 +444,6 @@ const ApprovalStagesSettings = () => {
                             {!stage.is_active && (
                               <span className="text-xs text-gray-400">(inactive)</span>
                             )}
-                            {/* Pipeline type badges */}
-                            {(stage.pipeline_types || []).map((pt) => {
-                              const ptOption = PIPELINE_TYPE_OPTIONS.find(o => o.value === pt);
-                              return (
-                                <span
-                                  key={pt}
-                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${ptOption?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
-                                >
-                                  {ptOption?.label || pt}
-                                </span>
-                              );
-                            })}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {stage.required_approvals} approval{stage.required_approvals !== 1 ? 's' : ''} required
@@ -460,6 +457,20 @@ const ApprovalStagesSettings = () => {
                                 Approvers: {stage.assigned_approvers.map(a => a.username).join(', ')}
                               </>
                             )}
+                          </div>
+                          {/* Pipeline type badges */}
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(stage.pipeline_types || []).map((pt) => {
+                              const ptOption = PIPELINE_TYPE_OPTIONS.find(o => o.value === pt);
+                              return (
+                                <span
+                                  key={pt}
+                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${ptOption?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+                                >
+                                  {ptOption?.label || pt}
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -484,15 +495,19 @@ const ApprovalStagesSettings = () => {
                               <X className="w-4 h-4" />
                             </button>
                           </>
+                        ) : managingApprovers === stage.id ? (
+                          <button
+                            onClick={() => setManagingApprovers(null)}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                            title="Close approvers"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         ) : (
                           <>
                             <button
-                              onClick={() => setManagingApprovers(managingApprovers === stage.id ? null : stage.id)}
-                              className={`p-1.5 rounded transition-colors ${
-                                managingApprovers === stage.id
-                                  ? 'text-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                                  : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                              }`}
+                              onClick={() => setManagingApprovers(stage.id)}
+                              className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                               title="Manage approvers"
                             >
                               <Users className="w-4 h-4" />
@@ -514,10 +529,11 @@ const ApprovalStagesSettings = () => {
                           </>
                         )}
                       </div>
+                    </div>
 
                       {/* Approver Management Panel */}
                       {managingApprovers === stage.id && (
-                        <div className="mt-2 p-3 bg-gray-50 dark:bg-[#333] rounded-lg border border-gray-200 dark:border-[#444]">
+                        <div className="mx-3 mb-3 p-3 bg-gray-50 dark:bg-[#333] rounded-lg border border-gray-200 dark:border-[#444]">
                           <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
                             Assigned Approvers {stage.assigned_approvers?.length > 0 && `(${stage.assigned_approvers.length})`}
                           </div>
