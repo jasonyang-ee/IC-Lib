@@ -299,6 +299,7 @@ export const verifyDatabase = async (req, res) => {
       'cad_files',
       'component_cad_files',
       'admin_settings',
+      'eco_cad_files',
     ];
 
     const expectedViews = [
@@ -513,7 +514,8 @@ export const updateCategoryConfig = async (req, res) => {
  */
 export const createCategory = async (req, res) => {
   try {
-    let { name, prefix, leading_zeros } = req.body;
+    const { name } = req.body;
+    let { prefix, leading_zeros } = req.body;
 
     // Validate required fields
     if (!name || typeof name !== 'string' || name.trim().length === 0) {

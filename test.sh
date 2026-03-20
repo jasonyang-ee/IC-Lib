@@ -42,9 +42,9 @@ if [ "$TEST_ONLY" = false ]; then
     echo ""
 
     # Lint client
-    echo "Linting client..."
+    echo "Linting client (auto-fix)..."
     cd client
-    if npm run lint; then
+    if npm run lint:fix; then
         echo -e "${GREEN}Client lint passed${NC}"
     else
         echo -e "${RED}Client lint failed${NC}"
@@ -55,9 +55,9 @@ if [ "$TEST_ONLY" = false ]; then
     echo ""
 
     # Lint server
-    echo "Linting server..."
+    echo "Linting server (auto-fix)..."
     cd server
-    if npm run lint; then
+    if npm run lint:fix; then
         echo -e "${GREEN}Server lint passed${NC}"
     else
         echo -e "${RED}Server lint failed${NC}"
@@ -68,9 +68,9 @@ if [ "$TEST_ONLY" = false ]; then
     echo ""
 
     # Lint scripts
-    echo "Linting scripts..."
+    echo "Linting scripts (auto-fix)..."
     cd scripts
-    if npm run lint; then
+    if npm run lint:fix; then
         echo -e "${GREEN}Scripts lint passed${NC}"
     else
         echo -e "${RED}Scripts lint failed${NC}"

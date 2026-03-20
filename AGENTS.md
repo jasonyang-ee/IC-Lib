@@ -2,7 +2,7 @@
 ## Commands
 
 - `./start.sh` — start dev server (client + server)
-- `./check.sh` — run all lint and tests (`--lint-only`, `--test-only`, `--coverage`)
+- `./test.sh` — run all lint and tests
 - Terminal bug: first character may be dropped; prefix commands with a space
 
 ## Project Structure

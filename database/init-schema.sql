@@ -436,6 +436,24 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
 WHERE c.approval_status = 'new' OR c.approval_status = 'pending review';
 
+-- Create a CIS table view for unapproved parts
+CREATE OR REPLACE VIEW prototype_parts AS
+SELECT 
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+	c.value,
+	c.package_size,
+	c.manufacturer_pn,
+    m.name AS manufacturer_name,
+	c.schematic,
+	c.pcb_footprint,
+	c.description
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'exprimental';
+
 -- Create a CIS table view for old parts
 CREATE OR REPLACE VIEW archived_parts AS
 SELECT 
@@ -700,7 +718,7 @@ CREATE TABLE IF NOT EXISTS eco_distributors (
 );
 
 -- Table: eco_alternative_parts
--- Stores buffered alternative parts changes
+-- Stores buffered alternative parts changes with embedded distributor data
 CREATE TABLE IF NOT EXISTS eco_alternative_parts (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
@@ -708,6 +726,7 @@ CREATE TABLE IF NOT EXISTS eco_alternative_parts (
     action VARCHAR(20) NOT NULL, -- 'add', 'update', 'delete'
     manufacturer_id UUID REFERENCES manufacturers(id) ON DELETE SET NULL,
     manufacturer_pn VARCHAR(200),
+    distributors JSONB DEFAULT '[]'::jsonb, -- embedded distributor changes for this alternative
     CONSTRAINT check_eco_alt_action CHECK (action IN ('add', 'update', 'delete'))
 );
 
@@ -721,6 +740,17 @@ CREATE TABLE IF NOT EXISTS eco_specifications (
     new_value VARCHAR(500)
 );
 
+-- Table: eco_cad_files
+-- Stores buffered CAD file link/unlink operations pending ECO approval
+CREATE TABLE IF NOT EXISTS eco_cad_files (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('link', 'unlink')),
+    cad_file_id UUID REFERENCES cad_files(id) ON DELETE CASCADE,
+    file_type VARCHAR(50) NOT NULL,
+    file_name VARCHAR(500)
+);
+
 -- Indexes for ECO tables
 CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
@@ -731,6 +761,8 @@ CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_part
 CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_eco ON eco_approvals(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_stage ON eco_approvals(stage_id);
+CREATE INDEX IF NOT EXISTS idx_eco_cad_files_eco ON eco_cad_files(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_cad_files_cad_file ON eco_cad_files(cad_file_id);
 
 -- Trigger to update eco_orders updated_at timestamp
 CREATE OR REPLACE TRIGGER update_eco_orders_updated_at
@@ -917,4 +949,19 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
+
+-- Create eco_cad_files table for existing databases
+CREATE TABLE IF NOT EXISTS eco_cad_files (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('link', 'unlink')),
+    cad_file_id UUID REFERENCES cad_files(id) ON DELETE CASCADE,
+    file_type VARCHAR(50) NOT NULL,
+    file_name VARCHAR(500)
+);
+CREATE INDEX IF NOT EXISTS idx_eco_cad_files_eco ON eco_cad_files(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_cad_files_cad_file ON eco_cad_files(cad_file_id);
+
+-- Add distributors JSONB column to eco_alternative_parts for existing databases
+ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS distributors JSONB DEFAULT '[]'::jsonb;
 

@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, Clock, FileText, User, Calendar } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Link2, Unlink2 } from 'lucide-react';
 
 const getStatusBadge = (status) => {
   const styles = {
@@ -24,6 +24,17 @@ const getStatusIcon = (status) => {
 const getStatusLabel = (status) => {
   if (status === 'in_review') return 'in review';
   return status;
+};
+
+const getApprovalStatusBadge = (status) => {
+  const styles = {
+    approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+    archived: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+    experimental: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+    'pending review': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+    new: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+  };
+  return styles[status] || styles.new;
 };
 
 const isPendingApproval = (status) => status === 'pending' || status === 'in_review';
@@ -282,6 +293,13 @@ const ECOListItem = ({
                         {ecoDetails.changes.map((change, idx) => {
                           // Helper to get display value for special fields
                           const getDisplayValue = (field, value, isOld) => {
+                            if (field === '_status_proposal') {
+                              return (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${getApprovalStatusBadge(value)}`}>
+                                  {value}
+                                </span>
+                              );
+                            }
                             if (!value) return <span className="italic text-gray-400">empty</span>;
 
                             // Show category name for category_id field
@@ -303,7 +321,7 @@ const ECOListItem = ({
                           const formatFieldName = (field) => {
                             if (field === 'category_id') return 'Category';
                             if (field === 'manufacturer_id') return 'Manufacturer';
-                            if (field === '_delete_component') return 'Delete Component';
+                            if (field === '_status_proposal') return 'Status Change';
                             return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                           };
 
@@ -362,35 +380,110 @@ const ECOListItem = ({
                 </div>
               )}
 
+              {/* CAD File Changes */}
+              {ecoDetails.cad_files && ecoDetails.cad_files.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    CAD File Changes
+                  </h4>
+                  <div className="space-y-2">
+                    {ecoDetails.cad_files.map((cf, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] p-3 flex items-center gap-3"
+                      >
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                          cf.action === 'link'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }`}>
+                          {cf.action === 'link' ? <Link2 className="w-3 h-3" /> : <Unlink2 className="w-3 h-3" />}
+                          {cf.action}
+                        </span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {cf.file_name || cf.existing_file_name}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          ({cf.file_type || cf.existing_file_type})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Alternative Parts Changes */}
               {ecoDetails.alternatives && ecoDetails.alternatives.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     Alternative Parts Changes
                   </h4>
-                  <div className="space-y-2">
-                    {ecoDetails.alternatives.map((alt, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] p-3"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            alt.action === 'add' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                            alt.action === 'delete' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                            'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                          }`}>
-                            {alt.action}
-                          </span>
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {alt.manufacturer_name}
-                          </span>
+                  <div className="space-y-3">
+                    {ecoDetails.alternatives.map((alt, idx) => {
+                      const altDists = Array.isArray(alt.distributors) ? alt.distributors : [];
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] p-3"
+                        >
+                          {/* Alternative header */}
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              alt.action === 'add' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                              alt.action === 'delete' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                              'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                            }`}>
+                              {alt.action}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {alt.manufacturer_name || 'Unknown manufacturer'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            MFG P/N: <span className="font-medium text-gray-800 dark:text-gray-200">{alt.manufacturer_pn || '-'}</span>
+                          </p>
+                          {/* Show existing info for updates/deletes */}
+                          {alt.action !== 'add' && alt.existing_manufacturer_pn && alt.existing_manufacturer_name && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Previous: {alt.existing_manufacturer_name} / {alt.existing_manufacturer_pn}
+                            </p>
+                          )}
+
+                          {/* Nested distributor changes for this alternative */}
+                          {altDists.length > 0 && (
+                            <div className="mt-2 ml-3 border-l-2 border-gray-200 dark:border-[#444] pl-3">
+                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Distributors:</p>
+                              <div className="space-y-1">
+                                {altDists.map((dist, dIdx) => (
+                                  <div key={dIdx} className="flex items-center gap-2 text-xs">
+                                    <span className={`px-1.5 py-0.5 rounded font-medium ${
+                                      dist.action === 'add' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                      dist.action === 'delete' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                      'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                    }`}>
+                                      {dist.action}
+                                    </span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                                      {dist.distributor_name || 'Distributor'}
+                                    </span>
+                                    {dist.sku && (
+                                      <span className="text-gray-500 dark:text-gray-400">
+                                        SKU: {dist.sku}
+                                      </span>
+                                    )}
+                                    {dist.url && (
+                                      <a href={dist.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline truncate max-w-[150px]">
+                                        {dist.url}
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {alt.manufacturer_pn}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -455,7 +548,8 @@ const ECOListItem = ({
               {(!ecoDetails.changes || ecoDetails.changes.length === 0) &&
                (!ecoDetails.specifications || ecoDetails.specifications.length === 0) &&
                (!ecoDetails.alternatives || ecoDetails.alternatives.length === 0) &&
-               (!ecoDetails.distributors || ecoDetails.distributors.length === 0) && (
+               (!ecoDetails.distributors || ecoDetails.distributors.length === 0) &&
+               (!ecoDetails.cad_files || ecoDetails.cad_files.length === 0) && (
                 <p className="text-gray-500 dark:text-gray-400 text-sm italic">
                   No changes recorded in this ECO
                 </p>

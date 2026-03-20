@@ -12,7 +12,7 @@ import { dirname, join } from 'path';
  * Split SQL content into individual statements
  * Handles multi-line statements and comments properly
  */
-const splitSQLStatements = (sql) => {
+const _splitSQLStatements = (sql) => {
   // Remove comments
   const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
   

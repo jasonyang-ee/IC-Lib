@@ -1,12 +1,15 @@
 /**
- * ApprovalSection - Approval status display with approve/archive/review/prototype buttons.
+ * ApprovalSection - Approval status display with optional action buttons.
+ *
+ * When onApprovalAction is null/undefined (ECO mode), renders read-only status badge only.
+ * When onApprovalAction is provided (non-ECO / admin), renders action buttons.
  *
  * Props:
  * - componentDetails: object    the fetched component detail record
  * - canApprove: () => boolean   from AuthContext
  * - canWrite: () => boolean     from AuthContext
  * - updatingApproval: boolean
- * - onApprovalAction: (action) => void
+ * - onApprovalAction: (action) => void | null
  */
 const ApprovalSection = ({
   componentDetails,
@@ -46,48 +49,50 @@ const ApprovalSection = ({
       </div>
     )}
 
-    {/* Approval Action Buttons - with label */}
-    <div className="flex items-start gap-2 pt-1">
-      <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-1.5">Action:</span>
-      <div className="flex flex-wrap gap-2">
-        {canApprove() && (
-          <>
-            <button
-              onClick={() => onApprovalAction('approve')}
-              disabled={updatingApproval || componentDetails.approval_status === 'approved'}
-              className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => onApprovalAction('archive')}
-              disabled={updatingApproval || componentDetails.approval_status === 'archived'}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-            >
-              Archive
-            </button>
-          </>
-        )}
-        {canWrite() && (
-          <>
-            <button
-              onClick={() => onApprovalAction('send_to_review')}
-              disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-            >
-              Review
-            </button>
-            <button
-              onClick={() => onApprovalAction('send_to_prototype')}
-              disabled={updatingApproval || componentDetails.approval_status === 'experimental'}
-              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
-            >
-              Prototype
-            </button>
-          </>
-        )}
+    {/* Approval Action Buttons - only shown when onApprovalAction is provided (non-ECO mode) */}
+    {onApprovalAction && (
+      <div className="flex items-start gap-2 pt-1">
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right pt-1.5">Action:</span>
+        <div className="flex flex-wrap gap-2">
+          {canApprove() && (
+            <>
+              <button
+                onClick={() => onApprovalAction('approve')}
+                disabled={updatingApproval || componentDetails.approval_status === 'approved'}
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => onApprovalAction('archive')}
+                disabled={updatingApproval || componentDetails.approval_status === 'archived'}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+              >
+                Archive
+              </button>
+            </>
+          )}
+          {canWrite() && (
+            <>
+              <button
+                onClick={() => onApprovalAction('send_to_review')}
+                disabled={updatingApproval || componentDetails.approval_status === 'pending review'}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+              >
+                Review
+              </button>
+              <button
+                onClick={() => onApprovalAction('send_to_prototype')}
+                disabled={updatingApproval || componentDetails.approval_status === 'experimental'}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs font-medium rounded-md transition-colors"
+              >
+                Prototype
+              </button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    )}
 
     {updatingApproval && (
       <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">Processing...</p>

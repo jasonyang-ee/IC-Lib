@@ -287,7 +287,7 @@ const Settings = () => {
     if (globalPrefixData && !globalPrefixLocal) {
       setGlobalPrefixLocal(globalPrefixData);
     }
-  }, [globalPrefixData]);
+  }, [globalPrefixData, globalPrefixLocal]);
 
   const updateGlobalPrefixMutation = useMutation({
     mutationFn: async (config) => {

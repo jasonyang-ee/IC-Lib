@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
-import { DeleteConfirmationModal, ECODeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
+import { DeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
 import VendorDataPanel from '../components/library/VendorDataPanel';
 import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
@@ -85,7 +85,6 @@ const Library = () => {
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
-  const [ecoDeleteConfirmation, setEcoDeleteConfirmation] = useState({ show: false });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
   const [categoryChangeConfirmation, setCategoryChangeConfirmation] = useState({ show: false, newCategoryId: null, newCategoryName: '' });
@@ -97,6 +96,7 @@ const Library = () => {
   // ECO state
   const [_ecoChanges, setEcoChanges] = useState([]);
   const [ecoNotes, setEcoNotes] = useState('');
+  const [ecoStatusProposal, setEcoStatusProposal] = useState(null); // { old_value, new_value }
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
@@ -1165,6 +1165,7 @@ const Library = () => {
     // Initialize states that don't depend on async data
     setEcoChanges([]);
     setEcoNotes('');
+    setEcoStatusProposal(null);
     
     // Load the component for editing (reuse handleEdit logic)
     setSelectedComponent(component);
@@ -1339,24 +1340,23 @@ const Library = () => {
         }
       }
 
-      // Track distributor changes - ONLY track SKU/URL changes (not price/stock)
+      // Track distributor changes for PRIMARY component only (not alternatives)
       if (editData.distributors) {
         for (const dist of editData.distributors) {
-          // Skip distributors without a SKU (nothing meaningful to track)
+          if (dist.alternative_id) continue; // Skip alternative distributors - handled below
           if (!dist.sku && !dist.url) continue;
-          
-          const oldDist = componentDetails?.distributors?.find(d => 
-            d.distributor_id === dist.distributor_id && 
-            d.alternative_id === dist.alternative_id
+
+          const oldDist = componentDetails?.distributors?.find(d =>
+            d.distributor_id === dist.distributor_id &&
+            !d.alternative_id
           );
-          
-          // Only record if SKU or URL changed
+
           const skuChanged = (oldDist?.sku || '') !== (dist.sku || '');
           const urlChanged = (oldDist?.url || '') !== (dist.url || '');
-          
+
           if (skuChanged || urlChanged || !oldDist) {
             distributors.push({
-              alternative_id: dist.alternative_id || null,
+              alternative_id: null,
               distributor_id: dist.distributor_id,
               action: oldDist ? 'update' : 'add',
               sku: dist.sku || '',
@@ -1364,21 +1364,21 @@ const Library = () => {
             });
           }
         }
-        
-        // Check for deleted distributors (had SKU before, now empty or removed)
+
+        // Check for deleted primary distributors
         if (componentDetails?.distributors) {
           for (const oldDist of componentDetails.distributors) {
-            if (!oldDist.sku) continue; // Skip if old dist had no SKU
-            
-            const newDist = editData.distributors?.find(d => 
-              d.distributor_id === oldDist.distributor_id && 
-              d.alternative_id === oldDist.alternative_id
+            if (oldDist.alternative_id) continue; // Skip alternative distributors
+            if (!oldDist.sku) continue;
+
+            const newDist = editData.distributors?.find(d =>
+              d.distributor_id === oldDist.distributor_id &&
+              !d.alternative_id
             );
-            
-            // If not found in new data or SKU is now empty, it's a delete
+
             if (!newDist || !newDist.sku) {
               distributors.push({
-                alternative_id: oldDist.alternative_id || null,
+                alternative_id: null,
                 distributor_id: oldDist.distributor_id,
                 action: 'delete',
                 sku: oldDist.sku || '',
@@ -1389,63 +1389,114 @@ const Library = () => {
         }
       }
 
-      // Track alternative parts changes
+      // Helper: collect distributor changes for a specific alternative
+      const collectAltDistributors = (alt, oldAlt) => {
+        const altDists = [];
+        const editDists = alt.distributors || [];
+        const oldDists = oldAlt?.distributors || [];
+
+        for (const dist of editDists) {
+          if (!dist.sku && !dist.url) continue;
+          const old = oldDists.find(d => d.distributor_id === dist.distributor_id);
+          const skuChanged = (old?.sku || '') !== (dist.sku || '');
+          const urlChanged = (old?.url || '') !== (dist.url || '');
+          if (skuChanged || urlChanged || !old) {
+            altDists.push({
+              distributor_id: dist.distributor_id,
+              action: old ? 'update' : 'add',
+              sku: dist.sku || '',
+              url: dist.url || '',
+            });
+          }
+        }
+        // Check for deleted
+        for (const old of oldDists) {
+          if (!old.sku) continue;
+          const still = editDists.find(d => d.distributor_id === old.distributor_id);
+          if (!still || !still.sku) {
+            altDists.push({
+              distributor_id: old.distributor_id,
+              action: 'delete',
+              sku: old.sku || '',
+              url: old.url || '',
+            });
+          }
+        }
+        return altDists;
+      };
+
+      // Track alternative parts changes (with embedded distributors)
       if (editData.alternatives) {
         for (const alt of editData.alternatives) {
           const oldAlt = alternatives?.find(a => a.id === alt.id);
-          
+
           if (oldAlt) {
-            // Check if anything actually changed
             const mfgChanged = oldAlt.manufacturer_id !== alt.manufacturer_id;
             const pnChanged = oldAlt.manufacturer_pn !== alt.manufacturer_pn;
-            if (mfgChanged || pnChanged) {
+            const altDistChanges = collectAltDistributors(alt, oldAlt);
+            // Record if mfg/pn changed OR if distributors changed
+            if (mfgChanged || pnChanged || altDistChanges.length > 0) {
               alternativesParts.push({
                 alternative_id: alt.id,
                 action: 'update',
                 manufacturer_id: alt.manufacturer_id,
-                manufacturer_pn: alt.manufacturer_pn
+                manufacturer_pn: alt.manufacturer_pn,
+                distributors: altDistChanges,
               });
             }
           } else {
-            // New alternative
+            // New alternative - include all its distributors
+            const newDists = (alt.distributors || [])
+              .filter(d => d.sku || d.url)
+              .map(d => ({
+                distributor_id: d.distributor_id,
+                action: 'add',
+                sku: d.sku || '',
+                url: d.url || '',
+              }));
             alternativesParts.push({
               alternative_id: null,
               action: 'add',
               manufacturer_id: alt.manufacturer_id,
-              manufacturer_pn: alt.manufacturer_pn
+              manufacturer_pn: alt.manufacturer_pn,
+              distributors: newDists,
             });
           }
         }
       }
-      
+
       // Track deleted alternative parts
-      // Note: 'alternatives' state includes the primary (id: 'primary') which should be excluded
-      // Only check actual alternatives from components_alternative table (have valid UUIDs)
       if (alternatives) {
         for (const oldAlt of alternatives) {
-          // Skip the primary entry (it's not a real alternative)
           if (oldAlt.id === 'primary' || oldAlt.is_primary) continue;
-          
+
           const stillExists = editData.alternatives?.find(a => a.id === oldAlt.id);
           if (!stillExists) {
             alternativesParts.push({
               alternative_id: oldAlt.id,
               action: 'delete',
               manufacturer_id: oldAlt.manufacturer_id,
-              manufacturer_pn: oldAlt.manufacturer_pn
+              manufacturer_pn: oldAlt.manufacturer_pn,
+              distributors: [],
             });
           }
         }
       }
 
-      // Check if there's a delete action
-      if (editData.delete_component) {
+      // Include status proposal change if set
+      if (ecoStatusProposal) {
         changes.push({
-          field_name: '_delete_component',
-          old_value: 'active',
-          new_value: 'marked_for_deletion'
+          field_name: '_status_proposal',
+          old_value: ecoStatusProposal.old_value,
+          new_value: ecoStatusProposal.new_value,
         });
       }
+
+      // Collect CAD file changes by comparing current links vs edit state
+      const cadFileChanges = [];
+      // CAD file changes are tracked via the junction table diff
+      // For now, CAD file staging happens through the existing link/unlink flow
+      // Future: add diff tracking here when CAD section is fully ECO-aware
 
       // Create ECO order
       await api.createECO({
@@ -1455,6 +1506,7 @@ const Library = () => {
         specifications,
         distributors,
         alternatives: alternativesParts,
+        cad_files: cadFileChanges,
         notes: ecoNotes
       });
 
@@ -1463,6 +1515,7 @@ const Library = () => {
       setIsEditMode(false);
       setEcoChanges([]);
       setEcoNotes('');
+      setEcoStatusProposal(null);
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['ecos']);
       queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
@@ -1481,48 +1534,7 @@ const Library = () => {
     setIsEditMode(false);
     setEcoChanges([]);
     setEcoNotes('');
-  };
-  
-  const handleMarkForDeletion = () => {
-    setEcoDeleteConfirmation({ show: true });
-  };
-  
-  const handleConfirmECODeletion = async () => {
-    // First set the delete flag
-    setEditData(prev => ({ ...prev, delete_component: true }));
-    setEcoDeleteConfirmation({ show: false });
-    
-    // Wait a moment for state to update, then auto-submit the ECO
-    setTimeout(async () => {
-      try {
-        // Prepare the ECO data with delete flag
-        const ecoData = {
-          component_id: selectedComponent.id,
-          part_number: selectedComponent.part_number,
-          notes: ecoNotes || 'Component marked for deletion',
-          changes: [{ field_name: 'delete_component', old_value: 'false', new_value: 'true' }],
-          distributors: [],
-          alternatives: [],
-          specifications: []
-        };
-
-        await api.createECO(ecoData);
-
-        // Reset states
-        setIsECOMode(false);
-        setIsEditMode(false);
-        setEcoChanges([]);
-        setEcoNotes('');
-        queryClient.invalidateQueries(['components']);
-        queryClient.invalidateQueries(['ecos']);
-
-        // Show success message
-        showSuccess('ECO submitted successfully! Component marked for deletion pending approval.');
-      } catch (error) {
-        console.error('Error submitting ECO:', error);
-        showError('Failed to submit ECO. Please try again.');
-      }
-    }, 100);
+    setEcoStatusProposal(null);
   };
 
   const _handleDelete = () => {
@@ -2856,18 +2868,7 @@ const Library = () => {
                     <Check className="w-4 h-4" />
                     {isECOMode ? 'Submit ECO' : 'Save Changes'}
                   </button>
-                  
-                  {/* Delete Component option in ECO mode */}
-                  {isECOMode && (
-                    <button
-                      onClick={handleMarkForDeletion}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {editData.delete_component ? 'Mark for Deletion' : 'Mark for Deletion'}
-                    </button>
-                  )}
-                  
+
                   <button
                     onClick={isECOMode ? handleCancelECO : handleCancelEdit}
                     className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -3145,7 +3146,7 @@ const Library = () => {
                   canApprove={canApprove}
                   canWrite={canWrite}
                   updatingApproval={updatingApproval}
-                  onApprovalAction={handleApprovalAction}
+                  onApprovalAction={isECOEnabled ? null : handleApprovalAction}
                 />
               )}
             </div>
@@ -3193,6 +3194,83 @@ const Library = () => {
               onUpdateAlternativeDistributor={handleUpdateAlternativeDistributor}
             />
 
+            {/* ECO Status Proposal - Only shown in ECO mode, above ECO Notes */}
+            {isECOMode && componentDetails && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">
+                  Status Change Proposal
+                </h3>
+                <div className="space-y-2">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Current status: <span className="font-semibold">{componentDetails.approval_status}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {componentDetails.approval_status === 'new' && (
+                      <button
+                        onClick={() => setEcoStatusProposal({ old_value: 'new', new_value: 'experimental' })}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          ecoStatusProposal?.new_value === 'experimental'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+                        }`}
+                      >
+                        Propose Prototype
+                      </button>
+                    )}
+                    {componentDetails.approval_status === 'experimental' && (
+                      <button
+                        onClick={() => setEcoStatusProposal({ old_value: 'experimental', new_value: 'approved' })}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          ecoStatusProposal?.new_value === 'approved'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                        }`}
+                      >
+                        Propose Approved
+                      </button>
+                    )}
+                    {componentDetails.approval_status !== 'archived' && (
+                      <button
+                        onClick={() => setEcoStatusProposal({ old_value: componentDetails.approval_status, new_value: 'archived' })}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          ecoStatusProposal?.new_value === 'archived'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                        }`}
+                      >
+                        Propose Archive
+                      </button>
+                    )}
+                    {componentDetails.approval_status === 'archived' && (
+                      <button
+                        onClick={() => setEcoStatusProposal({ old_value: 'archived', new_value: 'approved' })}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          ecoStatusProposal?.new_value === 'approved'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                        }`}
+                      >
+                        Propose Re-Approve
+                      </button>
+                    )}
+                    {ecoStatusProposal && (
+                      <button
+                        onClick={() => setEcoStatusProposal(null)}
+                        className="px-3 py-1.5 rounded-md text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {ecoStatusProposal && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Proposed: {ecoStatusProposal.old_value} → {ecoStatusProposal.new_value}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ECO Notes Section - Only shown in ECO mode, after Alternative Parts */}
             {isECOMode && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg shadow-md p-4 border border-yellow-200 dark:border-yellow-800">
@@ -3239,13 +3317,6 @@ const Library = () => {
         deleteConfirmation={deleteConfirmation}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
-      />
-
-      <ECODeleteConfirmationModal
-        show={ecoDeleteConfirmation.show}
-        partNumber={selectedComponent?.part_number}
-        onConfirm={handleConfirmECODeletion}
-        onCancel={() => setEcoDeleteConfirmation({ show: false })}
       />
 
       <PromoteConfirmationModal

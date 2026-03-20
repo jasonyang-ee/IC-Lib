@@ -1,6 +1,6 @@
 import express from 'express';
 import * as componentController from '../controllers/componentController.js';
-import { authenticate, canWrite } from '../middleware/auth.js';
+import { authenticate, canWrite, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -61,8 +61,8 @@ router.delete('/:id/alternatives/:altId', authenticate, canWrite, componentContr
 // Promote alternative part to primary (atomic swap)
 router.post('/:id/alternatives/:altId/promote', authenticate, canWrite, componentController.promoteAlternative);
 
-// Update approval status for component (permission check done in controller)
-router.post('/:id/approval', authenticate, componentController.updateComponentApproval);
+// Update approval status for component (admin-only backdoor; normal flow uses ECO)
+router.post('/:id/approval', authenticate, isAdmin, componentController.updateComponentApproval);
 
 // Update stock info for a single component (primary + alternatives)
 router.post('/:id/update-stock', componentController.updateComponentStock);

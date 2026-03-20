@@ -1,12 +1,13 @@
 import pool from '../config/database.js';
 import { sendECONotification } from '../services/emailService.js';
+import { regenerateCadText } from '../services/cadFileService.js';
 
 // Whitelist of valid component field names to prevent SQL injection
 const VALID_COMPONENT_FIELDS = [
   'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
   'approval_status', 'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
   'schematic', 'step_model', 'pspice', 'pad_file', 'manufacturer_id', 'manufacturer_pn',
-  'category_id', '_delete_component',
+  'category_id', '_status_proposal',
 ];
 
 // Helper function to log ECO activities
@@ -170,15 +171,17 @@ export const getECOById = async (req, res) => {
       ORDER BY ed.id
     `, [id]);
     
-    // Get all alternative parts changes
+    // Get all alternative parts changes (with embedded distributors)
     const alternativesResult = await client.query(`
-      SELECT 
+      SELECT
         ea.*,
         m.name as manufacturer_name,
-        ca.manufacturer_pn as existing_manufacturer_pn
+        ca.manufacturer_pn as existing_manufacturer_pn,
+        cam.name as existing_manufacturer_name
       FROM eco_alternative_parts ea
       LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
       LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
+      LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
       WHERE ea.eco_id = $1
       ORDER BY ea.id
     `, [id]);
@@ -229,14 +232,47 @@ export const getECOById = async (req, res) => {
       ORDER BY eas.stage_order
     `, [id]);
 
+    // Get CAD file changes
+    const cadFilesResult = await client.query(`
+      SELECT
+        ecf.*,
+        cf.file_name as existing_file_name,
+        cf.file_type as existing_file_type
+      FROM eco_cad_files ecf
+      LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
+      WHERE ecf.eco_id = $1
+      ORDER BY ecf.id
+    `, [id]);
+
+    // Enrich embedded distributor data in alternatives with distributor names
+    const enrichedAlternatives = await Promise.all(alternativesResult.rows.map(async (alt) => {
+      let dists = alt.distributors || [];
+      if (typeof dists === 'string') {
+        try { dists = JSON.parse(dists); } catch { dists = []; }
+      }
+      if (dists.length > 0) {
+        const distIds = [...new Set(dists.map(d => d.distributor_id).filter(Boolean))];
+        if (distIds.length > 0) {
+          const distNames = await client.query(
+            'SELECT id, name FROM distributors WHERE id = ANY($1)',
+            [distIds],
+          );
+          const nameMap = Object.fromEntries(distNames.rows.map(r => [r.id, r.name]));
+          dists = dists.map(d => ({ ...d, distributor_name: nameMap[d.distributor_id] || null }));
+        }
+      }
+      return { ...alt, distributors: dists };
+    }));
+
     res.json({
       ...eco,
       changes: changesResult.rows,
       distributors: distributorsResult.rows,
-      alternatives: alternativesResult.rows,
+      alternatives: enrichedAlternatives,
       specifications: specificationsResult.rows,
       approvals: approvalsResult.rows,
       stages: stagesResult.rows,
+      cad_files: cadFilesResult.rows,
     });
   } catch (error) {
     console.error('Error fetching ECO details:', error);
@@ -252,14 +288,15 @@ export const createECO = async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    const { 
-      component_id, 
-      part_number, 
-      changes, 
-      distributors, 
-      alternatives, 
+    const {
+      component_id,
+      part_number,
+      changes,
+      distributors,
+      alternatives,
       specifications,
-      notes, 
+      cad_files,
+      notes,
     } = req.body;
     
     // Generate ECO number
@@ -317,15 +354,19 @@ export const createECO = async (req, res) => {
       }
     }
     
-    // Insert alternative parts changes
+    // Insert alternative parts changes (with embedded distributor data)
     if (alternatives && alternatives.length > 0) {
       for (const alt of alternatives) {
         await client.query(`
           INSERT INTO eco_alternative_parts (
-            eco_id, alternative_id, action, manufacturer_id, manufacturer_pn
+            eco_id, alternative_id, action, manufacturer_id, manufacturer_pn, distributors
           )
-          VALUES ($1, $2, $3, $4, $5)
-        `, [ecoId, alt.alternative_id || null, alt.action, alt.manufacturer_id, alt.manufacturer_pn]);
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+          ecoId, alt.alternative_id || null, alt.action,
+          alt.manufacturer_id, alt.manufacturer_pn,
+          JSON.stringify(alt.distributors || []),
+        ]);
       }
     }
     
@@ -340,13 +381,24 @@ export const createECO = async (req, res) => {
         `, [ecoId, spec.category_spec_id, spec.old_value, spec.new_value]);
       }
     }
-    
+
+    // Insert CAD file changes (link/unlink)
+    if (cad_files && cad_files.length > 0) {
+      for (const cf of cad_files) {
+        await client.query(`
+          INSERT INTO eco_cad_files (eco_id, action, cad_file_id, file_type, file_name)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [ecoId, cf.action, cf.cad_file_id || null, cf.file_type, cf.file_name]);
+      }
+    }
+
     // Log ECO creation activity
     await logECOActivity(client, ecoResult.rows[0], 'eco_initiated', {
       changes_count: changes?.length || 0,
       distributors_count: distributors?.length || 0,
       alternatives_count: alternatives?.length || 0,
       specifications_count: specifications?.length || 0,
+      cad_files_count: cad_files?.length || 0,
       notes: notes,
     }, req.user.id);
 
@@ -370,85 +422,190 @@ export const createECO = async (req, res) => {
 
 // Helper: Apply all ECO changes to the component (called when final stage is complete)
 const applyECOChanges = async (client, eco, id) => {
-  // Check if this is a deletion ECO
-  const deletionCheck = await client.query(`
-    SELECT * FROM eco_changes
-    WHERE eco_id = $1 AND field_name = '_delete_component'
-  `, [id]);
+  // Get all changes
+  const changesResult = await client.query(
+    'SELECT * FROM eco_changes WHERE eco_id = $1',
+    [id],
+  );
 
-  if (deletionCheck.rows.length > 0) {
-    await client.query('DELETE FROM components WHERE id = $1', [eco.component_id]);
-    return { deleted: true };
+  // Extract special changes
+  const statusProposal = changesResult.rows.find(c => c.field_name === '_status_proposal');
+  const categoryChange = changesResult.rows.find(c => c.field_name === 'category_id');
+  const regularChanges = changesResult.rows.filter(c =>
+    c.field_name !== '_status_proposal' &&
+    c.field_name !== 'category_id' &&
+    (!categoryChange || !c.field_name.startsWith('sub_category')),
+  );
+
+  let newPartNumber = null;
+  let newComponentId = null;
+
+  // --- 1. Apply status proposal ---
+  if (statusProposal) {
+    await client.query(
+      'UPDATE components SET approval_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [statusProposal.new_value, eco.component_id],
+    );
   }
 
-  // Apply component field changes
-  const changesResult = await client.query(`
-    SELECT * FROM eco_changes
-    WHERE eco_id = $1 AND field_name NOT IN ('delete_component', '_delete_component')
-  `, [id]);
-
-  const categoryChange = changesResult.rows.find(c => c.field_name === 'category_id');
-  let newPartNumber = null;
-
+  // --- 2. Category change (immutable part number) ---
   if (categoryChange) {
+    // Get new category info + admin_settings for leading zeros
     const categoryResult = await client.query(
-      'SELECT prefix FROM component_categories WHERE id = $1',
+      'SELECT prefix, leading_zeros FROM component_categories WHERE id = $1',
       [categoryChange.new_value],
     );
 
     if (categoryResult.rows.length > 0) {
-      const newPrefix = categoryResult.rows[0].prefix;
+      const { prefix: newPrefix, leading_zeros } = categoryResult.rows[0];
+
+      // Generate new part number in the target category
       const seqResult = await client.query(`
         SELECT MAX(CAST(SUBSTRING(part_number FROM LENGTH($1) + 2) AS INTEGER)) as max_seq
         FROM components
         WHERE part_number LIKE $1 || '-%'
       `, [newPrefix]);
-
       const nextSeq = (seqResult.rows[0].max_seq || 0) + 1;
-      newPartNumber = `${newPrefix}-${String(nextSeq).padStart(5, '0')}`;
+      newPartNumber = `${newPrefix}-${String(nextSeq).padStart(leading_zeros || 5, '0')}`;
 
-      const otherChanges = changesResult.rows.filter(c =>
-        c.field_name !== 'category_id' &&
-        !c.field_name.startsWith('sub_category'),
-      );
+      // Get the old component data
+      const oldComp = await client.query('SELECT * FROM components WHERE id = $1', [eco.component_id]);
+      if (oldComp.rows.length === 0) throw new Error('Component not found');
+      const old = oldComp.rows[0];
 
-      const updateFields = [
-        'category_id = $1',
-        'part_number = $2',
-        'sub_category1 = NULL',
-        'sub_category2 = NULL',
-        'sub_category3 = NULL',
-        'sub_category4 = NULL',
-      ];
-      const updateValues = [categoryChange.new_value, newPartNumber];
-      let paramIndex = 3;
-
-      for (const change of otherChanges) {
-        if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) continue;
-        updateFields.push(`${change.field_name} = $${paramIndex}`);
-        updateValues.push(change.new_value);
-        paramIndex++;
+      // Build field overrides from regular changes
+      const overrides = {};
+      for (const change of regularChanges) {
+        if (VALID_COMPONENT_FIELDS.includes(change.field_name) && !change.field_name.startsWith('_')) {
+          overrides[change.field_name] = change.new_value;
+        }
       }
 
-      updateValues.push(eco.component_id);
-      await client.query(`
-        UPDATE components
-        SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $${paramIndex}
-      `, updateValues);
+      // Create new component in the new category
+      const newCompResult = await client.query(`
+        INSERT INTO components (
+          category_id, part_number, manufacturer_id, manufacturer_pn,
+          description, value, pcb_footprint, package_size,
+          sub_category1, sub_category2, sub_category3, sub_category4,
+          schematic, step_model, pspice, pad_file,
+          datasheet_url, approval_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        RETURNING *
+      `, [
+        categoryChange.new_value,
+        newPartNumber,
+        overrides.manufacturer_id || old.manufacturer_id,
+        overrides.manufacturer_pn || old.manufacturer_pn,
+        overrides.description || old.description,
+        overrides.value || old.value,
+        overrides.pcb_footprint || old.pcb_footprint,
+        overrides.package_size || old.package_size,
+        null, null, null, null, // Reset subcategories for new category
+        overrides.schematic || old.schematic,
+        overrides.step_model || old.step_model,
+        overrides.pspice || old.pspice,
+        overrides.pad_file || old.pad_file,
+        overrides.datasheet_url || old.datasheet_url,
+        statusProposal ? statusProposal.new_value : old.approval_status,
+      ]);
+      newComponentId = newCompResult.rows[0].id;
 
+      // Copy distributors to new component
+      const distRows = await client.query(
+        'SELECT * FROM distributor_info WHERE component_id = $1',
+        [eco.component_id],
+      );
+      for (const dist of distRows.rows) {
+        await client.query(`
+          INSERT INTO distributor_info (
+            component_id, distributor_id, sku, url, currency, in_stock,
+            stock_quantity, minimum_order_quantity, packaging, price_breaks
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ON CONFLICT (component_id, distributor_id) DO NOTHING
+        `, [
+          newComponentId, dist.distributor_id, dist.sku, dist.url,
+          dist.currency, dist.in_stock, dist.stock_quantity,
+          dist.minimum_order_quantity, dist.packaging,
+          JSON.stringify(dist.price_breaks || []),
+        ]);
+      }
+
+      // Copy alternatives to new component
+      const altRows = await client.query(
+        'SELECT * FROM components_alternative WHERE component_id = $1',
+        [eco.component_id],
+      );
+      for (const alt of altRows.rows) {
+        const newAlt = await client.query(`
+          INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (component_id, manufacturer_id, manufacturer_pn) DO NOTHING
+          RETURNING id
+        `, [newComponentId, alt.manufacturer_id, alt.manufacturer_pn]);
+
+        // Copy alternative's distributors
+        if (newAlt.rows.length > 0) {
+          const altDists = await client.query(
+            'SELECT * FROM distributor_info WHERE alternative_id = $1',
+            [alt.id],
+          );
+          for (const ad of altDists.rows) {
+            await client.query(`
+              INSERT INTO distributor_info (
+                alternative_id, distributor_id, sku, url, currency, in_stock,
+                stock_quantity, minimum_order_quantity, packaging, price_breaks
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              ON CONFLICT (alternative_id, distributor_id) DO NOTHING
+            `, [
+              newAlt.rows[0].id, ad.distributor_id, ad.sku, ad.url,
+              ad.currency, ad.in_stock, ad.stock_quantity,
+              ad.minimum_order_quantity, ad.packaging,
+              JSON.stringify(ad.price_breaks || []),
+            ]);
+          }
+        }
+      }
+
+      // Copy CAD file links to new component
+      const cadLinks = await client.query(
+        'SELECT * FROM component_cad_files WHERE component_id = $1',
+        [eco.component_id],
+      );
+      for (const link of cadLinks.rows) {
+        await client.query(`
+          INSERT INTO component_cad_files (component_id, cad_file_id)
+          VALUES ($1, $2)
+          ON CONFLICT (component_id, cad_file_id) DO NOTHING
+        `, [newComponentId, link.cad_file_id]);
+      }
+
+      // Archive the old component
+      await client.query(
+        "UPDATE components SET approval_status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [eco.component_id],
+      );
+
+      // Update ECO to reference new component for traceability
+      await client.query(
+        'UPDATE eco_orders SET component_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [newComponentId, id],
+      );
+
+      // Delete old spec values (new category has different specs)
       await client.query(
         'DELETE FROM component_specification_values WHERE component_id = $1',
         [eco.component_id],
       );
     }
-  } else if (changesResult.rows.length > 0) {
+  } else if (regularChanges.length > 0) {
+    // --- 3. Regular field changes (no category change) ---
     const updateFields = [];
     const updateValues = [];
     let paramIndex = 1;
 
-    for (const change of changesResult.rows) {
+    for (const change of regularChanges) {
       if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) continue;
+      if (change.field_name.startsWith('_')) continue; // Skip virtual fields
       updateFields.push(`${change.field_name} = $${paramIndex}`);
       updateValues.push(change.new_value);
       paramIndex++;
@@ -464,7 +621,8 @@ const applyECOChanges = async (client, eco, id) => {
     }
   }
 
-  // Apply distributor changes
+  // --- 4. Apply distributor changes ---
+  const targetComponentId = newComponentId || eco.component_id;
   const distributorsResult = await client.query('SELECT * FROM eco_distributors WHERE eco_id = $1', [id]);
   for (const dist of distributorsResult.rows) {
     let priceBreaks = dist.price_breaks;
@@ -477,7 +635,7 @@ const applyECOChanges = async (client, eco, id) => {
         SELECT id FROM distributor_info
         WHERE ${dist.alternative_id ? 'alternative_id' : 'component_id'} = $1
           AND distributor_id = $2
-      `, [dist.alternative_id || eco.component_id, dist.distributor_id]);
+      `, [dist.alternative_id || targetComponentId, dist.distributor_id]);
 
       if (existingDist.rows.length === 0) {
         await client.query(`
@@ -488,7 +646,7 @@ const applyECOChanges = async (client, eco, id) => {
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         `, [
-          dist.alternative_id ? null : eco.component_id, dist.alternative_id,
+          dist.alternative_id ? null : targetComponentId, dist.alternative_id,
           dist.distributor_id, dist.sku, dist.url, dist.currency, dist.in_stock,
           dist.stock_quantity, dist.minimum_order_quantity, dist.packaging,
           JSON.stringify(priceBreaks),
@@ -505,7 +663,7 @@ const applyECOChanges = async (client, eco, id) => {
           dist.sku, dist.url, dist.currency, dist.in_stock,
           dist.stock_quantity, dist.minimum_order_quantity,
           dist.packaging, JSON.stringify(priceBreaks),
-          dist.alternative_id || eco.component_id, dist.distributor_id,
+          dist.alternative_id || targetComponentId, dist.distributor_id,
         ]);
       }
     } else if (dist.action === 'update') {
@@ -520,37 +678,93 @@ const applyECOChanges = async (client, eco, id) => {
         dist.sku, dist.url, dist.currency, dist.in_stock,
         dist.stock_quantity, dist.minimum_order_quantity,
         dist.packaging, JSON.stringify(priceBreaks),
-        dist.alternative_id || eco.component_id, dist.distributor_id,
+        dist.alternative_id || targetComponentId, dist.distributor_id,
       ]);
     } else if (dist.action === 'delete') {
       await client.query(`
         DELETE FROM distributor_info
         WHERE ${dist.alternative_id ? 'alternative_id' : 'component_id'} = $1
           AND distributor_id = $2
-      `, [dist.alternative_id || eco.component_id, dist.distributor_id]);
+      `, [dist.alternative_id || targetComponentId, dist.distributor_id]);
     }
   }
 
-  // Apply alternative parts changes
+  // --- 5. Apply alternative parts changes ---
   const alternativesResult = await client.query('SELECT * FROM eco_alternative_parts WHERE eco_id = $1', [id]);
   for (const alt of alternativesResult.rows) {
+    let altDistributors = alt.distributors || [];
+    if (typeof altDistributors === 'string') {
+      try { altDistributors = JSON.parse(altDistributors); } catch { altDistributors = []; }
+    }
+
     if (alt.action === 'add') {
-      await client.query(`
+      // Create the new alternative and get its ID
+      const newAltResult = await client.query(`
         INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn)
         VALUES ($1, $2, $3)
-      `, [eco.component_id, alt.manufacturer_id, alt.manufacturer_pn]);
+        RETURNING id
+      `, [targetComponentId, alt.manufacturer_id, alt.manufacturer_pn]);
+
+      // Apply embedded distributor data for this new alternative
+      if (newAltResult.rows.length > 0 && altDistributors.length > 0) {
+        const newAltId = newAltResult.rows[0].id;
+        for (const dist of altDistributors) {
+          if (!dist.distributor_id || (!dist.sku && !dist.url)) continue;
+          await client.query(`
+            INSERT INTO distributor_info (
+              alternative_id, distributor_id, sku, url, currency,
+              in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (alternative_id, distributor_id) DO UPDATE
+            SET sku = EXCLUDED.sku, url = EXCLUDED.url, updated_at = CURRENT_TIMESTAMP
+          `, [
+            newAltId, dist.distributor_id, dist.sku || '', dist.url || '',
+            dist.currency || 'USD', dist.in_stock || false,
+            dist.stock_quantity || null, dist.minimum_order_quantity || 1,
+            dist.packaging || null, JSON.stringify(dist.price_breaks || []),
+          ]);
+        }
+      }
     } else if (alt.action === 'update') {
       await client.query(`
         UPDATE components_alternative
         SET manufacturer_id = $1, manufacturer_pn = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
       `, [alt.manufacturer_id, alt.manufacturer_pn, alt.alternative_id]);
+
+      // Apply embedded distributor updates for existing alternative
+      if (altDistributors.length > 0) {
+        for (const dist of altDistributors) {
+          if (!dist.distributor_id) continue;
+          if (dist.action === 'delete') {
+            await client.query(`
+              DELETE FROM distributor_info WHERE alternative_id = $1 AND distributor_id = $2
+            `, [alt.alternative_id, dist.distributor_id]);
+          } else if (dist.sku || dist.url) {
+            await client.query(`
+              INSERT INTO distributor_info (
+                alternative_id, distributor_id, sku, url, currency,
+                in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              ON CONFLICT (alternative_id, distributor_id) DO UPDATE
+              SET sku = EXCLUDED.sku, url = EXCLUDED.url, updated_at = CURRENT_TIMESTAMP
+            `, [
+              alt.alternative_id, dist.distributor_id, dist.sku || '', dist.url || '',
+              dist.currency || 'USD', dist.in_stock || false,
+              dist.stock_quantity || null, dist.minimum_order_quantity || 1,
+              dist.packaging || null, JSON.stringify(dist.price_breaks || []),
+            ]);
+          }
+        }
+      }
     } else if (alt.action === 'delete') {
       await client.query('DELETE FROM components_alternative WHERE id = $1', [alt.alternative_id]);
     }
   }
 
-  // Apply specification changes (skip if category changed)
+  // --- 6. Apply specification changes (skip if category changed) ---
   if (!categoryChange) {
     const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
     for (const spec of specificationsResult.rows) {
@@ -559,17 +773,39 @@ const applyECOChanges = async (client, eco, id) => {
         VALUES ($1, $2, $3)
         ON CONFLICT (component_id, category_spec_id)
         DO UPDATE SET spec_value = $3, updated_at = CURRENT_TIMESTAMP
-      `, [eco.component_id, spec.category_spec_id, spec.new_value]);
+      `, [targetComponentId, spec.category_spec_id, spec.new_value]);
+    }
+  }
+
+  // --- 7. Apply CAD file changes ---
+  const cadFilesResult = await client.query('SELECT * FROM eco_cad_files WHERE eco_id = $1', [id]);
+  for (const cf of cadFilesResult.rows) {
+    if (cf.action === 'link' && cf.cad_file_id) {
+      await client.query(`
+        INSERT INTO component_cad_files (component_id, cad_file_id)
+        VALUES ($1, $2)
+        ON CONFLICT (component_id, cad_file_id) DO NOTHING
+      `, [targetComponentId, cf.cad_file_id]);
+      await regenerateCadText(targetComponentId, cf.file_type);
+    } else if (cf.action === 'unlink' && cf.cad_file_id) {
+      await client.query(`
+        DELETE FROM component_cad_files
+        WHERE component_id = $1 AND cad_file_id = $2
+      `, [targetComponentId, cf.cad_file_id]);
+      await regenerateCadText(targetComponentId, cf.file_type);
     }
   }
 
   return {
     deleted: false,
     categoryChange: !!categoryChange,
+    statusChange: !!statusProposal,
     newPartNumber,
+    newComponentId,
     changesApplied: changesResult.rows.length,
     distributorsApplied: distributorsResult.rows.length,
     alternativesApplied: alternativesResult.rows.length,
+    cadFilesApplied: cadFilesResult.rows.length,
   };
 };
 
@@ -629,9 +865,7 @@ export const approveECO = async (req, res) => {
       });
 
       return res.json({
-        message: result.deleted
-          ? 'ECO approved - Component deleted successfully'
-          : 'ECO approved and changes applied successfully',
+        message: 'ECO approved and changes applied successfully',
         status: 'approved',
       });
     }
@@ -761,9 +995,7 @@ export const approveECO = async (req, res) => {
       });
 
       return res.json({
-        message: result.deleted
-          ? 'ECO approved - Component deleted successfully'
-          : 'ECO approved and all changes applied successfully',
+        message: 'ECO approved and all changes applied successfully',
         status: 'approved',
       });
     }

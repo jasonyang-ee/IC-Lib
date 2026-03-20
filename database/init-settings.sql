@@ -59,6 +59,16 @@ WHERE NOT EXISTS (SELECT 1 FROM eco_settings);
 -- Default Admin Settings
 -- ============================================================================
 
+-- Ensure the admin_settings table exists (for standalone init-settings runs)
+CREATE TABLE IF NOT EXISTS admin_settings (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
+    global_prefix VARCHAR(20) NOT NULL DEFAULT '',
+    global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
+
 INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros)
 SELECT false, '', 5
 WHERE NOT EXISTS (SELECT 1 FROM admin_settings);

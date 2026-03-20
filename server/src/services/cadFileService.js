@@ -292,7 +292,12 @@ export async function getOrphanCadFiles(fileType = null) {
       cf.updated_at
     FROM cad_files cf
     LEFT JOIN component_cad_files ccf ON cf.id = ccf.cad_file_id
+    LEFT JOIN eco_cad_files ecf ON ecf.cad_file_id = cf.id
+      AND ecf.action = 'link'
+    LEFT JOIN eco_orders eo ON ecf.eco_id = eo.id
+      AND eo.status IN ('pending', 'in_review')
     WHERE ccf.id IS NULL
+      AND ecf.id IS NULL
   `;
   const params = [];
 

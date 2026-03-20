@@ -74,6 +74,8 @@ const ECO = () => {
       queryClient.invalidateQueries({ queryKey: ['ecos'] });
       queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
       queryClient.invalidateQueries({ queryKey: ['components'] });
+      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
+      queryClient.invalidateQueries({ queryKey: ['componentAlternatives'] });
       setApprovalComments('');
       const msg = response.data?.message || 'Approval vote recorded.';
       showSuccess(msg);
