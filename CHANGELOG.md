@@ -9,17 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+-
 
 ### Changed
 
-- 
+-
 
 ### Fixed
 
-- 
+-
 
-## [1.8.0] - 2026-03-18
+## [1.9.0] - 2026-03-20
+
+### Added
+
+- ECO PDF generation with company logo, component details, approval pipeline, vote history, and change tables
+- ECO retry/rejection workflow: rejected ECOs can be retried under the same ECO number, auto-populating previous changes (fields, specs, alternatives, distributors) for revision
+- Rejection history chain displayed in ECO expanded details and PDF, showing full change trail across unlimited rejection cycles
+- `parent_eco_id` column on `eco_orders` for rejection chain tracking with self-referential FK
+- `reviewer` role: can view ECO page, User Settings, and Parts Library; auto-redirects to ECO page on login
+- Multi-stage ECO approval pipeline with configurable stages, role-based approvals, and pipeline type routing (`proto_status_change`, `prod_status_change`, `spec_cad`, `distributor`, `general`)
+- ECO approval stages admin UI with drag-and-drop reordering, pipeline type assignment, and approver management
+- ECO sidebar filters for ECO number, initiated by user, and pipeline type
+- Alternative parts change tracking in ECOs (add/update/delete with nested distributor changes)
+- CAD file change tracking in ECOs (link/unlink)
+- User export/import in admin settings
+- Global category prefix configuration in admin settings
+- `eco_settings` table for configurable ECO number prefix and format
+
+### Changed
+
+- Approval statuses renamed: `approved` → `production`, `experimental` → `prototype`, `pending review` → `reviewing`
+- Pipeline type `status_change` split into `proto_status_change` and `prod_status_change`
+- ECO number uniqueness constraint removed to allow retry chains to share the same number
+- ECO rejected filter now deduplicates by ECO number and hides entries that have been subsequently approved or are pending
+- Approval pipeline stage colors simplified to status-based: green (complete), red (rejected), blue (current), gray (remaining)
+- "Approved by" removed from ECO compact summary (visible in expanded details only)
+- `active_parts` CIS view corrected to use `production` status instead of obsolete `approved`
+- Inventory table UI enhanced with improved layout
+- `test.sh` replaces `check.sh` for lint and test runner
+
+### Fixed
+
+- `active_parts` CIS view returned zero rows after approval status migration renamed `approved` to `production`
+- User export failing with `column "created_at" does not exist` — uses `created_at(id)` function for UUIDv7 timestamps
+- ECO approval pipeline and vote history missing from PDF and frontend when no stages matched the pipeline type — falls back to showing all active stages
+- PDF title spacing between "Engineer Change Order" heading and ECO number
+- Category name validation on database update
+- Top panel not generating correctly for item display
 
 ### Added
 

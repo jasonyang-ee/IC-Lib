@@ -222,12 +222,24 @@ export const getAllECOs = async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    // For rejected view, only show the latest ECO per eco_number
-    // (older rejections appear in the rejection history chain when expanded)
+    // For rejected view, only show the latest ECO per eco_number,
+    // and exclude eco_numbers that have a final approved or pending/in_review status
+    // (those belong in the approved or pending views)
     if (status === 'rejected') {
+      const ecoNumbers = [...new Set(result.rows.map(r => r.eco_number))];
+      const resolvedNumbers = new Set();
+      if (ecoNumbers.length > 0) {
+        const resolved = await pool.query(
+          'SELECT DISTINCT eco_number FROM eco_orders WHERE eco_number = ANY($1) AND status IN (\'approved\', \'pending\', \'in_review\')',
+          [ecoNumbers],
+        );
+        resolved.rows.forEach(r => resolvedNumbers.add(r.eco_number));
+      }
+
       const seen = new Set();
       const deduped = [];
       for (const row of result.rows) {
+        if (resolvedNumbers.has(row.eco_number)) continue;
         if (!seen.has(row.eco_number)) {
           seen.add(row.eco_number);
           deduped.push(row);

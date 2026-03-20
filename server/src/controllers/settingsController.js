@@ -895,7 +895,7 @@ export const exportAllSettings = async (req, res) => {
         username, 
         role, 
         is_active,
-        created_at
+        created_at(id) as created_at
       FROM users
       ORDER BY username
     `);
@@ -1220,7 +1220,7 @@ export const exportUsers = async (req, res) => {
         username, 
         role, 
         is_active,
-        created_at
+        created_at(id) as created_at
       FROM users
       ORDER BY username
     `);

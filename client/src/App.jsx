@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -14,6 +14,15 @@ import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
 import FileLibrary from './pages/FileLibrary'
+
+// Reviewer users land on ECO page (if enabled), others on Dashboard
+const DefaultPage = ({ ecoEnabled }) => {
+  const { hasRole } = useAuth();
+  if (hasRole('reviewer') && ecoEnabled) {
+    return <Navigate to="/eco" replace />;
+  }
+  return <Dashboard />;
+};
 
 function App() {
   // Check if ECO feature is enabled from environment variable
@@ -38,7 +47,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route index element={<DefaultPage ecoEnabled={ecoEnabled} />} />
           <Route path="library" element={<Library />} />
           <Route path="file-library" element={<ProtectedRoute allowedRoles={fullAccessRoles}><FileLibrary /></ProtectedRoute>} />
           <Route path="inventory" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Inventory /></ProtectedRoute>} />

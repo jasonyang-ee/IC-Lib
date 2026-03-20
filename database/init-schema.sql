@@ -416,7 +416,7 @@ SELECT
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'approved';
+WHERE c.approval_status = 'production';
 
 -- Create a CIS table view for unapproved parts
 CREATE OR REPLACE VIEW new_parts AS
@@ -759,6 +759,7 @@ CREATE TABLE IF NOT EXISTS eco_cad_files (
 CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_eco_number ON eco_orders(eco_number);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_parent ON eco_orders(parent_eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
@@ -1018,6 +1019,23 @@ BEGIN
 END $$;
 
 -- Recreate views with updated status names
+CREATE OR REPLACE VIEW active_parts AS
+SELECT
+    c.part_number,
+    cat.name AS category_name,
+    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+    c.value,
+    c.package_size,
+    c.manufacturer_pn,
+    m.name AS manufacturer_name,
+    c.schematic,
+    c.pcb_footprint,
+    c.description
+FROM components c
+LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+LEFT JOIN component_categories cat ON c.category_id = cat.id
+WHERE c.approval_status = 'production';
+
 CREATE OR REPLACE VIEW unapproved_parts AS
 SELECT
     c.part_number,

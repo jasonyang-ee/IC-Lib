@@ -44,11 +44,14 @@ const Sidebar = () => {
     navigate('/login');
   };
 
-  // Reviewer role: only Dashboard + Parts Library
-  const menuItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/library', icon: Cpu, label: 'Parts Library' },
-  ];
+  // Reviewer role: only Parts Library + ECO + User Settings (no Dashboard)
+  const menuItems = [];
+
+  if (!isReviewer) {
+    menuItems.push({ path: '/', icon: LayoutDashboard, label: 'Dashboard' });
+  }
+
+  menuItems.push({ path: '/library', icon: Cpu, label: 'Parts Library' });
 
   if (!isReviewer) {
     menuItems.push(
