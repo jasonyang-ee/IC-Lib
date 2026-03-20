@@ -179,27 +179,28 @@ const InventoryTable = ({
                           type="number"
                           value={editedItem.quantity}
                           onChange={(e) => onEditChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                          className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          onFocus={(e) => e.target.select()}
+                          className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Issue</span>
                         <input
                           type="number"
                           value={editedItem.consumeQty || ''}
                           onChange={(e) => onEditChange(item.id, 'consumeQty', parseInt(e.target.value) || 0)}
                           placeholder="0"
-                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Receive</span>
                         <input
                           type="number"
                           value={editedItem.receiveQty || ''}
                           onChange={(e) => onEditChange(item.id, 'receiveQty', parseInt(e.target.value) || 0)}
                           placeholder="0"
-                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
@@ -222,7 +223,8 @@ const InventoryTable = ({
                       type="number"
                       value={editedItem.minimum_quantity}
                       onChange={(e) => onEditChange(item.id, 'minimum_quantity', parseInt(e.target.value) || 0)}
-                      className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                      onFocus={(e) => e.target.select()}
+                      className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   ) : (
                     <span className="text-gray-900 dark:text-gray-100">{item.minimum_quantity || 0}</span>
@@ -345,27 +347,28 @@ const InventoryTable = ({
                               type="number"
                               value={editingAlt.quantity}
                               onChange={(e) => onAlternativeEdit(alt.id, 'quantity', parseInt(e.target.value) || 0)}
-                              className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              onFocus={(e) => e.target.select()}
+                              className="w-16 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Issue</span>
                             <input
                               type="number"
                               value={editingAlt.consumeQty || ''}
                               onChange={(e) => onAlternativeEdit(alt.id, 'consumeQty', parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Receive</span>
                             <input
                               type="number"
                               value={editingAlt.receiveQty || ''}
                               onChange={(e) => onAlternativeEdit(alt.id, 'receiveQty', parseInt(e.target.value) || 0)}
                               placeholder="0"
-                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                              className="w-14 px-1.5 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>
@@ -381,7 +384,8 @@ const InventoryTable = ({
                           type="number"
                           value={editingAlt.minimum_quantity}
                           onChange={(e) => onAlternativeEdit(alt.id, 'minimum_quantity', parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
+                          onFocus={(e) => e.target.select()}
+                          className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       ) : (
                         <span className="text-gray-900 dark:text-gray-100">{alt.minimum_quantity || 0}</span>

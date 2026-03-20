@@ -232,7 +232,7 @@ export const getECOById = async (req, res) => {
       ORDER BY eas.stage_order, ea.id
     `, [id]);
 
-    // Get all active approval stages with assigned approvers
+    // Get all active approval stages for this ECO's pipeline type, with assigned approvers
     const stagesResult = await client.query(`
       SELECT
         eas.*,
@@ -247,9 +247,9 @@ export const getECOById = async (req, res) => {
           ), '[]'::json
         ) as assigned_approvers
       FROM eco_approval_stages eas
-      WHERE eas.is_active = true
+      WHERE eas.is_active = true AND $2 = ANY(eas.pipeline_types)
       ORDER BY eas.stage_order
-    `, [id]);
+    `, [id, eco.pipeline_type]);
 
     // Get CAD file changes
     const cadFilesResult = await client.query(`
@@ -967,11 +967,11 @@ export const approveECO = async (req, res) => {
 
     // Find which stage the user is eligible to vote on
     let eligibleStage = null;
-    const roleHierarchy = { 'read-only': 0, 'read-write': 1, 'approver': 2, 'admin': 3 };
+    const roleHierarchy = { 'read-only': 0, 'reviewer': 1, 'read-write': 2, 'approver': 3, 'admin': 4 };
     const userLevel = roleHierarchy[req.user.role] || 0;
 
     for (const stage of currentStages) {
-      const requiredLevel = roleHierarchy[stage.required_role] || 2;
+      const requiredLevel = roleHierarchy[stage.required_role] || 3;
       if (userLevel < requiredLevel) continue;
 
       // Check if specific approvers are assigned to this stage
@@ -1178,11 +1178,11 @@ export const rejectECO = async (req, res) => {
 
       // Find which stage the user is eligible to vote on
       let eligibleStage = null;
-      const roleHierarchy = { 'read-only': 0, 'read-write': 1, 'approver': 2, 'admin': 3 };
+      const roleHierarchy = { 'read-only': 0, 'reviewer': 1, 'read-write': 2, 'approver': 3, 'admin': 4 };
       const userLevel = roleHierarchy[req.user.role] || 0;
 
       for (const stage of currentStages) {
-        const requiredLevel = roleHierarchy[stage.required_role] || 2;
+        const requiredLevel = roleHierarchy[stage.required_role] || 3;
         if (userLevel < requiredLevel) continue;
 
         // Check if specific approvers are assigned
@@ -1372,9 +1372,9 @@ export const generateECOPDFEndpoint = async (req, res) => {
           ), '[]'::json
         ) as assigned_approvers
       FROM eco_approval_stages eas
-      WHERE eas.is_active = true
+      WHERE eas.is_active = true AND $2 = ANY(eas.pipeline_types)
       ORDER BY eas.stage_order
-    `, [id]);
+    `, [id, eco.pipeline_type]);
 
     const cadFilesResult = await client.query(`
       SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
@@ -1412,8 +1412,12 @@ export const generateECOPDFEndpoint = async (req, res) => {
       cad_files: cadFilesResult.rows,
     };
 
+    // Fetch logo filename from admin settings
+    const logoResult = await client.query('SELECT eco_logo_filename FROM admin_settings LIMIT 1');
+    const logoFilename = logoResult.rows[0]?.eco_logo_filename || '';
+
     // Generate PDF
-    const pdfDoc = generateECOPdf(ecoData);
+    const pdfDoc = generateECOPdf(ecoData, { logoFilename });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${eco.eco_number}.pdf"`);

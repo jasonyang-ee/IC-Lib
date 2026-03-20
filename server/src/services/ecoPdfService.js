@@ -214,7 +214,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
   if (options.logoFilename) {
     const imageDir = process.env.NODE_ENV === 'production'
       ? '/app/image'
-      : path.join(process.cwd(), 'image');
+      : path.join(process.cwd(), '..', 'image');
     const logoPath = path.join(imageDir, options.logoFilename);
 
     try {
@@ -228,11 +228,21 @@ export const generateECOPdf = (ecoData, options = {}) => {
   }
 
   // ===== HEADER =====
+  // Page title
   doc
     .fontSize(FONT_SIZE.title)
     .font('Helvetica-Bold')
     .fillColor(COLORS.darkText)
-    .text(`ECO: ${ecoData.eco_number}`, PAGE.marginLeft, headerStartY);
+    .text('Engineer Change Order', PAGE.marginLeft, headerStartY);
+
+  doc.y = headerStartY + 20;
+
+  // ECO number
+  doc
+    .fontSize(FONT_SIZE.subtitle + 2)
+    .font('Helvetica-Bold')
+    .fillColor(COLORS.darkText)
+    .text(ecoData.eco_number, PAGE.marginLeft, doc.y);
 
   // Status badge
   const statusColor = getStatusColor(ecoData.status);
@@ -247,7 +257,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     .fillColor(COLORS.white)
     .text(statusText, statusX, headerStartY + 5, { width: 80, align: 'center', lineBreak: false });
 
-  doc.y = headerStartY + 26;
+  doc.y = headerStartY + 40;
 
   // Part info
   const renderMetaLine = (line) => {
