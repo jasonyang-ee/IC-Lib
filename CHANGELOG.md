@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Partial database upgrades now self-heal missing ECO/admin objects like `eco_cad_files` and `admin_settings.eco_logo_filename` during startup
 - Schema verification now reports missing required columns in addition to missing tables and views
+- ECO creation now consumes numbering directly from `eco_settings`, so the saved ECO prefix, digit count, and next number are honored
+- New/custom specifications created during add, edit, and ECO flows now persist through save or approval instead of being dropped when no category spec id was pre-created
+- Category-change ECO approvals now apply staged specification values to the newly created component instead of skipping them
+- Vendor archive extraction now normalizes Windows-style ZIP entry paths, fixing Ultra Librarian uploads on Linux deployments
+- Vendor API data panels now expose `Auto Fill` in add mode as well as edit mode
 
 ## [1.9.0] - 2026-03-20
 

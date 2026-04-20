@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import { sendECONotification } from '../services/emailService.js';
 import { regenerateCadText } from '../services/cadFileService.js';
 import { generateECOPdf } from '../services/ecoPdfService.js';
+import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
 
 // Whitelist of valid component field names to prevent SQL injection
 const VALID_COMPONENT_FIELDS = [
@@ -47,6 +48,31 @@ const getECOForEmail = async (client, ecoId) => {
     WHERE eo.id = $1
   `, [ecoId]);
   return result.rows[0];
+};
+
+const consumeNextEcoNumber = async (client) => {
+  let settingsResult = await client.query('SELECT * FROM eco_settings LIMIT 1 FOR UPDATE');
+
+  if (settingsResult.rows.length === 0) {
+    settingsResult = await client.query(`
+      INSERT INTO eco_settings (prefix, leading_zeros, next_number)
+      VALUES ('ECO-', 6, 1)
+      RETURNING *
+    `);
+  }
+
+  const settings = settingsResult.rows[0];
+  const prefix = typeof settings.prefix === 'string' ? settings.prefix : 'ECO-';
+  const leadingZeros = Number.isInteger(settings.leading_zeros) ? settings.leading_zeros : 6;
+  const nextNumber = Number.isInteger(settings.next_number) ? settings.next_number : 1;
+  const ecoNumber = `${prefix}${String(nextNumber).padStart(leadingZeros, '0')}`;
+
+  await client.query(
+    'UPDATE eco_settings SET next_number = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    [nextNumber + 1, settings.id],
+  );
+
+  return ecoNumber;
 };
 
 // Shared helper: fetch rejection history chain for an ECO by walking parent_eco_id
@@ -615,6 +641,30 @@ export const createECO = async (req, res) => {
       notes,
       parent_eco_id,
     } = req.body;
+
+    const categoryChange = Array.isArray(changes)
+      ? changes.find(change => change.field_name === 'category_id' && change.new_value)
+      : null;
+    let specificationCategoryId = categoryChange?.new_value || null;
+
+    if (!specificationCategoryId && component_id) {
+      specificationCategoryId = await getComponentCategoryId(client, component_id);
+    }
+
+    const resolvedSpecifications = [];
+    if (specifications && specifications.length > 0) {
+      for (const spec of specifications) {
+        const categorySpec = await syncCategorySpecification(client, specificationCategoryId, spec);
+        if (!categorySpec?.id) {
+          throw new Error(`Failed to resolve specification definition for "${spec.spec_name || 'Unnamed specification'}"`);
+        }
+
+        resolvedSpecifications.push({
+          ...spec,
+          category_spec_id: categorySpec.id,
+        });
+      }
+    }
     
     // Generate ECO number (reuse parent's number for retries)
     let ecoNumber;
@@ -623,12 +673,11 @@ export const createECO = async (req, res) => {
       ecoNumber = parentResult.rows[0]?.eco_number;
     }
     if (!ecoNumber) {
-      const ecoNumberResult = await client.query('SELECT generate_eco_number() as eco_number');
-      ecoNumber = ecoNumberResult.rows[0].eco_number;
+      ecoNumber = await consumeNextEcoNumber(client);
     }
 
     // Detect pipeline type based on changes
-    const pipelineType = detectPipelineType(changes, specifications, cad_files, distributors, alternatives);
+    const pipelineType = detectPipelineType(changes, resolvedSpecifications, cad_files, distributors, alternatives);
 
     // Get the first active approval stage order for this pipeline type
     const firstStageResult = await client.query(`
@@ -697,8 +746,8 @@ export const createECO = async (req, res) => {
     }
     
     // Insert specification changes
-    if (specifications && specifications.length > 0) {
-      for (const spec of specifications) {
+    if (resolvedSpecifications.length > 0) {
+      for (const spec of resolvedSpecifications) {
         await client.query(`
           INSERT INTO eco_specifications (
             eco_id, category_spec_id, old_value, new_value
@@ -723,7 +772,7 @@ export const createECO = async (req, res) => {
       changes_count: changes?.length || 0,
       distributors_count: distributors?.length || 0,
       alternatives_count: alternatives?.length || 0,
-      specifications_count: specifications?.length || 0,
+      specifications_count: resolvedSpecifications.length,
       cad_files_count: cad_files?.length || 0,
       notes: notes,
     }, req.user.id);
@@ -1135,17 +1184,29 @@ const applyECOChanges = async (client, eco, id) => {
     }
   }
 
-  // --- 6. Apply specification changes (skip if category changed) ---
-  if (!categoryChange) {
-    const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
-    for (const spec of specificationsResult.rows) {
+  // --- 6. Apply specification changes ---
+  const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
+  for (const spec of specificationsResult.rows) {
+    if (!spec.category_spec_id) continue;
+
+    const newValue = spec.new_value === undefined || spec.new_value === null
+      ? ''
+      : String(spec.new_value).trim();
+
+    if (newValue === '') {
       await client.query(`
-        INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (component_id, category_spec_id)
-        DO UPDATE SET spec_value = $3, updated_at = CURRENT_TIMESTAMP
-      `, [targetComponentId, spec.category_spec_id, spec.new_value]);
+        DELETE FROM component_specification_values
+        WHERE component_id = $1 AND category_spec_id = $2
+      `, [targetComponentId, spec.category_spec_id]);
+      continue;
     }
+
+    await client.query(`
+      INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (component_id, category_spec_id)
+      DO UPDATE SET spec_value = $3, updated_at = CURRENT_TIMESTAMP
+    `, [targetComponentId, spec.category_spec_id, newValue]);
   }
 
   // --- 7. Apply CAD file changes ---

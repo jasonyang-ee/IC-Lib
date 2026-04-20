@@ -981,52 +981,18 @@ const Library = () => {
         // Update component basic data
         await updateMutation.mutateAsync({ id: selectedComponent.id, data: componentData });
         
-        // Handle specifications - create custom specs first, then save all values
-        const allSpecs = [];
-        
-        for (const spec of (specifications || [])) {
-          // Skip specs without values
-          if (!spec.spec_value || spec.spec_value.trim() === '') continue;
-          
-          let categorySpecId = spec.category_spec_id;
-          
-          // For custom specs without category_spec_id, create the category spec first
-          if (!categorySpecId && spec.is_custom && spec.spec_name?.trim()) {
-            try {
-              // Get the component's category ID
-              const categoryId = componentData.category_id || selectedComponent?.category_id;
-              if (categoryId) {
-                const createResponse = await api.createCategorySpecification(categoryId, {
-                  spec_name: spec.spec_name.trim(),
-                  unit: spec.unit || '',
-                  mapping_spec_names: spec.mapping_spec_names || [],
-                  is_required: false
-                });
-                categorySpecId = createResponse.data.id;
-              }
-            } catch (error) {
-              // If creation fails (e.g., duplicate), try to find existing spec
-              console.error('Error creating custom spec, attempting to find existing:', error);
-              try {
-                const categoryId = componentData.category_id || selectedComponent?.category_id;
-                const existingSpecs = await api.getCategorySpecifications(categoryId);
-                const existing = existingSpecs.data?.find(s => s.spec_name === spec.spec_name.trim());
-                if (existing) {
-                  categorySpecId = existing.id;
-                }
-              } catch (findError) {
-                console.error('Could not find existing spec:', findError);
-              }
-            }
-          }
-          
-          if (categorySpecId) {
-            allSpecs.push({
-              category_spec_id: categorySpecId,
-              spec_value: spec.spec_value
-            });
-          }
-        }
+        const allSpecs = (specifications || [])
+          .filter(spec => String(spec?.spec_value ?? '').trim() !== '')
+          .map(spec => ({
+            category_spec_id: spec.category_spec_id || null,
+            spec_name: spec.spec_name || '',
+            spec_value: String(spec.spec_value).trim(),
+            unit: spec.unit || '',
+            mapping_spec_names: spec.mapping_spec_names || [],
+            display_order: spec.display_order,
+            is_required: Boolean(spec.is_required),
+            is_custom: Boolean(spec.is_custom),
+          }));
         
         // Update all specifications (or clear if none)
         await api.updateComponentSpecifications(selectedComponent.id, { specifications: allSpecs });
@@ -1468,7 +1434,12 @@ const Library = () => {
           // Track if value changed (including new specs with no old value)
           if (oldValue !== newValue) {
             specifications.push({
-              category_spec_id: spec.category_spec_id,
+              category_spec_id: spec.category_spec_id || null,
+              spec_name: spec.spec_name || '',
+              unit: spec.unit || '',
+              mapping_spec_names: spec.mapping_spec_names || [],
+              display_order: spec.display_order,
+              is_required: Boolean(spec.is_required),
               old_value: oldValue,
               new_value: newValue
             });
@@ -2188,48 +2159,20 @@ const Library = () => {
         const response = await addMutation.mutateAsync(componentData);
         const newComponentId = response.data?.id;
         
-        // Handle specifications - create custom specs first, then save all values
+        // Handle specifications
         if (newComponentId) {
-          const allSpecs = [];
-          
-          for (const spec of (specifications || [])) {
-            // Skip specs without values
-            if (!spec.spec_value || spec.spec_value.trim() === '') continue;
-            
-            let categorySpecId = spec.category_spec_id;
-            
-            // For custom specs without category_spec_id, create the category spec first
-            if (!categorySpecId && spec.is_custom && spec.spec_name?.trim()) {
-              try {
-                const createResponse = await api.createCategorySpecification(componentData.category_id, {
-                  spec_name: spec.spec_name.trim(),
-                  unit: spec.unit || '',
-                  mapping_spec_names: spec.mapping_spec_names || [],
-                  is_required: false
-                });
-                categorySpecId = createResponse.data.id;
-              } catch (error) {
-                // If creation fails (e.g., duplicate), try to find existing spec
-                console.error('Error creating custom spec, attempting to find existing:', error);
-                try {
-                  const existingSpecs = await api.getCategorySpecifications(componentData.category_id);
-                  const existing = existingSpecs.data?.find(s => s.spec_name === spec.spec_name.trim());
-                  if (existing) {
-                    categorySpecId = existing.id;
-                  }
-                } catch (findError) {
-                  console.error('Could not find existing spec:', findError);
-                }
-              }
-            }
-            
-            if (categorySpecId) {
-              allSpecs.push({
-                category_spec_id: categorySpecId,
-                spec_value: spec.spec_value
-              });
-            }
-          }
+          const allSpecs = (specifications || [])
+            .filter(spec => String(spec?.spec_value ?? '').trim() !== '')
+            .map(spec => ({
+              category_spec_id: spec.category_spec_id || null,
+              spec_name: spec.spec_name || '',
+              spec_value: String(spec.spec_value).trim(),
+              unit: spec.unit || '',
+              mapping_spec_names: spec.mapping_spec_names || [],
+              display_order: spec.display_order,
+              is_required: Boolean(spec.is_required),
+              is_custom: Boolean(spec.is_custom),
+            }));
           
           if (allSpecs.length > 0) {
             await api.updateComponentSpecifications(newComponentId, { specifications: allSpecs });
@@ -2516,26 +2459,45 @@ const Library = () => {
       setWarningModal({ show: true, message: 'Category ID not found!' });
       return;
     }
+
+    const newSpecName = mappingModal.newSpecName.trim();
+    const newMappings = mappingModal.newMapping.trim() ? [mappingModal.newMapping.trim()] : [];
+
+    const duplicateSpec = (editData.specifications || []).find(spec =>
+      spec.spec_name?.trim().toLowerCase() === newSpecName.toLowerCase(),
+    );
+    if (duplicateSpec) {
+      setWarningModal({ show: true, message: 'A specification with this name already exists in the current form.' });
+      return;
+    }
     
     try {
-      // Create new specification on server
-      const response = await api.createCategorySpecification(editData.category_id, {
-        spec_name: mappingModal.newSpecName.trim(),
-        unit: mappingModal.newSpecUnit.trim(),
-        mapping_spec_names: mappingModal.newMapping.trim() ? [mappingModal.newMapping.trim()] : [],
-        display_order: (editData.specifications?.length || 0) + 1,
-        is_required: false
-      });
+      let categorySpecId = null;
+      let deferredSave = false;
+
+      try {
+        const response = await api.createCategorySpecification(editData.category_id, {
+          spec_name: newSpecName,
+          unit: mappingModal.newSpecUnit.trim(),
+          mapping_spec_names: newMappings,
+          display_order: (editData.specifications?.length || 0) + 1,
+          is_required: false
+        });
+        categorySpecId = response.data.id;
+      } catch (error) {
+        console.warn('Staging new specification locally until save:', error.response?.data || error.message);
+        deferredSave = true;
+      }
       
-      // Add to local state
       const newSpec = {
-        category_spec_id: response.data.id,
-        spec_name: mappingModal.newSpecName.trim(),
+        category_spec_id: categorySpecId,
+        spec_name: newSpecName,
         spec_value: '',
         unit: mappingModal.newSpecUnit.trim(),
-        mapping_spec_names: mappingModal.newMapping.trim() ? [mappingModal.newMapping.trim()] : [],
+        mapping_spec_names: newMappings,
         is_required: false,
-        display_order: (editData.specifications?.length || 0) + 1
+        display_order: (editData.specifications?.length || 0) + 1,
+        is_custom: !categorySpecId
       };
       
       setEditData(prev => ({
@@ -2543,15 +2505,15 @@ const Library = () => {
         specifications: [...(prev.specifications || []), newSpec]
       }));
       
-      // Show success message
       setAutoFillToast({ 
         show: true, 
-        message: `Created new specification "${mappingModal.newSpecName}"`, 
+        message: deferredSave
+          ? `Staged new specification "${newSpecName}" for save`
+          : `Created new specification "${newSpecName}"`, 
         count: 1 
       });
       setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);
       
-      // Close modal
       handleCloseMappingModal();
     } catch (error) {
       console.error('Error creating specification:', error);
@@ -2579,14 +2541,19 @@ const Library = () => {
       
       // Add new mapping to array
       const updatedMappings = [...currentMappings, vendorFieldName.trim()];
+      let stagedForSave = false;
       
       // Only update server if spec already exists (has category_spec_id)
       if (mappingModal.spec.category_spec_id) {
-        // Update on server - API signature is (id, data)
-        await api.updateCategorySpecification(
-          mappingModal.spec.category_spec_id,
-          { mapping_spec_names: updatedMappings }
-        );
+        try {
+          await api.updateCategorySpecification(
+            mappingModal.spec.category_spec_id,
+            { mapping_spec_names: updatedMappings }
+          );
+        } catch (error) {
+          console.warn('Staging mapping locally until save:', error.response?.data || error.message);
+          stagedForSave = true;
+        }
       }
       
       // Update local state
@@ -2600,7 +2567,9 @@ const Library = () => {
       // Show success message
       setAutoFillToast({ 
         show: true, 
-        message: `Added mapping "${vendorFieldName}" to ${mappingModal.spec.spec_name || 'specification'}`, 
+        message: stagedForSave
+          ? `Staged mapping "${vendorFieldName}" for ${mappingModal.spec.spec_name || 'specification'}`
+          : `Added mapping "${vendorFieldName}" to ${mappingModal.spec.spec_name || 'specification'}`, 
         count: 1 
       });
       setTimeout(() => setAutoFillToast({ show: false, message: '', count: 0 }), 3000);

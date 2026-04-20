@@ -110,6 +110,16 @@ function ensureDir(dirPath) {
   return dirPath;
 }
 
+function normalizeArchivePath(entryName) {
+  return String(entryName || '').replace(/\\/g, '/');
+}
+
+function getArchiveBaseName(entryName) {
+  const normalizedEntryName = normalizeArchivePath(entryName);
+  const pathParts = normalizedEntryName.split('/').filter(Boolean);
+  return pathParts[pathParts.length - 1] || '';
+}
+
 /**
  * Find file in flat directory first, then fall back to legacy nested directory,
  * then check temp directory for files uploaded during new part creation.
@@ -210,7 +220,7 @@ function extractSmartZipToTemp(zipPath) {
   const zipFilename = path.basename(zipPath).toLowerCase();
 
   // Detect source
-  const filenames = entries.map(e => e.entryName.toLowerCase());
+  const filenames = entries.map(e => normalizeArchivePath(e.entryName).toLowerCase());
   let source = 'unknown';
   if (filenames.some(f => f.includes('ultralibrarian') || f.includes('ul_')) || zipFilename.includes('ul_')) {
     source = 'ultralibrarian';
@@ -234,8 +244,9 @@ function extractSmartZipToTemp(zipPath) {
   for (const entry of entries) {
     if (entry.isDirectory) continue;
 
-    const entryName = entry.entryName;
-    let filename = path.basename(entryName);
+    const entryName = normalizeArchivePath(entry.entryName);
+    let filename = getArchiveBaseName(entryName);
+    if (!filename) continue;
     const ext = path.extname(filename).toLowerCase();
 
     // Lowercase file extension for consistency
@@ -278,14 +289,7 @@ function extractSmartZipToTemp(zipPath) {
       // Extract to temp with unique prefix (collision check deferred to save time)
       const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const tempFilename = uniquePrefix + '-' + filename;
-      zip.extractEntryTo(entry, tempDir, false, true);
-      // AdmZip extracts with original name — find it and rename to temp name (with lowercase extension)
-      const originalExtractedName = path.basename(entryName);
-      const extractedPath = path.join(tempDir, originalExtractedName);
-      const tempPath = path.join(tempDir, tempFilename);
-      if (fs.existsSync(extractedPath)) {
-        fs.renameSync(extractedPath, tempPath);
-      }
+      zip.extractEntryTo(entry, tempDir, false, true, false, tempFilename);
 
       extractedFiles.push({
         tempFilename,

@@ -791,16 +791,28 @@ CREATE OR REPLACE TRIGGER update_eco_settings_updated_at
 CREATE OR REPLACE FUNCTION generate_eco_number()
 RETURNS VARCHAR AS $$
 DECLARE
-    next_number INTEGER;
+    settings_row eco_settings%ROWTYPE;
     eco_num VARCHAR(20);
 BEGIN
-    -- Get the highest ECO number and increment
-    SELECT COALESCE(MAX(CAST(SUBSTRING(eco_number FROM 5) AS INTEGER)), 0) + 1
-    INTO next_number
-    FROM eco_orders;
-    
-    -- Format as ECO-XXXXXX (6 digits with leading zeros)
-    eco_num := 'ECO-' || LPAD(next_number::TEXT, 6, '0');
+    SELECT *
+    INTO settings_row
+    FROM eco_settings
+    LIMIT 1
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        INSERT INTO eco_settings (prefix, leading_zeros, next_number)
+        VALUES ('ECO-', 6, 1)
+        RETURNING * INTO settings_row;
+    END IF;
+
+    eco_num := settings_row.prefix || LPAD(settings_row.next_number::TEXT, settings_row.leading_zeros, '0');
+
+    UPDATE eco_settings
+    SET
+        next_number = settings_row.next_number + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = settings_row.id;
     
     RETURN eco_num;
 END;

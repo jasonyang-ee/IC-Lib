@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
 import cadFileService from '../services/cadFileService.js';
+import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
 
 /**
  * Convert a value to a comma-separated TEXT string for PostgreSQL.
@@ -677,14 +678,24 @@ export const updateComponentSpecifications = async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
+      const categoryId = await getComponentCategoryId(client, id);
+      if (!categoryId) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Component not found' });
+      }
+
       // Delete existing specification values
       await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
 
-      // Insert new specification values (filter out empty ones)
+      // Sync category definitions, then store non-empty component values.
       if (specifications && Array.isArray(specifications)) {
         for (const spec of specifications) {
-          // Skip specifications with empty value or missing category_spec_id
-          if (!spec.category_spec_id || !spec.spec_value || spec.spec_value.trim() === '') continue;
+          const categorySpec = await syncCategorySpecification(client, categoryId, spec);
+          const specValue = spec?.spec_value === undefined || spec?.spec_value === null
+            ? ''
+            : String(spec.spec_value).trim();
+
+          if (!categorySpec?.id || specValue === '') continue;
           
           await client.query(`
             INSERT INTO component_specification_values (component_id, category_spec_id, spec_value)
@@ -693,7 +704,7 @@ export const updateComponentSpecifications = async (req, res, next) => {
             DO UPDATE SET 
               spec_value = EXCLUDED.spec_value,
               updated_at = CURRENT_TIMESTAMP
-          `, [id, spec.category_spec_id, spec.spec_value]);
+          `, [id, categorySpec.id, specValue]);
         }
       }
 

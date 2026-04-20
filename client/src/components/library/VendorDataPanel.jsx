@@ -1,8 +1,10 @@
 import { Copy } from 'lucide-react';
 
-const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText }) => {
+const VendorDataPanel = ({ editData, onAutoFill, onCopy, copiedText }) => {
   const vendorData = editData._vendorSearchData;
   if (!vendorData) return null;
+
+  const canAutoFill = typeof onAutoFill === 'function';
 
   return (
     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow-md p-4 border border-blue-200 dark:border-blue-800">
@@ -10,7 +12,7 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
         <h3 className="font-semibold text-blue-900 dark:text-blue-100">
           Vendor API Data ({vendorData.source === 'digikey' ? 'Digikey' : 'Mouser'})
         </h3>
-        {isEditMode && (
+        {canAutoFill && (
           <button
             onClick={onAutoFill}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors"
@@ -21,8 +23,8 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
         )}
       </div>
       <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
-        {isEditMode
-          ? 'Click any value to copy to clipboard. Use "Auto Fill" to populate basic fields. Specifications must be filled manually.'
+        {canAutoFill
+          ? 'Click any value to copy to clipboard. Use "Auto Fill" to populate basic fields and mapped specifications.'
           : 'Click any value to copy to clipboard. All data from vendor API.'}
       </p>
       <div className="space-y-3 text-sm">
@@ -37,7 +39,7 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
           >
             <span className="text-blue-700 dark:text-blue-300 font-medium text-xs shrink-0 w-28 text-right">Description:</span>
             <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-1 flex-1 min-w-0 ml-1">
-              <span className="flex-1 whitespace-pre-wrap break-words">{vendorData.description}</span>
+              <span className="flex-1 whitespace-pre-wrap wrap-break-word">{vendorData.description}</span>
               <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
             </span>
           </div>
@@ -94,7 +96,7 @@ const VendorDataPanel = ({ editData, isEditMode, onAutoFill, onCopy, copiedText 
                       {key}:
                     </span>
                     <span className="text-blue-900 dark:text-blue-100 text-xs flex items-start gap-1 flex-1 min-w-0 ml-1">
-                      <span className="flex-1 break-words">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
+                      <span className="flex-1 wrap-break-word">{displayValue}{shouldShowUnit ? ` ${displayUnit}` : ''}</span>
                       <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
                     </span>
                   </div>
