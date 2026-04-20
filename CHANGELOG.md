@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Admin settings now include a one-off repair action that replays approved ECO specification values and relinks orphan ECO specification rows when the category mapping is exact
 
 ### Changed
 

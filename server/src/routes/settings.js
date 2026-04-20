@@ -39,6 +39,7 @@ import {
   deletePartsAndProjectData,
   deleteLibraryFiles,
   deleteUserRecords,
+  repairApprovedEcoSpecifications,
   exportDatabase,
   importDatabase,
 } from '../controllers/settingsController.js';
@@ -94,6 +95,7 @@ router.post('/database/init-settings', authenticate, isAdmin, initSettings);
 router.post('/database/delete-parts', authenticate, isAdmin, deletePartsAndProjectData);
 router.post('/database/delete-library-files', authenticate, isAdmin, deleteLibraryFiles);
 router.post('/database/delete-users', authenticate, isAdmin, deleteUserRecords);
+router.post('/database/repair-approved-eco-specifications', authenticate, isAdmin, repairApprovedEcoSpecifications);
 router.get('/database/export', authenticate, isAdmin, exportDatabase);
 router.post('/database/import', authenticate, isAdmin, uploadBackup.single('file'), importDatabase);
 
