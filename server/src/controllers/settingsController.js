@@ -5,6 +5,12 @@ import { fileURLToPath } from 'url';
 import { gzipSync, gunzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
+import {
+  EXPECTED_SCHEMA_TABLES,
+  EXPECTED_SCHEMA_VIEWS,
+  REPAIRABLE_SCHEMA_COLUMNS,
+  inspectDatabaseSchema,
+} from '../services/schemaInspectionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +23,24 @@ const SETTINGS_FILE = path.join(__dirname, '../../../config/settings.json');
 // Default settings structure
 const DEFAULT_SETTINGS = {
   partNumberConfigs: {},
+};
+
+const parseBooleanEnv = (value) => {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+};
+
+const resolveBooleanEnv = (...values) => {
+  for (const value of values) {
+    if (value !== undefined) {
+      return parseBooleanEnv(value);
+    }
+  }
+
+  return false;
 };
 
 /**
@@ -64,6 +88,15 @@ export const getSettings = async (req, res) => {
       message: error.message, 
     });
   }
+};
+
+/**
+ * GET /api/settings/features - Get runtime feature flags
+ */
+export const getFeatureFlags = async (req, res) => {
+  res.json({
+    ecoEnabled: resolveBooleanEnv(process.env.CONFIG_ECO, process.env.VITE_CONFIG_ECO),
+  });
 };
 
 /**
@@ -265,78 +298,33 @@ export const resetDatabase = async (req, res) => {
  */
 export const verifyDatabase = async (req, res) => {
   try {
-    const expectedTables = [
-      'users',
-      'component_categories',
-      'manufacturers',
-      'distributors',
-      'components',
-      'components_alternative',
-      'category_specifications',
-      'component_specification_values',
-      'distributor_info',
-      'inventory',
-      'inventory_alternative',
-      'footprint_sources',
-      'schema_version',
-      'activity_log',
-      'activity_types',
-      'user_activity_log',
-      'projects',
-      'project_components',
-      'eco_settings',
-      'eco_orders',
-      'eco_changes',
-      'eco_distributors',
-      'eco_alternative_parts',
-      'eco_specifications',
-      'eco_approval_stages',
-      'eco_stage_approvers',
-      'eco_approvals',
-      'smtp_settings',
-      'email_notification_preferences',
-      'email_log',
-      'cad_files',
-      'component_cad_files',
-      'admin_settings',
-      'eco_cad_files',
-    ];
+    const schemaState = await inspectDatabaseSchema({
+      expectedTables: EXPECTED_SCHEMA_TABLES,
+      expectedViews: EXPECTED_SCHEMA_VIEWS,
+      requiredColumns: REPAIRABLE_SCHEMA_COLUMNS,
+    });
 
-    const expectedViews = [
-      'active_parts',
-      'new_parts',
-      'archived_parts',
-      'alternative_parts',
-    ];
-
-    const tablesResult = await pool.query(`
-      SELECT tablename AS name, 'table' AS kind
-      FROM pg_tables WHERE schemaname = 'public'
-      UNION ALL
-      SELECT viewname AS name, 'view' AS kind
-      FROM pg_views WHERE schemaname = 'public'
-      ORDER BY name
-    `);
-
-    const existingNames = tablesResult.rows.map(row => row.name);
-    const missingTables = expectedTables.filter(t => !existingNames.includes(t));
-    const missingViews = expectedViews.filter(v => !existingNames.includes(v));
-    const allExpected = [...expectedTables, ...expectedViews];
+    const existingNames = [...schemaState.existingTables, ...schemaState.existingViews].sort();
+    const allExpected = [...EXPECTED_SCHEMA_TABLES, ...EXPECTED_SCHEMA_VIEWS];
     const extraObjects = existingNames.filter(n => !allExpected.includes(n));
-    const valid = missingTables.length === 0 && missingViews.length === 0;
+    const missingColumns = schemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
+    const valid = schemaState.valid;
 
     res.json({
       valid,
       message: valid ? 'Database schema is valid' : 'Database schema has issues',
-      expectedTables,
-      expectedViews,
+      expectedTables: EXPECTED_SCHEMA_TABLES,
+      expectedViews: EXPECTED_SCHEMA_VIEWS,
+      requiredColumns: REPAIRABLE_SCHEMA_COLUMNS.map(({ table, column }) => `${table}.${column}`),
       existingTables: existingNames,
-      missingTables,
-      missingViews,
+      missingTables: schemaState.missingTables,
+      missingViews: schemaState.missingViews,
+      missingColumns,
       extraTables: extraObjects,
       issues: valid ? [] : [
-        ...missingTables.map(t => `Missing table: ${t}`),
-        ...missingViews.map(v => `Missing view: ${v}`),
+        ...schemaState.missingTables.map(t => `Missing table: ${t}`),
+        ...schemaState.missingViews.map(v => `Missing view: ${v}`),
+        ...missingColumns.map(c => `Missing column: ${c}`),
       ],
     });
   } catch (error) {

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import { useFeatureFlags } from './contexts/FeatureFlagsContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Library from './pages/Library'
@@ -25,12 +26,15 @@ const DefaultPage = ({ ecoEnabled }) => {
 };
 
 function App() {
-  // Check if ECO feature is enabled from environment variable
-  const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
+  const { ecoEnabled, isLoading: featureFlagsLoading } = useFeatureFlags();
   // Roles that have full navigation access (everything except reviewer)
   const fullAccessRoles = ['read-only', 'read-write', 'approver', 'admin'];
   // Roles that include reviewer (for ECO and User Settings)
   const ecoAndSettingsRoles = ['read-only', 'reviewer', 'read-write', 'approver', 'admin'];
+
+  if (featureFlagsLoading) {
+    return null;
+  }
 
   return (
     <AuthProvider>

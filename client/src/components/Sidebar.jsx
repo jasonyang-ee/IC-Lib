@@ -2,16 +2,15 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Package, Search, FileText, Sun, Moon, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, ChevronLeft, ChevronRight, Layers, Cpu, TriangleAlert } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 
 const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const { user, logout, isAdmin, hasRole } = useAuth();
+  const { ecoEnabled } = useFeatureFlags();
   const navigate = useNavigate();
   const isReviewer = hasRole('reviewer');
-
-  // Check if ECO feature is enabled from environment variable
-  const ecoEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
 
   // Construct the logo path - Vite serves public folder assets from root
   const logoPath = './logo_bg.png';

@@ -946,6 +946,9 @@ CREATE OR REPLACE TRIGGER update_admin_settings_updated_at
 -- Add file_storage_path to users table (for per-user library path)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS file_storage_path VARCHAR(1000);
 
+-- Add missing-file marker to cad_files for existing databases
+ALTER TABLE cad_files ADD COLUMN IF NOT EXISTS missing BOOLEAN DEFAULT FALSE;
+
 -- Create admin_settings table for existing databases
 CREATE TABLE IF NOT EXISTS admin_settings (
     id UUID PRIMARY KEY DEFAULT uuidv7(),

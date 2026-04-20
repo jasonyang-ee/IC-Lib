@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- 
+- Startup schema verification now checks repairable ECO/admin migration columns and reruns `init-schema.sql` plus `init-settings.sql` when partial schema drift is detected
+- ECO frontend gating now reads a runtime `/api/settings/features` flag backed by `CONFIG_ECO`, with `VITE_CONFIG_ECO` retained as a fallback
 
 ### Fixed
 
-- 
+- Partial database upgrades now self-heal missing ECO/admin objects like `eco_cad_files` and `admin_settings.eco_logo_filename` during startup
+- Schema verification now reports missing required columns in addition to missing tables and views
 
 ## [1.9.0] - 2026-03-20
 

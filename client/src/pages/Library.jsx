@@ -12,6 +12,7 @@ import FileConflictModal from '../components/library/FileConflictModal';
 import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
 import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
@@ -69,10 +70,8 @@ const Library = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canWrite, canApprove, user } = useAuth();
+  const { ecoEnabled: isECOEnabled } = useFeatureFlags();
   const { showSuccess, showError, showInfo } = useNotification();
-  
-  // Check if ECO feature is enabled from environment variable
-  const isECOEnabled = import.meta.env.VITE_CONFIG_ECO === 'true';
   
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');

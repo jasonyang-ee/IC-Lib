@@ -3,6 +3,12 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  EXPECTED_SCHEMA_VIEWS,
+  REPAIRABLE_SCHEMA_COLUMNS,
+  STARTUP_REQUIRED_TABLES,
+  inspectDatabaseSchema,
+} from './schemaInspectionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,32 +95,6 @@ async function runMigrations() {
 }
 
 /**
- * Check if main parts database tables exist
- */
-async function checkPartsTablesExist() {
-  try {
-    const result = await pool.query(`
-      SELECT
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'component_categories') as categories,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'components') as components,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'manufacturers') as manufacturers,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'distributors') as distributors,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'inventory') as inventory,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'activity_log') as activity_log,
-        EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cad_files') as cad_files;
-    `);
-
-    const tables = result.rows[0];
-    const allExist = Object.values(tables).every(exists => exists === true);
-
-    return { allExist, tables };
-  } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Error checking parts tables: ${error.message}`);
-    return { allExist: false, tables: {} };
-  }
-}
-
-/**
  * Initialize main parts database from init-schema.sql
  */
 async function initializePartsDatabase() {
@@ -151,6 +131,35 @@ async function initializePartsDatabase() {
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize parts database: ${error.message}`);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Initialize default settings data from init-settings.sql
+ */
+async function initializeDefaultSettings() {
+  const client = await pool.connect();
+
+  try {
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Initializing default settings data...');
+
+    const sqlFilePath = path.resolve(__dirname, '../../../database/init-settings.sql');
+
+    if (!fs.existsSync(sqlFilePath)) {
+      console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m init-settings.sql file not found at: ${sqlFilePath}`);
+      return false;
+    }
+
+    const sql = fs.readFileSync(sqlFilePath, 'utf8');
+    await client.query(sql);
+
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Default settings data initialized');
+    return true;
+  } catch (error) {
+    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize default settings data: ${error.message}`);
     return false;
   } finally {
     client.release();
@@ -391,32 +400,50 @@ export async function initializeAuthentication() {
     
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Authentication setup verified');
     
-    // Now check parts database (references users table)
-    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Checking parts database schema...');
-    const { allExist: partsExist, tables: partsTables } = await checkPartsTablesExist();
-    
-    if (!partsExist) {
-      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database incomplete - initializing from init-schema.sql');
-      const missingTables = Object.entries(partsTables)
-        .filter(([_, exists]) => !exists)
-        .map(([name]) => name);
-      
-      if (missingTables.length > 0) {
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing tables: ${missingTables.join(', ')}`);
+    // Now check the broader application schema (tables, views, and repairable migration columns)
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Checking application database schema...');
+    const schemaState = await inspectDatabaseSchema({
+      expectedTables: STARTUP_REQUIRED_TABLES,
+      expectedViews: EXPECTED_SCHEMA_VIEWS,
+      requiredColumns: REPAIRABLE_SCHEMA_COLUMNS,
+    });
+
+    if (!schemaState.valid) {
+      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Database schema incomplete - applying init-schema.sql repairs');
+
+      if (schemaState.missingTables.length > 0) {
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing tables: ${schemaState.missingTables.join(', ')}`);
       }
-      
+
+      if (schemaState.missingViews.length > 0) {
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing views: ${schemaState.missingViews.join(', ')}`);
+      }
+
+      if (schemaState.missingColumns.length > 0) {
+        const missingColumns = schemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing columns: ${missingColumns.join(', ')}`);
+      }
+
       const initialized = await initializePartsDatabase();
-      
+
       if (!initialized) {
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize parts database');
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Core functionality will not work until this is resolved');
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Please check database/init-schema.sql file exists');
         return false;
-      } else {
-        console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database initialized successfully');
       }
+
+      const settingsInitialized = await initializeDefaultSettings();
+
+      if (!settingsInitialized) {
+        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize default settings data');
+        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Please check database/init-settings.sql file exists and is valid');
+        return false;
+      }
+
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Database schema repair complete');
     } else {
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Parts database schema verified');
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Application database schema verified');
     }
     
     // Run any pending migrations

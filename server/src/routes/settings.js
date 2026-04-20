@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import {
+  getFeatureFlags,
   getSettings,
   updateSettings,
   getDatabaseStatus,
@@ -47,6 +48,7 @@ const router = express.Router();
 const uploadBackup = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 // Application settings routes
+router.get('/features', getFeatureFlags);
 router.get('/', getSettings);
 router.put('/', authenticate, isAdmin, updateSettings);
 

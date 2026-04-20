@@ -216,6 +216,7 @@ export const api = {
 
   // Settings
   getSettings: () => apiClient.get('/settings'),
+  getFeatureFlags: () => apiClient.get('/settings/features'),
   updateSettings: (data) => apiClient.put('/settings', data),
   
   // ECO Settings

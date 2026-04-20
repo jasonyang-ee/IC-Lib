@@ -8,6 +8,7 @@ services:
     environment:
       # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
+      - CONFIG_ECO=false
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server

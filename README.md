@@ -34,6 +34,7 @@ services:
     environment:
       # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
+      - CONFIG_ECO=false  # Runtime feature flag for ECO menu/routes
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
@@ -63,6 +64,8 @@ services:
     volumes:
       - ./iclib/database:/var/lib/postgresql/18/docker
 ```
+
+Set `CONFIG_ECO=true` in the running container environment to enable the ECO menu and routes at runtime. `VITE_CONFIG_ECO` remains as a build-time fallback for static builds, but production deployments no longer need a frontend rebuild just to toggle ECO.
 
 ### Docker Image
 
