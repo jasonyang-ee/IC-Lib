@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildEcoCadFileChanges, stripCadExtension } from './ecoCadUtils';
+import { buildEcoCadFileChanges, stripCadExtension } from '../utils/ecoCadUtils';
 
 describe('ecoCadUtils', () => {
   it('builds unlink and link actions from staged ECO CAD changes', () => {

@@ -30,12 +30,15 @@ const FILE_TYPE_TO_COLUMN = {
  * Regenerate the TEXT column for a specific file type on a component.
  * Queries the junction table, strips file extensions, deduplicates base names,
  * and writes the comma-separated result to the components TEXT column.
+ *
+ * Accepts an optional database client so callers already inside a transaction
+ * can reuse the same connection and avoid self-blocking on row locks.
  */
-export async function regenerateCadText(componentId, fileType) {
+export async function regenerateCadText(componentId, fileType, db = pool) {
   const column = FILE_TYPE_TO_COLUMN[fileType];
   if (!column) return;
 
-  const result = await pool.query(`
+  const result = await db.query(`
     SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',') as text_value
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
@@ -44,7 +47,7 @@ export async function regenerateCadText(componentId, fileType) {
   `, [componentId, fileType]);
 
   const textValue = result.rows[0]?.text_value || '';
-  await pool.query(
+  await db.query(
     `UPDATE components SET ${column} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
     [textValue, componentId],
   );
@@ -53,9 +56,9 @@ export async function regenerateCadText(componentId, fileType) {
 /**
  * Regenerate all TEXT columns for a component.
  */
-export async function regenerateAllCadText(componentId) {
+export async function regenerateAllCadText(componentId, db = pool) {
   for (const fileType of Object.keys(FILE_TYPE_TO_COLUMN)) {
-    await regenerateCadText(componentId, fileType);
+    await regenerateCadText(componentId, fileType, db);
   }
 }
 

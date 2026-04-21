@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- 
+- Client utility tests now live under `client/src/test` instead of `client/src/utils`, keeping production helpers and test files separated
 
 ### Fixed
 
-- 
+- ECO approval no longer stalls on CAD link and unlink changes by regenerating CAD text through the active transaction instead of a second pooled connection
 
 ## [1.9.2] - 2026-04-21
 

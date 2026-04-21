@@ -1240,13 +1240,13 @@ const applyECOChanges = async (client, eco, id) => {
         VALUES ($1, $2)
         ON CONFLICT (component_id, cad_file_id) DO NOTHING
       `, [targetComponentId, cadFileId]);
-      await regenerateCadText(targetComponentId, cf.file_type);
+      await regenerateCadText(targetComponentId, cf.file_type, client);
     } else if (cf.action === 'unlink') {
       await client.query(`
         DELETE FROM component_cad_files
         WHERE component_id = $1 AND cad_file_id = $2
       `, [targetComponentId, cadFileId]);
-      await regenerateCadText(targetComponentId, cf.file_type);
+      await regenerateCadText(targetComponentId, cf.file_type, client);
     }
   }
 

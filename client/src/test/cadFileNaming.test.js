@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractPackageLabel, formatPackageFilenameBase } from './cadFileNaming';
+import { extractPackageLabel, formatPackageFilenameBase } from '../utils/cadFileNaming';
 
 describe('cadFileNaming', () => {
   it('drops trailing dimensional notes from package labels', () => {
