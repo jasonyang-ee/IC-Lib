@@ -43,6 +43,8 @@ const Sidebar = () => {
     navigate('/login');
   };
 
+  const displayName = user?.displayName?.trim() || 'Unknown User';
+
   // Reviewer role: only Parts Library + ECO + User Settings (no Dashboard)
   const menuItems = [];
 
@@ -174,7 +176,7 @@ const Sidebar = () => {
               <User className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user?.username}</p>
+              <p className="text-sm font-medium text-white truncate">{displayName}</p>
               <p className="text-xs text-gray-400 capitalize">{user?.role?.replace('-', ' ')}</p>
             </div>
           </div>

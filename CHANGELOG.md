@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ECO numbering now uses plain sequential values without leading zero padding, and the admin ECO settings preview matches saved output
 - ECO initiation from Parts Library now opens immediately and loads vendor/spec enrichment in background instead of blocking on vendor API calls
 - ECO approval stages now use separate `Spec`, `Filename`, and `Distributor` tags, with `General` removed and ECOs able to carry multiple approval tags at once
+- Sidebar, ECO details, ECO PDFs, and audit user labels now display user full names from profile display names instead of login names, and the audit export action now lives in the filter row
 
 ### Fixed
 

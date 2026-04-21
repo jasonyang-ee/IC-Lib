@@ -26,6 +26,8 @@ import {
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
+const userDisplayNameSql = (alias) => `NULLIF(BTRIM(${alias}.display_name), '')`;
+
 // Whitelist of valid component field names to prevent SQL injection
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
@@ -55,7 +57,7 @@ const getECOForEmail = async (client, ecoId) => {
   const result = await client.query(`
     SELECT 
       eo.*,
-      u1.username as initiated_by_name,
+      ${userDisplayNameSql('u1')} as initiated_by_name,
       c.description as component_description
     FROM eco_orders eo
     LEFT JOIN users u1 ON eo.initiated_by = u1.id
@@ -117,8 +119,8 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
     const ecoResult = await client.query(`
       SELECT eo.*,
         created_at(eo.id) as created_at,
-        u1.username as initiated_by_name,
-        u2.username as approved_by_name
+        ${userDisplayNameSql('u1')} as initiated_by_name,
+        ${userDisplayNameSql('u2')} as approved_by_name
       FROM eco_orders eo
       LEFT JOIN users u1 ON eo.initiated_by = u1.id
       LEFT JOIN users u2 ON eo.approved_by = u2.id
@@ -152,7 +154,7 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
 
     const approvals = await client.query(`
       SELECT ea.*, created_at(ea.id) as created_at,
-        u.username as user_name, u.role as user_role,
+        ${userDisplayNameSql('u')} as user_name, u.role as user_role,
         eas.stage_name
       FROM eco_approvals ea
       LEFT JOIN users u ON ea.user_id = u.id
@@ -255,8 +257,8 @@ export const getAllECOs = async (req, res) => {
       SELECT
         eo.*,
         created_at(eo.id) as created_at,
-        u1.username as initiated_by_name,
-        u2.username as approved_by_name,
+        ${userDisplayNameSql('u1')} as initiated_by_name,
+        ${userDisplayNameSql('u2')} as approved_by_name,
         c.part_number as component_part_number,
         c.description as component_description,
         cc.name as category_name,
@@ -348,8 +350,8 @@ export const getECOById = async (req, res) => {
       SELECT
         eo.*,
         created_at(eo.id) as created_at,
-        u1.username as initiated_by_name,
-        u2.username as approved_by_name,
+        ${userDisplayNameSql('u1')} as initiated_by_name,
+        ${userDisplayNameSql('u2')} as approved_by_name,
         c.part_number as component_part_number,
         c.description as component_description,
         cc.name as category_name,
@@ -457,7 +459,7 @@ export const getECOById = async (req, res) => {
       SELECT
         ea.*,
         created_at(ea.id) as created_at,
-        u.username as user_name,
+        ${userDisplayNameSql('u')} as user_name,
         u.role as user_role,
         eas.stage_name,
         eas.stage_order
@@ -477,7 +479,7 @@ export const getECOById = async (req, res) => {
          WHERE ea.eco_id = $1 AND ea.stage_id = eas.id AND ea.decision = 'approved'
         ) as approval_count,
         COALESCE(
-          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'role', u.role))
+          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'display_name', NULLIF(BTRIM(u.display_name), ''), 'role', u.role))
            FROM eco_stage_approvers esa
            JOIN users u ON esa.user_id = u.id
            WHERE esa.stage_id = eas.id
@@ -556,8 +558,8 @@ export const getLastRejectedECOByComponent = async (req, res) => {
       SELECT
         eo.*,
         created_at(eo.id) as created_at,
-        u1.username as initiated_by_name,
-        u2.username as approved_by_name,
+        ${userDisplayNameSql('u1')} as initiated_by_name,
+        ${userDisplayNameSql('u2')} as approved_by_name,
         c.part_number as component_part_number,
         c.description as component_description
       FROM eco_orders eo
@@ -600,7 +602,7 @@ export const getLastRejectedECOByComponent = async (req, res) => {
 
     const approvalsResult = await client.query(`
       SELECT ea.*, created_at(ea.id) as created_at,
-        u.username as user_name, u.role as user_role,
+        ${userDisplayNameSql('u')} as user_name, u.role as user_role,
         eas.stage_name
       FROM eco_approvals ea
       LEFT JOIN users u ON ea.user_id = u.id
@@ -1391,8 +1393,8 @@ export const approveECO = async (req, res) => {
 
       await client.query('COMMIT');
 
-      const approverResult = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
-      const approverName = approverResult.rows[0]?.username || 'Unknown';
+      const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+      const approverName = approverResult.rows[0]?.display_name || 'Unknown';
       const ecoForEmail = await getECOForEmail(pool, id);
       sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approverName }).catch(err => {
         console.error('Error sending ECO approval notification:', err);
@@ -1554,8 +1556,8 @@ export const approveECO = async (req, res) => {
 
       await client.query('COMMIT');
 
-      const approverResult = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
-      const approverName = approverResult.rows[0]?.username || 'Unknown';
+      const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+      const approverName = approverResult.rows[0]?.display_name || 'Unknown';
       const ecoForEmail = await getECOForEmail(pool, id);
       sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approverName }).catch(err => {
         console.error('Error sending ECO approval notification:', err);
@@ -1695,8 +1697,8 @@ export const rejectECO = async (req, res) => {
     await client.query('COMMIT');
 
     // Send email notification (async)
-    const rejecterResult = await pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
-    const rejecterName = rejecterResult.rows[0]?.username || 'Unknown';
+    const rejecterResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+    const rejecterName = rejecterResult.rows[0]?.display_name || 'Unknown';
     const ecoForEmail = await getECOForEmail(pool, id);
     sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName }).catch(err => {
       console.error('Error sending ECO rejection notification:', err);
@@ -1723,8 +1725,8 @@ export const generateECOPDFEndpoint = async (req, res) => {
       SELECT
         eo.*,
         created_at(eo.id) as created_at,
-        u1.username as initiated_by_name,
-        u2.username as approved_by_name,
+        ${userDisplayNameSql('u1')} as initiated_by_name,
+        ${userDisplayNameSql('u2')} as approved_by_name,
         c.part_number as component_part_number,
         c.description as component_description,
         (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
@@ -1807,7 +1809,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
     const approvalsResult = await client.query(`
       SELECT
         ea.*, created_at(ea.id) as created_at,
-        u.username as user_name,
+        ${userDisplayNameSql('u')} as user_name,
         u.role as user_role,
         eas.stage_name, eas.stage_order
       FROM eco_approvals ea
@@ -1825,7 +1827,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
          WHERE ea.eco_id = $1 AND ea.stage_id = eas.id AND ea.decision = 'approved'
         ) as approval_count,
         COALESCE(
-          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'role', u.role))
+          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'display_name', NULLIF(BTRIM(u.display_name), ''), 'role', u.role))
            FROM eco_stage_approvers esa
            JOIN users u ON esa.user_id = u.id
            WHERE esa.stage_id = eas.id

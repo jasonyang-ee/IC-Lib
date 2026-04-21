@@ -119,21 +119,6 @@ const Audit = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 shrink-0">
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          {auditData?.length || 0} total records
-        </div>
-        <button
-          onClick={exportToCSV}
-          className="btn-primary flex items-center gap-2"
-          disabled={!filteredData || filteredData.length === 0}
-        >
-          <Download className="w-4 h-4" />
-          Export CSV
-        </button>
-      </div>
-
       {/* Filters */}
       <AuditFilters
         searchTerm={searchTerm}
@@ -144,6 +129,16 @@ const Audit = () => {
         onDateFilterChange={(val) => { setDateFilter(val); setCurrentPage(1); }}
         itemsPerPage={itemsPerPage}
         onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+        actions={(
+          <button
+            onClick={exportToCSV}
+            className="btn-primary flex items-center gap-2"
+            disabled={!filteredData || filteredData.length === 0}
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        )}
       />
 
       {/* Audit Table */}

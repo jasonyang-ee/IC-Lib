@@ -332,7 +332,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
       const isCurrent = ecoData.current_stage_order === stage.stage_order;
       const isPast = stage.stage_order < (ecoData.current_stage_order ?? Infinity);
       const approvers = stage.assigned_approvers
-        ?.map(a => a.username)
+        ?.map(a => a.display_name || '-')
         .join(', ') || '-';
       let status = 'Pending';
       if (isPast || isComplete) status = 'Complete';

@@ -21,7 +21,7 @@ export const login = async (req, res) => {
 
     // Find user by username
     const result = await pool.query(
-      'SELECT id, username, password_hash, role, is_active FROM users WHERE username = $1',
+      'SELECT id, username, password_hash, role, is_active, display_name FROM users WHERE username = $1',
       [username],
     );
 
@@ -80,6 +80,7 @@ export const login = async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        displayName: user.display_name,
       },
     });
   } catch (error) {
@@ -96,7 +97,7 @@ export const verify = async (req, res) => {
     // User is already authenticated by middleware
     // Fetch fresh user data to ensure account is still active
     const result = await pool.query(
-      'SELECT id, username, role, is_active FROM users WHERE id = $1',
+      'SELECT id, username, role, is_active, display_name FROM users WHERE id = $1',
       [req.user.userId],
     );
 
@@ -113,6 +114,7 @@ export const verify = async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
+        displayName: user.display_name,
       },
     });
   } catch (error) {

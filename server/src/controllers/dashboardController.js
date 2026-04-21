@@ -126,7 +126,7 @@ export const getRecentActivities = async (req, res, next) => {
         a.activity_type,
         a.details,
         created_at(a.id) as created_at,
-        u.username as user_name
+        NULLIF(BTRIM(u.display_name), '') as user_name
       FROM activity_log a
       LEFT JOIN users u ON a.user_id = u.id
       ORDER BY a.id DESC
@@ -150,7 +150,7 @@ export const getAllActivities = async (req, res, next) => {
         a.activity_type,
         a.details,
         created_at(a.id) as created_at,
-        u.username as user_name
+        NULLIF(BTRIM(u.display_name), '') as user_name
       FROM activity_log a
       LEFT JOIN users u ON a.user_id = u.id
       ORDER BY a.id DESC

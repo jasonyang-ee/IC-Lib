@@ -265,7 +265,7 @@ const ECOListItem = ({
                                 )}
                                 {stage.assigned_approvers?.length > 0 && (
                                   <div className="text-xs mt-0.5 opacity-70">
-                                    {stage.assigned_approvers.map(a => a.username).join(', ')}
+                                    {stage.assigned_approvers.map(a => a.display_name || 'Unknown').join(', ')}
                                   </div>
                                 )}
                               </div>
