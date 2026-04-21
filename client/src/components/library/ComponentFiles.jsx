@@ -216,8 +216,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     });
   };
 
-  const notifyCadFileAdded = (category, filename) => {
-    clearStagedRemoval(category, filename);
+  const notifyCadFileAdded = (category, filename, { restoreStagedRemoval = true } = {}) => {
+    if (restoreStagedRemoval) {
+      clearStagedRemoval(category, filename);
+    }
     onCadFileAdded?.({ category, filename });
   };
 
@@ -289,7 +291,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         const key = `${category}:${filename}`;
         if (conflictingKeys.has(key)) return;
         if (onFileUploaded) onFileUploaded(category, filename);
-        notifyCadFileAdded(category, filename);
+        notifyCadFileAdded(category, filename, { restoreStagedRemoval: false });
         if (onTempFileStaged && tempFilename) {
           onTempFileStaged({ tempFilename, category, filename });
         }
@@ -745,7 +747,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       } else {
         // Upload conflict: register the new file (was deferred in onSuccess)
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
-        notifyCadFileAdded(fileConflict.category, fileConflict.newFile);
+        notifyCadFileAdded(fileConflict.category, fileConflict.newFile, { restoreStagedRemoval: false });
         if (onTempFileStaged && fileConflict.newTempFilename) {
           onTempFileStaged({ tempFilename: fileConflict.newTempFilename, category: fileConflict.category, filename: fileConflict.newFile });
         }
@@ -771,8 +773,16 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   for (const [cat, catFiles] of Object.entries(localUploads)) {
     if (!files[cat]) files[cat] = [];
     for (const f of catFiles) {
-      if (!files[cat].find(e => e.name === f.name)) {
+      const existingIndex = files[cat].findIndex(e => e.name === f.name);
+      if (existingIndex === -1) {
         files[cat].push(f);
+        continue;
+      }
+
+      // Temp uploads must override same-name live files so ECO rename/delete actions
+      // keep the staged temp identity instead of falling back to the old library file.
+      if (f.tempFilename) {
+        files[cat][existingIndex] = f;
       }
     }
   }
