@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- GitHub Actions now auto-clean untagged GHCR `iclib` container versions after image-publishing workflows complete, on a nightly schedule, and on manual dispatch
 
 ### Changed
 
@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 
+- GitHub tag releases now stay draft until Docker images finish pushing, then publish the existing release notes automatically
 
 ## [1.9.1] - 2026-04-21
 
@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF title spacing between "Engineer Change Order" heading and ECO number
 - Category name validation on database update
 - Top panel not generating correctly for item display
+
+## [1.8.0] - 2026-03-18
 
 ### Added
 
