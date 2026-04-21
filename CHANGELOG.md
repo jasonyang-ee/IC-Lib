@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ECO approval now fails fast when target component no longer exists instead of breaking later with a raw database error
 - Empty ECO submissions are rejected before they consume an ECO number or enter approval flow
 - Category-change ECO approvals now regenerate copied CAD text fields on the newly created component, keeping CAD link tables and exported TEXT fields aligned
+- ECO mode now allows renaming staged temp CAD uploads before approval, including keeping paired footprint temp files in sync
 
 ## [1.9.2] - 2026-04-21
 

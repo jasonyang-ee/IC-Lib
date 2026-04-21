@@ -123,6 +123,48 @@ function enforcePsmCase(filename) {
   return filename;
 }
 
+function syncConfirmedCadRename({
+  renameData,
+  category,
+  onFileRenamed,
+  onCadFileRenamed,
+  onTempFileRemoved,
+  onTempFileStaged,
+}) {
+  if (!renameData) {
+    return;
+  }
+
+  onFileRenamed?.(category, renameData.oldFilename, renameData.newFilename);
+  onCadFileRenamed?.({
+    category,
+    oldFilename: renameData.oldFilename,
+    newFilename: renameData.newFilename,
+  });
+
+  if (renameData.isTemp && onTempFileRemoved && onTempFileStaged) {
+    onTempFileRemoved(renameData.oldTempFilename);
+    onTempFileStaged({
+      tempFilename: renameData.newTempFilename,
+      category,
+      filename: renameData.newFilename,
+    });
+  }
+}
+
+function applyLocalUploadRename(file, renameData) {
+  if (!renameData || file.name !== renameData.oldFilename) {
+    return file;
+  }
+
+  const updatedFile = { ...file, name: renameData.newFilename };
+  if (renameData.isTemp && renameData.newTempFilename) {
+    updatedFile.tempFilename = renameData.newTempFilename;
+  }
+
+  return updatedFile;
+}
+
 /**
  * Component file upload and listing section
  * Shows below distributor info in component detail view
@@ -341,67 +383,58 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   // Rename mutation
   const renameMutation = useMutation({
     mutationFn: async ({ category, oldFilename, newFilename, pairedFilename, pairedNewFilename }) => {
-      const result = await api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename);
-      // If there's a paired file (e.g., .dra paired with .psm), rename it too
+      const primaryData = (await api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename)).data;
+      let pairedData = null;
+      let pairedRenameError = null;
+
       if (pairedFilename && pairedNewFilename) {
         try {
-          await api.renameComponentFile(category, mfgPartNumber, pairedFilename, pairedNewFilename);
+          pairedData = (await api.renameComponentFile(category, mfgPartNumber, pairedFilename, pairedNewFilename)).data;
         } catch (e) {
+          pairedRenameError = e;
           console.error('Failed to rename paired file:', e);
         }
       }
-      return { ...result, pairedFilename, pairedNewFilename };
+
+      return { primaryData, pairedData, pairedRenameError };
     },
     onSuccess: (response, variables) => {
+      const { primaryData, pairedData } = response;
+      const pairedRenameFailed = Boolean(response.pairedRenameError && variables.pairedFilename && variables.pairedNewFilename);
+
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
-      showSuccess(`Renamed to ${response.data.newFilename}`);
-      // Notify parent of rename for editData update
-      if (onFileRenamed) {
-        onFileRenamed(variables.category, variables.oldFilename, response.data.newFilename);
-      }
-      onCadFileRenamed?.({
+      showSuccess(`Renamed to ${primaryData.newFilename}`);
+
+      syncConfirmedCadRename({
+        renameData: primaryData,
         category: variables.category,
-        oldFilename: variables.oldFilename,
-        newFilename: response.data.newFilename,
+        onFileRenamed,
+        onCadFileRenamed,
+        onTempFileRemoved,
+        onTempFileStaged,
       });
-      // Also notify parent of paired rename
-      if (variables.pairedFilename && variables.pairedNewFilename && onFileRenamed) {
-        onFileRenamed(variables.category, variables.pairedFilename, variables.pairedNewFilename);
-      }
-      if (variables.pairedFilename && variables.pairedNewFilename) {
-        onCadFileRenamed?.({
-          category: variables.category,
-          oldFilename: variables.pairedFilename,
-          newFilename: variables.pairedNewFilename,
-        });
-      }
-      // Handle temp file rename: update tempFiles tracking in parent
-      if (response.data.isTemp && onTempFileRemoved && onTempFileStaged) {
-        onTempFileRemoved(response.data.oldTempFilename);
-        onTempFileStaged({ tempFilename: response.data.newTempFilename, category: variables.category, filename: response.data.newFilename });
-      }
-      // Update local uploads cache if applicable
+      syncConfirmedCadRename({
+        renameData: pairedData,
+        category: variables.category,
+        onFileRenamed,
+        onCadFileRenamed,
+        onTempFileRemoved,
+        onTempFileStaged,
+      });
+
       setLocalUploads(prev => {
         const updated = { ...prev };
         const cat = variables.category;
         if (updated[cat]) {
-          updated[cat] = updated[cat].map(f => {
-            if (f.name === variables.oldFilename) {
-              const newEntry = { ...f, name: response.data.newFilename };
-              // Update tempFilename for temp files
-              if (response.data.isTemp && response.data.newTempFilename) {
-                newEntry.tempFilename = response.data.newTempFilename;
-              }
-              return newEntry;
-            }
-            if (variables.pairedFilename && f.name === variables.pairedFilename) {
-              return { ...f, name: variables.pairedNewFilename };
-            }
-            return f;
-          });
+          updated[cat] = updated[cat].map(file => applyLocalUploadRename(applyLocalUploadRename(file, primaryData), pairedData));
         }
         return updated;
       });
+
+      if (pairedRenameFailed) {
+        showError(`Primary file renamed, but paired file "${variables.pairedFilename}" could not be renamed.`);
+      }
+
       setRenaming({ category: '', filename: '', newName: '', pairedFilename: null });
       setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
       setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
@@ -591,6 +624,22 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   const isRenaming = (category, filename) => {
     return renaming.category === category && renaming.filename === filename;
+  };
+
+  const canRenameCadFile = (category, file, pairedFile = null) => {
+    if (!showRename || !mfgPartNumber || !RENAMEABLE_CATEGORIES.includes(category)) {
+      return false;
+    }
+
+    if (!ecoMode) {
+      return true;
+    }
+
+    if (!file?.tempFilename) {
+      return false;
+    }
+
+    return !pairedFile || Boolean(pairedFile.tempFilename);
   };
 
   // Single-file conflict resolution: keep the existing file, discard the new upload
@@ -834,7 +883,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                             )}
                             {canEdit && (
                               <div className="flex items-center gap-1 shrink-0">
-                                {showRename && !ecoMode && mfgPartNumber && (
+                                {canRenameCadFile(category, psm, dra) && (
                                   <>
                                     <button type="button" onClick={() => requestMpnRename(category, psm.name, dra.name)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
                                     {packageSize && (
@@ -951,7 +1000,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                       )}
                       {canEdit && (
                         <div className="flex items-center gap-1 shrink-0">
-                          {showRename && !ecoMode && mfgPartNumber && RENAMEABLE_CATEGORIES.includes(category) && (
+                          {canRenameCadFile(category, file) && (
                             <>
                               <button
                                 type="button"
