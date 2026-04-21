@@ -791,32 +791,6 @@ const Settings = () => {
     },
   });
 
-  const repairApprovedEcoSpecificationsMutation = useMutation({
-    mutationFn: async () => {
-      const response = await api.repairApprovedEcoSpecifications(true);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      const unresolvedCount = data.unresolvedEcos?.length || 0;
-      const summary = [
-        `${data.relinkedEcoSpecificationRows || 0} ECO spec links restored`,
-        `${data.upsertedComponentSpecificationValues || 0} component spec values reapplied`,
-        `${data.deletedComponentSpecificationValues || 0} blank spec values removed`,
-      ].join(', ');
-
-      showSuccess(
-        unresolvedCount > 0
-          ? `Repair complete: ${summary}. ${unresolvedCount} ECOs still need manual review.`
-          : `Repair complete: ${summary}.`,
-      );
-      queryClient.invalidateQueries();
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
-      showError(`Error repairing approved ECO specifications: ${errorMsg}`);
-    },
-  });
-
   const exportDbMutation = useMutation({
     mutationFn: async () => {
       const response = await api.exportDatabase();
@@ -902,10 +876,6 @@ const Settings = () => {
         title: 'Delete User Records',
         message: '\u26A0\uFE0F This will DELETE all user accounts except admin and guest. This cannot be undone.',
       },
-      'repair-approved-eco-specifications': {
-        title: 'Repair Approved ECO Specifications',
-        message: 'This will replay approved ECO specification values and backfill missing ECO specification links only when the category-spec mapping is exact and safe. Ambiguous ECOs will be reported for manual review. Continue?',
-      },
     };
 
     const config = configs[action];
@@ -965,8 +935,6 @@ const Settings = () => {
       deletePartsMutation.mutate();
     } else if (action === 'delete-users') {
       deleteUsersMutation.mutate();
-    } else if (action === 'repair-approved-eco-specifications') {
-      repairApprovedEcoSpecificationsMutation.mutate();
     }
   };
 
@@ -1516,23 +1484,6 @@ const Settings = () => {
               }}
             />
           </label>
-          <button
-            onClick={() => handleDatabaseOperation('repair-approved-eco-specifications')}
-            disabled={repairApprovedEcoSpecificationsMutation.isPending}
-            className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {repairApprovedEcoSpecificationsMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Repairing...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                Repair Approved ECO Specs
-              </>
-            )}
-          </button>
         </div>
 
         {/* Advanced/Dangerous Operations */}
@@ -1645,9 +1596,6 @@ const Settings = () => {
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             <strong>Init Categories:</strong> Loads default categories, distributors, specifications, and ECO defaults. Safe to run repeatedly.
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            <strong>Repair Approved ECO Specs:</strong> Replays approved ECO spec values and restores missing ECO spec links only when the mapping is exact. Ambiguous rows are left untouched for manual review.
           </p>
           <p className="text-sm text-red-600 dark:text-red-400">
             <strong>Full Database Reset:</strong> Drops ALL tables and recreates schema. ALL DATA IS LOST!

@@ -52,12 +52,12 @@ RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/li
              /app/image
 
 # Prepare nginx directories for non-root execution
-RUN mkdir -p /var/lib/nginx/logs /var/lib/nginx/tmp/client_body \
-             /var/lib/nginx/tmp/proxy /var/lib/nginx/tmp/fastcgi \
-             /var/lib/nginx/tmp/uwsgi /var/lib/nginx/tmp/scgi \
-             /run/nginx && \
+RUN mkdir -p /var/lib/nginx/logs /run/nginx \
+       /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi \
+       /tmp/nginx/uwsgi /tmp/nginx/scgi && \
     chown -R 1000:1000 /var/lib/nginx /var/log/nginx /run/nginx \
-                       /usr/share/nginx/html /app
+             /usr/share/nginx/html /app /tmp/nginx && \
+  chmod -R 1777 /tmp/nginx
 
 # Copy startup script
 COPY start.sh /app/start.sh

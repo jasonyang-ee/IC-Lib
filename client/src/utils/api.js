@@ -349,8 +349,6 @@ export const api = {
   linkFileToComponent: (cadFileId, componentId) => apiClient.post('/file-library/link', { cadFileId, componentId }),
   unlinkFileFromComponent: (cadFileId, componentId) => apiClient.post('/file-library/unlink', { cadFileId, componentId }),
   scanLibraryFiles: () => apiClient.post('/file-library/scan'),
-  repairApprovedEcoSpecifications: (confirm, dryRun = false) =>
-    apiClient.post('/settings/database/repair-approved-eco-specifications', { confirm, dryRun }),
 };
 
 export default apiClient;

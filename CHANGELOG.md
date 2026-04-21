@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Admin settings now include a one-off repair action that replays approved ECO specification values and relinks orphan ECO specification rows when the category mapping is exact
-
 ### Changed
 
 - Startup schema verification now checks repairable ECO/admin migration columns and reruns `init-schema.sql` plus `init-settings.sql` when partial schema drift is detected
@@ -24,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New/custom specifications created during add, edit, and ECO flows now persist through save or approval instead of being dropped when no category spec id was pre-created
 - Category-change ECO approvals now apply staged specification values to the newly created component instead of skipping them
 - Vendor archive extraction now normalizes Windows-style ZIP entry paths, fixing Ultra Librarian uploads on Linux deployments
+- CAD uploads now stream through nginx without proxy request buffering, use a 250MB limit, and surface upload-limit failures clearly instead of failing before Express sees the request
 - Vendor API data panels now expose `Auto Fill` in add mode as well as edit mode
 - Database imports now fail fast and roll back the entire restore if any table import fails instead of committing a partial restore
 - Project component consumption now fails atomically when inventory is missing or insufficient instead of silently clamping quantities to zero

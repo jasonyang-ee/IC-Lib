@@ -178,6 +178,9 @@ else
         sleep 2
     done
 
+    mkdir -p /tmp/nginx/client_body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
+    chmod -R 1777 /tmp/nginx
+
     # Start nginx
     nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
     NGINX_PID=$!

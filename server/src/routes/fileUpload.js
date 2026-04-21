@@ -17,8 +17,24 @@ import {
 
 const router = express.Router();
 
+const handleUploadMiddleware = (req, res, next) => {
+  upload.array('files', 20)(req, res, (err) => {
+    if (!err) return next();
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'Upload exceeded the 250MB per-file limit' });
+    }
+
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ error: 'Too many files uploaded at once' });
+    }
+
+    return res.status(400).json({ error: err.message || 'Failed to parse uploaded files' });
+  });
+};
+
 // Upload files to temp directory (no MPN required)
-router.post('/upload-temp', authenticate, canWrite, upload.array('files', 20), uploadTempFile);
+router.post('/upload-temp', authenticate, canWrite, handleUploadMiddleware, uploadTempFile);
 
 // Finalize temp files — move from temp to category directories and register in DB
 router.post('/finalize-temp', authenticate, canWrite, finalizeTempFile);

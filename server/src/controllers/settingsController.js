@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 import { gzipSync, gunzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
-import { repairApprovedEcoSpecifications as repairApprovedEcoSpecificationsService } from '../services/ecoSpecRepairService.js';
 import {
   EXPECTED_SCHEMA_TABLES,
   EXPECTED_SCHEMA_VIEWS,
@@ -1893,39 +1892,6 @@ export const deleteUserRecords = async (req, res) => {
     console.error('Error deleting user records:', error);
     res.status(500).json({
       error: 'Failed to delete user records',
-      message: error.message,
-    });
-  }
-};
-
-/**
- * POST /api/settings/database/repair-approved-eco-specifications
- * Replays approved ECO specification values and backfills missing ECO spec links
- * when the mapping is exact and safe.
- */
-export const repairApprovedEcoSpecifications = async (req, res) => {
-  try {
-    if (req.body.confirm !== true) {
-      return res.status(400).json({
-        error: 'Confirmation required',
-        message: 'Repair approved ECO specifications requires { "confirm": true } in request body',
-      });
-    }
-
-    const dryRun = req.body.dryRun === true;
-    const results = await repairApprovedEcoSpecificationsService({ dryRun });
-
-    res.json({
-      success: true,
-      message: dryRun
-        ? 'Dry run complete for approved ECO specification repair'
-        : 'Approved ECO specification repair complete',
-      ...results,
-    });
-  } catch (error) {
-    console.error('Error repairing approved ECO specifications:', error);
-    res.status(500).json({
-      error: 'Failed to repair approved ECO specifications',
       message: error.message,
     });
   }

@@ -24,6 +24,7 @@ const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'model', 'pspice'];
 // Categories restricted to a single file per component
 const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
 const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: '3D STEP Model' };
+const MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024;
 
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
 const normalizeExt = (filename) => filename.replace(/\.[^.]+$/, m => m.toLowerCase());
@@ -358,9 +359,17 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   const handleFiles = useCallback((files) => {
     if (!files || files.length === 0) return;
+
+    const selectedFiles = Array.from(files);
+    const oversizedFiles = selectedFiles.filter(file => file.size > MAX_UPLOAD_SIZE_BYTES);
+    if (oversizedFiles.length > 0) {
+      showError(`Upload failed: ${oversizedFiles.map(file => file.name).join(', ')} exceeds the 250MB per-file limit.`);
+      return;
+    }
+
     setUploading(true);
-    uploadMutation.mutate(Array.from(files));
-  }, [uploadMutation]);
+    uploadMutation.mutate(selectedFiles);
+  }, [showError, uploadMutation]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -986,7 +995,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             </p>
           )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            Supports CAD files and ZIP archives (SamacSys, SnapEDA, Ultra Librarian)
+            Supports CAD files and ZIP archives (SamacSys, SnapEDA, Ultra Librarian), up to 250MB per file
           </p>
         </div>
       )}
