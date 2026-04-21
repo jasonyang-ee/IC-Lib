@@ -176,8 +176,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [uploading, setUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, category: '', filename: '' });
   const [renaming, setRenaming] = useState({ category: '', filename: '', newName: '' });
-  const [mpnRenameConfirm, setMpnRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
-  const [pkgRenameConfirm, setPkgRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '' });
+  const [mpnRenameConfirm, setMpnRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
+  const [pkgRenameConfirm, setPkgRenameConfirm] = useState({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
   const [linkPicker, setLinkPicker] = useState({ show: false, category: '' });
   const [localUploads, setLocalUploads] = useState({});
   const [fileConflict, setFileConflict] = useState(null);
@@ -382,14 +382,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   // Rename mutation
   const renameMutation = useMutation({
-    mutationFn: async ({ category, oldFilename, newFilename, pairedFilename, pairedNewFilename }) => {
-      const primaryData = (await api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename)).data;
+    mutationFn: async ({ category, oldFilename, newFilename, tempFilename, pairedFilename, pairedNewFilename, pairedTempFilename }) => {
+      const primaryData = (await api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename, tempFilename)).data;
       let pairedData = null;
       let pairedRenameError = null;
 
       if (pairedFilename && pairedNewFilename) {
         try {
-          pairedData = (await api.renameComponentFile(category, mfgPartNumber, pairedFilename, pairedNewFilename)).data;
+          pairedData = (await api.renameComponentFile(category, mfgPartNumber, pairedFilename, pairedNewFilename, pairedTempFilename)).data;
         } catch (e) {
           pairedRenameError = e;
           console.error('Failed to rename paired file:', e);
@@ -435,14 +435,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         showError(`Primary file renamed, but paired file "${variables.pairedFilename}" could not be renamed.`);
       }
 
-      setRenaming({ category: '', filename: '', newName: '', pairedFilename: null });
-      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
-      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
+      setRenaming({ category: '', filename: '', tempFilename: null, newName: '', pairedFilename: null, pairedTempFilename: null });
+      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
+      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
     },
     onError: (error) => {
       showError('Rename failed: ' + (error.response?.data?.error || error.message));
-      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
-      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
+      setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
+      setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
     },
   });
 
@@ -484,9 +484,16 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     e.target.value = ''; // Reset input
   }, [handleFiles]);
 
-  const startRename = (category, filename, pairedFilename = null) => {
-    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
-    setRenaming({ category, filename, newName: nameWithoutExt, pairedFilename });
+  const startRename = (category, file, pairedFile = null) => {
+    const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.'));
+    setRenaming({
+      category,
+      filename: file.name,
+      tempFilename: file.tempFilename || null,
+      newName: nameWithoutExt,
+      pairedFilename: pairedFile?.name || null,
+      pairedTempFilename: pairedFile?.tempFilename || null,
+    });
   };
 
   const submitRename = () => {
@@ -496,45 +503,57 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       category: renaming.category,
       oldFilename: renaming.filename,
       newFilename: enforcePsmCase(renaming.newName + ext),
+      tempFilename: renaming.tempFilename || undefined,
       pairedFilename: renaming.pairedFilename || undefined,
+      pairedTempFilename: renaming.pairedTempFilename || undefined,
       pairedNewFilename: renaming.pairedFilename ? renaming.newName + renaming.pairedFilename.substring(renaming.pairedFilename.lastIndexOf('.')) : undefined,
     });
   };
 
-  const requestMpnRename = (category, filename, pairedFilename = null) => {
-    const { suffix, ext } = extractDensitySuffix(filename);
+  const requestMpnRename = (category, file, pairedFile = null) => {
+    const { suffix, ext } = extractDensitySuffix(file.name);
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
     const newFilename = enforcePsmCase(sanitizedMpn + suffix + ext);
 
-    if (newFilename === filename) {
+    if (newFilename === file.name) {
       showSuccess('Filename already matches MPN');
       return;
     }
 
-    setMpnRenameConfirm({ show: true, category, oldFilename: filename, newFilename, pairedFilename });
+    setMpnRenameConfirm({
+      show: true,
+      category,
+      oldFilename: file.name,
+      newFilename,
+      tempFilename: file.tempFilename || null,
+      pairedFilename: pairedFile?.name || null,
+      pairedTempFilename: pairedFile?.tempFilename || null,
+    });
   };
 
   const confirmMpnRename = () => {
-    const { category, oldFilename, newFilename, pairedFilename } = mpnRenameConfirm;
+    const { category, oldFilename, newFilename, tempFilename, pairedFilename, pairedTempFilename } = mpnRenameConfirm;
     const newBase = newFilename.substring(0, newFilename.lastIndexOf('.'));
     renameMutation.mutate({
       category,
       oldFilename,
       newFilename,
+      tempFilename: tempFilename || undefined,
       pairedFilename: pairedFilename || undefined,
+      pairedTempFilename: pairedTempFilename || undefined,
       pairedNewFilename: pairedFilename ? newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.')) : undefined,
     });
   };
 
   const dismissMpnRenameConfirm = () => {
-    setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
+    setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
   };
 
-  const requestPkgRename = (category, filename, pairedFilename = null) => {
+  const requestPkgRename = (category, file, pairedFile = null) => {
     if (!packageSize) return;
-    const { suffix, ext } = extractDensitySuffix(filename);
+    const { suffix, ext } = extractDensitySuffix(file.name);
     const sanitizedPkg = formatPackageFilenameBase(packageSize);
     if (!sanitizedPkg) {
       showError('Package name is empty after formatting');
@@ -542,28 +561,38 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     }
     const newFilename = enforcePsmCase(sanitizedPkg + suffix + ext);
 
-    if (newFilename === filename) {
+    if (newFilename === file.name) {
       showSuccess('Filename already matches package');
       return;
     }
 
-    setPkgRenameConfirm({ show: true, category, oldFilename: filename, newFilename, pairedFilename });
+    setPkgRenameConfirm({
+      show: true,
+      category,
+      oldFilename: file.name,
+      newFilename,
+      tempFilename: file.tempFilename || null,
+      pairedFilename: pairedFile?.name || null,
+      pairedTempFilename: pairedFile?.tempFilename || null,
+    });
   };
 
   const confirmPkgRename = () => {
-    const { category, oldFilename, newFilename, pairedFilename } = pkgRenameConfirm;
+    const { category, oldFilename, newFilename, tempFilename, pairedFilename, pairedTempFilename } = pkgRenameConfirm;
     const newBase = newFilename.substring(0, newFilename.lastIndexOf('.'));
     renameMutation.mutate({
       category,
       oldFilename,
       newFilename,
+      tempFilename: tempFilename || undefined,
       pairedFilename: pairedFilename || undefined,
+      pairedTempFilename: pairedTempFilename || undefined,
       pairedNewFilename: pairedFilename ? newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.')) : undefined,
     });
   };
 
   const dismissPkgRenameConfirm = () => {
-    setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', pairedFilename: null });
+    setPkgRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
   };
 
   // Link existing file mutation
@@ -581,7 +610,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   });
 
   const cancelRename = () => {
-    setRenaming({ category: '', filename: '', newName: '', pairedFilename: null });
+    setRenaming({ category: '', filename: '', tempFilename: null, newName: '', pairedFilename: null, pairedTempFilename: null });
   };
 
   // Handle delete — temp files use cleanup endpoint, existing files use regular delete
@@ -885,11 +914,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                               <div className="flex items-center gap-1 shrink-0">
                                 {canRenameCadFile(category, psm, dra) && (
                                   <>
-                                    <button type="button" onClick={() => requestMpnRename(category, psm.name, dra.name)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
+                                    <button type="button" onClick={() => requestMpnRename(category, psm, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
                                     {packageSize && (
-                                      <button type="button" onClick={() => requestPkgRename(category, psm.name, dra.name)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply package size as filename">PKG</button>
+                                      <button type="button" onClick={() => requestPkgRename(category, psm, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply package size as filename">PKG</button>
                                     )}
-                                    <button type="button" onClick={() => startRename(category, psm.name, dra.name)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1" title="Rename file pair">Rename</button>
+                                    <button type="button" onClick={() => startRename(category, psm, dra)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1" title="Rename file pair">Rename</button>
                                   </>
                                 )}
                                 {showDelete && (
@@ -1004,7 +1033,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                             <>
                               <button
                                 type="button"
-                                onClick={() => requestMpnRename(category, file.name)}
+                                onClick={() => requestMpnRename(category, file)}
                                 className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1"
                                 title="Apply MPN as filename"
                               >
@@ -1013,7 +1042,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                               {packageSize && (
                                 <button
                                   type="button"
-                                  onClick={() => requestPkgRename(category, file.name)}
+                                  onClick={() => requestPkgRename(category, file)}
                                   className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1"
                                   title="Apply package size as filename"
                                 >
@@ -1022,7 +1051,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                               )}
                               <button
                                 type="button"
-                                onClick={() => startRename(category, file.name)}
+                                onClick={() => startRename(category, file)}
                                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1"
                                 title="Rename file"
                               >

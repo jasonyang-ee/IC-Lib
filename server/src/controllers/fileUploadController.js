@@ -152,6 +152,22 @@ function findFile(category, filename, mfgPartNumber) {
   return null;
 }
 
+function findLibraryFile(category, filename, mfgPartNumber) {
+  const config = FILE_CATEGORIES[category];
+  if (!config) return null;
+
+  const flatPath = path.join(LIBRARY_BASE, config.subdir, filename);
+  if (fs.existsSync(flatPath)) return flatPath;
+
+  if (mfgPartNumber) {
+    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
+    const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
+    if (fs.existsSync(nestedPath)) return nestedPath;
+  }
+
+  return null;
+}
+
 /**
  * Move file to appropriate category directory (flat structure)
  * Returns { collision, path, filename } or null
@@ -631,7 +647,7 @@ export async function listFiles(req, res) {
  */
 export async function renameFile(req, res) {
   try {
-    const { category, mfgPartNumber, oldFilename, newFilename } = req.body;
+    const { category, mfgPartNumber, oldFilename, newFilename, tempFilename } = req.body;
 
     if (!category || !mfgPartNumber || !oldFilename || !newFilename) {
       return res.status(400).json({ error: 'Category, part number, old filename, and new filename are required' });
@@ -671,8 +687,25 @@ export async function renameFile(req, res) {
       sanitizedNewFilename = sanitizedNewFilename.toLowerCase();
     }
 
-    // Find the file (flat, nested, or temp)
-    const oldPath = findFile(category, oldFilename, mfgPartNumber);
+    const tempDir = path.join(LIBRARY_BASE, 'temp');
+    let oldPath = null;
+
+    if (tempFilename) {
+      const safeTempFilename = path.basename(tempFilename);
+      if (!safeTempFilename.endsWith(`-${oldFilename}`)) {
+        return res.status(400).json({ error: 'Selected temp file does not match the requested filename' });
+      }
+
+      const tempPath = path.join(tempDir, safeTempFilename);
+      if (!fs.existsSync(tempPath)) {
+        return res.status(404).json({ error: 'Temp file not found' });
+      }
+
+      oldPath = tempPath;
+    } else {
+      oldPath = findLibraryFile(category, oldFilename, mfgPartNumber);
+    }
+
     if (!oldPath) {
       return res.status(404).json({ error: 'File not found' });
     }
@@ -682,7 +715,6 @@ export async function renameFile(req, res) {
     }
 
     // Check if file is in temp directory (new part creation flow)
-    const tempDir = path.join(LIBRARY_BASE, 'temp');
     const isInTemp = oldPath.startsWith(tempDir);
 
     if (isInTemp) {

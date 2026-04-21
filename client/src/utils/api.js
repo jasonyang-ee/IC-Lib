@@ -332,8 +332,8 @@ export const api = {
     apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
   deleteComponentFile: (category, mfgPartNumber, filename) =>
     apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
-  renameComponentFile: (category, mfgPartNumber, oldFilename, newFilename) =>
-    apiClient.put('/files/rename', { category, mfgPartNumber, oldFilename, newFilename }),
+  renameComponentFile: (category, mfgPartNumber, oldFilename, newFilename, tempFilename) =>
+    apiClient.put('/files/rename', { category, mfgPartNumber, oldFilename, newFilename, tempFilename }),
   getFileDownloadUrl: (category, mfgPartNumber, filename) =>
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
   getFileExportUrl: (mfgPartNumber) =>
