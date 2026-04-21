@@ -8,6 +8,7 @@ import {
   searchFiles,
   renamePhysicalFile,
   deletePhysicalFile,
+  bulkDeleteOrphanFiles,
   getOrphanFiles,
   getCadFilesForComponent,
   linkFileToComponent,
@@ -61,6 +62,9 @@ router.put('/type/:type/rename-file', canWrite, renamePhysicalFile);
 
 // Delete physical file from disk + remove DB refs (requires write permission)
 router.delete('/type/:type/delete-file', canWrite, deletePhysicalFile);
+
+// Bulk delete orphan files for a type (requires write permission)
+router.post('/type/:type/delete-orphans', canWrite, bulkDeleteOrphanFiles);
 
 // Link an existing CAD file to a component (requires write permission)
 router.post('/link', canWrite, linkFileToComponent);

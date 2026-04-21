@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import {
+  Check,
   ChevronRight,
   FileText,
   FileBox,
@@ -10,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import StatusBadge from './StatusBadge';
-import { SidebarCard } from '../common';
+import { FilterSelect, SidebarCard } from '../common';
 import { fileTypeLabels } from './constants';
 
 const FileTypesView = ({
@@ -22,6 +23,16 @@ const FileTypesView = ({
   isLoadingFiles,
   componentsData,
   isLoadingComponents,
+  linkedPartsFilter,
+  onLinkedPartsFilterChange,
+  bulkSelectMode,
+  selectedOrphanFiles,
+  allDisplayedOrphansSelected,
+  onToggleBulkSelectMode,
+  onToggleOrphanFileSelection,
+  onToggleSelectAllDisplayedOrphans,
+  onOpenBulkDelete,
+  isBulkDeletePending,
   getTypeCount,
   onTypeChange,
   onSelectFile,
@@ -35,6 +46,7 @@ const FileTypesView = ({
   onCISFileChange,
 }) => {
   const fileListRef = useRef(null);
+  const isOrphanSelectionEnabled = showOrphans && bulkSelectMode;
 
   const fileVirtualizer = useVirtualizer({
     count: displayedFiles.length,
@@ -79,6 +91,64 @@ const FileTypesView = ({
           })}
         </div>
       </div>
+
+      <FilterSelect
+        label="Filter Files"
+        value={linkedPartsFilter}
+        onChange={onLinkedPartsFilterChange}
+        options={[
+          { value: 'all', label: 'All Files' },
+          { value: 'orphans', label: 'No Linked Parts' },
+        ]}
+      />
+
+      <SidebarCard title="Actions">
+        <div className="space-y-3">
+          <button
+            onClick={onToggleBulkSelectMode}
+            disabled={!showOrphans || displayedFiles.length === 0 || !canWrite()}
+            className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isOrphanSelectionEnabled
+                ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                : 'bg-gray-100 dark:bg-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+          >
+            {isOrphanSelectionEnabled ? 'Exit Multi-Select' : 'Enable Multi-Select'}
+          </button>
+
+          {showOrphans ? (
+            <>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Multi-select is only available for files with no linked parts.
+              </p>
+              {isOrphanSelectionEnabled && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <span>{selectedOrphanFiles.length} selected</span>
+                    <button
+                      onClick={onToggleSelectAllDisplayedOrphans}
+                      className="text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      {allDisplayedOrphansSelected ? 'Clear Visible' : 'Select Visible'}
+                    </button>
+                  </div>
+                  <button
+                    onClick={onOpenBulkDelete}
+                    disabled={selectedOrphanFiles.length === 0 || isBulkDeletePending}
+                    className="w-full px-3 py-2 rounded-md text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBulkDeletePending ? 'Deleting...' : 'Delete Selected'}
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Switch the filter to `No Linked Parts` to enable bulk delete.
+            </p>
+          )}
+        </div>
+      </SidebarCard>
 
       <div className="flex-1" />
 
@@ -135,27 +205,53 @@ const FileTypesView = ({
               const fileName = file.file_name;
               const count = file.component_count ?? 0;
               const isSelected = selectedFile === fileName;
+              const isChecked = selectedOrphanFiles.includes(fileName);
               return (
                 <button
                   key={`${fileName}-${virtualRow.index}`}
                   data-index={virtualRow.index}
                   ref={fileVirtualizer.measureElement}
-                  onClick={() => onSelectFile(fileName)}
+                  onClick={() => {
+                    if (isOrphanSelectionEnabled) {
+                      onToggleOrphanFileSelection(fileName);
+                      return;
+                    }
+
+                    onSelectFile(fileName);
+                  }}
                   className={`absolute left-0 w-full p-2.5 rounded-lg border text-left transition-colors ${
-                    isSelected
+                    isOrphanSelectionEnabled
+                      ? (isChecked
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]')
+                      : isSelected
                       ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                       : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-[#333]'
                   }`}
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {isOrphanSelectionEnabled && (
+                        <div
+                          aria-hidden="true"
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            isChecked
+                              ? 'border-primary-600 bg-primary-600 text-white'
+                              : 'border-gray-300 dark:border-[#555555] bg-white dark:bg-[#1f1f1f]'
+                          }`}
+                        >
+                          {isChecked && <Check className="h-3 w-3" />}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={fileName}>
                         {fileName}
                       </p>
                       {showOrphans && file.file_type && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fileTypeLabels[file.file_type] || file.file_type}</p>
                       )}
+                      </div>
                     </div>
                     {!showOrphans && (
                       <div className="flex items-center gap-1 shrink-0 ml-2">
@@ -178,7 +274,7 @@ const FileTypesView = ({
                         </span>
                       </div>
                     )}
-                    {showOrphans && canWrite() && (
+                    {showOrphans && canWrite() && !isOrphanSelectionEnabled && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

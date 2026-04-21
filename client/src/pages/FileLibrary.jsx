@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -13,10 +13,10 @@ import {
   Box,
   FileCode,
   Layers,
-  Unlink,
   FolderOpen,
 } from 'lucide-react';
 import { FileTypesView, CategoryView, RenameModal, DeleteModal } from '../components/fileLibrary';
+import { ConfirmationModal } from '../components/common';
 import { routeTypeToFileType } from '../components/fileLibrary/constants';
 
 // View modes
@@ -55,6 +55,9 @@ const FileLibrary = () => {
   const [selectedType, setSelectedType] = useState('footprint');
   const [selectedFile, setSelectedFile] = useState(null);
   const [showOrphans, setShowOrphans] = useState(false);
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedOrphanFiles, setSelectedOrphanFiles] = useState([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [selectedCISFile, setSelectedCISFile] = useState('');
 
   // Category view state
@@ -272,6 +275,23 @@ const FileLibrary = () => {
     },
   });
 
+  const bulkDeleteOrphansMutation = useMutation({
+    mutationFn: async ({ type, fileNames }) => {
+      const response = await api.bulkDeleteOrphanFiles(type, fileNames);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      invalidateAll();
+      showSuccess(`Deleted ${data.deletedCount} orphan file${data.deletedCount !== 1 ? 's' : ''}`);
+      setShowBulkDeleteConfirm(false);
+      setSelectedOrphanFiles([]);
+      setSelectedFile(null);
+    },
+    onError: (error) => {
+      showError('Failed to delete orphan files: ' + (error.response?.data?.error || error.message));
+    },
+  });
+
   // ==============================
   // HELPERS
   // ==============================
@@ -293,11 +313,44 @@ const FileLibrary = () => {
   };
 
   // Filter files for the file types view based on search
-  const displayedFiles = showOrphans
-    ? (orphanData?.orphans || [])
-    : searchQuery.length > 2 && searchResults?.results
-      ? searchResults.results.filter(r => r.file_type === routeTypeToFileType[selectedType])
-      : filesData?.files || [];
+  const displayedFiles = useMemo(() => {
+    if (showOrphans) {
+      const orphanFiles = orphanData?.orphans || [];
+      if (!searchQuery.trim()) {
+        return orphanFiles;
+      }
+
+      const normalizedSearch = searchQuery.trim().toLowerCase();
+      return orphanFiles.filter((file) => file.file_name.toLowerCase().includes(normalizedSearch));
+    }
+
+    if (searchQuery.length > 2 && searchResults?.results) {
+      return searchResults.results.filter((result) => result.file_type === routeTypeToFileType[selectedType]);
+    }
+
+    return filesData?.files || [];
+  }, [filesData?.files, orphanData?.orphans, searchQuery, searchResults?.results, selectedType, showOrphans]);
+
+  const linkedPartsFilter = showOrphans ? 'orphans' : 'all';
+  const allDisplayedOrphansSelected = displayedFiles.length > 0
+    && displayedFiles.every((file) => selectedOrphanFiles.includes(file.file_name));
+
+  useEffect(() => {
+    if (!showOrphans) {
+      setBulkSelectMode(false);
+      setSelectedOrphanFiles([]);
+    }
+  }, [showOrphans]);
+
+  useEffect(() => {
+    if (!bulkSelectMode) {
+      setSelectedOrphanFiles([]);
+    }
+  }, [bulkSelectMode]);
+
+  useEffect(() => {
+    setSelectedOrphanFiles((previous) => previous.filter((fileName) => displayedFiles.some((file) => file.file_name === fileName)));
+  }, [displayedFiles]);
 
   // ==============================
   // HANDLERS
@@ -320,7 +373,7 @@ const FileLibrary = () => {
     setSelectedType(typeId);
     setSelectedFile(null);
     setSearchQuery('');
-    setShowOrphans(false);
+    setSelectedOrphanFiles([]);
   };
 
   const handleSelectFile = (fileName) => {
@@ -332,7 +385,54 @@ const FileLibrary = () => {
     setSelectedFile(null);
     setSelectedComponentId(null);
     setSearchQuery('');
-    setShowOrphans(false);
+    setBulkSelectMode(false);
+    setSelectedOrphanFiles([]);
+  };
+
+  const handleLinkedPartsFilterChange = (value) => {
+    const shouldShowOrphans = value === 'orphans';
+    setShowOrphans(shouldShowOrphans);
+    setSelectedFile(null);
+    if (!shouldShowOrphans) {
+      setBulkSelectMode(false);
+      setSelectedOrphanFiles([]);
+    }
+  };
+
+  const handleToggleBulkSelectMode = () => {
+    if (!showOrphans || !canWrite()) {
+      return;
+    }
+
+    setBulkSelectMode((previous) => !previous);
+  };
+
+  const handleToggleOrphanFileSelection = (fileName) => {
+    setSelectedOrphanFiles((previous) => (
+      previous.includes(fileName)
+        ? previous.filter((selectedFileName) => selectedFileName !== fileName)
+        : [...previous, fileName]
+    ));
+  };
+
+  const handleToggleSelectAllDisplayedOrphans = () => {
+    if (allDisplayedOrphansSelected) {
+      setSelectedOrphanFiles([]);
+      return;
+    }
+
+    setSelectedOrphanFiles(displayedFiles.map((file) => file.file_name));
+  };
+
+  const handleConfirmBulkDelete = () => {
+    if (selectedOrphanFiles.length === 0) {
+      return;
+    }
+
+    bulkDeleteOrphansMutation.mutate({
+      type: selectedType,
+      fileNames: selectedOrphanFiles,
+    });
   };
 
   const handleCategoryChange = (catId) => {
@@ -444,7 +544,7 @@ const FileLibrary = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top bar: View mode toggle + Search + Orphan filter */}
+      {/* Top bar: View mode toggle + Search */}
       <div className="mb-4 shrink-0 flex items-center gap-3">
         {/* View mode toggle */}
         <div className="flex rounded-lg border border-gray-300 dark:border-[#3a3a3a] overflow-hidden shrink-0">
@@ -492,25 +592,6 @@ const FileLibrary = () => {
             </div>
           )}
         </div>
-
-        {/* Orphan filter (File Types view only) */}
-        {viewMode === VIEW_FILE_TYPES && (
-          <button
-            onClick={() => {
-              setShowOrphans(!showOrphans);
-              setSelectedFile(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors shrink-0 ${
-              showOrphans
-                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
-                : 'border-gray-300 dark:border-[#3a3a3a] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#3a3a3a]'
-            }`}
-            title="Show orphan files (not linked to any component)"
-          >
-            <Unlink className="w-4 h-4" />
-            Orphans
-          </button>
-        )}
       </div>
 
       {/* Main content depends on view mode */}
@@ -520,6 +601,16 @@ const FileLibrary = () => {
           selectedType={selectedType}
           selectedFile={selectedFile}
           showOrphans={showOrphans}
+          linkedPartsFilter={linkedPartsFilter}
+          onLinkedPartsFilterChange={handleLinkedPartsFilterChange}
+          bulkSelectMode={bulkSelectMode}
+          selectedOrphanFiles={selectedOrphanFiles}
+          allDisplayedOrphansSelected={allDisplayedOrphansSelected}
+          onToggleBulkSelectMode={handleToggleBulkSelectMode}
+          onToggleOrphanFileSelection={handleToggleOrphanFileSelection}
+          onToggleSelectAllDisplayedOrphans={handleToggleSelectAllDisplayedOrphans}
+          onOpenBulkDelete={() => setShowBulkDeleteConfirm(true)}
+          isBulkDeletePending={bulkDeleteOrphansMutation.isPending}
           displayedFiles={displayedFiles}
           isLoadingFiles={isLoadingFiles || isLoadingOrphans}
           componentsData={componentsData}
@@ -587,6 +678,16 @@ const FileLibrary = () => {
           isPending={deleteMutation.isPending}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={handleConfirmBulkDelete}
+        title="Delete Selected Orphan Files"
+        message={`Delete ${selectedOrphanFiles.length} selected orphan file${selectedOrphanFiles.length !== 1 ? 's' : ''}? This permanently removes the physical file and its orphan database record.`}
+        confirmText="Delete Selected"
+        isLoading={bulkDeleteOrphansMutation.isPending}
+      />
     </div>
   );
 };

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ECO PDF branding now supports custom header text alongside configurable logo filename in admin settings
 - ECO approval stage settings can now be exported and restored from JSON backups, including stage order, tags, and assigned approvers with missing users skipped during import
+- File Library file-type browsing now includes a sidebar `No Linked Parts` filter and orphan-only multi-select bulk delete controls
 
 ### Changed
 

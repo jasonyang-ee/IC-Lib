@@ -319,6 +319,67 @@ export const getOrphanFiles = async (req, res) => {
 };
 
 /**
+ * Bulk delete orphan CAD files for a single file type.
+ * Rejects any file that is no longer orphaned at delete time.
+ */
+export const bulkDeleteOrphanFiles = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { fileNames } = req.body;
+
+    if (!Array.isArray(fileNames) || fileNames.length === 0) {
+      return res.status(400).json({ error: 'fileNames array is required' });
+    }
+
+    const info = getTypeInfo(type);
+    if (!info) {
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
+    }
+
+    const requestedFileNames = [...new Set(
+      fileNames
+        .map((fileName) => String(fileName || '').trim())
+        .filter(Boolean),
+    )];
+
+    if (requestedFileNames.length === 0) {
+      return res.status(400).json({ error: 'At least one valid file name is required' });
+    }
+
+    const orphanFiles = await cadFileService.getOrphanCadFiles(info.fileType);
+    const orphanFileMap = new Map(orphanFiles.map((file) => [file.file_name, file]));
+    const invalidSelections = requestedFileNames.filter((fileName) => !orphanFileMap.has(fileName));
+
+    if (invalidSelections.length > 0) {
+      return res.status(400).json({
+        error: `Only files with no linked parts can be bulk deleted. Invalid selections: ${invalidSelections.join(', ')}`,
+      });
+    }
+
+    const deletedFiles = [];
+
+    for (const fileName of requestedFileNames) {
+      const cadFile = orphanFileMap.get(fileName);
+      if (!cadFile) {
+        continue;
+      }
+
+      await cadFileService.deleteCadFile(cadFile.id);
+      deletedFiles.push(fileName);
+    }
+
+    res.json({
+      success: true,
+      deletedCount: deletedFiles.length,
+      deletedFiles,
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error bulk deleting orphan files:', error.message);
+    res.status(500).json({ error: 'Failed to bulk delete orphan files' });
+  }
+};
+
+/**
  * Get CAD files for a specific component.
  */
 export const getCadFilesForComponent = async (req, res) => {
