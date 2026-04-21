@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { buildEcoCadFileChanges, stripCadExtension } from '../utils/ecoCadUtils';
 
 describe('ecoCadUtils', () => {
-  it('builds unlink and link actions from staged ECO CAD changes', () => {
+  it('builds unlink and link actions from staged ECO CAD changes using API file rows', () => {
     const changes = buildEcoCadFileChanges({
       currentCadFiles: {
-        symbol: [{ name: 'OPA1611AID.olb' }],
-        model: [{ name: 'OPA1611AID.step' }],
+        symbol: [{ file_name: 'OPA1611AID.olb' }],
+        model: [{ file_name: 'OPA1611AID.step' }],
       },
       desiredCadFields: {
         schematic: [],
@@ -28,7 +28,7 @@ describe('ecoCadUtils', () => {
   it('unlinks both files in a footprint pair when the shared base name is removed', () => {
     const changes = buildEcoCadFileChanges({
       currentCadFiles: {
-        footprint: [{ name: 'OPA1611AID.psm' }, { name: 'OPA1611AID.dra' }],
+        footprint: [{ file_name: 'OPA1611AID.psm' }, { file_name: 'OPA1611AID.dra' }],
       },
       desiredCadFields: {
         pcb_footprint: [],
@@ -45,7 +45,7 @@ describe('ecoCadUtils', () => {
   it('does not create duplicate link actions for files already linked to the component', () => {
     const changes = buildEcoCadFileChanges({
       currentCadFiles: {
-        symbol: [{ name: 'OPA1611AID.olb' }],
+        symbol: [{ file_name: 'OPA1611AID.olb' }],
       },
       desiredCadFields: {
         schematic: ['OPA1611AID'],
@@ -56,6 +56,22 @@ describe('ecoCadUtils', () => {
     });
 
     expect(changes).toEqual([]);
+  });
+
+  it('still supports legacy current CAD entries keyed as name', () => {
+    const changes = buildEcoCadFileChanges({
+      currentCadFiles: {
+        pad: [{ name: 'OPA1611AID.pad' }],
+      },
+      desiredCadFields: {
+        pad_file: [],
+      },
+      stagedCadFiles: [],
+    });
+
+    expect(changes).toEqual([
+      { action: 'unlink', file_type: 'pad', file_name: 'OPA1611AID.pad' },
+    ]);
   });
 
   it('strips only the filename extension when comparing CAD base names', () => {

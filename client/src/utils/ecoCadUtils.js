@@ -15,7 +15,10 @@ export const stripCadExtension = (filename) => {
 const normalizeCadFileName = (entry) => {
   if (!entry) return '';
   if (typeof entry === 'string') return entry;
-  return typeof entry.name === 'string' ? entry.name : '';
+  if (typeof entry.name === 'string') return entry.name;
+  if (typeof entry.file_name === 'string') return entry.file_name;
+  if (typeof entry.filename === 'string') return entry.filename;
+  return '';
 };
 
 export const buildEcoCadFileChanges = ({ currentCadFiles = {}, desiredCadFields = {}, stagedCadFiles = [] } = {}) => {
