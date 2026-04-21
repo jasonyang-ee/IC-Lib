@@ -17,6 +17,7 @@ const ComponentEditForm = ({
   editData,
   isAddMode,
   isEditMode,
+  isECOMode,
   categories,
   manufacturers,
   // Field change
@@ -51,6 +52,9 @@ const ComponentEditForm = ({
   onFileUploaded: _onFileUploaded,
   onFileRenamed: _onFileRenamed,
   onFileDeleted: _onFileDeleted,
+  onCadFileAdded,
+  onCadFileRemoved,
+  onCadFileRenamed,
   setEditData,
 }) => (
   <>
@@ -302,9 +306,14 @@ const ComponentEditForm = ({
           componentId={selectedComponent?.id}
           packageSize={editData.package_size}
           canEdit={true}
+          ecoMode={isECOMode}
+          showRename={!isECOMode}
           onTempFileStaged={onTempFileStaged}
           onTempFileRemoved={onTempFileRemoved}
           onFileSoftDeleted={onFileSoftDeleted}
+          onCadFileAdded={onCadFileAdded}
+          onCadFileRemoved={onCadFileRemoved}
+          onCadFileRenamed={onCadFileRenamed}
           onFileUploaded={(category, filename) => {
             // Map upload category to editData field name
             const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };

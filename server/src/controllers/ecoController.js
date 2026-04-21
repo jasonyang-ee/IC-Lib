@@ -44,6 +44,23 @@ const getECOForEmail = async (client, ecoId) => {
   return result.rows[0];
 };
 
+const resolveCadFileId = async (client, cadFile) => {
+  if (cadFile?.cad_file_id) {
+    return cadFile.cad_file_id;
+  }
+
+  if (!cadFile?.file_name || !cadFile?.file_type) {
+    return null;
+  }
+
+  const result = await client.query(
+    'SELECT id FROM cad_files WHERE file_name = $1 AND file_type = $2 LIMIT 1',
+    [cadFile.file_name, cadFile.file_type],
+  );
+
+  return result.rows[0]?.id || null;
+};
+
 const consumeNextEcoNumber = async (client) => {
   let settingsResult = await client.query('SELECT * FROM eco_settings LIMIT 1 FOR UPDATE');
 
@@ -754,10 +771,15 @@ export const createECO = async (req, res) => {
     // Insert CAD file changes (link/unlink)
     if (cad_files && cad_files.length > 0) {
       for (const cf of cad_files) {
+        const cadFileId = await resolveCadFileId(client, cf);
+        if ((cf.action === 'link' || cf.action === 'unlink') && !cadFileId) {
+          throw new Error(`Failed to resolve CAD file "${cf.file_name}" (${cf.file_type}) for ECO action "${cf.action}"`);
+        }
+
         await client.query(`
           INSERT INTO eco_cad_files (eco_id, action, cad_file_id, file_type, file_name)
           VALUES ($1, $2, $3, $4, $5)
-        `, [ecoId, cf.action, cf.cad_file_id || null, cf.file_type, cf.file_name]);
+        `, [ecoId, cf.action, cadFileId, cf.file_type, cf.file_name]);
       }
     }
 
@@ -1206,18 +1228,24 @@ const applyECOChanges = async (client, eco, id) => {
   // --- 7. Apply CAD file changes ---
   const cadFilesResult = await client.query('SELECT * FROM eco_cad_files WHERE eco_id = $1', [id]);
   for (const cf of cadFilesResult.rows) {
-    if (cf.action === 'link' && cf.cad_file_id) {
+    const cadFileId = cf.cad_file_id || await resolveCadFileId(client, cf);
+    if (!cadFileId) {
+      console.error(`[ECO] Skipping unresolved CAD file action for ${cf.file_name || 'unknown file'} (${cf.file_type || 'unknown type'})`);
+      continue;
+    }
+
+    if (cf.action === 'link') {
       await client.query(`
         INSERT INTO component_cad_files (component_id, cad_file_id)
         VALUES ($1, $2)
         ON CONFLICT (component_id, cad_file_id) DO NOTHING
-      `, [targetComponentId, cf.cad_file_id]);
+      `, [targetComponentId, cadFileId]);
       await regenerateCadText(targetComponentId, cf.file_type);
-    } else if (cf.action === 'unlink' && cf.cad_file_id) {
+    } else if (cf.action === 'unlink') {
       await client.query(`
         DELETE FROM component_cad_files
         WHERE component_id = $1 AND cad_file_id = $2
-      `, [targetComponentId, cf.cad_file_id]);
+      `, [targetComponentId, cadFileId]);
       await regenerateCadText(targetComponentId, cf.file_type);
     }
   }

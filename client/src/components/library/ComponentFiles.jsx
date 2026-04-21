@@ -127,7 +127,7 @@ function enforcePsmCase(filename) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, ecoMode = false, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved, onCadFileAdded, onCadFileRemoved, onCadFileRenamed }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -140,6 +140,48 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [localUploads, setLocalUploads] = useState({});
   const [fileConflict, setFileConflict] = useState(null);
   const [conflictPending, setConflictPending] = useState(false);
+  const [stagedRemovals, setStagedRemovals] = useState({});
+
+  const removeLocalUpload = (category, filename) => {
+    setLocalUploads(prev => {
+      const updated = { ...prev };
+      if (updated[category]) {
+        updated[category] = updated[category].filter(file => file.name !== filename);
+        if (updated[category].length === 0) delete updated[category];
+      }
+      return updated;
+    });
+  };
+
+  const stageRemoval = (category, filename) => {
+    setStagedRemovals(prev => {
+      const next = { ...prev };
+      const current = new Set(next[category] || []);
+      current.add(filename);
+      next[category] = [...current];
+      return next;
+    });
+  };
+
+  const clearStagedRemoval = (category, filename) => {
+    setStagedRemovals(prev => {
+      if (!prev[category]?.includes(filename)) return prev;
+
+      const next = { ...prev };
+      next[category] = next[category].filter(name => name !== filename);
+      if (next[category].length === 0) delete next[category];
+      return next;
+    });
+  };
+
+  const notifyCadFileAdded = (category, filename) => {
+    clearStagedRemoval(category, filename);
+    onCadFileAdded?.({ category, filename });
+  };
+
+  const notifyCadFileRemoved = (category, filename) => {
+    onCadFileRemoved?.({ category, filename });
+  };
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -205,6 +247,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         const key = `${category}:${filename}`;
         if (conflictingKeys.has(key)) return;
         if (onFileUploaded) onFileUploaded(category, filename);
+        notifyCadFileAdded(category, filename);
         if (onTempFileStaged && tempFilename) {
           onTempFileStaged({ tempFilename, category, filename });
         }
@@ -316,9 +359,21 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (onFileRenamed) {
         onFileRenamed(variables.category, variables.oldFilename, response.data.newFilename);
       }
+      onCadFileRenamed?.({
+        category: variables.category,
+        oldFilename: variables.oldFilename,
+        newFilename: response.data.newFilename,
+      });
       // Also notify parent of paired rename
       if (variables.pairedFilename && variables.pairedNewFilename && onFileRenamed) {
         onFileRenamed(variables.category, variables.pairedFilename, variables.pairedNewFilename);
+      }
+      if (variables.pairedFilename && variables.pairedNewFilename) {
+        onCadFileRenamed?.({
+          category: variables.category,
+          oldFilename: variables.pairedFilename,
+          newFilename: variables.pairedNewFilename,
+        });
       }
       // Handle temp file rename: update tempFiles tracking in parent
       if (response.data.isTemp && onTempFileRemoved && onTempFileStaged) {
@@ -499,8 +554,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   // Handle delete — temp files use cleanup endpoint, existing files use regular delete
   const handleConfirmDelete = async () => {
     const { category, filename } = deleteConfirm;
+    const localFile = localUploads[category]?.find(f => f.name === filename);
     // Check if this file is a temp upload
-    const localFile = localUploads[category]?.find(f => f.name === filename && f.storage === 'temp');
     if (localFile && localFile.tempFilename) {
       try {
         await api.cleanupTempFiles({ tempFilenames: [localFile.tempFilename] });
@@ -509,19 +564,24 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         showError('Delete failed: ' + (err.response?.data?.error || err.message));
       }
       // Remove from local uploads
-      setLocalUploads(prev => {
-        const updated = { ...prev };
-        if (updated[category]) {
-          updated[category] = updated[category].filter(f => f.name !== filename);
-          if (updated[category].length === 0) delete updated[category];
-        }
-        return updated;
-      });
+      removeLocalUpload(category, filename);
       if (onFileDeleted) onFileDeleted(category, filename);
+      notifyCadFileRemoved(category, filename);
       // Notify parent to remove from tempFiles state
       if (onTempFileRemoved && localFile.tempFilename) {
         onTempFileRemoved(localFile.tempFilename);
       }
+      setDeleteConfirm({ show: false, category: '', filename: '' });
+    } else if (ecoMode) {
+      if (localFile) {
+        removeLocalUpload(category, filename);
+      } else {
+        stageRemoval(category, filename);
+      }
+
+      if (onFileDeleted) onFileDeleted(category, filename);
+      notifyCadFileRemoved(category, filename);
+      showSuccess('File change staged for ECO');
       setDeleteConfirm({ show: false, category: '', filename: '' });
     } else {
       // Existing file — use regular delete mutation
@@ -563,33 +623,38 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     if (!fileConflict) return;
     setConflictPending(true);
     try {
-      // Delete/unlink the existing file
-      const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile);
-      const deleteData = deleteResponse.data;
-
-      // Track soft-delete for restore-on-cancel
-      if (deleteData.softDeleted && onFileSoftDeleted) {
-        onFileSoftDeleted({ tempFilename: deleteData.tempFilename, category: fileConflict.category, filename: fileConflict.existingFile });
-      }
-
-      // Remove old file from localUploads
-      setLocalUploads(prev => {
-        const updated = { ...prev };
-        if (updated[fileConflict.category]) {
-          updated[fileConflict.category] = updated[fileConflict.category].filter(f => f.name !== fileConflict.existingFile);
-          if (updated[fileConflict.category].length === 0) delete updated[fileConflict.category];
+      if (ecoMode) {
+        const existingLocalFile = localUploads[fileConflict.category]?.find(file => file.name === fileConflict.existingFile);
+        if (existingLocalFile) {
+          removeLocalUpload(fileConflict.category, fileConflict.existingFile);
+        } else {
+          stageRemoval(fileConflict.category, fileConflict.existingFile);
         }
-        return updated;
-      });
-      // Remove old file from editData
-      if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
+        if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
+        notifyCadFileRemoved(fileConflict.category, fileConflict.existingFile);
+      } else {
+        // Delete/unlink the existing file
+        const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile);
+        const deleteData = deleteResponse.data;
+
+        // Track soft-delete for restore-on-cancel
+        if (deleteData.softDeleted && onFileSoftDeleted) {
+          onFileSoftDeleted({ tempFilename: deleteData.tempFilename, category: fileConflict.category, filename: fileConflict.existingFile });
+        }
+
+        // Remove old file from localUploads
+        removeLocalUpload(fileConflict.category, fileConflict.existingFile);
+        // Remove old file from editData
+        if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
+      }
 
       if (fileConflict.isLink) {
         // Link conflict: now perform the deferred link
-        if (fileConflict.cadFileId && componentId) {
+        if (!ecoMode && fileConflict.cadFileId && componentId) {
           linkMutation.mutate({ cadFileId: fileConflict.cadFileId });
         }
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
+        notifyCadFileAdded(fileConflict.category, fileConflict.newFile);
         // Add to localUploads
         setLocalUploads(prev => {
           const updated = { ...prev };
@@ -602,13 +667,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       } else {
         // Upload conflict: register the new file (was deferred in onSuccess)
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
+        notifyCadFileAdded(fileConflict.category, fileConflict.newFile);
         if (onTempFileStaged && fileConflict.newTempFilename) {
           onTempFileStaged({ tempFilename: fileConflict.newTempFilename, category: fileConflict.category, filename: fileConflict.newFile });
         }
       }
 
       // Refresh files
-      if (mfgPartNumber) queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      if (!ecoMode && mfgPartNumber) queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
     } catch (e) {
       showError('Failed to replace file: ' + (e.response?.data?.error || e.message));
     }
@@ -617,7 +683,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   };
 
   // Merge server files with locally tracked uploads (for add mode when junction table is empty)
-  const serverFiles = filesData?.files || {};
+  const serverFiles = Object.fromEntries(
+    Object.entries(filesData?.files || {}).map(([category, categoryFiles]) => {
+      const removedNames = new Set(stagedRemovals[category] || []);
+      return [category, categoryFiles.filter(file => !removedNames.has(file.name))];
+    }).filter(([, categoryFiles]) => categoryFiles.length > 0),
+  );
   const files = { ...serverFiles };
   for (const [cat, catFiles] of Object.entries(localUploads)) {
     if (!files[cat]) files[cat] = [];
@@ -763,7 +834,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                             )}
                             {canEdit && (
                               <div className="flex items-center gap-1 shrink-0">
-                                {showRename && mfgPartNumber && (
+                                {showRename && !ecoMode && mfgPartNumber && (
                                   <>
                                     <button type="button" onClick={() => requestMpnRename(category, psm.name, dra.name)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
                                     {packageSize && (
@@ -880,7 +951,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                       )}
                       {canEdit && (
                         <div className="flex items-center gap-1 shrink-0">
-                          {showRename && mfgPartNumber && RENAMEABLE_CATEGORIES.includes(category) && (
+                          {showRename && !ecoMode && mfgPartNumber && RENAMEABLE_CATEGORIES.includes(category) && (
                             <>
                               <button
                                 type="button"
@@ -1059,14 +1130,18 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             return;
           }
 
-          if (file.id && componentId) {
+          if (!ecoMode && file.id && componentId) {
             linkMutation.mutate({ cadFileId: file.id });
           }
           if (onFileUploaded && cat) {
             onFileUploaded(cat, file.file_name);
           }
+          if (cat && file.file_name) {
+            notifyCadFileAdded(cat, file.file_name);
+          }
           // Add to localUploads so the file appears in the list immediately
           if (cat && file.file_name) {
+            clearStagedRemoval(cat, file.file_name);
             setLocalUploads(prev => {
               const updated = { ...prev };
               if (!updated[cat]) updated[cat] = [];

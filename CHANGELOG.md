@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add-part fallback part number generation now handles UUID category ids correctly when the next-part-number API is unavailable
 - Fresh installs and startup schema repair now create the missing `project_components.notes` column expected by the projects controller
 - Package-based CAD renames now strip trailing dimensional package notes so filenames use the package name itself, such as `8-SOIC`
+- ECO CAD uploads now finalize into the shared library folder on submit, stage link and unlink changes for approval, and avoid immediate live-library writes while the ECO is still pending
 
 ## [1.9.0] - 2026-03-20
 

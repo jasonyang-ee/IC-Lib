@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
+import { buildEcoCadFileChanges } from '../utils/ecoCadUtils';
 import { parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
 import { DeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
 import VendorDataPanel from '../components/library/VendorDataPanel';
@@ -64,6 +65,14 @@ function buildEditDistributors(componentDistributors = [], allDistributors) {
   });
 }
 
+const normalizeEcoFieldValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.join(',');
+  }
+
+  return String(value ?? '');
+};
+
 // Component Library - Fixed 3-Column Layout
 const Library = () => {
   const location = useLocation();
@@ -110,6 +119,7 @@ const Library = () => {
 
   // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
   const [deletedFiles, setDeletedFiles] = useState([]);
+  const [ecoCadStagedFiles, setEcoCadStagedFiles] = useState([]);
   
   // Sub-category suggestions and dropdown states
   const [subCat1Suggestions, setSubCat1Suggestions] = useState([]);
@@ -128,6 +138,84 @@ const Library = () => {
   // Package suggestions and dropdown states
   const [packageSuggestions, setPackageSuggestions] = useState([]);
   const [packageOpen, setPackageOpen] = useState(false);
+
+  const trackEcoCadAddedFile = ({ category, filename }) => {
+    setEcoCadStagedFiles(prev => {
+      if (prev.some(file => file.category === category && file.filename === filename)) {
+        return prev;
+      }
+
+      return [...prev, { category, filename }];
+    });
+  };
+
+  const trackEcoCadRemovedFile = ({ category, filename }) => {
+    setEcoCadStagedFiles(prev => prev.filter(file => !(file.category === category && file.filename === filename)));
+  };
+
+  const trackEcoCadRenamedFile = ({ category, oldFilename, newFilename }) => {
+    setEcoCadStagedFiles(prev => {
+      const withoutOld = prev.filter(file => !(file.category === category && file.filename === oldFilename));
+      if (withoutOld.some(file => file.category === category && file.filename === newFilename)) {
+        return withoutOld;
+      }
+      return [...withoutOld, { category, filename: newFilename }];
+    });
+  };
+
+  const restoreSoftDeletedFiles = async (mfgPartNumber) => {
+    if (deletedFiles.length === 0) return;
+
+    await api.restoreDeletedFiles(deletedFiles.map(file => ({
+      tempFilename: file.tempFilename,
+      category: file.category,
+      filename: file.filename,
+      mfgPartNumber,
+    })));
+    setDeletedFiles([]);
+  };
+
+  const finalizeEcoCadUploads = async () => {
+    if (tempFiles.length === 0) return true;
+
+    const preResolved = resolvedConflicts.current;
+    resolvedConflicts.current = null;
+
+    if (!preResolved) {
+      const collisionResponse = await api.checkCollisionsBatch(tempFiles);
+      const collisions = collisionResponse.data?.collisions || [];
+      if (collisions.length > 0) {
+        pendingSaveCallback.current = 'handleSubmitECO';
+        setFileConflictModal({ show: true, conflicts: collisions });
+        return false;
+      }
+    }
+
+    const collisionSet = preResolved
+      ? new Map(preResolved.map(resolution => [resolution.tempFilename, resolution.resolution]))
+      : null;
+
+    if (collisionSet && [...collisionSet.values()].includes('overwrite')) {
+      showError('Overwriting existing library files is not supported in ECO mode. Rename the upload or use the existing library file instead.');
+      return false;
+    }
+
+    const response = await api.finalizeTempFiles({
+      files: tempFiles.map(file => ({
+        tempFilename: file.tempFilename,
+        category: file.category,
+        resolution: collisionSet?.get(file.tempFilename),
+      })),
+    });
+
+    const failedFiles = (response.data?.results || []).filter(result => result.error);
+    if (failedFiles.length > 0) {
+      throw new Error(failedFiles.map(file => `${file.filename}: ${file.error}`).join(', '));
+    }
+
+    setTempFiles([]);
+    return true;
+  };
   const packageRef = useRef(null);
 
   // Manufacturer state
@@ -1137,6 +1225,7 @@ const Library = () => {
     setLastRejectedECO(null);
     setParentEcoId(null);
     setRetryEcoNumber(null);
+    setEcoCadStagedFiles([]);
 
     // Fetch last rejected ECO for this component (non-blocking)
     api.getLastRejectedECO(component.id)
@@ -1270,6 +1359,7 @@ const Library = () => {
   const handleRetryECO = (rejectedEco) => {
     setParentEcoId(rejectedEco.id);
     setRetryEcoNumber(rejectedEco.eco_number);
+    setEcoCadStagedFiles([]);
 
     const newEditData = { ...editData };
 
@@ -1396,6 +1486,11 @@ const Library = () => {
     if (!selectedComponent) return;
 
     try {
+      const canContinue = await finalizeEcoCadUploads();
+      if (!canContinue) return;
+
+      await restoreSoftDeletedFiles(componentDetails?.manufacturer_pn || selectedComponent?.manufacturer_pn || editData.manufacturer_pn);
+
       // Collect all changes
       const changes = [];
       const specifications = [];
@@ -1411,14 +1506,17 @@ const Library = () => {
       ];
 
       for (const field of fieldsToTrack) {
-        const oldValue = componentDetails?.[field];
-        const newValue = editData[field];
+        const nextValue = editData[field];
+        if (nextValue === undefined) continue;
 
-        if (oldValue !== newValue && newValue !== undefined) {
+        const oldValue = normalizeEcoFieldValue(componentDetails?.[field]);
+        const newValue = normalizeEcoFieldValue(nextValue);
+
+        if (oldValue !== newValue) {
           changes.push({
             field_name: field,
-            old_value: String(oldValue || ''),
-            new_value: String(newValue || '')
+            old_value: oldValue,
+            new_value: newValue,
           });
         }
       }
@@ -1623,10 +1721,11 @@ const Library = () => {
       }
 
       // Collect CAD file changes by comparing current links vs edit state
-      const cadFileChanges = [];
-      // CAD file changes are tracked via the junction table diff
-      // For now, CAD file staging happens through the existing link/unlink flow
-      // Future: add diff tracking here when CAD section is fully ECO-aware
+      const cadFileChanges = buildEcoCadFileChanges({
+        currentCadFiles: componentDetails?.cadFilesLinked || {},
+        desiredCadFields: editData,
+        stagedCadFiles: ecoCadStagedFiles,
+      });
 
       // Create ECO order
       await api.createECO({
@@ -1650,6 +1749,9 @@ const Library = () => {
       setParentEcoId(null);
       setLastRejectedECO(null);
       setRetryEcoNumber(null);
+      setEcoCadStagedFiles([]);
+      setDeletedFiles([]);
+      setTempFiles([]);
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['ecos']);
       queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
@@ -1663,7 +1765,19 @@ const Library = () => {
     }
   };
 
-  const handleCancelECO = () => {
+  const handleCancelECO = async () => {
+    if (tempFiles.length > 0) {
+      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(file => file.tempFilename) }); }
+      catch (error) { console.error('Cleanup failed:', error); }
+      setTempFiles([]);
+    }
+    if (deletedFiles.length > 0) {
+      try {
+        await restoreSoftDeletedFiles(componentDetails?.manufacturer_pn || selectedComponent?.manufacturer_pn || editData.manufacturer_pn);
+      } catch (error) {
+        console.error('Restore failed:', error);
+      }
+    }
     setIsECOMode(false);
     setIsEditMode(false);
     setEcoChanges([]);
@@ -1672,6 +1786,7 @@ const Library = () => {
     setParentEcoId(null);
     setLastRejectedECO(null);
     setRetryEcoNumber(null);
+    setEcoCadStagedFiles([]);
   };
 
   const _handleDelete = () => {
@@ -2268,6 +2383,7 @@ const Library = () => {
     setEditData({});
     setManufacturerInput('');
     setAltManufacturerInputs({});
+    setEcoCadStagedFiles([]);
   };
 
   const handleCancelEdit = async () => {
@@ -2286,6 +2402,7 @@ const Library = () => {
     setIsEditMode(false);
     setManufacturerInput('');
     setAltManufacturerInputs({});
+    setEcoCadStagedFiles([]);
   };
 
   // File conflict resolution handlers
@@ -2302,6 +2419,8 @@ const Library = () => {
       handleConfirmAdd();
     } else if (saveType === 'handleSave') {
       handleSave();
+    } else if (saveType === 'handleSubmitECO') {
+      handleSubmitECO();
     }
   };
 
@@ -3236,6 +3355,7 @@ const Library = () => {
                   editData={editData}
                   isAddMode={isAddMode}
                   isEditMode={isEditMode}
+                  isECOMode={isECOMode}
                   categories={categories}
                   manufacturers={manufacturers}
                   onFieldChange={handleFieldChange}
@@ -3275,6 +3395,18 @@ const Library = () => {
                   })}
                   onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
                   onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
+                  onCadFileAdded={(info) => {
+                    if (!isECOMode) return;
+                    trackEcoCadAddedFile(info);
+                  }}
+                  onCadFileRemoved={(info) => {
+                    if (!isECOMode) return;
+                    trackEcoCadRemovedFile(info);
+                  }}
+                  onCadFileRenamed={(info) => {
+                    if (!isECOMode) return;
+                    trackEcoCadRenamedFile(info);
+                  }}
                   setEditData={setEditData}
                 />
               ) : (
