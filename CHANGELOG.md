@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.9.2] - 2026-04-21
+
+### Added
+
 - GitHub Actions now auto-clean untagged GHCR `iclib` container versions after image-publishing workflows complete, on a nightly schedule, and on manual dispatch
 
 ### Changed
