@@ -3,15 +3,9 @@ import { sendECONotification } from '../services/emailService.js';
 import { regenerateCadText } from '../services/cadFileService.js';
 import { generateECOPdf } from '../services/ecoPdfService.js';
 import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
+import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
 // Whitelist of valid component field names to prevent SQL injection
-const VALID_COMPONENT_FIELDS = [
-  'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
-  'approval_status', 'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
-  'schematic', 'step_model', 'pspice', 'pad_file', 'manufacturer_id', 'manufacturer_pn',
-  'category_id', '_status_proposal',
-];
-
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
   try {

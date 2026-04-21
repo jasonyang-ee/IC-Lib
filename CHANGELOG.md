@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Category-change ECO approvals now apply staged specification values to the newly created component instead of skipping them
 - Vendor archive extraction now normalizes Windows-style ZIP entry paths, fixing Ultra Librarian uploads on Linux deployments
 - Vendor API data panels now expose `Auto Fill` in add mode as well as edit mode
+- Database imports now fail fast and roll back the entire restore if any table import fails instead of committing a partial restore
+- Project component consumption now fails atomically when inventory is missing or insufficient instead of silently clamping quantities to zero
+- ECO approval middleware now matches the configurable stage-role workflow, and the ECO field whitelist test now reads the production source of truth
+- Add-part fallback part number generation now handles UUID category ids correctly when the next-part-number API is unavailable
+- Fresh installs and startup schema repair now create the missing `project_components.notes` column expected by the projects controller
 
 ## [1.9.0] - 2026-03-20
 

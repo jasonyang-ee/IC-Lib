@@ -2015,18 +2015,11 @@ export const importDatabase = async (req, res) => {
   try {
     console.log('[INFO] [Settings] Starting database import...');
 
-    if (req.body.confirm !== true && !req.file) {
-      // If sent as JSON with confirm flag, the file must be in req.file (multipart)
-    }
-
-    let compressed;
-    if (req.file) {
-      compressed = req.file.buffer;
-    } else if (req.body && Buffer.isBuffer(req.body)) {
-      compressed = req.body;
-    } else {
+    if (!req.file) {
       return res.status(400).json({ error: 'No backup file provided' });
     }
+
+    const compressed = req.file.buffer;
 
     // Decompress
     let data;
@@ -2048,8 +2041,8 @@ export const importDatabase = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Disable triggers during import for performance and to avoid side effects
-      await client.query('SET session_replication_role = replica');
+      // Disable triggers only within this transaction to avoid side effects during import.
+      await client.query('SET LOCAL session_replication_role = replica');
 
       // Clear existing data in reverse dependency order
       for (let i = EXPORT_TABLES.length - 1; i >= 0; i--) {
@@ -2102,21 +2095,21 @@ export const importDatabase = async (req, res) => {
           }
 
           const quotedColumns = columns.map(c => `"${c}"`).join(', ');
-          await client.query(
-            `INSERT INTO "${table}" (${quotedColumns}) VALUES ${placeholders.join(', ')} ON CONFLICT DO NOTHING`,
+          const insertResult = await client.query(
+            `INSERT INTO "${table}" (${quotedColumns}) VALUES ${placeholders.join(', ')}`,
             values,
           );
 
           importStats.tablesImported++;
-          importStats.rowsImported += rows.length;
+          importStats.rowsImported += insertResult.rowCount;
         } catch (err) {
           importStats.errors.push({ table, error: err.message });
           console.error(`[ERROR] [Settings] Import table ${table}: ${err.message}`);
+          err.message = `Import failed for table ${table}: ${err.message}`;
+          err.details = [{ table, error: err.message }];
+          throw err;
         }
       }
-
-      // Re-enable triggers
-      await client.query('SET session_replication_role = DEFAULT');
 
       await client.query('COMMIT');
     } catch (err) {
@@ -2135,6 +2128,10 @@ export const importDatabase = async (req, res) => {
     });
   } catch (error) {
     console.error('[ERROR] [Settings] Database import failed:', error.message);
-    res.status(500).json({ error: 'Failed to import database', message: error.message });
+    res.status(500).json({
+      error: 'Failed to import database',
+      message: error.message,
+      details: error.details,
+    });
   }
 };

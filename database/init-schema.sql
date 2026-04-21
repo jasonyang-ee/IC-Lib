@@ -542,6 +542,7 @@ CREATE TABLE IF NOT EXISTS project_components (
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     alternative_id UUID REFERENCES components_alternative(id) ON DELETE CASCADE,
     quantity INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     -- Ensure only one of component_id or alternative_id is set
     CHECK (
@@ -960,6 +961,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS file_storage_path VARCHAR(1000);
 
 -- Add missing-file marker to cad_files for existing databases
 ALTER TABLE cad_files ADD COLUMN IF NOT EXISTS missing BOOLEAN DEFAULT FALSE;
+
+-- Add notes column to project_components for existing databases
+ALTER TABLE project_components ADD COLUMN IF NOT EXISTS notes TEXT;
 
 -- Create admin_settings table for existing databases
 CREATE TABLE IF NOT EXISTS admin_settings (

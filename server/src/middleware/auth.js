@@ -103,7 +103,8 @@ export const isAdmin = (req, res, next) => {
 };
 
 /**
- * Check if user can approve parts (approver or admin)
+ * Check if user can participate in the approval workflow.
+ * Stage-level role checks still happen inside the ECO controller.
  */
 export const canApprove = (req, res, next) => {
   if (!req.user) {
@@ -112,10 +113,10 @@ export const canApprove = (req, res, next) => {
     });
   }
 
-  if (req.user.role !== 'approver' && req.user.role !== 'admin' && req.user.role !== 'reviewer') {
+  if (req.user.role === 'read-only') {
     return res.status(403).json({ 
       error: 'Access denied',
-      message: 'Approver or admin access required', 
+      message: 'Approval workflow access required', 
     });
   }
 

@@ -1746,13 +1746,15 @@ const Library = () => {
   // Function to generate next part number based on category  // Function to generate next part number based on category
   const generateNextPartNumber = (categoryId) => {
     if (!categoryId || !components || !categories) return '';
+
+    const normalizedCategoryId = String(categoryId);
     
-    const category = categories.find(cat => cat.id === parseInt(categoryId));
+    const category = categories.find(cat => String(cat.id) === normalizedCategoryId);
     if (!category) return '';
     
     // Filter components by category
     const categoryComponents = components.filter(
-      comp => comp.category_id === parseInt(categoryId) || comp.category_name === category.name
+      comp => String(comp.category_id) === normalizedCategoryId || comp.category_name === category.name
     );
 
     const defaultDigits = 5;
@@ -1827,7 +1829,7 @@ const Library = () => {
       
       // Auto-fill value field based on category and vendor specifications
       if (editData.vendorSpecifications && Object.keys(editData.vendorSpecifications).length > 0) {
-        const category = categories?.find(cat => cat.id === parseInt(categoryId));
+        const category = categories?.find(cat => String(cat.id) === String(categoryId));
         let valueToSet = editData.manufacturer_pn || ''; // Default to manufacturer part number
         
         if (category) {

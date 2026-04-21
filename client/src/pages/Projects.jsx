@@ -124,15 +124,17 @@ const Projects = () => {
   // Consume all project components
   const consumeProjectMutation = useMutation({
     mutationFn: async (projectId) => {
-      await api.consumeProjectComponents(projectId);
+      const response = await api.consumeProjectComponents(projectId);
+      return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
       queryClient.invalidateQueries(['inventory']);
-      showSuccess('All project components consumed successfully!');
+      showSuccess(data?.message || 'All project components consumed successfully!');
     },
     onError: (error) => {
-      showError('Error consuming components: ' + (error.response?.data?.error || error.message));
+      const message = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError('Error consuming components: ' + message);
     }
   });
 

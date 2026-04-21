@@ -52,6 +52,7 @@ export const EXPECTED_SCHEMA_VIEWS = [
 export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'file_storage_path' },
   { table: 'cad_files', column: 'missing' },
+  { table: 'project_components', column: 'notes' },
   { table: 'admin_settings', column: 'eco_logo_filename' },
   { table: 'eco_orders', column: 'current_stage_order' },
   { table: 'eco_orders', column: 'pipeline_type' },

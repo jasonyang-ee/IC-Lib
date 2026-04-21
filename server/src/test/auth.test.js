@@ -161,8 +161,8 @@ describe('Auth Middleware', () => {
   });
 
   describe('canApprove', () => {
-    it('should pass for approver and admin', () => {
-      for (const role of ['approver', 'admin']) {
+    it('should pass for approval workflow roles', () => {
+      for (const role of ['reviewer', 'read-write', 'approver', 'admin']) {
         const req = mockReq({ user: { role } });
         const res = mockRes();
         const next = vi.fn();
@@ -172,16 +172,14 @@ describe('Auth Middleware', () => {
       }
     });
 
-    it('should reject read-only and read-write roles', () => {
-      for (const role of ['read-only', 'read-write']) {
-        const req = mockReq({ user: { role } });
-        const res = mockRes();
-        const next = vi.fn();
+    it('should reject read-only role', () => {
+      const req = mockReq({ user: { role: 'read-only' } });
+      const res = mockRes();
+      const next = vi.fn();
 
-        canApprove(req, res, next);
-        expect(next).not.toHaveBeenCalled();
-        expect(res.status).toHaveBeenCalledWith(403);
-      }
+      canApprove(req, res, next);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
     });
   });
 });

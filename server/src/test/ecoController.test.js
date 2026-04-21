@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Mirror the actual VALID_COMPONENT_FIELDS array from ecoController.js
-const VALID_COMPONENT_FIELDS = [
-  'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
-  'approval_status', 'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
-  'schematic', 'step_model', 'pspice', 'pad_file', 'manufacturer_id', 'manufacturer_pn',
-  'category_id', '_delete_component',
-];
+import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
 describe('ECO Field Validation', () => {
   it('should allow all whitelisted component fields', () => {
@@ -14,7 +7,7 @@ describe('ECO Field Validation', () => {
       'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
       'approval_status', 'manufacturer_id', 'manufacturer_pn', 'category_id',
       'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
-      'schematic', 'step_model', 'pspice', 'pad_file', '_delete_component',
+      'schematic', 'step_model', 'pspice', 'pad_file', '_status_proposal',
     ];
     expected.forEach(field => {
       expect(VALID_COMPONENT_FIELDS).toContain(field);
@@ -45,8 +38,8 @@ describe('ECO Field Validation', () => {
     expect(VALID_COMPONENT_FIELDS).not.toContain('PCB_FOOTPRINT');
   });
 
-  it('should include _delete_component for soft deletes', () => {
-    expect(VALID_COMPONENT_FIELDS).toContain('_delete_component');
+  it('should include _status_proposal for status-only ECOs', () => {
+    expect(VALID_COMPONENT_FIELDS).toContain('_status_proposal');
   });
 
   it('should have exactly 18 allowed fields', () => {

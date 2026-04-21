@@ -41,6 +41,7 @@ export const getProjectById = async (req, res) => {
       SELECT 
         pc.id,
         pc.quantity,
+        pc.notes,
         pc.component_id,
         pc.alternative_id,
         CASE 
@@ -415,17 +416,46 @@ export const consumeProjectComponents = async (req, res) => {
     const updates = [];
     const errors = [];
 
+    const getAvailableQuantity = async ({ componentId, alternativeId }) => {
+      if (componentId) {
+        const result = await client.query(
+          'SELECT quantity FROM inventory WHERE component_id = $1',
+          [componentId],
+        );
+        return result.rows[0]?.quantity ?? null;
+      }
+
+      const result = await client.query(
+        'SELECT quantity FROM inventory_alternative WHERE alternative_id = $1',
+        [alternativeId],
+      );
+      return result.rows[0]?.quantity ?? null;
+    };
+
     for (const pc of componentsResult.rows) {
       try {
         if (pc.component_id) {
           // Update main component inventory
           const result = await client.query(
             `UPDATE inventory
-             SET quantity = GREATEST(0, quantity - $1)
-             WHERE component_id = $2
+             SET quantity = quantity - $1
+             WHERE component_id = $2 AND quantity >= $1
              RETURNING quantity`,
             [pc.quantity, pc.component_id],
           );
+          if (result.rows.length === 0) {
+            const availableQuantity = await getAvailableQuantity({ componentId: pc.component_id });
+            errors.push({
+              component_id: pc.component_id,
+              part_number: pc.part_number || null,
+              requested_quantity: pc.quantity,
+              available_quantity: availableQuantity,
+              error: availableQuantity === null
+                ? 'Inventory record not found'
+                : `Insufficient inventory: requested ${pc.quantity}, available ${availableQuantity}`,
+            });
+            continue;
+          }
           updates.push({ component_id: pc.component_id, new_quantity: result.rows[0].quantity });
 
           // Log consumption
@@ -451,11 +481,23 @@ export const consumeProjectComponents = async (req, res) => {
           // Update alternative inventory
           const result = await client.query(
             `UPDATE inventory_alternative
-             SET quantity = GREATEST(0, quantity - $1)
-             WHERE alternative_id = $2
+             SET quantity = quantity - $1
+             WHERE alternative_id = $2 AND quantity >= $1
              RETURNING quantity`,
             [pc.quantity, pc.alternative_id],
           );
+          if (result.rows.length === 0) {
+            const availableQuantity = await getAvailableQuantity({ alternativeId: pc.alternative_id });
+            errors.push({
+              alternative_id: pc.alternative_id,
+              requested_quantity: pc.quantity,
+              available_quantity: availableQuantity,
+              error: availableQuantity === null
+                ? 'Alternative inventory record not found'
+                : `Insufficient alternative inventory: requested ${pc.quantity}, available ${availableQuantity}`,
+            });
+            continue;
+          }
           updates.push({ alternative_id: pc.alternative_id, new_quantity: result.rows[0].quantity });
         }
       } catch (error) {
@@ -464,6 +506,15 @@ export const consumeProjectComponents = async (req, res) => {
           error: error.message,
         });
       }
+    }
+
+    if (errors.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Unable to consume all project components',
+        message: 'One or more project components do not have sufficient inventory.',
+        details: errors,
+      });
     }
 
     await client.query('COMMIT');
