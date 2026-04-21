@@ -223,8 +223,15 @@ export const api = {
   getECOSettings: () => apiClient.get('/settings/eco'),
   updateECOSettings: (data) => apiClient.put('/settings/eco', data),
   previewECONumber: () => apiClient.get('/settings/eco/preview'),
+  getEcoPdfBranding: () => apiClient.get('/settings/eco/logo'),
+  updateEcoPdfBranding: (data) => apiClient.put('/settings/eco/logo', data),
   getEcoLogoFilename: () => apiClient.get('/settings/eco/logo'),
-  updateEcoLogoFilename: (filename) => apiClient.put('/settings/eco/logo', { eco_logo_filename: filename }),
+  updateEcoLogoFilename: (filenameOrData) => apiClient.put(
+    '/settings/eco/logo',
+    typeof filenameOrData === 'string'
+      ? { eco_logo_filename: filenameOrData }
+      : filenameOrData,
+  ),
 
   // CIS Config & Label Templates
   getCISFiles: () => apiClient.get('/settings/cis-files'),

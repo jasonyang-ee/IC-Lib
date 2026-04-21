@@ -2,6 +2,12 @@ import pool from '../config/database.js';
 import { sendECONotification } from '../services/emailService.js';
 import { regenerateCadText } from '../services/cadFileService.js';
 import { generateECOPdf } from '../services/ecoPdfService.js';
+import {
+  DEFAULT_ECO_PDF_HEADER,
+  DEFAULT_ECO_PREFIX,
+  formatEcoNumber,
+  sanitizeEcoPdfHeaderText,
+} from '../services/ecoSettingsService.js';
 import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
@@ -67,19 +73,17 @@ const consumeNextEcoNumber = async (client) => {
   if (settingsResult.rows.length === 0) {
     settingsResult = await client.query(`
       INSERT INTO eco_settings (prefix, leading_zeros, next_number)
-      VALUES ('ECO-', 6, 1)
+      VALUES ($1, 1, 1)
       RETURNING *
-    `);
+    `, [DEFAULT_ECO_PREFIX]);
   }
 
   const settings = settingsResult.rows[0];
-  const prefix = typeof settings.prefix === 'string' ? settings.prefix : 'ECO-';
-  const leadingZeros = Number.isInteger(settings.leading_zeros) ? settings.leading_zeros : 6;
   const nextNumber = Number.isInteger(settings.next_number) ? settings.next_number : 1;
-  const ecoNumber = `${prefix}${String(nextNumber).padStart(leadingZeros, '0')}`;
+  const ecoNumber = formatEcoNumber(settings.prefix, nextNumber);
 
   await client.query(
-    'UPDATE eco_settings SET next_number = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    'UPDATE eco_settings SET next_number = $1, leading_zeros = 1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
     [nextNumber + 1, settings.id],
   );
 
@@ -653,6 +657,19 @@ export const createECO = async (req, res) => {
       parent_eco_id,
     } = req.body;
 
+    const hasStagedChanges = [changes, distributors, alternatives, specifications, cad_files]
+      .some(group => Array.isArray(group) && group.length > 0);
+
+    if (!component_id || !part_number) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'component_id and part_number are required' });
+    }
+
+    if (!hasStagedChanges) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'ECO requires at least one staged change' });
+    }
+
     const categoryChange = Array.isArray(changes)
       ? changes.find(change => change.field_name === 'category_id' && change.new_value)
       : null;
@@ -813,6 +830,15 @@ export const createECO = async (req, res) => {
 
 // Helper: Apply all ECO changes to the component (called when final stage is complete)
 const applyECOChanges = async (client, eco, id) => {
+  const componentResult = await client.query(
+    'SELECT id FROM components WHERE id = $1',
+    [eco.component_id],
+  );
+
+  if (componentResult.rows.length === 0) {
+    throw new Error(`Component ${eco.component_id} no longer exists`);
+  }
+
   // Get all changes
   const changesResult = await client.query(
     'SELECT * FROM eco_changes WHERE eco_id = $1',
@@ -980,6 +1006,17 @@ const applyECOChanges = async (client, eco, id) => {
           VALUES ($1, $2)
           ON CONFLICT (component_id, cad_file_id) DO NOTHING
         `, [newComponentId, link.cad_file_id]);
+      }
+
+      const copiedCadTypes = await client.query(`
+        SELECT DISTINCT cf.file_type
+        FROM component_cad_files ccf
+        JOIN cad_files cf ON cf.id = ccf.cad_file_id
+        WHERE ccf.component_id = $1
+      `, [newComponentId]);
+
+      for (const { file_type: fileType } of copiedCadTypes.rows) {
+        await regenerateCadText(newComponentId, fileType, client);
       }
 
       // Archive the old component
@@ -1799,11 +1836,12 @@ export const generateECOPDFEndpoint = async (req, res) => {
     };
 
     // Fetch logo filename from admin settings
-    const logoResult = await client.query('SELECT eco_logo_filename FROM admin_settings LIMIT 1');
+    const logoResult = await client.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
     const logoFilename = logoResult.rows[0]?.eco_logo_filename || '';
+    const headerText = sanitizeEcoPdfHeaderText(logoResult.rows[0]?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER);
 
     // Generate PDF
-    const pdfDoc = generateECOPdf(ecoData, { logoFilename });
+    const pdfDoc = generateECOPdf(ecoData, { logoFilename, headerText });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${eco.eco_number}.pdf"`);

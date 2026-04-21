@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import { DEFAULT_ECO_PDF_HEADER } from './ecoSettingsService.js';
 
 // Colors
 const COLORS = {
@@ -192,6 +193,10 @@ const formatFieldName = (field) => {
  * @returns {PDFDocument} - A PDFKit document stream
  */
 export const generateECOPdf = (ecoData, options = {}) => {
+  const headerText = typeof options.headerText === 'string' && options.headerText.trim().length > 0
+    ? options.headerText.trim()
+    : DEFAULT_ECO_PDF_HEADER;
+
   const doc = new PDFDocument({
     size: 'LETTER',
     margins: {
@@ -203,7 +208,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     info: {
       Title: `ECO ${ecoData.eco_number}`,
       Author: 'IC-Lib',
-      Subject: `Engineering Change Order - ${ecoData.eco_number}`,
+      Subject: `${headerText} - ${ecoData.eco_number}`,
     },
     bufferPages: true,
   });
@@ -233,7 +238,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     .fontSize(FONT_SIZE.title)
     .font('Helvetica-Bold')
     .fillColor(COLORS.darkText)
-    .text('Engineer Change Order', PAGE.marginLeft, headerStartY);
+    .text(headerText, PAGE.marginLeft, headerStartY);
 
   doc.y = headerStartY + 30;
 

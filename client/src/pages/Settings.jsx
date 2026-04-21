@@ -2,72 +2,126 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Database, AlertCircle, CheckCircle, Loader2, Check, X, Plus, Trash2, ChevronDown, AlertTriangle, FileText, Users, RefreshCw, Package, GripVertical, Mail, Settings as SettingsIcon, Download, Upload } from 'lucide-react';
 import { api } from '../utils/api';
+import { formatEcoNumber } from '../utils/ecoNumber';
 import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
 import { UserManagement, CategorySpecificationsManager, ApprovalStagesSettings } from '../components/settings';
 
-// ECO Logo Filename Setting Component
-const EcoLogoFilenameSetting = () => {
+const DEFAULT_ECO_PDF_HEADER = 'Engineer Change Order';
+
+// ECO PDF Branding Setting Component
+const EcoPdfBrandingSetting = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
-  const [logoFilename, setLogoFilename] = useState('');
-  const [hasLogoChanges, setHasLogoChanges] = useState(false);
+  const [branding, setBranding] = useState({
+    eco_logo_filename: '',
+    eco_pdf_header_text: DEFAULT_ECO_PDF_HEADER,
+  });
+  const [hasBrandingChanges, setHasBrandingChanges] = useState(false);
 
-  // Fetch logo filename
-  const { data: logoData } = useQuery({
-    queryKey: ['ecoLogoFilename'],
+  const { data: brandingData } = useQuery({
+    queryKey: ['ecoPdfBranding'],
     queryFn: async () => {
-      const response = await api.getEcoLogoFilename();
+      const response = await api.getEcoPdfBranding();
       return response.data;
-    }
+    },
   });
 
-  // Keep in sync with fetched data
-  if (logoData?.eco_logo_filename !== undefined && !hasLogoChanges && logoFilename !== (logoData.eco_logo_filename || '')) {
-    setLogoFilename(logoData.eco_logo_filename || '');
-  }
+  useEffect(() => {
+    if (!brandingData || hasBrandingChanges) {
+      return;
+    }
 
-  // Save mutation
-  const saveLogoMutation = useMutation({
-    mutationFn: (filename) => api.updateEcoLogoFilename(filename),
+    setBranding({
+      eco_logo_filename: brandingData.eco_logo_filename || '',
+      eco_pdf_header_text: brandingData.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
+    });
+  }, [brandingData, hasBrandingChanges]);
+
+  const saveBrandingMutation = useMutation({
+    mutationFn: (data) => api.updateEcoPdfBranding(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ecoLogoFilename'] });
-      setHasLogoChanges(false);
-      showSuccess('Logo filename saved successfully!');
+      queryClient.invalidateQueries({ queryKey: ['ecoPdfBranding'] });
+      setHasBrandingChanges(false);
+      showSuccess('ECO PDF branding saved successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.error || error.message;
-      showError(`Error saving logo filename: ${errorMsg}`);
-    }
+      showError(`Error saving ECO PDF branding: ${errorMsg}`);
+    },
   });
 
-  const handleLogoSave = () => {
-    saveLogoMutation.mutate(logoFilename);
+  const handleBrandingChange = (field, value) => {
+    setBranding(prev => ({ ...prev, [field]: value }));
+    setHasBrandingChanges(true);
+  };
+
+  const handleBrandingSave = () => {
+    saveBrandingMutation.mutate({
+      eco_logo_filename: branding.eco_logo_filename,
+      eco_pdf_header_text: branding.eco_pdf_header_text,
+    });
+  };
+
+  const handleBrandingReset = () => {
+    setBranding({
+      eco_logo_filename: brandingData?.eco_logo_filename || '',
+      eco_pdf_header_text: brandingData?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
+    });
+    setHasBrandingChanges(false);
   };
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">
-            Company Logo
-          </h3>
-          <input
-            type="text"
-            value={logoFilename}
-            onChange={(e) => {
-              setLogoFilename(e.target.value);
-              setHasLogoChanges(true);
-            }}
-            placeholder="e.g. company-logo.png"
-            className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
-          />
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        ECO PDF Branding
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+        <div className="space-y-4 min-w-0">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Company Logo
+            </label>
+            <input
+              type="text"
+              value={branding.eco_logo_filename}
+              onChange={(e) => handleBrandingChange('eco_logo_filename', e.target.value)}
+              placeholder="e.g. company-logo.png"
+              className="w-full px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              PDF Header Text
+            </label>
+            <input
+              type="text"
+              value={branding.eco_pdf_header_text}
+              onChange={(e) => handleBrandingChange('eco_pdf_header_text', e.target.value)}
+              placeholder={DEFAULT_ECO_PDF_HEADER}
+              maxLength={200}
+              className="w-full px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {hasBrandingChanges && (
+            <button
+              onClick={handleBrandingReset}
+              className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors text-sm"
+            >
+              Reset
+            </button>
+          )}
           <button
-            onClick={handleLogoSave}
-            disabled={!hasLogoChanges || saveLogoMutation.isPending}
-            className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm shrink-0"
+            onClick={handleBrandingSave}
+            disabled={!hasBrandingChanges || saveBrandingMutation.isPending}
+            className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm"
           >
-            {saveLogoMutation.isPending ? (
+            {saveBrandingMutation.isPending ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Check className="w-3.5 h-3.5" />
@@ -76,8 +130,9 @@ const EcoLogoFilenameSetting = () => {
           </button>
         </div>
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-        Place your logo image (PNG/JPG) in the container&apos;s /image directory, then enter the filename here. Used in ECO PDF exports.
+
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+        Place logo image (PNG/JPG) in container&apos;s /image directory, then enter filename here. Header text prints beside logo in ECO PDF exports.
       </p>
     </div>
   );
@@ -89,7 +144,6 @@ const ECOSettings = () => {
   const { showSuccess, showError } = useNotification();
   const [formData, setFormData] = useState({
     prefix: 'ECO-',
-    leading_zeros: 6,
     next_number: 1
   });
   const [hasChanges, setHasChanges] = useState(false);
@@ -118,7 +172,6 @@ const ECOSettings = () => {
     if (ecoSettings) {
       setFormData({
         prefix: ecoSettings.prefix || 'ECO-',
-        leading_zeros: ecoSettings.leading_zeros || 6,
         next_number: ecoSettings.next_number || 1
       });
     }
@@ -149,7 +202,6 @@ const ECOSettings = () => {
   const handleSave = () => {
     saveMutation.mutate({
       prefix: formData.prefix,
-      leading_zeros: parseInt(formData.leading_zeros, 10),
       next_number: parseInt(formData.next_number, 10)
     });
   };
@@ -158,7 +210,6 @@ const ECOSettings = () => {
     if (ecoSettings) {
       setFormData({
         prefix: ecoSettings.prefix || 'ECO-',
-        leading_zeros: ecoSettings.leading_zeros || 6,
         next_number: ecoSettings.next_number || 1
       });
       setHasChanges(false);
@@ -167,8 +218,7 @@ const ECOSettings = () => {
 
   // Generate preview based on current form data
   const getPreview = () => {
-    const paddedNumber = String(formData.next_number).padStart(formData.leading_zeros, '0');
-    return formData.prefix + paddedNumber;
+    return formatEcoNumber(formData.prefix, formData.next_number);
   };
 
   if (isLoading) {
@@ -190,7 +240,7 @@ const ECOSettings = () => {
         Configure how Engineering Change Order (ECO) numbers are generated.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         {/* Prefix */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -206,24 +256,6 @@ const ECOSettings = () => {
           />
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Text that appears before the number (max 20 chars)
-          </p>
-        </div>
-
-        {/* Leading Zeros */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Number of Digits
-          </label>
-          <input
-            type="number"
-            value={formData.leading_zeros}
-            onChange={(e) => handleChange('leading_zeros', Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
-            min={1}
-            max={10}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Total digits with leading zeros (1-10)
           </p>
         </div>
 
@@ -298,8 +330,8 @@ const ECOSettings = () => {
       {/* Info */}
       <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          <strong>Note:</strong> Changes to the prefix or number of digits will only affect newly created ECOs.
-          Existing ECO numbers will not be modified.
+          <strong>Note:</strong> ECO numbers now use plain sequential numbers with no leading zero padding.
+          Prefix changes only affect newly created ECOs. Existing ECO numbers will not be modified.
         </p>
       </div>
     </div>
@@ -997,7 +1029,7 @@ const Settings = () => {
       <div className="space-y-6">
         <ECOSettings />
         <ApprovalStagesSettings />
-        <EcoLogoFilenameSetting />
+        <EcoPdfBrandingSetting />
       </div>
       )}
 

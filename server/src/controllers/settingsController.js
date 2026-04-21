@@ -6,6 +6,13 @@ import { gzipSync, gunzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
 import {
+  DEFAULT_ECO_PDF_HEADER,
+  DEFAULT_ECO_PREFIX,
+  formatEcoNumber,
+  normalizeEcoSettingsRow,
+  sanitizeEcoPdfHeaderText,
+} from '../services/ecoSettingsService.js';
+import {
   EXPECTED_SCHEMA_TABLES,
   EXPECTED_SCHEMA_VIEWS,
   REPAIRABLE_SCHEMA_COLUMNS,
@@ -1541,8 +1548,11 @@ export const importCategories = async (req, res) => {
 // Get ECO logo filename from admin_settings
 export const getEcoLogoFilename = async (req, res) => {
   try {
-    const result = await pool.query('SELECT eco_logo_filename FROM admin_settings LIMIT 1');
-    res.json({ eco_logo_filename: result.rows[0]?.eco_logo_filename || '' });
+    const result = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
+    res.json({
+      eco_logo_filename: result.rows[0]?.eco_logo_filename || '',
+      eco_pdf_header_text: sanitizeEcoPdfHeaderText(result.rows[0]?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER),
+    });
   } catch (error) {
     console.error('Error reading ECO logo filename:', error);
     res.status(500).json({ error: 'Failed to read ECO logo filename' });
@@ -1552,15 +1562,38 @@ export const getEcoLogoFilename = async (req, res) => {
 // Update ECO logo filename in admin_settings
 export const updateEcoLogoFilename = async (req, res) => {
   try {
-    const { eco_logo_filename } = req.body;
+    const { eco_logo_filename, eco_pdf_header_text } = req.body || {};
+
+    if (eco_logo_filename !== undefined && typeof eco_logo_filename !== 'string') {
+      return res.status(400).json({ error: 'eco_logo_filename must be a string' });
+    }
+
+    if (eco_pdf_header_text !== undefined && typeof eco_pdf_header_text !== 'string') {
+      return res.status(400).json({ error: 'eco_pdf_header_text must be a string' });
+    }
+
+    const existingResult = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
+    const existing = existingResult.rows[0] || {};
+    const nextLogoFilename = eco_logo_filename !== undefined
+      ? eco_logo_filename.trim()
+      : (existing.eco_logo_filename || '');
+    const nextHeaderText = eco_pdf_header_text !== undefined
+      ? sanitizeEcoPdfHeaderText(eco_pdf_header_text)
+      : sanitizeEcoPdfHeaderText(existing.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER);
+
     await pool.query(`
-      INSERT INTO admin_settings (eco_logo_filename)
-      VALUES ($1)
+      INSERT INTO admin_settings (eco_logo_filename, eco_pdf_header_text)
+      VALUES ($1, $2)
       ON CONFLICT ((1)) DO UPDATE SET
         eco_logo_filename = EXCLUDED.eco_logo_filename,
+        eco_pdf_header_text = EXCLUDED.eco_pdf_header_text,
         updated_at = CURRENT_TIMESTAMP
-    `, [eco_logo_filename || '']);
-    res.json({ success: true, eco_logo_filename: eco_logo_filename || '' });
+    `, [nextLogoFilename, nextHeaderText]);
+    res.json({
+      success: true,
+      eco_logo_filename: nextLogoFilename,
+      eco_pdf_header_text: nextHeaderText,
+    });
   } catch (error) {
     console.error('Error updating ECO logo filename:', error);
     res.status(500).json({ error: 'Failed to update ECO logo filename' });
@@ -1576,13 +1609,13 @@ export const getECOSettings = async (req, res) => {
       // Initialize with default values
       const initResult = await pool.query(`
         INSERT INTO eco_settings (prefix, leading_zeros, next_number)
-        VALUES ('ECO-', 6, 1)
+        VALUES ($1, 1, 1)
         RETURNING *
-      `);
-      return res.json(initResult.rows[0]);
+      `, [DEFAULT_ECO_PREFIX]);
+      return res.json(normalizeEcoSettingsRow(initResult.rows[0]));
     }
     
-    res.json(result.rows[0]);
+    res.json(normalizeEcoSettingsRow(result.rows[0]));
   } catch (error) {
     console.error('Error fetching ECO settings:', error);
     res.status(500).json({ 
@@ -1598,6 +1631,7 @@ export const getECOSettings = async (req, res) => {
 export const updateECOSettings = async (req, res) => {
   try {
     const { prefix, leading_zeros, next_number } = req.body;
+    const hasProvidedUpdates = prefix !== undefined || next_number !== undefined || leading_zeros !== undefined;
     
     // Validate inputs
     if (prefix !== undefined && (typeof prefix !== 'string' || prefix.length > 20)) {
@@ -1608,12 +1642,16 @@ export const updateECOSettings = async (req, res) => {
       return res.status(400).json({ error: 'Leading zeros must be a number between 1 and 10' });
     }
     
-    if (next_number !== undefined && (typeof next_number !== 'number' || next_number < 1)) {
+    if (next_number !== undefined && (!Number.isInteger(next_number) || next_number < 1)) {
       return res.status(400).json({ error: 'Next number must be a positive number' });
+    }
+
+    if (!hasProvidedUpdates) {
+      return res.status(400).json({ error: 'No valid fields to update' });
     }
     
     // Build update query dynamically based on provided fields
-    const updates = [];
+    const updates = ['leading_zeros = 1'];
     const values = [];
     let paramIndex = 1;
     
@@ -1622,25 +1660,14 @@ export const updateECOSettings = async (req, res) => {
       values.push(prefix);
     }
     
-    if (leading_zeros !== undefined) {
-      updates.push(`leading_zeros = $${paramIndex++}`);
-      values.push(leading_zeros);
-    }
-    
     if (next_number !== undefined) {
       updates.push(`next_number = $${paramIndex++}`);
       values.push(next_number);
     }
     
-    if (updates.length === 0) {
-      return res.status(400).json({ error: 'No valid fields to update' });
-    }
-    
-    updates.push('updated_at = CURRENT_TIMESTAMP');
-    
     const result = await pool.query(`
       UPDATE eco_settings
-      SET ${updates.join(', ')}
+      SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `, values);
     
@@ -1650,11 +1677,11 @@ export const updateECOSettings = async (req, res) => {
         INSERT INTO eco_settings (prefix, leading_zeros, next_number)
         VALUES ($1, $2, $3)
         RETURNING *
-      `, [prefix || 'ECO-', leading_zeros || 6, next_number || 1]);
-      return res.json(insertResult.rows[0]);
+      `, [prefix || DEFAULT_ECO_PREFIX, 1, next_number || 1]);
+      return res.json(normalizeEcoSettingsRow(insertResult.rows[0]));
     }
     
-    res.json(result.rows[0]);
+    res.json(normalizeEcoSettingsRow(result.rows[0]));
   } catch (error) {
     console.error('Error updating ECO settings:', error);
     res.status(500).json({ 
@@ -1672,11 +1699,11 @@ export const previewECONumber = async (req, res) => {
     const result = await pool.query('SELECT * FROM eco_settings LIMIT 1');
     
     if (result.rows.length === 0) {
-      return res.json({ preview: 'ECO-000001' });
+      return res.json({ preview: formatEcoNumber(DEFAULT_ECO_PREFIX, 1) });
     }
     
-    const settings = result.rows[0];
-    const preview = settings.prefix + settings.next_number.toString().padStart(settings.leading_zeros, '0');
+    const settings = normalizeEcoSettingsRow(result.rows[0]);
+    const preview = formatEcoNumber(settings.prefix, settings.next_number);
     
     res.json({ preview });
   } catch (error) {

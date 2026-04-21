@@ -1,9 +1,8 @@
 
 ## Commands
 
-- `./start.sh` — start dev server (client + server)
-- `./test.sh` — run all lint and tests
-- Terminal bug: first character may be dropped; prefix commands with a space
+- `./start.sh` — start dev server (client + server).
+- `./test.sh` — always run all lint and tests before ending the conversation.
 
 ## Project Structure
 
@@ -49,4 +48,5 @@ IC-Lib/
 
 ## Versioning
 
-- Update CHANGELOG.md `## [Unreleased]` section for every feature or fix
+- Always Update CHANGELOG.md `## [Unreleased]` section for every feature or fix at the end of chat session.
+- Use /caveman-commit to summarize all changes into a single commit message with bullet points before ending the conversation.

@@ -635,7 +635,7 @@ CREATE TABLE IF NOT EXISTS eco_approval_stages (
 CREATE TABLE IF NOT EXISTS eco_settings (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     prefix VARCHAR(20) NOT NULL DEFAULT 'ECO-',
-    leading_zeros INTEGER NOT NULL DEFAULT 6,
+    leading_zeros INTEGER NOT NULL DEFAULT 1,
     next_number INTEGER NOT NULL DEFAULT 1,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -649,7 +649,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_eco_settings_singleton ON eco_settings((1)
 -- Stores ECO header information
 CREATE TABLE IF NOT EXISTS eco_orders (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
-    eco_number VARCHAR(20) NOT NULL, -- Format: ECO-XXXXXX (reused across retries of same ECO)
+    eco_number VARCHAR(20) NOT NULL, -- Format: ECO-1 (reused across retries of same ECO)
     component_id UUID REFERENCES components(id) ON DELETE CASCADE,
     part_number VARCHAR(100) NOT NULL, -- Denormalized for quick access
     initiated_by UUID REFERENCES users(id),
@@ -803,11 +803,11 @@ BEGIN
 
     IF NOT FOUND THEN
         INSERT INTO eco_settings (prefix, leading_zeros, next_number)
-        VALUES ('ECO-', 6, 1)
+        VALUES ('ECO-', 1, 1)
         RETURNING * INTO settings_row;
     END IF;
 
-    eco_num := settings_row.prefix || LPAD(settings_row.next_number::TEXT, settings_row.leading_zeros, '0');
+    eco_num := settings_row.prefix || settings_row.next_number::TEXT;
 
     UPDATE eco_settings
     SET
@@ -941,6 +941,7 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_prefix VARCHAR(20) NOT NULL DEFAULT '',
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
     eco_logo_filename VARCHAR(200) DEFAULT '',
+    eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -972,6 +973,7 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_prefix VARCHAR(20) NOT NULL DEFAULT '',
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
     eco_logo_filename VARCHAR(200) DEFAULT '',
+    eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
@@ -996,6 +998,9 @@ ALTER TABLE eco_alternative_parts ADD COLUMN IF NOT EXISTS manufacturer_name VAR
 
 -- Add eco_logo_filename to admin_settings
 ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS eco_logo_filename VARCHAR(200) DEFAULT '';
+
+-- Add eco_pdf_header_text to admin_settings
+ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order';
 
 -- Remove unique constraint on stage_order to allow parallel stages (same order = parallel)
 ALTER TABLE eco_approval_stages DROP CONSTRAINT IF EXISTS unique_stage_order;

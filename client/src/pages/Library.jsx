@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { startTransition, useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -1218,55 +1218,141 @@ const Library = () => {
 
   // ECO-related functions
   const handleInitiateECO = async (component) => {
-    // Initialize states that don't depend on async data
-    setEcoChanges([]);
-    setEcoNotes('');
-    setEcoStatusProposal(null);
-    setLastRejectedECO(null);
-    setParentEcoId(null);
-    setRetryEcoNumber(null);
-    setEcoCadStagedFiles([]);
+    try {
+      const componentId = component.id;
 
-    // Fetch last rejected ECO for this component (non-blocking)
-    api.getLastRejectedECO(component.id)
-      .then(res => { if (res.data) setLastRejectedECO(res.data); })
-      .catch(() => {}); // Silently ignore if no rejected ECO
-    
-    // Load the component for editing (reuse handleEdit logic)
-    setSelectedComponent(component);
-    
-    // Set manufacturer input for type-ahead
-    const manufacturerName = manufacturers?.find(m => m.id === component?.manufacturer_id)?.name || '';
-    setManufacturerInput(manufacturerName);
-    
-    // Initialize alternative manufacturer inputs BEFORE entering edit mode
-    if (alternativesData && alternativesData.length > 0) {
-      const altMfrInputs = {};
-      alternativesData.forEach((alt, index) => {
-        const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
-        altMfrInputs[index] = mfrName;
+      // Initialize states that don't depend on async data
+      setEcoChanges([]);
+      setEcoNotes('');
+      setEcoStatusProposal(null);
+      setLastRejectedECO(null);
+      setParentEcoId(null);
+      setRetryEcoNumber(null);
+      setEcoCadStagedFiles([]);
+      setSelectedComponent(component);
+
+      // Fetch last rejected ECO for this component (non-blocking)
+      api.getLastRejectedECO(componentId)
+        .then(res => { if (res.data) setLastRejectedECO(res.data); })
+        .catch(() => {});
+
+      let currentComponentDetails = queryClient.getQueryData(['componentDetails', componentId]);
+      if (!currentComponentDetails && selectedComponent?.id === componentId && componentDetails) {
+        currentComponentDetails = componentDetails;
+      }
+
+      if (!currentComponentDetails) {
+        const [detailsResponse, specificationsResponse, distributorsResponse, cadFilesResponse] = await Promise.all([
+          api.getComponentById(componentId),
+          api.getComponentSpecifications(componentId),
+          api.getComponentDistributors(componentId),
+          api.getCadFilesForComponent(componentId),
+        ]);
+
+        currentComponentDetails = {
+          ...detailsResponse.data,
+          specifications: specificationsResponse.data,
+          distributors: distributorsResponse.data,
+          cadFilesLinked: cadFilesResponse.data?.files || {},
+        };
+        queryClient.setQueryData(['componentDetails', componentId], currentComponentDetails);
+      }
+
+      let currentAlternativesData = queryClient.getQueryData(['componentAlternatives', componentId]);
+      if (!currentAlternativesData && selectedComponent?.id === componentId && alternativesData) {
+        currentAlternativesData = alternativesData;
+      }
+
+      if (!currentAlternativesData) {
+        const alternativesResponse = await api.getComponentAlternatives(componentId);
+        currentAlternativesData = alternativesResponse.data;
+        queryClient.setQueryData(['componentAlternatives', componentId], currentAlternativesData);
+      }
+
+      const manufacturerName = manufacturers?.find(m => m.id === currentComponentDetails?.manufacturer_id)?.name || '';
+      setManufacturerInput(manufacturerName);
+
+      if (currentAlternativesData && currentAlternativesData.length > 0) {
+        const altMfrInputs = {};
+        currentAlternativesData.forEach((alt, index) => {
+          const mfrName = manufacturers?.find(m => m.id === alt.manufacturer_id)?.name || '';
+          altMfrInputs[index] = mfrName;
+        });
+        setAltManufacturerInputs(altMfrInputs);
+      } else {
+        setAltManufacturerInputs({});
+      }
+
+      const preparedData = {
+        ...currentComponentDetails,
+        manufacturer_id: currentComponentDetails?.manufacturer_id || '',
+        manufacturer_pn: currentComponentDetails?.manufacturer_pn || currentComponentDetails?.manufacturer_part_number || '',
+        manufacturer_part_number: currentComponentDetails?.manufacturer_pn || currentComponentDetails?.manufacturer_part_number || '',
+        specifications: currentComponentDetails?.specifications || [],
+        distributors: buildEditDistributors(currentComponentDetails?.distributors || [], distributors),
+        alternatives: currentAlternativesData && currentAlternativesData.length > 0
+          ? currentAlternativesData.map(alt => ({
+              id: alt.id,
+              manufacturer_id: alt.manufacturer_id,
+              manufacturer_pn: alt.manufacturer_pn,
+              distributors: normalizeDistributors(alt.distributors, distributors),
+            }))
+          : [],
+        _vendorSearchData: null,
+      };
+
+      startTransition(() => {
+        setEditData(preparedData);
+        setIsECOMode(true);
+        setIsEditMode(true);
+        setIsAddMode(false);
       });
-      setAltManufacturerInputs(altMfrInputs);
-    } else {
-      setAltManufacturerInputs({});
-    }
-    
-    // Store vendor data reference for ECO mode (auto-search DigiKey for suggested specs)
-    let vendorDataReference = null;
-    const digikeyDist = componentDetails?.distributors?.find(d => 
-      d.distributor_name?.toLowerCase() === 'digikey'
-    );
-    if (digikeyDist?.sku) {
-      try {
+
+      if (currentComponentDetails?.category_id) {
+        void api.getCategorySpecifications(currentComponentDetails.category_id)
+          .then(categorySpecsResponse => {
+            const categorySpecs = categorySpecsResponse.data || [];
+            setEditData(prev => {
+              if (!prev || prev.id !== componentId) {
+                return prev;
+              }
+
+              const existingSpecsMap = new Map((prev.specifications || []).map(spec => [spec.category_spec_id, spec]));
+              const mergedSpecifications = categorySpecs.map(catSpec => {
+                const existing = existingSpecsMap.get(catSpec.id);
+                return {
+                  category_spec_id: catSpec.id,
+                  spec_name: catSpec.spec_name,
+                  spec_value: existing?.spec_value || '',
+                  unit: catSpec.unit || '',
+                  mapping_spec_names: catSpec.mapping_spec_names || [],
+                  is_required: catSpec.is_required || false,
+                  display_order: catSpec.display_order || 0,
+                };
+              });
+
+              mergedSpecifications.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+              return { ...prev, specifications: mergedSpecifications };
+            });
+          })
+          .catch(error => {
+            console.error('[ECO] Error fetching category specifications:', error);
+          });
+      }
+
+      const digikeyDist = currentComponentDetails?.distributors?.find(d =>
+        d.distributor_name?.toLowerCase() === 'digikey'
+      );
+      if (digikeyDist?.sku) {
         console.log('[ECO] Auto-searching Digikey SKU for specifications:', digikeyDist.sku);
-        const searchResponse = await api.searchAllVendors(digikeyDist.sku);
-        
-        if (searchResponse.data) {
-          const searchResults = searchResponse.data;
-          const digikeyResult = searchResults.digikey?.results?.[0];
-          
-          if (digikeyResult) {
-            vendorDataReference = {
+        void api.searchAllVendors(digikeyDist.sku)
+          .then(searchResponse => {
+            const digikeyResult = searchResponse.data?.digikey?.results?.[0];
+            if (!digikeyResult) {
+              return;
+            }
+
+            const vendorDataReference = {
               source: 'digikey',
               manufacturerPartNumber: digikeyResult.manufacturerPartNumber,
               manufacturer: digikeyResult.manufacturer,
@@ -1282,77 +1368,26 @@ const Library = () => {
                 pricing: digikeyResult.pricing,
                 stock: digikeyResult.stock,
                 productUrl: digikeyResult.productUrl,
-                minimumOrderQuantity: digikeyResult.minimumOrderQuantity
-              }
+                minimumOrderQuantity: digikeyResult.minimumOrderQuantity,
+              },
             };
-          }
-        }
-      } catch (error) {
-        console.log('[ECO] Digikey search failed:', error.message);
-      }
-    }
-    
-    // Always show all 4 supported distributors in ECO mode
-    const editDistributors = buildEditDistributors(componentDetails?.distributors || [], distributors);
 
-    // Fetch category specifications and merge with existing
-    let editSpecifications = componentDetails?.specifications || [];
-    if (componentDetails?.category_id) {
-      try {
-        const categorySpecsResponse = await api.getCategorySpecifications(componentDetails.category_id);
-        const categorySpecs = categorySpecsResponse.data || [];
-        
-        const existingSpecsMap = new Map();
-        editSpecifications.forEach(spec => {
-          if (spec.category_spec_id) {
-            existingSpecsMap.set(spec.category_spec_id, spec);
-          }
-        });
-        
-        editSpecifications = categorySpecs.map(catSpec => {
-          const existing = existingSpecsMap.get(catSpec.id);
-          return {
-            category_spec_id: catSpec.id,
-            spec_name: catSpec.spec_name,
-            spec_value: existing?.spec_value || '',
-            unit: catSpec.unit || '',
-            mapping_spec_names: catSpec.mapping_spec_names || [],
-            is_required: catSpec.is_required || false,
-            display_order: catSpec.display_order || 0
-          };
-        });
-        
-        editSpecifications.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-      } catch (error) {
-        console.error('[ECO] Error fetching category specifications:', error);
-      }
-    }
+            setEditData(prev => {
+              if (!prev || prev.id !== componentId) {
+                return prev;
+              }
 
-    // Populate editData with all component details including alternatives
-    const preparedData = {
-      ...componentDetails,
-      manufacturer_id: componentDetails?.manufacturer_id || '',
-      manufacturer_pn: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
-      manufacturer_part_number: componentDetails?.manufacturer_pn || componentDetails?.manufacturer_part_number || '',
-      specifications: editSpecifications,
-      distributors: editDistributors,
-      alternatives: alternativesData && alternativesData.length > 0 
-        ? alternativesData.map(alt => ({
-            id: alt.id,
-            manufacturer_id: alt.manufacturer_id,
-            manufacturer_pn: alt.manufacturer_pn,
-            distributors: normalizeDistributors(alt.distributors, distributors)
-          }))
-        : [],
-      _vendorSearchData: vendorDataReference
-    };
-    setEditData(preparedData);
-    
-    // NOW set ECO mode and edit mode - after editData is fully populated
-    // This prevents the form from rendering with empty data
-    setIsECOMode(true);
-    setIsEditMode(true);
-    setIsAddMode(false);
+              return { ...prev, _vendorSearchData: vendorDataReference };
+            });
+          })
+          .catch(error => {
+            console.log('[ECO] Digikey search failed:', error.message);
+          });
+      }
+    } catch (error) {
+      console.error('[ECO] Failed to initialize ECO mode:', error);
+      showError('Failed to prepare ECO form. Please try again.');
+    }
   };
 
   // Retry a rejected ECO — pre-populate edit form with the rejected ECO's proposed new values

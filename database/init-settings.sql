@@ -52,7 +52,7 @@ WHERE NOT EXISTS (SELECT 1 FROM eco_approval_stages);
 -- ============================================================================
 
 INSERT INTO eco_settings (prefix, leading_zeros, next_number)
-SELECT 'ECO-', 6, 1
+SELECT 'ECO-', 1, 1
 WHERE NOT EXISTS (SELECT 1 FROM eco_settings);
 
 -- ============================================================================
@@ -65,12 +65,14 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_prefix_enabled BOOLEAN NOT NULL DEFAULT false,
     global_prefix VARCHAR(20) NOT NULL DEFAULT '',
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
+    eco_logo_filename VARCHAR(200) DEFAULT '',
+    eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
 
-INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros)
-SELECT false, '', 5
+INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros, eco_logo_filename, eco_pdf_header_text)
+SELECT false, '', 5, '', 'Engineer Change Order'
 WHERE NOT EXISTS (SELECT 1 FROM admin_settings);
 
 -- ============================================================================
