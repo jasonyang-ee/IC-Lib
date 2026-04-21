@@ -50,20 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
--
-
-### Changed
-
--
-
-### Fixed
-
--
-
-## [1.9.0] - 2026-03-20
-
-### Added
-
 - ECO PDF generation with company logo, component details, approval pipeline, vote history, and change tables
 - ECO retry/rejection workflow: rejected ECOs can be retried under the same ECO number, auto-populating previous changes (fields, specs, alternatives, distributors) for revision
 - Rejection history chain displayed in ECO expanded details and PDF, showing full change trail across unlimited rejection cycles
