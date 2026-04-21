@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
+import { formatPackageFilenameBase } from '../utils/cadFileNaming';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -397,10 +398,15 @@ const FileLibrary = () => {
     if (components && components.length > 0) {
       const pkg = components[0].package_size;
       if (pkg) {
+        const formattedPkg = formatPackageFilenameBase(pkg);
+        if (!formattedPkg) {
+          showError('Package name is empty after formatting');
+          return;
+        }
         const ext = renameData.oldName.includes('.')
           ? renameData.oldName.substring(renameData.oldName.lastIndexOf('.'))
           : '';
-        setRenameData(prev => ({ ...prev, newName: pkg + ext }));
+        setRenameData(prev => ({ ...prev, newName: formattedPkg + ext }));
       }
     }
   };

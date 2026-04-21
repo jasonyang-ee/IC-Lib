@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
+import { formatPackageFilenameBase } from '../../utils/cadFileNaming';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -446,9 +447,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const requestPkgRename = (category, filename, pairedFilename = null) => {
     if (!packageSize) return;
     const { suffix, ext } = extractDensitySuffix(filename);
-    const sanitizedPkg = packageSize
-      .replace(/[<>:"/\\|?*]/g, '_')
-      .replace(/\s+/g, '_');
+    const sanitizedPkg = formatPackageFilenameBase(packageSize);
+    if (!sanitizedPkg) {
+      showError('Package name is empty after formatting');
+      return;
+    }
     const newFilename = enforcePsmCase(sanitizedPkg + suffix + ext);
 
     if (newFilename === filename) {
