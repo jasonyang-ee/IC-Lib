@@ -623,7 +623,7 @@ CREATE TABLE IF NOT EXISTS eco_approval_stages (
     required_approvals INTEGER NOT NULL DEFAULT 1,
     required_role VARCHAR(50) NOT NULL DEFAULT 'approver',
     is_active BOOLEAN NOT NULL DEFAULT true,
-    pipeline_types TEXT[] NOT NULL DEFAULT '{general}',
+    pipeline_types TEXT[] NOT NULL DEFAULT '{proto_status_change,prod_status_change,spec,filename,distributor}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -655,7 +655,8 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     initiated_by UUID REFERENCES users(id),
     status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'in_review', 'approved', 'rejected'
     current_stage_order INTEGER, -- tracks which stage_order group the ECO is at
-    pipeline_type VARCHAR(50) NOT NULL DEFAULT 'general',
+    pipeline_type VARCHAR(50) NOT NULL DEFAULT 'spec',
+    pipeline_types TEXT[] NOT NULL DEFAULT '{spec}',
     approved_by UUID REFERENCES users(id),
     approved_at TIMESTAMP,
     rejection_reason TEXT,
@@ -663,7 +664,7 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     parent_eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL, -- Links to rejected predecessor ECO for retry chain
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected')),
-    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'))
+    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor'))
 );
 
 -- Table: eco_stage_approvers
@@ -1005,12 +1006,56 @@ ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS eco_pdf_header_text VARCHAR(
 -- Remove unique constraint on stage_order to allow parallel stages (same order = parallel)
 ALTER TABLE eco_approval_stages DROP CONSTRAINT IF EXISTS unique_stage_order;
 
--- Add pipeline_types to eco_approval_stages (which pipeline types a stage participates in)
-ALTER TABLE eco_approval_stages ADD COLUMN IF NOT EXISTS pipeline_types TEXT[] NOT NULL DEFAULT '{general}';
+-- Add pipeline_types to eco_approval_stages (which pipeline tags a stage participates in)
+ALTER TABLE eco_approval_stages ADD COLUMN IF NOT EXISTS pipeline_types TEXT[];
+UPDATE eco_approval_stages
+SET pipeline_types = (
+    SELECT ARRAY(
+        SELECT DISTINCT mapped_type
+        FROM (
+            SELECT unnest(
+                CASE
+                    WHEN eco_approval_stages.pipeline_types IS NULL OR array_length(eco_approval_stages.pipeline_types, 1) IS NULL THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor']::text[]
+                    WHEN array_length(eco_approval_stages.pipeline_types, 1) = 1 AND eco_approval_stages.pipeline_types[1] = 'general' THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor']::text[]
+                    ELSE eco_approval_stages.pipeline_types
+                END
+            ) AS original_type
+        ) AS original_types
+        CROSS JOIN LATERAL unnest(
+            CASE
+                WHEN original_type = 'status_change' THEN ARRAY['proto_status_change', 'prod_status_change']::text[]
+                WHEN original_type = 'spec_cad' THEN ARRAY['spec', 'filename']::text[]
+                WHEN original_type = 'general' THEN ARRAY['spec']::text[]
+                ELSE ARRAY[original_type]::text[]
+            END
+        ) AS mapped(mapped_type)
+    )
+)
+WHERE eco_approval_stages.pipeline_types IS NULL
+     OR array_length(eco_approval_stages.pipeline_types, 1) IS NULL
+     OR eco_approval_stages.pipeline_types && ARRAY['general', 'spec_cad', 'status_change']::text[];
+UPDATE eco_approval_stages
+SET pipeline_types = '{proto_status_change,prod_status_change,spec,filename,distributor}'::text[]
+WHERE pipeline_types IS NULL OR array_length(pipeline_types, 1) IS NULL;
+ALTER TABLE eco_approval_stages ALTER COLUMN pipeline_types SET DEFAULT '{proto_status_change,prod_status_change,spec,filename,distributor}';
+ALTER TABLE eco_approval_stages ALTER COLUMN pipeline_types SET NOT NULL;
 
 -- Migrate eco_orders from current_stage_id to current_stage_order
 ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS current_stage_order INTEGER;
-ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS pipeline_type VARCHAR(50) NOT NULL DEFAULT 'general';
+ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS pipeline_type VARCHAR(50) NOT NULL DEFAULT 'spec';
+ALTER TABLE eco_orders ADD COLUMN IF NOT EXISTS pipeline_types TEXT[];
+UPDATE eco_orders
+SET pipeline_types = CASE
+    WHEN pipeline_type = 'spec_cad' THEN ARRAY['spec', 'filename']::text[]
+    WHEN pipeline_type = 'general' THEN ARRAY['spec']::text[]
+    WHEN pipeline_type = 'status_change' THEN ARRAY['proto_status_change', 'prod_status_change']::text[]
+    WHEN pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor') THEN ARRAY[pipeline_type]::text[]
+    ELSE ARRAY['spec']::text[]
+END
+WHERE pipeline_types IS NULL OR array_length(pipeline_types, 1) IS NULL;
+ALTER TABLE eco_orders ALTER COLUMN pipeline_types SET DEFAULT '{spec}';
+UPDATE eco_orders SET pipeline_types = '{spec}'::text[] WHERE pipeline_types IS NULL OR array_length(pipeline_types, 1) IS NULL;
+ALTER TABLE eco_orders ALTER COLUMN pipeline_types SET NOT NULL;
 
 -- Backfill current_stage_order from current_stage_id for existing records
 DO $$
@@ -1094,14 +1139,13 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
 WHERE c.approval_status = 'prototype';
 
--- Split status_change pipeline type into proto_status_change and prod_status_change
+-- Replace legacy ECO pipeline tags with lifecycle and content tags
 DO $$
 BEGIN
   ALTER TABLE eco_orders DROP CONSTRAINT IF EXISTS check_pipeline_type;
   UPDATE eco_orders SET pipeline_type = 'proto_status_change' WHERE pipeline_type = 'status_change';
-  ALTER TABLE eco_orders ADD CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'));
-  -- Update approval stages pipeline_types array
-  UPDATE eco_approval_stages SET pipeline_types = array_replace(pipeline_types, 'status_change', 'proto_status_change');
+    UPDATE eco_orders SET pipeline_type = 'spec' WHERE pipeline_type IN ('general', 'spec_cad');
+    ALTER TABLE eco_orders ADD CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor'));
 END $$;
 
 -- Add parent_eco_id for ECO retry/rejection chain tracking

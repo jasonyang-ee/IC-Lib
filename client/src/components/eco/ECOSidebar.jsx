@@ -1,14 +1,6 @@
 import { forwardRef } from 'react';
 import { Search, X, Filter } from 'lucide-react';
-
-const PIPELINE_TYPE_FILTER_OPTIONS = [
-  { value: '', label: 'All Types' },
-  { value: 'general', label: 'General' },
-  { value: 'proto_status_change', label: 'Prototype Status Change' },
-  { value: 'prod_status_change', label: 'Production Status Change' },
-  { value: 'spec_cad', label: 'Spec/CAD' },
-  { value: 'distributor', label: 'Distributor' },
-];
+import { PIPELINE_TYPE_FILTER_OPTIONS } from '../../utils/ecoPipelineTypes';
 
 const ECOSidebar = forwardRef(({
   selectedStatus,
@@ -129,10 +121,10 @@ const ECOSidebar = forwardRef(({
         </select>
       </div>
 
-      {/* Pipeline Type Filter */}
+      {/* ECO Tag Filter */}
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          Pipeline Type
+          ECO Tag
         </label>
         <select
           value={pipelineTypeFilter || ''}

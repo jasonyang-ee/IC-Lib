@@ -10,12 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - ECO PDF branding now supports custom header text alongside configurable logo filename in admin settings
+- ECO approval stage settings can now be exported and restored from JSON backups, including stage order, tags, and assigned approvers with missing users skipped during import
 
 ### Changed
 
 - Client utility tests now live under `client/src/test` instead of `client/src/utils`, keeping production helpers and test files separated
 - ECO numbering now uses plain sequential values without leading zero padding, and the admin ECO settings preview matches saved output
 - ECO initiation from Parts Library now opens immediately and loads vendor/spec enrichment in background instead of blocking on vendor API calls
+- ECO approval stages now use separate `Spec`, `Filename`, and `Distributor` tags, with `General` removed and ECOs able to carry multiple approval tags at once
 
 ### Fixed
 
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Empty ECO submissions are rejected before they consume an ECO number or enter approval flow
 - Category-change ECO approvals now regenerate copied CAD text fields on the newly created component, keeping CAD link tables and exported TEXT fields aligned
 - ECO mode now allows renaming staged temp CAD uploads before approval, including keeping paired footprint temp files in sync
+- Production-part ECOs now carry a production approval tag for spec, filename, and distributor changes, and inventory-only distributor payloads no longer create approval tags
 
 ## [1.9.2] - 2026-04-21
 

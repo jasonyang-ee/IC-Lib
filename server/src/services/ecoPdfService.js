@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { DEFAULT_ECO_PDF_HEADER } from './ecoSettingsService.js';
+import { ECO_PIPELINE_TYPE_LABELS, getEcoPipelineTypes } from './ecoPipelineService.js';
 
 // Colors
 const COLORS = {
@@ -290,10 +291,10 @@ export const generateECOPdf = (ecoData, options = {}) => {
   }
   // "Approved By" removed — redundant with Approval Progress table
 
-  // Pipeline type
-  if (ecoData.pipeline_type && ecoData.pipeline_type !== 'general') {
-    const typeLabels = { proto_status_change: 'Prototype Status Change', prod_status_change: 'Production Status Change', spec_cad: 'Spec/CAD', distributor: 'Distributor' };
-    renderMetaLine(`Pipeline: ${typeLabels[ecoData.pipeline_type] || ecoData.pipeline_type}`);
+  // ECO tags
+  const pipelineTags = getEcoPipelineTypes(ecoData);
+  if (pipelineTags.length > 0) {
+    renderMetaLine(`Tags: ${pipelineTags.map((pipelineType) => ECO_PIPELINE_TYPE_LABELS[pipelineType] || pipelineType).join(', ')}`);
   }
 
   // Notes

@@ -9,6 +9,8 @@ import {
   deleteECO,
   generateECOPDFEndpoint,
   getApprovalStages,
+  exportApprovalStages,
+  importApprovalStages,
   createApprovalStage,
   updateApprovalStage,
   deleteApprovalStage,
@@ -24,6 +26,8 @@ router.use(authenticate);
 
 // Approval stage management routes (admin only) — must be before /:id
 router.get('/stages', getApprovalStages);
+router.post('/stages/export', isAdmin, exportApprovalStages);
+router.post('/stages/import', isAdmin, importApprovalStages);
 router.post('/stages', isAdmin, createApprovalStage);
 router.put('/stages/reorder', isAdmin, reorderApprovalStages);
 router.put('/stages/:id', isAdmin, updateApprovalStage);

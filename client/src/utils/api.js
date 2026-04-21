@@ -303,6 +303,8 @@ export const api = {
 
   // ECO Approval Stages
   getApprovalStages: () => apiClient.get('/eco/stages'),
+  exportApprovalStages: () => apiClient.post('/eco/stages/export'),
+  importApprovalStages: (stages) => apiClient.post('/eco/stages/import', { stages }),
   createApprovalStage: (data) => apiClient.post('/eco/stages', data),
   updateApprovalStage: (id, data) => apiClient.put(`/eco/stages/${id}`, data),
   deleteApprovalStage: (id) => apiClient.delete(`/eco/stages/${id}`),

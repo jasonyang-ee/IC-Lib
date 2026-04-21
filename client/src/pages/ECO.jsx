@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
+import { ecoMatchesPipelineType } from '../utils/ecoPipelineTypes';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { ECOSidebar, ECOListItem, RejectModal } from '../components/eco';
@@ -54,8 +55,7 @@ const ECO = () => {
     const matchesInitiatedBy = !initiatedByFilter ||
       eco.initiated_by_name === initiatedByFilter;
 
-    const matchesPipelineType = !pipelineTypeFilter ||
-      eco.pipeline_type === pipelineTypeFilter;
+    const matchesPipelineType = ecoMatchesPipelineType(eco, pipelineTypeFilter);
 
     return matchesSearch && matchesEcoNumber && matchesInitiatedBy && matchesPipelineType;
   });

@@ -1,4 +1,5 @@
 import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Link2, Unlink2, Download } from 'lucide-react';
+import { PIPELINE_TYPE_COLORS, PIPELINE_TYPE_LABELS, getEcoPipelineTypes } from '../../utils/ecoPipelineTypes';
 
 const getStatusBadge = (status) => {
   const styles = {
@@ -37,22 +38,6 @@ const getApprovalStatusBadge = (status) => {
   return styles[status] || styles.new;
 };
 
-const PIPELINE_TYPE_COLORS = {
-  general: '',
-  proto_status_change: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  prod_status_change: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  spec_cad: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  distributor: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-};
-
-const PIPELINE_TYPE_LABELS = {
-  general: 'General',
-  proto_status_change: 'Prototype Status Change',
-  prod_status_change: 'Production Status Change',
-  spec_cad: 'Spec/CAD',
-  distributor: 'Distributor',
-};
-
 const isPendingApproval = (status) => status === 'pending' || status === 'in_review';
 
 const ECOListItem = ({
@@ -71,6 +56,8 @@ const ECOListItem = ({
   rejectPending
 }) => {
   const isExpanded = expandedECO === eco.id;
+  const ecoPipelineTypes = getEcoPipelineTypes(eco);
+  const ecoDetailPipelineTypes = getEcoPipelineTypes(ecoDetails);
 
   // Group stages by stage_order for parallel display
   const groupStagesByOrder = (stages) => {
@@ -96,11 +83,14 @@ const ECOListItem = ({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {eco.eco_number}
               </h3>
-              {/* Pipeline type badge (non-general only) */}
-              {eco.pipeline_type && eco.pipeline_type !== 'general' && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[eco.pipeline_type] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                  {PIPELINE_TYPE_LABELS[eco.pipeline_type] || eco.pipeline_type}
-                </span>
+              {ecoPipelineTypes.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {ecoPipelineTypes.map((pipelineType) => (
+                    <span key={pipelineType} className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[pipelineType] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                      {PIPELINE_TYPE_LABELS[pipelineType] || pipelineType}
+                    </span>
+                  ))}
+                </div>
               )}
               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getStatusBadge(eco.status)}`}>
                 {getStatusIcon(eco.status)}
@@ -211,13 +201,16 @@ const ECOListItem = ({
           ) : ecoDetails ? (
             <div className="space-y-4">
 
-              {/* Pipeline type badge in details */}
-              {ecoDetails.pipeline_type && ecoDetails.pipeline_type !== 'general' && (
+              {ecoDetailPipelineTypes.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pipeline:</span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[ecoDetails.pipeline_type] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    {PIPELINE_TYPE_LABELS[ecoDetails.pipeline_type] || ecoDetails.pipeline_type}
-                  </span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tags:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {ecoDetailPipelineTypes.map((pipelineType) => (
+                      <span key={pipelineType} className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${PIPELINE_TYPE_COLORS[pipelineType] || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                        {PIPELINE_TYPE_LABELS[pipelineType] || pipelineType}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 

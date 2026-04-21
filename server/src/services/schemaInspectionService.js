@@ -57,6 +57,7 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'admin_settings', column: 'eco_pdf_header_text' },
   { table: 'eco_orders', column: 'current_stage_order' },
   { table: 'eco_orders', column: 'pipeline_type' },
+  { table: 'eco_orders', column: 'pipeline_types' },
   { table: 'eco_approval_stages', column: 'pipeline_types' },
   { table: 'eco_alternative_parts', column: 'distributors' },
   { table: 'eco_alternative_parts', column: 'manufacturer_name' },

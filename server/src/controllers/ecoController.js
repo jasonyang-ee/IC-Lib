@@ -8,7 +8,22 @@ import {
   formatEcoNumber,
   sanitizeEcoPdfHeaderText,
 } from '../services/ecoSettingsService.js';
-import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
+import {
+  DEFAULT_STAGE_PIPELINE_TYPES,
+  VALID_ECO_PIPELINE_TYPES,
+  detectEcoPipelineTypes,
+  doesStageMatchEcoPipelineTypes,
+  getEcoPipelineTypes,
+  getPrimaryEcoPipelineType,
+  normalizeStagePipelineTypes,
+} from '../services/ecoPipelineService.js';
+import {
+  ApprovalStageImportValidationError,
+  buildApprovalStageExportData,
+  normalizeImportedApprovalStages,
+  resolveImportedApproverIds,
+} from '../services/ecoApprovalStageBackupService.js';
+import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
 // Whitelist of valid component field names to prevent SQL injection
@@ -212,6 +227,25 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
   return chain;
 };
 
+const normalizeStageRecord = (stage) => ({
+  ...stage,
+  pipeline_types: normalizeStagePipelineTypes(stage.pipeline_types),
+});
+
+const getMatchingStagesForEco = (stages, eco, { fallbackToAll = false } = {}) => {
+  const normalizedStages = stages.map(normalizeStageRecord);
+  const ecoPipelineTypes = getEcoPipelineTypes(eco);
+  const matchingStages = normalizedStages.filter((stage) => (
+    doesStageMatchEcoPipelineTypes(stage.pipeline_types, ecoPipelineTypes)
+  ));
+
+  if (matchingStages.length > 0) {
+    return matchingStages;
+  }
+
+  return fallbackToAll ? normalizedStages : [];
+};
+
 // Get all ECO orders with details
 export const getAllECOs = async (req, res) => {
   try {
@@ -229,16 +263,23 @@ export const getAllECOs = async (req, res) => {
         m.name as manufacturer_name,
         (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
          FROM eco_approval_stages eas
-         WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+         WHERE eas.is_active = true
+           AND eas.stage_order = eo.current_stage_order
+           AND eas.pipeline_types && eo.pipeline_types
         ) as current_stage_names,
         (SELECT SUM(eas.required_approvals)
          FROM eco_approval_stages eas
-         WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+         WHERE eas.is_active = true
+           AND eas.stage_order = eo.current_stage_order
+           AND eas.pipeline_types && eo.pipeline_types
         ) as current_stage_required_approvals,
         (SELECT COUNT(*)
          FROM eco_approvals ea
          JOIN eco_approval_stages eas2 ON ea.stage_id = eas2.id
-         WHERE ea.eco_id = eo.id AND eas2.stage_order = eo.current_stage_order AND ea.decision = 'approved'
+         WHERE ea.eco_id = eo.id
+           AND eas2.stage_order = eo.current_stage_order
+           AND eas2.pipeline_types && eo.pipeline_types
+           AND ea.decision = 'approved'
         ) as current_stage_approval_count
       FROM eco_orders eo
       LEFT JOIN users u1 ON eo.initiated_by = u1.id
@@ -315,11 +356,15 @@ export const getECOById = async (req, res) => {
         m.name as manufacturer_name,
         (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
          FROM eco_approval_stages eas
-         WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+         WHERE eas.is_active = true
+           AND eas.stage_order = eo.current_stage_order
+           AND eas.pipeline_types && eo.pipeline_types
         ) as current_stage_names,
         (SELECT SUM(eas.required_approvals)
          FROM eco_approval_stages eas
-         WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+         WHERE eas.is_active = true
+           AND eas.stage_order = eo.current_stage_order
+           AND eas.pipeline_types && eo.pipeline_types
         ) as current_stage_required_approvals
       FROM eco_orders eo
       LEFT JOIN users u1 ON eo.initiated_by = u1.id
@@ -443,16 +488,7 @@ export const getECOById = async (req, res) => {
       ORDER BY eas.stage_order
     `;
     let stagesResult = await client.query(stagesQuery, [id]);
-    // Filter by pipeline type if the ECO has one
-    if (eco.pipeline_type) {
-      const filtered = stagesResult.rows.filter(s =>
-        Array.isArray(s.pipeline_types) && s.pipeline_types.includes(eco.pipeline_type),
-      );
-      // Only use filtered results if at least one stage matches; otherwise show all
-      if (filtered.length > 0) {
-        stagesResult = { rows: filtered };
-      }
-    }
+    stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
 
     // Get CAD file changes
     const cadFilesResult = await client.query(`
@@ -620,25 +656,6 @@ export const getLastRejectedECOByComponent = async (req, res) => {
   }
 };
 
-// Helper: detect pipeline type based on what changes are included
-const detectPipelineType = (changes = [], specifications = [], cad_files = [], distributors = [], alternatives = []) => {
-  const hasStatusChange = changes.some(c => c.field_name === '_status_proposal');
-  const hasSpecChanges = specifications.length > 0;
-  const hasCadChanges = cad_files.length > 0;
-  const hasFieldChanges = changes.some(c => c.field_name !== '_status_proposal');
-  const hasDistributorChanges = distributors.length > 0;
-  const hasAlternativeChanges = alternatives.length > 0;
-
-  if (hasStatusChange && !hasSpecChanges && !hasCadChanges && !hasFieldChanges && !hasDistributorChanges && !hasAlternativeChanges) {
-    const statusChange = changes.find(c => c.field_name === '_status_proposal');
-    if (statusChange?.new_value === 'prototype') return 'proto_status_change';
-    if (statusChange?.new_value === 'production') return 'prod_status_change';
-  }
-  if (hasSpecChanges || hasCadChanges) return 'spec_cad';
-  if ((hasDistributorChanges || hasAlternativeChanges) && !hasFieldChanges && !hasSpecChanges && !hasCadChanges && !hasStatusChange) return 'distributor';
-  return 'general';
-};
-
 // Create new ECO order
 export const createECO = async (req, res) => {
   const client = await pool.connect();
@@ -673,11 +690,19 @@ export const createECO = async (req, res) => {
     const categoryChange = Array.isArray(changes)
       ? changes.find(change => change.field_name === 'category_id' && change.new_value)
       : null;
-    let specificationCategoryId = categoryChange?.new_value || null;
 
-    if (!specificationCategoryId && component_id) {
-      specificationCategoryId = await getComponentCategoryId(client, component_id);
+    const componentContextResult = await client.query(
+      'SELECT category_id, approval_status FROM components WHERE id = $1',
+      [component_id],
+    );
+
+    if (componentContextResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Component not found' });
     }
+
+    const componentContext = componentContextResult.rows[0];
+    const specificationCategoryId = categoryChange?.new_value || componentContext.category_id || null;
 
     const resolvedSpecifications = [];
     if (specifications && specifications.length > 0) {
@@ -704,22 +729,42 @@ export const createECO = async (req, res) => {
       ecoNumber = await consumeNextEcoNumber(client);
     }
 
-    // Detect pipeline type based on changes
-    const pipelineType = detectPipelineType(changes, resolvedSpecifications, cad_files, distributors, alternatives);
+    const pipelineTypes = detectEcoPipelineTypes({
+      changes,
+      specifications: resolvedSpecifications,
+      cadFiles: cad_files,
+      distributors,
+      alternatives,
+      currentApprovalStatus: componentContext.approval_status,
+    });
 
-    // Get the first active approval stage order for this pipeline type
-    const firstStageResult = await client.query(`
-      SELECT MIN(stage_order) as min_order FROM eco_approval_stages
-      WHERE is_active = true AND $1 = ANY(pipeline_types)
-    `, [pipelineType]);
-    const firstStageOrder = firstStageResult.rows[0]?.min_order || null;
+    if (pipelineTypes.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'ECO requires at least one approval-relevant change' });
+    }
+
+    const pipelineType = getPrimaryEcoPipelineType(pipelineTypes);
+
+    const stageOrderResult = await client.query(`
+      SELECT stage_order, pipeline_types
+      FROM eco_approval_stages
+      WHERE is_active = true
+      ORDER BY stage_order ASC, id ASC
+    `);
+    const matchingStageOrders = stageOrderResult.rows
+      .filter((stage) => doesStageMatchEcoPipelineTypes(stage.pipeline_types, pipelineTypes))
+      .map((stage) => stage.stage_order)
+      .filter((stageOrder) => stageOrder !== null && stageOrder !== undefined);
+    const firstStageOrder = matchingStageOrders.length > 0
+      ? Math.min(...matchingStageOrders)
+      : null;
 
     // Create ECO order with current_stage_order and pipeline_type
     const ecoResult = await client.query(`
-      INSERT INTO eco_orders (eco_number, component_id, part_number, initiated_by, notes, current_stage_order, pipeline_type, parent_eco_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO eco_orders (eco_number, component_id, part_number, initiated_by, notes, current_stage_order, pipeline_type, pipeline_types, parent_eco_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [ecoNumber, component_id, part_number, req.user.id, notes || null, firstStageOrder, pipelineType, parent_eco_id || null]);
+    `, [ecoNumber, component_id, part_number, req.user.id, notes || null, firstStageOrder, pipelineType, pipelineTypes, parent_eco_id || null]);
     
     const ecoId = ecoResult.rows[0].id;
     
@@ -1362,10 +1407,10 @@ export const approveECO = async (req, res) => {
     // Fetch ALL active stages at the current order, filtered by pipeline type
     const currentStagesResult = await client.query(`
       SELECT * FROM eco_approval_stages
-      WHERE is_active = true AND stage_order = $1 AND $2 = ANY(pipeline_types)
+      WHERE is_active = true AND stage_order = $1
       ORDER BY id
-    `, [currentStageOrder, eco.pipeline_type]);
-    const currentStages = currentStagesResult.rows;
+    `, [currentStageOrder]);
+    const currentStages = getMatchingStagesForEco(currentStagesResult.rows, eco);
 
     if (currentStages.length === 0) {
       return res.status(400).json({ error: 'No active approval stages found for the current stage order and pipeline type.' });
@@ -1440,11 +1485,16 @@ export const approveECO = async (req, res) => {
     if (allStagesComplete) {
       // All stages at current order complete — find next stage order
       const nextStageResult = await client.query(`
-        SELECT MIN(stage_order) as next_order FROM eco_approval_stages
-        WHERE is_active = true AND stage_order > $1 AND $2 = ANY(pipeline_types)
-      `, [currentStageOrder, eco.pipeline_type]);
+        SELECT stage_name, stage_order, pipeline_types
+        FROM eco_approval_stages
+        WHERE is_active = true AND stage_order > $1
+        ORDER BY stage_order ASC, id ASC
+      `, [currentStageOrder]);
 
-      const nextOrder = nextStageResult.rows[0]?.next_order;
+      const nextMatchingStages = getMatchingStagesForEco(nextStageResult.rows, eco);
+      const nextOrder = nextMatchingStages.length > 0
+        ? Math.min(...nextMatchingStages.map((stage) => stage.stage_order))
+        : null;
 
       if (nextOrder) {
         // Advance to next stage order
@@ -1454,12 +1504,12 @@ export const approveECO = async (req, res) => {
         );
 
         // Get stage names for logging/notification
-        const nextStageNames = await client.query(
-          "SELECT string_agg(stage_name, ', ' ORDER BY id) as names FROM eco_approval_stages WHERE is_active = true AND stage_order = $1 AND $2 = ANY(pipeline_types)",
-          [nextOrder, eco.pipeline_type],
-        );
+        const nextStageNames = nextMatchingStages
+          .filter((stage) => stage.stage_order === nextOrder)
+          .map((stage) => stage.stage_name)
+          .join(', ');
         const currentStageNames = currentStages.map(s => s.stage_name).join(', ');
-        const nextNames = nextStageNames.rows[0]?.names || 'Next stage';
+        const nextNames = nextStageNames || 'Next stage';
 
         await logECOActivity(client, eco, 'eco_stage_advanced', {
           from_stage: currentStageNames,
@@ -1577,10 +1627,10 @@ export const rejectECO = async (req, res) => {
       // Fetch all active stages at this order for the ECO's pipeline type
       const currentStagesResult = await client.query(`
         SELECT * FROM eco_approval_stages
-        WHERE is_active = true AND stage_order = $1 AND $2 = ANY(pipeline_types)
+        WHERE is_active = true AND stage_order = $1
         ORDER BY id
-      `, [currentStageOrder, eco.pipeline_type]);
-      const currentStages = currentStagesResult.rows;
+      `, [currentStageOrder]);
+      const currentStages = getMatchingStagesForEco(currentStagesResult.rows, eco);
 
       // Find which stage the user is eligible to vote on
       let eligibleStage = null;
@@ -1679,7 +1729,9 @@ export const generateECOPDFEndpoint = async (req, res) => {
         c.description as component_description,
         (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
          FROM eco_approval_stages eas
-         WHERE eas.is_active = true AND eas.stage_order = eo.current_stage_order
+         WHERE eas.is_active = true
+           AND eas.stage_order = eo.current_stage_order
+           AND eas.pipeline_types && eo.pipeline_types
         ) as current_stage_names
       FROM eco_orders eo
       LEFT JOIN users u1 ON eo.initiated_by = u1.id
@@ -1784,14 +1836,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
       ORDER BY eas.stage_order
     `;
     let stagesResult = await client.query(pdfStagesQuery, [id]);
-    if (eco.pipeline_type) {
-      const filtered = stagesResult.rows.filter(s =>
-        Array.isArray(s.pipeline_types) && s.pipeline_types.includes(eco.pipeline_type),
-      );
-      if (filtered.length > 0) {
-        stagesResult = { rows: filtered };
-      }
-    }
+    stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
 
     const cadFilesResult = await client.query(`
       SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
@@ -1910,10 +1955,173 @@ export const getApprovalStages = async (req, res) => {
       FROM eco_approval_stages eas
       ORDER BY eas.stage_order ASC
     `);
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeStageRecord));
   } catch (error) {
     console.error('Error fetching approval stages:', error);
     res.status(500).json({ error: 'Failed to fetch approval stages' });
+  }
+};
+
+export const exportApprovalStages = async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        eas.stage_name,
+        eas.stage_order,
+        eas.required_approvals,
+        eas.required_role,
+        eas.is_active,
+        eas.pipeline_types,
+        COALESCE(
+          (SELECT json_agg(json_build_object('username', u.username, 'role', u.role) ORDER BY u.username)
+           FROM eco_stage_approvers esa
+           JOIN users u ON esa.user_id = u.id
+           WHERE esa.stage_id = eas.id
+          ), '[]'::json
+        ) as assigned_approvers
+      FROM eco_approval_stages eas
+      ORDER BY eas.stage_order ASC, eas.id ASC
+    `);
+
+    res.json({
+      success: true,
+      data: buildApprovalStageExportData({
+        stages: result.rows,
+        exportedBy: req.user?.username,
+      }),
+    });
+  } catch (error) {
+    console.error('Error exporting approval stages:', error);
+    res.status(500).json({ error: 'Failed to export approval stages' });
+  }
+};
+
+export const importApprovalStages = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const importedStages = normalizeImportedApprovalStages(req.body?.stages);
+    const results = {
+      stages: { created: 0, updated: 0, deactivated: 0 },
+      approvers: { assigned: 0, skipped: 0, skipped_users: [] },
+    };
+
+    await client.query('BEGIN');
+
+    const existingStagesResult = await client.query(`
+      SELECT id, stage_order
+      FROM eco_approval_stages
+      ORDER BY stage_order ASC, id ASC
+    `);
+    const usersResult = await client.query(`
+      SELECT id, username
+      FROM users
+      WHERE is_active = true
+    `);
+
+    const existingStages = existingStagesResult.rows;
+    const highestImportedStageOrder = importedStages.reduce(
+      (highestOrder, stage) => Math.max(highestOrder, stage.stage_order),
+      0,
+    );
+
+    for (let index = 0; index < importedStages.length; index += 1) {
+      const stage = importedStages[index];
+      const existingStage = existingStages[index];
+
+      let stageId = existingStage?.id;
+
+      if (stageId) {
+        await client.query(`
+          UPDATE eco_approval_stages
+          SET stage_name = $1,
+              stage_order = $2,
+              required_approvals = $3,
+              required_role = $4,
+              is_active = $5,
+              pipeline_types = $6,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $7
+        `, [
+          stage.stage_name,
+          stage.stage_order,
+          stage.required_approvals,
+          stage.required_role,
+          stage.is_active,
+          stage.pipeline_types,
+          stageId,
+        ]);
+        results.stages.updated += 1;
+      } else {
+        const insertResult = await client.query(`
+          INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, required_role, is_active, pipeline_types)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id
+        `, [
+          stage.stage_name,
+          stage.stage_order,
+          stage.required_approvals,
+          stage.required_role,
+          stage.is_active,
+          stage.pipeline_types,
+        ]);
+        stageId = insertResult.rows[0].id;
+        results.stages.created += 1;
+      }
+
+      await client.query('DELETE FROM eco_stage_approvers WHERE stage_id = $1', [stageId]);
+
+      const { assignedUserIds, skippedUsernames } = resolveImportedApproverIds(
+        stage.assigned_approver_usernames,
+        usersResult.rows,
+      );
+
+      if (assignedUserIds.length > 0) {
+        const values = assignedUserIds.map((userId, userIndex) => `($1, $${userIndex + 2})`).join(', ');
+        await client.query(
+          `INSERT INTO eco_stage_approvers (stage_id, user_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+          [stageId, ...assignedUserIds],
+        );
+      }
+
+      results.approvers.assigned += assignedUserIds.length;
+      results.approvers.skipped += skippedUsernames.length;
+      results.approvers.skipped_users.push(
+        ...skippedUsernames.map((username) => ({ stage_name: stage.stage_name, username })),
+      );
+    }
+
+    for (let index = importedStages.length; index < existingStages.length; index += 1) {
+      const stage = existingStages[index];
+
+      await client.query(
+        'DELETE FROM eco_stage_approvers WHERE stage_id = $1',
+        [stage.id],
+      );
+      await client.query(`
+        UPDATE eco_approval_stages
+        SET is_active = false,
+            stage_order = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [highestImportedStageOrder + (index - importedStages.length) + 1, stage.id]);
+      results.stages.deactivated += 1;
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Approval stages imported successfully',
+      results,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error importing approval stages:', error);
+    const statusCode = error instanceof ApprovalStageImportValidationError ? 400 : 500;
+    res.status(statusCode).json({ error: error.message || 'Failed to import approval stages' });
+  } finally {
+    client.release();
   }
 };
 
@@ -1926,15 +2134,14 @@ export const createApprovalStage = async (req, res) => {
       return res.status(400).json({ error: 'Stage name is required' });
     }
 
-    // Validate pipeline_types values
-    const validPipelineTypes = ['proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'];
-    const resolvedPipelineTypes = Array.isArray(pipeline_types) && pipeline_types.length > 0
-      ? pipeline_types
-      : ['general'];
-    const invalidTypes = resolvedPipelineTypes.filter(t => !validPipelineTypes.includes(t));
+    const requestedPipelineTypes = Array.isArray(pipeline_types) ? pipeline_types : [];
+    const invalidTypes = requestedPipelineTypes.filter((pipelineType) => !VALID_ECO_PIPELINE_TYPES.includes(pipelineType));
     if (invalidTypes.length > 0) {
-      return res.status(400).json({ error: `Invalid pipeline types: ${invalidTypes.join(', ')}. Valid values: ${validPipelineTypes.join(', ')}` });
+      return res.status(400).json({ error: `Invalid pipeline types: ${invalidTypes.join(', ')}. Valid values: ${VALID_ECO_PIPELINE_TYPES.join(', ')}` });
     }
+    const resolvedPipelineTypes = requestedPipelineTypes.length > 0
+      ? normalizeStagePipelineTypes(requestedPipelineTypes)
+      : [...DEFAULT_STAGE_PIPELINE_TYPES];
 
     // Get the next stage_order
     const maxOrderResult = await pool.query(
@@ -1948,7 +2155,7 @@ export const createApprovalStage = async (req, res) => {
       RETURNING *
     `, [stage_name, nextOrder, required_approvals || 1, required_role || 'approver', resolvedPipelineTypes]);
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
     console.error('Error creating approval stage:', error);
     res.status(500).json({ error: 'Failed to create approval stage' });
@@ -1963,15 +2170,18 @@ export const updateApprovalStage = async (req, res) => {
 
     // Validate pipeline_types if provided
     if (pipeline_types !== undefined) {
-      const validPipelineTypes = ['proto_status_change', 'prod_status_change', 'spec_cad', 'distributor', 'general'];
       if (!Array.isArray(pipeline_types) || pipeline_types.length === 0) {
         return res.status(400).json({ error: 'pipeline_types must be a non-empty array' });
       }
-      const invalidTypes = pipeline_types.filter(t => !validPipelineTypes.includes(t));
+      const invalidTypes = pipeline_types.filter((pipelineType) => !VALID_ECO_PIPELINE_TYPES.includes(pipelineType));
       if (invalidTypes.length > 0) {
-        return res.status(400).json({ error: `Invalid pipeline types: ${invalidTypes.join(', ')}. Valid values: ${validPipelineTypes.join(', ')}` });
+        return res.status(400).json({ error: `Invalid pipeline types: ${invalidTypes.join(', ')}. Valid values: ${VALID_ECO_PIPELINE_TYPES.join(', ')}` });
       }
     }
+
+    const resolvedPipelineTypes = pipeline_types === undefined
+      ? null
+      : normalizeStagePipelineTypes(pipeline_types);
 
     const result = await pool.query(`
       UPDATE eco_approval_stages
@@ -1983,13 +2193,13 @@ export const updateApprovalStage = async (req, res) => {
           stage_order = COALESCE($6, stage_order)
       WHERE id = $7
       RETURNING *
-    `, [stage_name, required_approvals, required_role, is_active, pipeline_types || null, stage_order, id]);
+    `, [stage_name, required_approvals, required_role, is_active, resolvedPipelineTypes, stage_order, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
     console.error('Error updating approval stage:', error);
     res.status(500).json({ error: 'Failed to update approval stage' });

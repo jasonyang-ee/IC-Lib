@@ -43,8 +43,8 @@ ON CONFLICT (name) DO NOTHING;
 -- Default ECO Approval Stage
 -- ============================================================================
 
-INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, required_role)
-SELECT 'Review & Approval', 1, 1, 'approver'
+INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, required_role, pipeline_types)
+SELECT 'Review & Approval', 1, 1, 'approver', '{proto_status_change,prod_status_change,spec,filename,distributor}'::text[]
 WHERE NOT EXISTS (SELECT 1 FROM eco_approval_stages);
 
 -- ============================================================================

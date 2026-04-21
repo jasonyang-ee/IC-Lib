@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Loader2, Check, X, Users, Edit, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Check, X, Users, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { api } from '../../utils/api';
+import { DEFAULT_STAGE_PIPELINE_TYPES, PIPELINE_TYPE_OPTIONS } from '../../utils/ecoPipelineTypes';
+import {
+  buildApprovalStageImportSummary,
+  getApprovalStageBackupFilename,
+  parseApprovalStageBackupFile,
+} from '../../utils/ecoApprovalStageBackup';
 import { useNotification } from '../../contexts/NotificationContext';
-
-const PIPELINE_TYPE_OPTIONS = [
-  { value: 'general', label: 'General', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  { value: 'proto_status_change', label: 'Proto Status', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' },
-  { value: 'prod_status_change', label: 'Prod Status', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' },
-  { value: 'spec_cad', label: 'Spec/CAD', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
-  { value: 'distributor', label: 'Distributor', color: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' },
-];
 
 // Approval Stages Settings Component
 const ApprovalStagesSettings = () => {
@@ -18,7 +16,7 @@ const ApprovalStagesSettings = () => {
   const { showSuccess, showError } = useNotification();
   const [isAdding, setIsAdding] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
-  const [newStage, setNewStage] = useState({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: ['general'] });
+  const [newStage, setNewStage] = useState({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: [...DEFAULT_STAGE_PIPELINE_TYPES] });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [managingApprovers, setManagingApprovers] = useState(null);
 
@@ -53,7 +51,7 @@ const ApprovalStagesSettings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
       setIsAdding(false);
-      setNewStage({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: ['general'] });
+      setNewStage({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: [...DEFAULT_STAGE_PIPELINE_TYPES] });
       showSuccess('Approval stage created.');
     },
     onError: (error) => {
@@ -110,6 +108,49 @@ const ApprovalStagesSettings = () => {
     }
   });
 
+  const exportMutation = useMutation({
+    mutationFn: () => api.exportApprovalStages(),
+    onSuccess: (response) => {
+      const result = response.data;
+
+      if (!result?.success || !result?.data) {
+        showError('Failed to export approval stages.');
+        return;
+      }
+
+      const dataStr = JSON.stringify(result.data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = getApprovalStageBackupFilename();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showSuccess('Approval stages exported successfully.');
+    },
+    onError: (error) => {
+      showError(error.response?.data?.error || 'Failed to export approval stages.');
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (stagesToImport) => api.importApprovalStages(stagesToImport),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      setEditingStage(null);
+      setManagingApprovers(null);
+      setDeleteConfirm(null);
+
+      showSuccess(buildApprovalStageImportSummary(response.data?.results));
+    },
+    onError: (error) => {
+      showError(error.response?.data?.error || 'Failed to import approval stages.');
+    },
+  });
+
   const handleMoveUp = (index) => {
     if (index === 0) return;
     const ids = stages.map(s => s.id);
@@ -150,6 +191,28 @@ const ApprovalStagesSettings = () => {
       ? currentIds.filter(id => id !== userId)
       : [...currentIds, userId];
     setApproversMutation.mutate({ stageId, userIds: newIds });
+  };
+
+  const handleImportApprovalStages = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      try {
+        const parsedJson = JSON.parse(loadEvent.target?.result);
+        const stagesToImport = parseApprovalStageBackupFile(parsedJson);
+        importMutation.mutate(stagesToImport);
+      } catch (error) {
+        showError(error.message || 'Failed to import approval stages.');
+      }
+    };
+
+    reader.readAsText(file);
+    event.target.value = '';
   };
 
   // Toggle pipeline type for new stage form
@@ -211,18 +274,41 @@ const ApprovalStagesSettings = () => {
           </h2>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
             Configure the multi-stage approval pipeline for ECOs. Each stage requires a set number of approvals before advancing.
-            Stages with the same order number run in parallel.
+            Stages with the same order number run in parallel. Export/import restores stage order, tags, and assigned approvers; missing users are skipped.
           </p>
         </div>
-        {!isAdding && (
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
-            onClick={() => setIsAdding(true)}
-            className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1"
           >
-            <Plus className="w-4 h-4" />
-            Add Stage
+            {exportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Export JSON
           </button>
-        )}
+          <label
+            className={`px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 cursor-pointer ${importMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}
+          >
+            {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Import JSON
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              disabled={importMutation.isPending}
+              onChange={handleImportApprovalStages}
+            />
+          </label>
+          {!isAdding && (
+            <button
+              onClick={() => setIsAdding(true)}
+              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              Add Stage
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add new stage form */}
@@ -265,7 +351,7 @@ const ApprovalStagesSettings = () => {
           </div>
           {/* Pipeline Types Toggle */}
           <div className="mt-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Pipeline Types</label>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Stage Tags</label>
             <div className="flex flex-wrap gap-1.5">
               {PIPELINE_TYPE_OPTIONS.map((pt) => {
                 const isSelected = (newStage.pipeline_types || []).includes(pt.value);
@@ -296,7 +382,7 @@ const ApprovalStagesSettings = () => {
               Create
             </button>
             <button
-              onClick={() => { setIsAdding(false); setNewStage({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: ['general'] }); }}
+              onClick={() => { setIsAdding(false); setNewStage({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: [...DEFAULT_STAGE_PIPELINE_TYPES] }); }}
               className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm transition-colors"
             >
               Cancel
@@ -415,7 +501,7 @@ const ApprovalStagesSettings = () => {
                           </div>
                           {/* Pipeline Types Toggle for editing */}
                           <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Pipeline Types</label>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stage Tags</label>
                             <div className="flex flex-wrap gap-1.5">
                               {PIPELINE_TYPE_OPTIONS.map((pt) => {
                                 const isSelected = (editingStage.pipeline_types || []).includes(pt.value);
@@ -581,7 +667,7 @@ const ApprovalStagesSettings = () => {
           Stages with the same order number run in parallel -- all must be completed before proceeding.
           You can assign specific users to each stage -- if approvers are assigned, only those users (and admins) can approve at that stage.
           If no approvers are assigned, any user with the minimum role can approve.
-          Pipeline types control which ECO types a stage applies to.
+          Stage tags control which ECO changes a stage applies to.
         </p>
       </div>
 
