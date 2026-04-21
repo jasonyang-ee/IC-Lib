@@ -547,7 +547,7 @@ const ECOListItem = ({
                                       </span>
                                     )}
                                     {dist.url && (
-                                      <a href={dist.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline truncate max-w-[150px]">
+                                      <a href={dist.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline truncate max-w-37.5">
                                         {dist.url}
                                       </a>
                                     )}
@@ -604,7 +604,7 @@ const ECOListItem = ({
                             </td>
                             <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
                               {dist.url ? (
-                                <a href={dist.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline truncate block max-w-[200px]">
+                                <a href={dist.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline truncate block max-w-50">
                                   {dist.url}
                                 </a>
                               ) : (
