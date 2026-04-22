@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { User, Key, AlertCircle, CheckCircle, Loader2, Mail, Bell, Save, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../utils/api';
@@ -7,6 +8,7 @@ import { useNotification } from '../contexts/NotificationContext';
 const UserSettings = () => {
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const queryClient = useQueryClient();
   
   // Password change state
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -73,6 +75,9 @@ const UserSettings = () => {
         displayName: profileForm.displayName || null,
         fileStoragePath: profileForm.fileStoragePath || null
       });
+      const nextFileStoragePath = (profileForm.fileStoragePath || '').trim();
+      queryClient.setQueryData(['fileStoragePath'], { path: nextFileStoragePath });
+      queryClient.invalidateQueries({ queryKey: ['fileStoragePath'] });
       showSuccess('Profile updated successfully');
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message;

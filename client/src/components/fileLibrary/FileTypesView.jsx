@@ -4,7 +4,6 @@ import {
   ChevronRight,
   Copy,
   Download,
-  Edit,
   FileBox,
   FileText,
   Trash2,
@@ -330,16 +329,25 @@ const FileTypesView = ({
                 </p>
               </div>
               {canWrite() && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => onOpenRename(selectedEntry)} className="btn-secondary flex items-center gap-1.5 text-sm">
-                    <Edit className="w-3.5 h-3.5" /> Rename
+                <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                  <button
+                    onClick={() => onCopyPath(selectedEntry.fileNames, selectedType)}
+                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  >
+                    Copy File Path
+                  </button>
+                  <button
+                    onClick={() => onOpenRename(selectedEntry)}
+                    className="text-sm font-medium text-gray-700 hover:text-primary-700 dark:text-gray-300 dark:hover:text-primary-300"
+                  >
+                    Rename
                   </button>
                   {canDeleteFiles() && selectedEntry.canDelete && selectedEntry.componentCount === 0 && (
                     <button
                       onClick={() => onOpenDelete(selectedEntry)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-400 dark:hover:text-red-300 rounded-lg transition-colors"
+                      className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                      Delete
                     </button>
                   )}
                 </div>

@@ -2,7 +2,7 @@ import { AlertTriangle, AlertCircle, Trash2, X, Check } from 'lucide-react';
 
 // Reusable modal backdrop
 const ModalBackdrop = ({ children, zClass = 'z-50', onClick }) => (
-  <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center ${zClass} p-4`} onClick={onClick}>
+  <div className={`fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center ${zClass} p-4`} onClick={onClick}>
     {children}
   </div>
 );

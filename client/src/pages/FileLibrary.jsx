@@ -233,6 +233,7 @@ const FileLibrary = () => {
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
   });
 
   // Files by type (File Types view)
@@ -496,7 +497,7 @@ const FileLibrary = () => {
   // ==============================
 
   const handleCopyPath = (fileNameOrNames, typeId) => {
-    const basePath = storagePathData?.path || '';
+    const basePath = String(storagePathData?.path || '').trim();
     if (!basePath) {
       showError('Set your file storage path in User Settings first');
       return;
@@ -505,8 +506,14 @@ const FileLibrary = () => {
     const sep = basePath.includes('\\') ? '\\' : '/';
     const fileNames = Array.isArray(fileNameOrNames) ? fileNameOrNames : [fileNameOrNames];
     const fullPath = fileNames.map((fileName) => `${basePath}${sep}${subdir}${sep}${fileName}`).join('\n');
-    navigator.clipboard.writeText(fullPath);
-    showSuccess(fileNames.length > 1 ? 'Paths copied' : 'Path copied');
+
+    navigator.clipboard.writeText(fullPath)
+      .then(() => {
+        showSuccess(fileNames.length > 1 ? 'Paths copied' : 'Path copied');
+      })
+      .catch(() => {
+        showError('Failed to copy file path');
+      });
   };
 
   const handleTypeChange = (typeId) => {
@@ -836,10 +843,8 @@ const FileLibrary = () => {
           onCategoryChange={handleCategoryChange}
           onComponentSelect={handleComponentSelect}
           onOpenRename={handleOpenRename}
-          onOpenDelete={handleOpenDelete}
           onCopyPath={handleCopyPath}
           canWrite={canWrite}
-          canDeleteFiles={canDeleteFiles}
           navigate={navigate}
         />
       )}

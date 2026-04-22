@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Send, CheckCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Send, CheckCircle, Loader2 } from 'lucide-react';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -19,6 +19,7 @@ export default function SMTPSettings() {
   const [sendingPreview, setSendingPreview] = useState('');
   const [configured, setConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showHost, setShowHost] = useState(false);
   
   const [formData, setFormData] = useState({
     host: '',
@@ -192,14 +193,25 @@ export default function SMTPSettings() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               SMTP Host *
             </label>
-            <input
-              type="text"
-              name="host"
-              value={formData.host}
-              onChange={handleChange}
-              placeholder="smtp.example.com"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-lg bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100"
-            />
+            <div className="relative">
+              <input
+                type={showHost ? 'text' : 'password'}
+                name="host"
+                value={formData.host}
+                onChange={handleChange}
+                placeholder="smtp.example.com"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-[#444444] rounded-lg bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => setShowHost((previous) => !previous)}
+                className="absolute inset-y-0 right-0 px-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                title={showHost ? 'Hide SMTP host' : 'Show SMTP host'}
+                aria-label={showHost ? 'Hide SMTP host' : 'Show SMTP host'}
+              >
+                {showHost ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {/* Port */}

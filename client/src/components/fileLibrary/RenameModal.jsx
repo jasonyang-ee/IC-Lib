@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Save, X } from 'lucide-react';
 
 const RenameModal = ({
@@ -12,9 +13,15 @@ const RenameModal = ({
   isUnchanged,
 }) => {
   const isGroupedFootprint = renameData.mode === 'pair';
+  const renameInputRef = useRef(null);
+
+  useEffect(() => {
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
         <div className="p-6 border-b border-gray-200 dark:border-[#3a3a3a] shrink-0">
           <div className="flex justify-between items-start">
@@ -33,6 +40,7 @@ const RenameModal = ({
               {isGroupedFootprint ? 'New Base Name' : 'New File Name'}
             </label>
             <input
+              ref={renameInputRef}
               type="text"
               value={renameData.newName}
               onChange={(e) => setRenameData((previous) => ({ ...previous, newName: e.target.value }))}

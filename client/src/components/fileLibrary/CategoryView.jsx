@@ -3,9 +3,6 @@ import {
   FolderOpen,
   ChevronRight,
   ExternalLink,
-  Copy,
-  Edit,
-  Trash2,
   FileBox,
   Link2,
 } from 'lucide-react';
@@ -25,10 +22,8 @@ const CategoryView = ({
   onCategoryChange,
   onComponentSelect,
   onOpenRename,
-  onOpenDelete,
   onCopyPath,
   canWrite,
-  canDeleteFiles,
   navigate,
 }) => {
   const isAllCategories = selectedCategoryId === 'all';
@@ -241,33 +236,20 @@ const CategoryView = ({
                               {file.file_name}
                             </td>
                             <td className="px-3 py-2 text-right">
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-3 flex-wrap">
                                 <button
                                   onClick={() => onCopyPath(file.file_name, routeType)}
-                                  className="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 p-1"
-                                  title="Copy file path"
+                                  className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                                 >
-                                  <Copy className="w-3.5 h-3.5" />
+                                  Copy File Path
                                 </button>
                                 {canWrite() && (
-                                  <>
-                                    <button
-                                      onClick={() => onOpenRename(file.file_name, routeType)}
-                                      className="text-gray-500 hover:text-primary-600 p-1"
-                                      title="Rename file"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                    {canDeleteFiles() && (
-                                      <button
-                                        onClick={() => onOpenDelete(file.file_name, routeType)}
-                                        className="text-gray-500 hover:text-red-600 p-1"
-                                        title="Delete file"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  </>
+                                  <button
+                                    onClick={() => onOpenRename(file.file_name, routeType)}
+                                    className="text-xs font-medium text-gray-700 hover:text-primary-700 dark:text-gray-300 dark:hover:text-primary-300"
+                                  >
+                                    Rename
+                                  </button>
                                 )}
                               </div>
                             </td>
