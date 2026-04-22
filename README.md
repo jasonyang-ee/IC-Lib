@@ -5,21 +5,18 @@
 
 ## Features
 
-- **Parts Library**: Browse and search a comprehensive library of PCB components.
-- **Alternative Parts**: Suggest alternative components based on specifications.
-- **Inventory Management**: Track component availability and stock levels.
-- **Footprints & Symbols**: Access and download footprints and symbols for OrCAD.
-- **Vendor Integration**: Fetch real-time data from popular electronic component distributors.
-- **Project Management**: Organize components by projects for easy access. [TBD]
-- **User Management**: Secure user authentication and role-based access control. [TBD]
+- **Parts Library**: Browse and search PCB components.
+- **Alternative Parts**: Bind alternative components.
+- **CAD Files**: CAD file upload and management for symbols, footprints, 3D models, and spice models.
+- **Vendor Integration**: Seach parts and fetch metadata from distributors.
+- **Inventory Management**: Track component quantity and location.
+- **Project Management**: Organize components by projects for easy access.
+- **Engineer Change Order**: Enable ECO mode to control parts info update by approval stages.
+- **User Management**: Secure user authentication and role-based access control.
 
 ## Getting Started
 
-### Web Interface
-
-- Access the web interface at `http://<host_ip>:80`
-
-### Run Using Docker Compose
+### Docker Compose
 
 ```yaml
 services:
@@ -65,53 +62,30 @@ services:
       - ./iclib/database:/var/lib/postgresql/18/docker
 ```
 
-Set `CONFIG_ECO=true` in the running container environment to enable the ECO menu and routes at runtime. `VITE_CONFIG_ECO` remains as a build-time fallback for static builds, but production deployments no longer need a frontend rebuild just to toggle ECO.
+### Web Interface
+
+- Access the web interface at `http://<host_ip>:80`
+
+### Environment Variables
+- `CONFIG_ECO=true`
+
+  Enable ECO mode to process any parts update with approval stages.
 
 ### Docker Image
-
-- [Docker Hub](https://hub.docker.com/r/jasonyangee/iclib)
-
-  ```
-  jasonyangee/iclib:latest
-  ```
-
-- [GitHub Container Registry](https://github.com/jasonyang-ee/iclib/pkgs/container/iclib)
-
-  ```
-  ghcr.io/jasonyang-ee/iclib:latest
-  ```
-
-### Supported Platforms
-
-- Linux AMD64
-- Linux ARM64
+- Docker Hub
+  
+  [jasonyangee/iclib:latest](https://hub.docker.com/r/jasonyangee/iclib)
 
 
-## Local Development
+- GitHub Container Registry
 
-### Run Locally
+  [ghcr.io/jasonyang-ee/iclib:latest](https://github.com/jasonyang-ee/iclib/pkgs/container/iclib)
 
-- Linux
 
-  ```bash
-  ./start.sh
-  ```
+### Image Supported Platforms
 
-### Run Checks (Lint + Test)
-
-```bash
-# Run all checks (lint + test)
-npm run check
-
-# Lint only
-npm run check:lint
-
-# Test only
-npm run check:test
-
-# Test with coverage
-npm run check:coverage
-```
+- Linux amd64
+- Linux arm64
 
 
 ## Reverse Proxy with Subdirectory Support
