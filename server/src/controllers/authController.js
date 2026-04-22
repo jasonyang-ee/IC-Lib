@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/database.js';
 import { generateToken } from '../middleware/auth.js';
-import { sendEmail } from '../services/emailService.js';
+import { sendWelcomeEmail } from '../services/emailService.js';
 
 const SALT_ROUNDS = 10;
 
@@ -261,29 +261,18 @@ export const createUser = async (req, res) => {
       console.error('Failed to log user creation:', logError);
     }
 
-    // Send welcome email if email is provided
-    if (email) {
+    const shouldSendWelcomeEmail = email && role !== 'read-only';
+
+    // Send welcome email if email is provided for eligible roles
+    if (shouldSendWelcomeEmail) {
       try {
-        const loginUrl = process.env.APP_URL || 'http://localhost:3000';
-        await sendEmail({
+        await sendWelcomeEmail({
           to: email,
-          subject: 'Welcome to IC-Lib - Your Account Has Been Created',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #2563eb;">Welcome to IC-Lib!</h2>
-              <p>Hello${display_name ? ` ${display_name}` : ''},</p>
-              <p>Your account has been created with the following credentials:</p>
-              <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
-                <p style="margin: 4px 0;"><strong>Username:</strong> ${username}</p>
-                ${passwordWasGenerated ? `<p style="margin: 4px 0;"><strong>Password:</strong> ${userPassword}</p>` : '<p style="margin: 4px 0;"><strong>Password:</strong> (as provided by administrator)</p>'}
-                <p style="margin: 4px 0;"><strong>Role:</strong> ${role}</p>
-              </div>
-              ${passwordWasGenerated ? '<p style="color: #dc2626;"><strong>Important:</strong> Please change your password after your first login.</p>' : ''}
-              <p>You can login at: <a href="${loginUrl}">${loginUrl}</a></p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-              <p style="color: #6b7280; font-size: 12px;">This is an automated message from IC-Lib. Please do not reply to this email.</p>
-            </div>
-          `,
+          username,
+          role,
+          displayName: display_name,
+          password: userPassword,
+          passwordWasGenerated,
         });
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthController]\x1b[0m Welcome email sent to ${email}`);
       } catch (emailError) {
@@ -295,7 +284,7 @@ export const createUser = async (req, res) => {
     res.status(201).json({
       ...newUser,
       passwordGenerated: passwordWasGenerated,
-      emailSent: !!email,
+      emailSent: !!shouldSendWelcomeEmail,
     });
   } catch (error) {
     console.error('Create user error:', error);

@@ -142,3 +142,23 @@ export const canWrite = (req, res, next) => {
 
   next();
 };
+
+/**
+ * Only approver and admin can permanently delete files from the shared CAD library.
+ */
+export const canDeleteLibraryFiles = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+    });
+  }
+
+  if (!['approver', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Library file delete access required',
+    });
+  }
+
+  next();
+};

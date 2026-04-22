@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, canWrite } from '../middleware/auth.js';
+import { authenticate, canDeleteLibraryFiles, canWrite } from '../middleware/auth.js';
 import {
   getFilesByType,
   getFileTypeStats,
@@ -66,13 +66,13 @@ router.put('/type/:type/rename-file', canWrite, renamePhysicalFile);
 router.put('/type/footprint/rename-group', canWrite, renameFootprintGroup);
 
 // Delete physical file from disk + remove DB refs (requires write permission)
-router.delete('/type/:type/delete-file', canWrite, deletePhysicalFile);
+router.delete('/type/:type/delete-file', canDeleteLibraryFiles, deletePhysicalFile);
 
 // Delete multiple files of the same type together (requires write permission)
-router.post('/type/:type/delete-group', canWrite, deleteFileGroup);
+router.post('/type/:type/delete-group', canDeleteLibraryFiles, deleteFileGroup);
 
 // Bulk delete orphan files for a type (requires write permission)
-router.post('/type/:type/delete-orphans', canWrite, bulkDeleteOrphanFiles);
+router.post('/type/:type/delete-orphans', canDeleteLibraryFiles, bulkDeleteOrphanFiles);
 
 // Link an existing CAD file to a component (requires write permission)
 router.post('/link', canWrite, linkFileToComponent);

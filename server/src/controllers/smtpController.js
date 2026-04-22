@@ -1,5 +1,5 @@
 import pool from '../config/database.js';
-import { encrypt, testSMTPConnection, sendEmail } from '../services/emailService.js';
+import { encrypt, testSMTPConnection, sendEmail, buildPreviewEmail } from '../services/emailService.js';
 
 /**
  * Get SMTP settings (without password)
@@ -134,6 +134,7 @@ export const sendTestEmail = async (req, res) => {
   try {
     // Use provided recipient or fall back to user's email
     let recipientEmail = req.body.recipient_email;
+    const templateType = req.body.template_type || 'system_test';
     
     if (!recipientEmail) {
       // Get user email as fallback
@@ -144,19 +145,17 @@ export const sendTestEmail = async (req, res) => {
       recipientEmail = userResult.rows[0].email;
     }
 
+    const previewEmail = buildPreviewEmail(templateType);
+
     const result = await sendEmail({
       to: recipientEmail,
-      subject: 'IC Library Test Email',
-      html: `
-        <h2>Test Email from IC Library</h2>
-        <p>This is a test email to confirm your SMTP configuration is working correctly.</p>
-        <p>If you received this email, your email notifications are properly configured.</p>
-        <p><strong>Sent at:</strong> ${new Date().toISOString()}</p>
-      `,
+      subject: previewEmail.subject,
+      html: previewEmail.html,
+      text: previewEmail.text,
     });
 
     if (result.success) {
-      res.json({ success: true, message: 'Test email sent successfully' });
+      res.json({ success: true, message: `${previewEmail.label} sent successfully` });
     } else {
       res.status(400).json({ success: false, error: result.error || result.reason });
     }

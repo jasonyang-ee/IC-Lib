@@ -28,6 +28,7 @@ const CategoryView = ({
   onOpenDelete,
   onCopyPath,
   canWrite,
+  canDeleteFiles,
   navigate,
 }) => {
   const isAllCategories = selectedCategoryId === 'all';
@@ -257,13 +258,15 @@ const CategoryView = ({
                                     >
                                       <Edit className="w-3.5 h-3.5" />
                                     </button>
-                                    <button
-                                      onClick={() => onOpenDelete(file.file_name, routeType)}
-                                      className="text-gray-500 hover:text-red-600 p-1"
-                                      title="Delete file"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {canDeleteFiles() && (
+                                      <button
+                                        onClick={() => onOpenDelete(file.file_name, routeType)}
+                                        className="text-gray-500 hover:text-red-600 p-1"
+                                        title="Delete file"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </div>

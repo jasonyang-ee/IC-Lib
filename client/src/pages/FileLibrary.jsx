@@ -18,6 +18,7 @@ import {
 import { FileTypesView, CategoryView, RenameModal, DeleteModal } from '../components/fileLibrary';
 import { ConfirmationModal } from '../components/common';
 import { routeTypeToFileType } from '../components/fileLibrary/constants';
+import { canDeleteLibraryFiles as canDeleteLibraryFilesForRole } from '../utils/accessControl';
 
 // View modes
 const VIEW_FILE_TYPES = 'fileTypes';
@@ -141,7 +142,8 @@ const FileLibrary = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showSuccess, showError } = useNotification();
-  const { canWrite } = useAuth();
+  const { canWrite, user } = useAuth();
+  const canDeleteFiles = () => canDeleteLibraryFilesForRole(user?.role);
 
   // --- State ---
   const [viewMode, setViewMode] = useState(VIEW_FILE_TYPES);
@@ -538,7 +540,7 @@ const FileLibrary = () => {
   };
 
   const handleToggleBulkSelectMode = () => {
-    if (!showOrphans || !canWrite()) {
+    if (!showOrphans || !canDeleteFiles()) {
       return;
     }
 
@@ -691,6 +693,10 @@ const FileLibrary = () => {
 
   // --- Delete handlers ---
   const handleOpenDelete = (entryOrFileName = selectedEntry, type, componentCount) => {
+    if (!canDeleteFiles()) {
+      return;
+    }
+
     if (typeof entryOrFileName === 'string') {
       setDeleteTarget({
         displayName: entryOrFileName,
@@ -810,6 +816,7 @@ const FileLibrary = () => {
           onOpenDelete={handleOpenDelete}
           onCopyPath={handleCopyPath}
           canWrite={canWrite}
+          canDeleteFiles={canDeleteFiles}
           navigate={navigate}
           cisFiles={cisFilesData || []}
           selectedCISFile={selectedCISFile}
@@ -832,6 +839,7 @@ const FileLibrary = () => {
           onOpenDelete={handleOpenDelete}
           onCopyPath={handleCopyPath}
           canWrite={canWrite}
+          canDeleteFiles={canDeleteFiles}
           navigate={navigate}
         />
       )}

@@ -3,12 +3,20 @@ import { Mail, Send, CheckCircle, Loader2 } from 'lucide-react';
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
 
+const previewEmailButtons = [
+  { id: 'eco_submitted', label: 'ECO Submitted' },
+  { id: 'eco_approved', label: 'ECO Approved' },
+  { id: 'eco_rejected', label: 'ECO Rejected' },
+  { id: 'eco_assigned', label: 'ECO Assigned' },
+];
+
 export default function SMTPSettings() {
   const { showSuccess, showError } = useNotification();
   
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [sendingPreview, setSendingPreview] = useState('');
   const [configured, setConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -133,6 +141,26 @@ export default function SMTPSettings() {
       showError(error.response?.data?.error || error.response?.data?.details || 'Failed to send test email');
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const handleSendPreviewEmail = async (templateType) => {
+    if (!testEmailRecipient) {
+      showError('Please enter a recipient email address');
+      return;
+    }
+
+    setSendingPreview(templateType);
+    try {
+      const response = await api.smtp.testEmail({
+        recipient_email: testEmailRecipient,
+        template_type: templateType,
+      });
+      showSuccess(response.data.message);
+    } catch (error) {
+      showError(error.response?.data?.error || error.response?.data?.details || 'Failed to send preview email');
+    } finally {
+      setSendingPreview('');
     }
   };
 
@@ -318,7 +346,7 @@ export default function SMTPSettings() {
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 space-y-4">
           <h4 className="font-semibold text-gray-900 dark:text-gray-100">Test Email</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Send a test email to verify the configuration
+            Send a generic test email or preview specific ECO notification emails
           </p>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
@@ -341,6 +369,32 @@ export default function SMTPSettings() {
               {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Send Test Email
             </button>
+          </div>
+
+          <div className="pt-4 border-t border-blue-100 dark:border-blue-800/50 space-y-3">
+            <div>
+              <h5 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ECO Email Previews</h5>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                Use same recipient input to preview submitted, approved, rejected, and assigned email layouts.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {previewEmailButtons.map((button) => {
+                const isSendingThisPreview = sendingPreview === button.id;
+
+                return (
+                  <button
+                    key={button.id}
+                    onClick={() => handleSendPreviewEmail(button.id)}
+                    disabled={!!sendingPreview || !testEmailRecipient}
+                    className="px-3 py-2 bg-white hover:bg-blue-100 dark:bg-[#2a2a2a] dark:hover:bg-blue-900/30 text-gray-800 dark:text-gray-100 border border-blue-200 dark:border-blue-800 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isSendingThisPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                    {button.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

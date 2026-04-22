@@ -9,14 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Admin email settings now include one-click preview emails for ECO submitted, approved, rejected, and assigned notifications using the same recipient input
+- Server email template coverage now includes focused tests for `CONFIG_BASE_URL` precedence and preview generation
 
 ### Changed
 
-- 
+- Welcome-account and ECO notification emails now use a shared modern template layout and prefer `CONFIG_BASE_URL` for system links, while legacy `APP_URL` and `BASE_DOMAIN` remain fallback-only in email rendering
+- Read-only users now follow limited navigation rules like reviewers, landing on ECO or Parts Library instead of Dashboard and losing access to User Settings
 
 ### Fixed
 
+- Read-only users no longer receive welcome or ECO notification emails
+- Read-write users can no longer delete orphan CAD files from File Library, and server routes now enforce delete access for approver/admin only
+- Sidebar user card now wraps long display names instead of truncating them
 - File Library footprint rename now allows case-only base-name normalization on paired `.psm`/`.dra` files without tripping duplicate-file validation
 
 ## [1.9.3] - 2026-04-21

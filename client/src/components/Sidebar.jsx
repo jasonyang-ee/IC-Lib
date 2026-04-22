@@ -3,14 +3,15 @@ import { LayoutDashboard, Package, Search, FileText, Sun, Moon, LogOut, User, Us
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
+import { canAccessUserSettings, isLimitedNavigationRole } from '../utils/accessControl';
 
 const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
-  const { user, logout, isAdmin, hasRole } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { ecoEnabled } = useFeatureFlags();
   const navigate = useNavigate();
-  const isReviewer = hasRole('reviewer');
+  const isLimitedNavigation = isLimitedNavigationRole(user?.role);
 
   // Construct the logo path - Vite serves public folder assets from root
   const logoPath = './logo_bg.png';
@@ -45,27 +46,25 @@ const Sidebar = () => {
 
   const displayName = user?.displayName?.trim() || 'Unknown User';
 
-  // Reviewer role: only Parts Library + ECO + User Settings (no Dashboard)
   const menuItems = [];
 
-  if (!isReviewer) {
+  if (!isLimitedNavigation) {
     menuItems.push({ path: '/', icon: LayoutDashboard, label: 'Dashboard' });
   }
 
   menuItems.push({ path: '/library', icon: Cpu, label: 'Parts Library' });
 
-  if (!isReviewer) {
+  if (!isLimitedNavigation) {
     menuItems.push(
       { path: '/file-library', icon: FolderOpen, label: 'File Library' }
     );
   }
 
-  // Add ECO menu item if feature is enabled (reviewers can approve ECOs)
   if (ecoEnabled) {
     menuItems.push({ path: '/eco', icon: FileEdit, label: 'ECO' });
   }
 
-  if (!isReviewer) {
+  if (!isLimitedNavigation) {
     menuItems.push(
       { path: '/inventory', icon: Package, label: 'Inventory' },
       { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
@@ -75,8 +74,9 @@ const Sidebar = () => {
     );
   }
 
-  // User Settings available to all authenticated users
-  menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
+  if (canAccessUserSettings(user?.role)) {
+    menuItems.push({ path: '/user-settings', icon: UserCog, label: 'User Settings' });
+  }
 
   // Only show Admin Settings for admin users
   if (isAdmin()) {
@@ -181,7 +181,7 @@ const Sidebar = () => {
               <User className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{displayName}</p>
+              <p className="text-sm font-medium text-white whitespace-normal break-words leading-5">{displayName}</p>
               <p className="text-xs text-gray-400 capitalize">{user?.role?.replace('-', ' ')}</p>
             </div>
           </div>

@@ -15,22 +15,21 @@ import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
 import FileLibrary from './pages/FileLibrary'
+import { ecoAccessRoles, fullNavigationRoles, getDefaultRouteForRole, userSettingsRoles } from './utils/accessControl'
 
-// Reviewer users land on ECO page (if enabled), others on Dashboard
 const DefaultPage = ({ ecoEnabled }) => {
-  const { hasRole } = useAuth();
-  if (hasRole('reviewer') && ecoEnabled) {
-    return <Navigate to="/eco" replace />;
+  const { user } = useAuth();
+  const defaultRoute = getDefaultRouteForRole(user?.role, ecoEnabled);
+
+  if (defaultRoute !== '/') {
+    return <Navigate to={defaultRoute} replace />;
   }
+
   return <Dashboard />;
 };
 
 function App() {
   const { ecoEnabled, isLoading: featureFlagsLoading } = useFeatureFlags();
-  // Roles that have full navigation access (everything except reviewer)
-  const fullAccessRoles = ['read-only', 'read-write', 'approver', 'admin'];
-  // Roles that include reviewer (for ECO and User Settings)
-  const ecoAndSettingsRoles = ['read-only', 'reviewer', 'read-write', 'approver', 'admin'];
 
   if (featureFlagsLoading) {
     return null;
@@ -53,18 +52,16 @@ function App() {
         >
           <Route index element={<DefaultPage ecoEnabled={ecoEnabled} />} />
           <Route path="library" element={<Library />} />
-          <Route path="file-library" element={<ProtectedRoute allowedRoles={fullAccessRoles}><FileLibrary /></ProtectedRoute>} />
-          <Route path="inventory" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Inventory /></ProtectedRoute>} />
-          <Route path="projects" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Projects /></ProtectedRoute>} />
-          <Route path="vendor-search" element={<ProtectedRoute allowedRoles={fullAccessRoles}><VendorSearch /></ProtectedRoute>} />
-          <Route path="reports" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Reports /></ProtectedRoute>} />
-          <Route path="audit" element={<ProtectedRoute allowedRoles={fullAccessRoles}><Audit /></ProtectedRoute>} />
+          <Route path="file-library" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><FileLibrary /></ProtectedRoute>} />
+          <Route path="inventory" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Inventory /></ProtectedRoute>} />
+          <Route path="projects" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Projects /></ProtectedRoute>} />
+          <Route path="vendor-search" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><VendorSearch /></ProtectedRoute>} />
+          <Route path="reports" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Reports /></ProtectedRoute>} />
+          <Route path="audit" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Audit /></ProtectedRoute>} />
 
-          {/* ECO route - only if feature is enabled, includes reviewer */}
-          {ecoEnabled && <Route path="eco" element={<ProtectedRoute allowedRoles={ecoAndSettingsRoles}><ECO /></ProtectedRoute>} />}
+          {ecoEnabled && <Route path="eco" element={<ProtectedRoute allowedRoles={ecoAccessRoles}><ECO /></ProtectedRoute>} />}
 
-          {/* User Settings - includes reviewer */}
-          <Route path="user-settings" element={<ProtectedRoute allowedRoles={ecoAndSettingsRoles}><UserSettings /></ProtectedRoute>} />
+          <Route path="user-settings" element={<ProtectedRoute allowedRoles={userSettingsRoles}><UserSettings /></ProtectedRoute>} />
 
           {/* Admin Settings - admin only */}
           <Route
