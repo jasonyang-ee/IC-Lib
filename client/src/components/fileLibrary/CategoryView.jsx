@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   FolderOpen,
   ChevronRight,
@@ -27,6 +27,7 @@ const CategoryView = ({
   navigate,
 }) => {
   const isAllCategories = selectedCategoryId === 'all';
+  const allCategoriesRef = useRef(null);
   const componentListRef = useRef(null);
 
   // Memoize filtered components
@@ -73,6 +74,12 @@ const CategoryView = ({
     overscan: 15,
   });
 
+  useEffect(() => {
+    if (isAllCategories) {
+      allCategoriesRef.current?.focus({ preventScroll: true });
+    }
+  }, [isAllCategories]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 flex-1 overflow-hidden">
       {/* Col 1: Category select */}
@@ -80,6 +87,7 @@ const CategoryView = ({
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 shrink-0">Categories</h2>
         <div className="space-y-1 overflow-y-auto custom-scrollbar flex-1">
           <button
+            ref={allCategoriesRef}
             onClick={() => onCategoryChange('all')}
             className={`w-full p-2.5 rounded-lg border text-left transition-colors text-sm ${
               isAllCategories

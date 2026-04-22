@@ -30,6 +30,21 @@ const SETTINGS_FILE = path.join(__dirname, '../../../config/settings.json');
 // Default settings structure
 const DEFAULT_SETTINGS = {
   partNumberConfigs: {},
+  bomDefaults: {
+    columnIds: [
+      'part_number',
+      'manufacturer',
+      'manufacturer_pn',
+      'description',
+      'category',
+      'value',
+      'quantity',
+      'available_quantity',
+      'location',
+      'approval_status',
+      'distributors',
+    ],
+  },
 };
 
 const parseBooleanEnv = (value) => {

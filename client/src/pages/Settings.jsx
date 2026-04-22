@@ -5,7 +5,7 @@ import { api } from '../utils/api';
 import { formatEcoNumber } from '../utils/ecoNumber';
 import { useNotification } from '../contexts/NotificationContext';
 import SMTPSettings from '../components/settings/SMTPSettings';
-import { UserManagement, CategorySpecificationsManager, ApprovalStagesSettings } from '../components/settings';
+import { UserManagement, CategorySpecificationsManager, ApprovalStagesSettings, BOMSettings } from '../components/settings';
 
 const DEFAULT_ECO_PDF_HEADER = 'Engineer Change Order';
 
@@ -327,13 +327,6 @@ const ECOSettings = () => {
         )}
       </div>
 
-      {/* Info */}
-      <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-700 dark:text-blue-300">
-          <strong>Note:</strong> ECO numbers now use plain sequential numbers with no leading zero padding.
-          Prefix changes only affect newly created ECOs. Existing ECO numbers will not be modified.
-        </p>
-      </div>
     </div>
   );
 };
@@ -985,6 +978,7 @@ const Settings = () => {
         <nav className="flex space-x-8">
           {[
             { id: 'users', label: 'User Management', icon: Users },
+            { id: 'bom', label: 'BOM', icon: Package },
             { id: 'categories', label: 'Categories', icon: Database },
             { id: 'eco', label: 'ECO Settings', icon: SettingsIcon },
             { id: 'smtp', label: 'Email Settings', icon: Mail },
@@ -1021,6 +1015,12 @@ const Settings = () => {
       {activeTab === 'smtp' && (
       <div id="smtp" className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <SMTPSettings />
+      </div>
+      )}
+
+      {activeTab === 'bom' && (
+      <div id="bom">
+        <BOMSettings />
       </div>
       )}
 

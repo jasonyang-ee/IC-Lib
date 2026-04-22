@@ -36,15 +36,29 @@ const ProjectModals = ({
   showQuantityInput,
   quantityValue,
   setQuantityValue,
-  onConfirmAddComponent,
+  onConfirmQuantityInput,
   onCancelQuantityInput,
+  // BOM modal
+  showBomModal,
+  bomColumnOptions,
+  selectedBomColumnIds,
+  onToggleBomColumn,
+  onSelectAllBomColumns,
+  onResetBomColumns,
+  onConfirmGenerateBom,
+  onCloseBomModal,
+  isGeneratingBom,
 }) => {
+  const modalBackdropClass = 'fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4';
+  const modalPanelClass = 'bg-white dark:bg-[#2a2a2a] rounded-lg p-6 border border-gray-200 dark:border-[#3a3a3a] shadow-xl';
+  const isUpdateQuantityMode = showQuantityInput?.mode === 'update';
+
   return (
     <>
       {/* Create Project Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full">
+        <div className={modalBackdropClass}>
+          <div className={`${modalPanelClass} max-w-md w-full`}>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
               Create New Project
             </h3>
@@ -108,8 +122,8 @@ const ProjectModals = ({
 
       {/* Edit Project Modal */}
       {showEditModal && selectedProject && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full">
+        <div className={modalBackdropClass}>
+          <div className={`${modalPanelClass} max-w-md w-full`}>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
               Edit Project
             </h3>
@@ -172,14 +186,14 @@ const ProjectModals = ({
       {/* Add Component Modal */}
       {showAddComponentModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className={modalBackdropClass}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               onCloseAddComponentModal();
             }
           }}
         >
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+          <div className={`${modalPanelClass} max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 Add Component to Project
@@ -349,8 +363,8 @@ const ProjectModals = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+        <div className={modalBackdropClass}>
+          <div className={`${modalPanelClass} max-w-md w-full`}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
@@ -384,16 +398,16 @@ const ProjectModals = ({
       {/* Quantity Input Modal */}
       {showQuantityInput && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className={modalBackdropClass}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               onCancelQuantityInput();
             }
           }}
         >
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
+          <div className={`${modalPanelClass} max-w-md w-full`}>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Add Component to Project
+              {isUpdateQuantityMode ? 'Update Quantity' : 'Add Component to Project'}
             </h3>
             <div className="mb-4">
               <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
@@ -403,7 +417,7 @@ const ProjectModals = ({
                 {showQuantityInput.manufacturer_name} - {showQuantityInput.manufacturer_pn}
               </p>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Quantity Needed:
+                Quantity
               </label>
               <input
                 type="number"
@@ -412,7 +426,7 @@ const ProjectModals = ({
                 onChange={(e) => setQuantityValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    onConfirmAddComponent();
+                    onConfirmQuantityInput();
                   } else if (e.key === 'Escape') {
                     onCancelQuantityInput();
                   }
@@ -429,10 +443,112 @@ const ProjectModals = ({
                 Cancel
               </button>
               <button
-                onClick={onConfirmAddComponent}
+                onClick={onConfirmQuantityInput}
                 className="btn-primary"
               >
-                Add to Project
+                {isUpdateQuantityMode ? 'Save Quantity' : 'Add to Project'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOM Column Selection Modal */}
+      {showBomModal && (
+        <div
+          className={modalBackdropClass}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              onCloseBomModal();
+            }
+          }}
+        >
+          <div className={`${modalPanelClass} max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col`}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                  Generate BOM
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Choose which tracked metadata columns to export. Alternative columns are always appended automatically.
+                </p>
+              </div>
+              <button
+                onClick={onCloseBomModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedBomColumnIds.length} column{selectedBomColumnIds.length !== 1 ? 's' : ''} selected before distributor expansion
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <button
+                  onClick={onSelectAllBomColumns}
+                  className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={onResetBomColumns}
+                  className="font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                >
+                  Reset to Default
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {bomColumnOptions.map((column) => {
+                  const isSelected = selectedBomColumnIds.includes(column.id);
+
+                  return (
+                    <label
+                      key={column.id}
+                      className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-[#3a3a3a] hover:border-primary-300 dark:hover:border-primary-700'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleBomColumn(column.id)}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {column.label}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {column.description || column.group}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={onCloseBomModal}
+                disabled={isGeneratingBom}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirmGenerateBom}
+                disabled={isGeneratingBom || selectedBomColumnIds.length === 0}
+                className="btn-primary disabled:bg-gray-400"
+              >
+                {isGeneratingBom ? 'Generating...' : 'Generate BOM'}
               </button>
             </div>
           </div>

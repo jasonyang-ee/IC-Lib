@@ -5,7 +5,7 @@ const ProjectDetails = ({
   projectDetails,
   canWrite,
   onEditClick,
-  onExportProject,
+  onGenerateBomClick,
   onConsumeAll,
   onAddComponentClick,
   onUpdateQuantity,
@@ -44,12 +44,12 @@ const ProjectDetails = ({
             </button>
           )}
           <button
-            onClick={onExportProject}
+            onClick={onGenerateBomClick}
             disabled={!projectDetails?.components?.length}
             className="btn-secondary flex items-center gap-2 disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            Export CSV
+            Generate BOM
           </button>
           {canWrite() && (
             <button
@@ -73,7 +73,7 @@ const ProjectDetails = ({
           {canWrite() && (
             <button
               onClick={onAddComponentClick}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Add Component
@@ -105,7 +105,7 @@ const ProjectDetails = ({
                   </p>
                   <div className="flex items-center gap-4 mt-2 text-xs">
                     <span className="text-gray-600 dark:text-gray-400">
-                      Needed: <span className="font-semibold">{pc.quantity}</span>
+                      Quantity: <span className="font-semibold">{pc.quantity}</span>
                     </span>
                     <span className={`${
                       pc.available_quantity >= pc.quantity

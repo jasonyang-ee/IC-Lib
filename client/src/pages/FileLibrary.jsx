@@ -57,6 +57,17 @@ const getFileBaseName = (fileName) => {
 
 const normalizeFootprintGroupBase = (fileName) => getFileBaseName(fileName).toLowerCase();
 
+const selectPreferredCopyFiles = (fileNames, typeId) => {
+  const normalizedFileNames = Array.isArray(fileNames) ? fileNames : [fileNames];
+
+  if (typeId !== 'footprint') {
+    return normalizedFileNames;
+  }
+
+  const draFiles = normalizedFileNames.filter((fileName) => getFileExtension(fileName) === '.dra');
+  return draFiles.length > 0 ? draFiles : normalizedFileNames;
+};
+
 const getComponentCount = (file) => Number(file?.component_count || 0);
 
 const buildFileEntryKey = (type, fileNames) => {
@@ -502,9 +513,10 @@ const FileLibrary = () => {
       showError('Set your file storage path in User Settings first');
       return;
     }
-    const subdir = subdirMap[typeId || selectedType] || selectedType;
+    const resolvedType = typeId || selectedType;
+    const subdir = subdirMap[resolvedType] || selectedType;
     const sep = basePath.includes('\\') ? '\\' : '/';
-    const fileNames = Array.isArray(fileNameOrNames) ? fileNameOrNames : [fileNameOrNames];
+    const fileNames = selectPreferredCopyFiles(fileNameOrNames, resolvedType);
     const fullPath = fileNames.map((fileName) => `${basePath}${sep}${subdir}${sep}${fileName}`).join('\n');
 
     navigator.clipboard.writeText(fullPath)
@@ -530,6 +542,7 @@ const FileLibrary = () => {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setSelectedEntryKey(null);
+    setSelectedCategoryId(mode === VIEW_CATEGORY ? 'all' : null);
     setSelectedComponentId(null);
     setSearchQuery('');
     setBulkSelectMode(false);

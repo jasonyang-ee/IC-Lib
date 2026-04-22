@@ -12,12 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin email settings now include one-click preview emails for ECO submitted, approved, rejected, and assigned notifications using the same recipient input
 - Server email template coverage now includes focused tests for `CONFIG_BASE_URL` precedence and preview generation
 - File Library selected-file actions now include a text `Copy File Path` control that copies the configured user storage path plus the CAD subfolder and filename
+- Projects now open a `Generate BOM` column picker that can export tracked part metadata, CAD fields, distributor part numbers, and sequential alternative-part columns
+- Admin Settings now include a `BOM` tab for configuring the default column set used when opening the project BOM generator
 
 ### Changed
 
 - Welcome-account and ECO notification emails now use a shared modern template layout and prefer `CONFIG_BASE_URL` for system links, while legacy `APP_URL` and `BASE_DOMAIN` remain fallback-only in email rendering
 - Read-only users now follow limited navigation rules like reviewers, landing on ECO or Parts Library instead of Dashboard and losing access to User Settings
 - SMTP host values in Admin Email Settings now stay hidden by default behind an eye-toggle control, File Library rename dialogs auto-focus and select the file name field, and category-view file actions now use text buttons with delete removed from that view
+- File Library category mode now defaults to focused `All Categories`, footprint path copies prefer only the editable `.dra` file, and the selected-file copy action now sits beside the file header instead of the rename/delete cluster
+- Projects now use the lighter transparent modal backdrop treatment for create, edit, delete, quantity, and BOM dialogs, and the Add Component action now uses the primary blue button style
 
 ### Fixed
 
@@ -27,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File Library now refreshes cached user storage paths after User Settings saves, so copy-path actions use the latest configured path instead of stale empty values
 - Parts Library CAD delete confirmations now use the same lighter transparent modal backdrop treatment as File Library rename dialogs
 - File Library footprint rename now allows case-only base-name normalization on paired `.psm`/`.dra` files without tripping duplicate-file validation
+- Project quantity edits no longer fall back to browser prompts, BOM exports now pull real distributor rows instead of assuming component details include them, and bulk project-import errors now surface in-app instead of browser alerts
 
 ## [1.9.3] - 2026-04-21
 

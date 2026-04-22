@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
+import { ConfirmationModal } from '../components/common';
 import { ProjectsList, ProjectDetails, ProjectModals } from '../components/projects';
+import {
+  BOM_COLUMN_DEFINITIONS,
+  buildBomCsvContent,
+  buildBomFileName,
+  DEFAULT_BOM_COLUMN_IDS,
+  sanitizeBomColumnIds,
+} from '../utils/bomExport';
+
+const getResponseData = async (request, fallbackValue) => {
+  try {
+    const response = await request;
+    return response.data;
+  } catch {
+    return fallbackValue;
+  }
+};
 
 const Projects = () => {
   const queryClient = useQueryClient();
@@ -21,6 +38,10 @@ const Projects = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showQuantityInput, setShowQuantityInput] = useState(null);
   const [quantityValue, setQuantityValue] = useState('1');
+  const [showBomModal, setShowBomModal] = useState(false);
+  const [selectedBomColumnIds, setSelectedBomColumnIds] = useState([...DEFAULT_BOM_COLUMN_IDS]);
+  const [isGeneratingBom, setIsGeneratingBom] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   // Fetch all projects
   const { data: projects, isLoading } = useQuery({
@@ -50,6 +71,20 @@ const Projects = () => {
     },
     enabled: componentSearchTerm.length > 2
   });
+
+  const { data: appSettings } = useQuery({
+    queryKey: ['appSettings'],
+    queryFn: async () => {
+      const response = await api.getSettings();
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const defaultBomColumnIds = useMemo(
+    () => sanitizeBomColumnIds(appSettings?.bomDefaults?.columnIds),
+    [appSettings?.bomDefaults?.columnIds],
+  );
 
   // Create project mutation
   const createProjectMutation = useMutation({
@@ -83,6 +118,10 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['projects']);
       setSelectedProject(null);
+      setShowDeleteConfirm(null);
+    },
+    onError: (error) => {
+      showError('Error deleting project: ' + (error.response?.data?.error || error.message));
     }
   });
 
@@ -107,6 +146,9 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
       queryClient.invalidateQueries(['projects']);
+    },
+    onError: (error) => {
+      showError('Error removing component: ' + (error.response?.data?.error || error.message));
     }
   });
 
@@ -118,6 +160,9 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
       queryClient.invalidateQueries(['projects']);
+    },
+    onError: (error) => {
+      showError('Error updating quantity: ' + (error.response?.data?.error || error.message));
     }
   });
 
@@ -161,7 +206,6 @@ const Projects = () => {
   const confirmDelete = () => {
     if (showDeleteConfirm) {
       deleteProjectMutation.mutate(showDeleteConfirm.id);
-      setShowDeleteConfirm(null);
     }
   };
 
@@ -171,19 +215,31 @@ const Projects = () => {
 
   const handleAddComponent = (component) => {
     if (!selectedProject) return;
-    setShowQuantityInput(component);
+    setShowQuantityInput({
+      ...component,
+      mode: 'add',
+    });
     setQuantityValue('1');
   };
 
-  const confirmAddComponent = () => {
+  const confirmQuantityInput = () => {
     if (!showQuantityInput || !selectedProject) return;
-    const qty = parseInt(quantityValue);
+    const qty = parseInt(quantityValue, 10);
     if (qty && qty > 0) {
-      addComponentMutation.mutate({
-        projectId: selectedProject.id,
-        component_id: showQuantityInput.id,
-        quantity: qty
-      });
+      if (showQuantityInput.mode === 'update') {
+        updateComponentQuantityMutation.mutate({
+          projectId: selectedProject.id,
+          componentId: showQuantityInput.id,
+          quantity: qty,
+        });
+      } else {
+        addComponentMutation.mutate({
+          projectId: selectedProject.id,
+          component_id: showQuantityInput.id,
+          quantity: qty
+        });
+      }
+
       setShowQuantityInput(null);
       setQuantityValue('1');
     } else {
@@ -267,7 +323,7 @@ const Projects = () => {
               error.response?.data?.error?.toLowerCase().includes('duplicate')) {
             duplicateCount++;
           } else {
-            errors.push(`${item.mfgPn}: ${error.message}`);
+            errors.push(`${item.searchTerm}: ${error.message}`);
           }
         }
       }
@@ -290,131 +346,103 @@ const Projects = () => {
         showError(`Errors: ${errors.join(', ')}`);
       }
     } catch (error) {
-      alert('Error adding components: ' + error.message);
+      showError('Error adding components: ' + error.message);
     }
   };
 
-  // Export project to CSV with all details
-  const handleExportProject = async () => {
-    if (!selectedProject || !projectDetails) return;
+  const handleOpenBomModal = () => {
+    if (!selectedProject || !projectDetails?.components?.length) {
+      return;
+    }
+
+    setSelectedBomColumnIds([...defaultBomColumnIds]);
+    setShowBomModal(true);
+  };
+
+  const handleGenerateBom = async () => {
+    if (!selectedProject || !projectDetails?.components?.length) {
+      return;
+    }
+
+    if (selectedBomColumnIds.length === 0) {
+      showError('Select at least one BOM column');
+      return;
+    }
+
+    setIsGeneratingBom(true);
 
     try {
-      // Fetch detailed information for each component including alternatives and distributors
       const detailedComponents = await Promise.all(
-        projectDetails.components.map(async (pc) => {
-          try {
-            // Fetch component alternatives and distributors
-            const componentId = pc.component_id || pc.alternative_id;
-            const alternativesRes = await api.getComponentAlternatives(componentId);
-            const alternatives = alternativesRes.data || [];
+        projectDetails.components.map(async (projectComponent) => {
+          const componentDetails = projectComponent.component_id
+            ? await getResponseData(api.getComponentById(projectComponent.component_id), null)
+            : null;
+          const distributors = projectComponent.component_id
+            ? await getResponseData(api.getComponentDistributors(projectComponent.component_id), [])
+            : [];
+          const alternatives = projectComponent.component_id
+            ? await getResponseData(api.getComponentAlternatives(projectComponent.component_id), [])
+            : [];
 
-            // Get distributor info for primary component
-            let distributors = [];
-            if (pc.component_id) {
-              try {
-                const compRes = await api.getComponentById(pc.component_id);
-                distributors = compRes.data.distributors || [];
-              } catch (err) {
-                console.error('Error fetching distributors:', err);
-              }
-            }
-
-            return {
-              part_number: pc.part_number,
-              manufacturer: pc.manufacturer_name || pc.alt_manufacturer_name,
-              manufacturer_pn: pc.manufacturer_pn || pc.alt_manufacturer_pn,
-              description: pc.description,
-              category: pc.category_name,
-              quantity_needed: pc.quantity,
-              available_quantity: pc.available_quantity || 0,
-              location: pc.location || '',
-              value: pc.value || '',
-              alternatives: alternatives,
-              distributors: distributors
-            };
-          } catch (error) {
-            console.error('Error fetching component details:', error);
-            return {
-              part_number: pc.part_number,
-              manufacturer: pc.manufacturer_name || pc.alt_manufacturer_name,
-              manufacturer_pn: pc.manufacturer_pn || pc.alt_manufacturer_pn,
-              description: pc.description,
-              category: pc.category_name,
-              quantity_needed: pc.quantity,
-              available_quantity: pc.available_quantity || 0,
-              location: pc.location || '',
-              value: pc.value || '',
-              alternatives: [],
-              distributors: []
-            };
-          }
-        })
+          return {
+            part_number: projectComponent.part_number || componentDetails?.part_number || '',
+            manufacturer: projectComponent.manufacturer_name || projectComponent.alt_manufacturer_name || componentDetails?.manufacturer_name || '',
+            manufacturer_pn: projectComponent.manufacturer_pn || projectComponent.alt_manufacturer_pn || componentDetails?.manufacturer_pn || '',
+            description: projectComponent.description || componentDetails?.description || '',
+            category: projectComponent.category_name || componentDetails?.category_name || '',
+            value: projectComponent.value || componentDetails?.value || '',
+            quantity: projectComponent.quantity,
+            available_quantity: projectComponent.available_quantity || 0,
+            location: projectComponent.location || '',
+            approval_status: componentDetails?.approval_status || '',
+            status: selectedProject.status,
+            part_type: componentDetails?.part_type || '',
+            package_size: componentDetails?.package_size || '',
+            datasheet_url: componentDetails?.datasheet_url || '',
+            sub_category1: componentDetails?.sub_category1 || '',
+            sub_category2: componentDetails?.sub_category2 || '',
+            sub_category3: componentDetails?.sub_category3 || '',
+            sub_category4: componentDetails?.sub_category4 || '',
+            notes: projectComponent.notes || '',
+            created_at: componentDetails?.created_at || '',
+            pcb_footprint: componentDetails?.pcb_footprint || [],
+            schematic: componentDetails?.schematic || [],
+            step_model: componentDetails?.step_model || [],
+            pspice: componentDetails?.pspice || [],
+            pad_file: componentDetails?.pad_file || [],
+            distributors,
+            alternatives,
+          };
+        }),
       );
 
-      // Build CSV content
-      const headers = [
-        'Part Number',
-        'Manufacturer',
-        'Manufacturer P/N',
-        'Description',
-        'Category',
-        'Value',
-        'Quantity Needed',
-        'Available',
-        'Location',
-        'Distributors',
-        'Alternative Parts'
-      ];
-
-      const rows = detailedComponents.map(comp => {
-        const distInfo = comp.distributors
-          .map(d => `${d.distributor_name}: ${d.distributor_pn} ($${d.price || 'N/A'})`)
-          .join('; ');
-
-        const altInfo = comp.alternatives
-          .map(a => `${a.manufacturer_name} ${a.manufacturer_pn}`)
-          .join('; ');
-
-        return [
-          comp.part_number,
-          comp.manufacturer,
-          comp.manufacturer_pn,
-          `"${(comp.description || '').replace(/"/g, '""')}"`,
-          comp.category,
-          comp.value,
-          comp.quantity_needed,
-          comp.available_quantity,
-          comp.location,
-          `"${distInfo.replace(/"/g, '""')}"`,
-          `"${altInfo.replace(/"/g, '""')}"`
-        ];
+      const csvContent = buildBomCsvContent({
+        project: {
+          name: projectDetails?.name || selectedProject.name,
+          status: projectDetails?.status || selectedProject.status,
+          description: projectDetails?.description || selectedProject.description,
+        },
+        components: detailedComponents,
+        selectedColumnIds: selectedBomColumnIds,
       });
 
-      const csvContent = [
-        `Project: ${selectedProject.name}`,
-        `Status: ${selectedProject.status}`,
-        `Description: ${selectedProject.description || 'N/A'}`,
-        `Exported: ${new Date().toLocaleString()}`,
-        '',
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-      ].join('\n');
-
-      // Download CSV
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `${selectedProject.name.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', buildBomFileName(projectDetails?.name || selectedProject.name));
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      showSuccess('Project exported successfully!');
+      setShowBomModal(false);
+      showSuccess('BOM generated successfully!');
     } catch (error) {
-      console.error('Error exporting project:', error);
-      showError('Failed to export project: ' + error.message);
+      showError('Failed to generate BOM: ' + error.message);
+    } finally {
+      setIsGeneratingBom(false);
     }
   };
 
@@ -425,29 +453,70 @@ const Projects = () => {
   };
 
   const handleUpdateQuantity = (projectComponent) => {
-    const newQty = prompt('Enter new quantity:', projectComponent.quantity.toString());
-    if (newQty && parseInt(newQty) > 0) {
-      updateComponentQuantityMutation.mutate({
-        projectId: selectedProject.id,
-        componentId: projectComponent.id,
-        quantity: parseInt(newQty)
-      });
-    }
+    setShowQuantityInput({
+      ...projectComponent,
+      mode: 'update',
+    });
+    setQuantityValue(projectComponent.quantity.toString());
   };
 
   const handleRemoveComponent = (projectComponent) => {
-    if (confirm('Remove this component from the project?')) {
-      removeComponentMutation.mutate({
-        projectId: selectedProject.id,
-        componentId: projectComponent.id
-      });
-    }
+    setConfirmAction({
+      type: 'remove-component',
+      payload: projectComponent,
+      title: 'Remove Component',
+      message: `Remove ${projectComponent.part_number} from this project?`,
+      confirmText: 'Remove Component',
+      confirmStyle: 'danger',
+    });
   };
 
   const handleConsumeAll = () => {
     if (!selectedProject) return;
-    if (confirm(`This will consume all components for project "${selectedProject.name}" from inventory. Continue?`)) {
+
+    setConfirmAction({
+      type: 'consume-all',
+      payload: selectedProject,
+      title: 'Consume All Components',
+      message: `This will consume all components for project "${selectedProject.name}" from inventory. Continue?`,
+      confirmText: 'Consume All',
+      confirmStyle: 'primary',
+    });
+  };
+
+  const handleToggleBomColumn = (columnId) => {
+    setSelectedBomColumnIds((current) => (
+      current.includes(columnId)
+        ? current.filter((id) => id !== columnId)
+        : [...current, columnId]
+    ));
+  };
+
+  const handleSelectAllBomColumns = () => {
+    setSelectedBomColumnIds(BOM_COLUMN_DEFINITIONS.map((column) => column.id));
+  };
+
+  const handleResetBomColumns = () => {
+    setSelectedBomColumnIds([...defaultBomColumnIds]);
+  };
+
+  const handleConfirmAction = () => {
+    if (!confirmAction || !selectedProject) {
+      return;
+    }
+
+    if (confirmAction.type === 'remove-component') {
+      removeComponentMutation.mutate({
+        projectId: selectedProject.id,
+        componentId: confirmAction.payload.id,
+      });
+      setConfirmAction(null);
+      return;
+    }
+
+    if (confirmAction.type === 'consume-all') {
       consumeProjectMutation.mutate(selectedProject.id);
+      setConfirmAction(null);
     }
   };
 
@@ -494,7 +563,7 @@ const Projects = () => {
           projectDetails={projectDetails}
           canWrite={canWrite}
           onEditClick={() => setShowEditModal(true)}
-          onExportProject={handleExportProject}
+          onGenerateBomClick={handleOpenBomModal}
           onConsumeAll={handleConsumeAll}
           onAddComponentClick={() => setShowAddComponentModal(true)}
           onUpdateQuantity={handleUpdateQuantity}
@@ -533,8 +602,27 @@ const Projects = () => {
         showQuantityInput={showQuantityInput}
         quantityValue={quantityValue}
         setQuantityValue={setQuantityValue}
-        onConfirmAddComponent={confirmAddComponent}
+        onConfirmQuantityInput={confirmQuantityInput}
         onCancelQuantityInput={handleCancelQuantityInput}
+        showBomModal={showBomModal}
+        bomColumnOptions={BOM_COLUMN_DEFINITIONS}
+        selectedBomColumnIds={selectedBomColumnIds}
+        onToggleBomColumn={handleToggleBomColumn}
+        onSelectAllBomColumns={handleSelectAllBomColumns}
+        onResetBomColumns={handleResetBomColumns}
+        onConfirmGenerateBom={handleGenerateBom}
+        onCloseBomModal={() => setShowBomModal(false)}
+        isGeneratingBom={isGeneratingBom}
+      />
+
+      <ConfirmationModal
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleConfirmAction}
+        title={confirmAction?.title || 'Confirm Action'}
+        message={confirmAction?.message || ''}
+        confirmText={confirmAction?.confirmText || 'Confirm'}
+        confirmStyle={confirmAction?.confirmStyle || 'primary'}
       />
     </div>
   );

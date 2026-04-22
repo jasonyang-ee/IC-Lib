@@ -314,9 +314,17 @@ const FileTypesView = ({
           <>
             <div className="flex justify-between items-start mb-3 shrink-0">
               <div className="flex-1 min-w-0">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" title={selectedEntry.displayName}>
-                  {selectedEntry.displayName}
-                </h2>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" title={selectedEntry.displayName}>
+                    {selectedEntry.displayName}
+                  </h2>
+                  <button
+                    onClick={() => onCopyPath(selectedEntry.fileNames, selectedType)}
+                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  >
+                    Copy File Path
+                  </button>
+                </div>
                 {selectedEntry.kind === 'pair' && (
                   <div className="mt-1 space-y-0.5">
                     {selectedEntry.files.map((file) => (
@@ -330,12 +338,6 @@ const FileTypesView = ({
               </div>
               {canWrite() && (
                 <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-                  <button
-                    onClick={() => onCopyPath(selectedEntry.fileNames, selectedType)}
-                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                  >
-                    Copy File Path
-                  </button>
                   <button
                     onClick={() => onOpenRename(selectedEntry)}
                     className="text-sm font-medium text-gray-700 hover:text-primary-700 dark:text-gray-300 dark:hover:text-primary-300"
