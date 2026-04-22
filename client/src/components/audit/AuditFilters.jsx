@@ -13,9 +13,9 @@ const AuditFilters = ({
   actions,
 }) => (
   <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] mb-6 shrink-0">
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {/* Search */}
-      <div className="lg:col-span-3">
+      <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           <Search className="w-4 h-4 inline mr-1" />
           Search
@@ -96,7 +96,7 @@ const AuditFilters = ({
 
       {/* Export to CSV */}
       {actions && (
-        <div className="flex items-end justify-start lg:justify-end lg:pl-4">
+        <div class="flex items-end justify-end">
           {actions}
         </div>
       )}
