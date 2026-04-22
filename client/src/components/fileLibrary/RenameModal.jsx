@@ -34,8 +34,7 @@ const RenameModal = ({
 
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
           <div className="mb-4 rounded-lg border border-gray-200 dark:border-[#3a3a3a] bg-gray-50 dark:bg-[#333333] px-4 py-3">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">File + Database Rename</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Renames the physical file on disk, updates `cad_files`, and regenerates linked component CAD text fields.
             </p>
           </div>
@@ -53,7 +52,7 @@ const RenameModal = ({
             />
             {isGroupedFootprint && renameData.fileNames?.length > 0 && (
               <div className="mt-2 rounded-lg border border-gray-200 dark:border-[#3a3a3a] bg-gray-50 dark:bg-[#333333] p-3">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Paired Footprint Files</p>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Current Paired Footprint File Name</p>
                 <div className="space-y-1">
                   {renameData.fileNames.map((fileName) => (
                     <p key={fileName} className="text-sm text-gray-700 dark:text-gray-300">{fileName}</p>

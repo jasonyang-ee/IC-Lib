@@ -41,6 +41,16 @@ function sanitizeFileBaseName(fileName) {
     .replace(/^_|_$/g, '');
 }
 
+function isSamePhysicalFile(firstPath, secondPath) {
+  try {
+    const firstStat = fs.statSync(firstPath);
+    const secondStat = fs.statSync(secondPath);
+    return firstStat.dev === secondStat.dev && firstStat.ino === secondStat.ino;
+  } catch {
+    return false;
+  }
+}
+
 function buildFootprintPairTargets(fileNames, newBaseName) {
   const normalizedFileNames = [...new Set(
     (Array.isArray(fileNames) ? fileNames : [])
@@ -305,7 +315,11 @@ export const renameFootprintGroup = async (req, res) => {
       }
 
       const newPath = path.join(LIBRARY_BASE, info.subdir, target.newFileName);
-      if (target.newFileName !== cadFile.file_name && fs.existsSync(newPath)) {
+      if (
+        target.newFileName !== cadFile.file_name
+        && fs.existsSync(newPath)
+        && !isSamePhysicalFile(oldPath, newPath)
+      ) {
         return res.status(409).json({ error: `File "${target.newFileName}" already exists in the footprint directory` });
       }
 
