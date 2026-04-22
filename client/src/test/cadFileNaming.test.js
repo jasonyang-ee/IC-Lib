@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractPackageLabel, formatPackageFilenameBase } from '../utils/cadFileNaming';
+import {
+  buildCadShortcutFilename,
+  extractCadDensitySuffix,
+  extractPackageLabel,
+  formatPackageFilenameBase,
+} from '../utils/cadFileNaming';
 
 describe('cadFileNaming', () => {
   it('drops trailing dimensional notes from package labels', () => {
@@ -17,5 +22,21 @@ describe('cadFileNaming', () => {
 
   it('sanitizes spaces for filenames after trimming dimensional notes', () => {
     expect(formatPackageFilenameBase('8-SOIC (0.154", 3.90mm Width)')).toBe('8-SOIC');
+  });
+
+  it('detects underscore density suffixes case-insensitively and normalizes them to lowercase', () => {
+    expect(extractCadDensitySuffix('8-soic_L.dra')).toEqual({
+      base: '8-soic',
+      suffix: '_l',
+      ext: '.dra',
+    });
+  });
+
+  it('preserves n-density suffixes when building shortcut rename filenames', () => {
+    expect(buildCadShortcutFilename('8-soic_N.psm', 'SOIC-8')).toBe('SOIC-8_n.psm');
+  });
+
+  it('keeps legacy dash density suffixes while normalizing the suffix letter to lowercase', () => {
+    expect(buildCadShortcutFilename('QFN-M.OLB', 'ABC123')).toBe('ABC123-m.OLB');
   });
 });

@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production-part ECOs now carry a production approval tag for spec, filename, and distributor changes, and inventory-only distributor payloads no longer create approval tags
 - CAD renames now target the exact staged upload or saved library file so add/edit flows do not leave both the original and renamed file in the library
 - ECO CAD unlink submissions now read linked file names from the live file-library API payload, so deleted CAD links are actually staged and removed on approval
+- Parts Library MPN and package shortcut renames now preserve trailing density suffixes such as `_l`, `_m`, and `_n` case-insensitively and normalize those suffixes to lowercase in the final filename
 
 ## [1.9.2] - 2026-04-21
 

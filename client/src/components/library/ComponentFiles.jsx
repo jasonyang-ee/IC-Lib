@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
-import { formatPackageFilenameBase } from '../../utils/cadFileNaming';
+import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils/cadFileNaming';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -95,23 +95,6 @@ const RenameConfirmationModal = ({ show, title, oldFilename, newFilename, onConf
     </div>
   );
 };
-
-// Density suffixes that should be preserved when applying MPN as filename
-const DENSITY_SUFFIXES = ['-M', '-L', '-m', '-l'];
-
-/**
- * Extract density suffix from filename if present
- */
-function extractDensitySuffix(filename) {
-  const ext = filename.substring(filename.lastIndexOf('.'));
-  const baseName = filename.substring(0, filename.lastIndexOf('.'));
-  for (const suffix of DENSITY_SUFFIXES) {
-    if (baseName.endsWith(suffix)) {
-      return { base: baseName.substring(0, baseName.length - suffix.length), suffix, ext };
-    }
-  }
-  return { base: baseName, suffix: '', ext };
-}
 
 /** Enforce lowercase base name for .psm files (PSM files are always fully lowercase) */
 function enforcePsmCase(filename) {
@@ -513,11 +496,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   };
 
   const requestMpnRename = (category, file, pairedFile = null) => {
-    const { suffix, ext } = extractDensitySuffix(file.name);
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const newFilename = enforcePsmCase(sanitizedMpn + suffix + ext);
+    const newFilename = enforcePsmCase(buildCadShortcutFilename(file.name, sanitizedMpn));
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches MPN');
@@ -555,13 +537,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   const requestPkgRename = (category, file, pairedFile = null) => {
     if (!packageSize) return;
-    const { suffix, ext } = extractDensitySuffix(file.name);
     const sanitizedPkg = formatPackageFilenameBase(packageSize);
     if (!sanitizedPkg) {
       showError('Package name is empty after formatting');
       return;
     }
-    const newFilename = enforcePsmCase(sanitizedPkg + suffix + ext);
+    const newFilename = enforcePsmCase(buildCadShortcutFilename(file.name, sanitizedPkg));
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches package');
