@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const ProjectsList = ({
   projects,
@@ -6,7 +6,6 @@ const ProjectsList = ({
   canWrite,
   onCreateClick,
   onSelectProject,
-  onDeleteProject,
 }) => {
   return (
     <div className="lg:col-span-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-4 flex flex-col overflow-hidden">
@@ -33,7 +32,7 @@ const ProjectsList = ({
             }`}
           >
             <div className="flex items-start justify-between">
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                   {project.name}
                 </h3>
@@ -54,17 +53,6 @@ const ProjectsList = ({
                   </span>
                 </div>
               </div>
-              {canWrite() && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteProject(project);
-                  }}
-                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
             </div>
           </div>
         ))}

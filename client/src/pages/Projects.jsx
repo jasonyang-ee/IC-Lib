@@ -119,6 +119,7 @@ const Projects = () => {
       queryClient.invalidateQueries(['projects']);
       setSelectedProject(null);
       setShowDeleteConfirm(null);
+      setShowEditModal(false);
     },
     onError: (error) => {
       showError('Error deleting project: ' + (error.response?.data?.error || error.message));
@@ -555,7 +556,6 @@ const Projects = () => {
           canWrite={canWrite}
           onCreateClick={() => setShowCreateModal(true)}
           onSelectProject={handleSelectProject}
-          onDeleteProject={handleDeleteProject}
         />
 
         <ProjectDetails
@@ -581,6 +581,7 @@ const Projects = () => {
         selectedProject={selectedProject}
         setSelectedProject={setSelectedProject}
         onUpdateProject={handleUpdateProject}
+        onOpenDeleteProject={handleDeleteProject}
         onCloseEditModal={() => setShowEditModal(false)}
         showAddComponentModal={showAddComponentModal}
         componentSearchTerm={componentSearchTerm}

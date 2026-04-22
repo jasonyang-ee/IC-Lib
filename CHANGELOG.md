@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SMTP host values in Admin Email Settings now stay hidden by default behind an eye-toggle control, File Library rename dialogs auto-focus and select the file name field, and category-view file actions now use text buttons with delete removed from that view
 - File Library category mode now defaults to focused `All Categories`, footprint path copies prefer only the editable `.dra` file, and the selected-file copy action now sits beside the file header instead of the rename/delete cluster
 - Projects now use the lighter transparent modal backdrop treatment for create, edit, delete, quantity, and BOM dialogs, and the Add Component action now uses the primary blue button style
+- Project component cards now use a tighter three-row layout with manufacturer details folded into the header, `Value`/`Part Type`/`Package` shown as compact metadata, brighter `Quantity` emphasis, and inline text actions for quantity changes and deletes
+- Project deletion is now only exposed from the Edit Project modal instead of the project list, reducing accidental deletes from the main project picker
 
 ### Fixed
 
@@ -32,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parts Library CAD delete confirmations now use the same lighter transparent modal backdrop treatment as File Library rename dialogs
 - File Library footprint rename now allows case-only base-name normalization on paired `.psm`/`.dra` files without tripping duplicate-file validation
 - Project quantity edits no longer fall back to browser prompts, BOM exports now pull real distributor rows instead of assuming component details include them, and bulk project-import errors now surface in-app instead of browser alerts
+- Project details now pull `Part Type` and `Package` metadata directly from the project payload, including alternative-part rows, instead of leaving those compact card fields empty
 
 ## [1.9.3] - 2026-04-21
 

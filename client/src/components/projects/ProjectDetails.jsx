@@ -1,4 +1,4 @@
-import { FolderKanban, Plus, Edit, Trash2, Download, Play } from 'lucide-react';
+import { FolderKanban, Plus, Edit, Download, Play } from 'lucide-react';
 
 const ProjectDetails = ({
   selectedProject,
@@ -85,27 +85,41 @@ const ProjectDetails = ({
           {projectDetails?.components?.map((pc) => (
             <div
               key={pc.id}
-              className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg"
+              className="p-3 border border-gray-200 dark:border-[#3a3a3a] rounded-lg"
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       {pc.part_number}
                     </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                      {pc.manufacturer_name || pc.alt_manufacturer_name} - {pc.manufacturer_pn || pc.alt_manufacturer_pn}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm px-2 py-0.5 bg-gray-100 dark:bg-[#333333] rounded">
                       {pc.category_name}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {pc.manufacturer_name} - {pc.manufacturer_pn || pc.alt_manufacturer_pn}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                    {pc.description}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2 text-xs">
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Quantity: <span className="font-semibold">{pc.quantity}</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+                  <span>
+                    Value: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.value || '-'}</span>
+                  </span>
+                  <span>
+                    Part Type: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.part_type || '-'}</span>
+                  </span>
+                  <span>
+                    Package: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.package_size || '-'}</span>
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <span className="text-primary-700 dark:text-primary-300 font-semibold">
+                      Quantity: <span>{pc.quantity}</span>
                     </span>
                     <span className={`${
                       pc.available_quantity >= pc.quantity
@@ -120,25 +134,23 @@ const ProjectDetails = ({
                       </span>
                     )}
                   </div>
+                  {canWrite() && (
+                    <div className="flex items-center gap-4 ml-2 sm:ml-4">
+                      <button
+                        onClick={() => onUpdateQuantity(pc)}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        Change Quantity
+                      </button>
+                      <button
+                        onClick={() => onRemoveComponent(pc)}
+                        className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {canWrite() && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onUpdateQuantity(pc)}
-                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      title="Update quantity"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onRemoveComponent(pc)}
-                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                      title="Remove component"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}

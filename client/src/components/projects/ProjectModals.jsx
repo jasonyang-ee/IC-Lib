@@ -12,6 +12,7 @@ const ProjectModals = ({
   selectedProject,
   setSelectedProject,
   onUpdateProject,
+  onOpenDeleteProject,
   onCloseEditModal,
   // Add component modal
   showAddComponentModal,
@@ -166,6 +167,12 @@ const ProjectModals = ({
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => onOpenDeleteProject(selectedProject)}
+                className="mr-auto text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+              >
+                Delete Project
+              </button>
               <button
                 onClick={onCloseEditModal}
                 className="btn-secondary"

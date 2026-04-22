@@ -48,12 +48,20 @@ export const getProjectById = async (req, res) => {
           WHEN pc.component_id IS NOT NULL THEN 'component'
           ELSE 'alternative'
         END as type,
-        -- Component details
-        c.part_number,
-        c.manufacturer_pn,
-        c.description,
-        c.value,
-        m.name as manufacturer_name,
+        -- Shared component details
+        base_component.part_number,
+        CASE WHEN pc.component_id IS NOT NULL THEN base_component.manufacturer_pn ELSE NULL END as manufacturer_pn,
+        base_component.description,
+        base_component.value,
+        base_component.package_size,
+        get_part_type(
+          base_component.category_id,
+          base_component.sub_category1,
+          base_component.sub_category2,
+          base_component.sub_category3,
+          base_component.sub_category4
+        ) as part_type,
+        CASE WHEN pc.component_id IS NOT NULL THEN m.name ELSE NULL END as manufacturer_name,
         cat.name as category_name,
         -- Alternative details
         a.manufacturer_pn as alt_manufacturer_pn,
@@ -68,15 +76,15 @@ export const getProjectById = async (req, res) => {
           ELSE ai.location
         END as location
       FROM project_components pc
-      LEFT JOIN components c ON pc.component_id = c.id
-      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-      LEFT JOIN component_categories cat ON c.category_id = cat.id
-      LEFT JOIN inventory i ON c.id = i.component_id
       LEFT JOIN components_alternative a ON pc.alternative_id = a.id
+      LEFT JOIN components base_component ON COALESCE(pc.component_id, a.component_id) = base_component.id
+      LEFT JOIN manufacturers m ON base_component.manufacturer_id = m.id
+      LEFT JOIN component_categories cat ON base_component.category_id = cat.id
+      LEFT JOIN inventory i ON base_component.id = i.component_id
       LEFT JOIN manufacturers am ON a.manufacturer_id = am.id
       LEFT JOIN inventory_alternative ai ON a.id = ai.alternative_id
       WHERE pc.project_id = $1
-      ORDER BY c.part_number, a.manufacturer_pn
+      ORDER BY base_component.part_number, a.manufacturer_pn
     `, [id]);
     
     const project = projectResult.rows[0];
