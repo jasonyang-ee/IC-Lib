@@ -401,7 +401,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Create a CIS table view for approved parts
-CREATE OR REPLACE VIEW active_parts AS
+CREATE OR REPLACE VIEW production_parts AS
 SELECT 
     c.part_number,
     cat.name AS category_name,
@@ -418,25 +418,25 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
 WHERE c.approval_status = 'production';
 
--- Create a CIS table view for unapproved parts
-CREATE OR REPLACE VIEW new_parts AS
-SELECT 
+-- Create a CIS table view for production parts
+CREATE OR REPLACE VIEW production_parts AS
+SELECT
     c.part_number,
     cat.name AS category_name,
     get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-	c.value,
-	c.package_size,
-	c.manufacturer_pn,
+    c.value,
+    c.package_size,
+    c.manufacturer_pn,
     m.name AS manufacturer_name,
-	c.schematic,
-	c.pcb_footprint,
-	c.description
+    c.schematic,
+    c.pcb_footprint,
+    c.description
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'new' OR c.approval_status = 'reviewing';
+WHERE c.approval_status = 'production';
 
--- Create a CIS table view for unapproved parts
+-- Create a CIS table view for new and prototype parts
 CREATE OR REPLACE VIEW prototype_parts AS
 SELECT 
     c.part_number,
@@ -452,7 +452,7 @@ SELECT
 FROM components c
 LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'prototype';
+WHERE c.approval_status = 'prototype' OR c.approval_status = 'new' OR c.approval_status = 'reviewing';
 
 -- Create a CIS table view for old parts
 CREATE OR REPLACE VIEW archived_parts AS
@@ -1086,58 +1086,6 @@ BEGIN
   UPDATE components SET approval_status = 'reviewing' WHERE approval_status = 'pending review';
   ALTER TABLE components ADD CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'production', 'archived', 'reviewing', 'prototype'));
 END $$;
-
--- Recreate views with updated status names
-CREATE OR REPLACE VIEW production_parts AS
-SELECT
-    c.part_number,
-    cat.name AS category_name,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-    c.value,
-    c.package_size,
-    c.manufacturer_pn,
-    m.name AS manufacturer_name,
-    c.schematic,
-    c.pcb_footprint,
-    c.description
-FROM components c
-LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'production';
-
-CREATE OR REPLACE VIEW new_parts AS
-SELECT
-    c.part_number,
-    cat.name AS category_name,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-    c.value,
-    c.package_size,
-    c.manufacturer_pn,
-    m.name AS manufacturer_name,
-    c.schematic,
-    c.pcb_footprint,
-    c.description
-FROM components c
-LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'new' OR c.approval_status = 'reviewing';
-
-CREATE OR REPLACE VIEW prototype_parts AS
-SELECT
-    c.part_number,
-    cat.name AS category_name,
-    get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-    c.value,
-    c.package_size,
-    c.manufacturer_pn,
-    m.name AS manufacturer_name,
-    c.schematic,
-    c.pcb_footprint,
-    c.description
-FROM components c
-LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-LEFT JOIN component_categories cat ON c.category_id = cat.id
-WHERE c.approval_status = 'prototype';
 
 -- Replace legacy ECO pipeline tags with lifecycle and content tags
 DO $$
