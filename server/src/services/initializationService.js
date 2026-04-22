@@ -75,7 +75,7 @@ async function runMigrations() {
       } catch (migrationError) {
         await client.query('ROLLBACK');
         console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} failed: ${migrationError.message}`);
-        // Continue with other migrations - some might still succeed
+        return false;
       }
     }
     
@@ -400,12 +400,12 @@ export async function initializeAuthentication() {
     
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Authentication setup verified');
     
-    // Now check the broader application schema (tables, views, and repairable migration columns)
+    // Check the base application schema before migrations.
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Checking application database schema...');
     const schemaState = await inspectDatabaseSchema({
       expectedTables: STARTUP_REQUIRED_TABLES,
       expectedViews: EXPECTED_SCHEMA_VIEWS,
-      requiredColumns: REPAIRABLE_SCHEMA_COLUMNS,
+      requiredColumns: [],
     });
 
     if (!schemaState.valid) {
@@ -417,11 +417,6 @@ export async function initializeAuthentication() {
 
       if (schemaState.missingViews.length > 0) {
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing views: ${schemaState.missingViews.join(', ')}`);
-      }
-
-      if (schemaState.missingColumns.length > 0) {
-        const missingColumns = schemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing columns: ${missingColumns.join(', ')}`);
       }
 
       const initialized = await initializePartsDatabase();
@@ -448,7 +443,31 @@ export async function initializeAuthentication() {
     
     // Run any pending migrations
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');
-    await runMigrations();
+    const migrationsApplied = await runMigrations();
+
+    if (!migrationsApplied) {
+      return false;
+    }
+
+    // Verify migration-owned columns after the migration runner completes.
+    const migratedSchemaState = await inspectDatabaseSchema({
+      expectedTables: STARTUP_REQUIRED_TABLES,
+      expectedViews: EXPECTED_SCHEMA_VIEWS,
+      requiredColumns: REPAIRABLE_SCHEMA_COLUMNS,
+    });
+
+    if (!migratedSchemaState.valid) {
+      if (migratedSchemaState.missingColumns.length > 0) {
+        const missingColumns = migratedSchemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Missing migration-managed columns after migrations: ${missingColumns.join(', ')}`);
+      }
+
+      if (migratedSchemaState.missingTables.length > 0 || migratedSchemaState.missingViews.length > 0) {
+        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Base schema objects are still missing after initialization');
+      }
+
+      return false;
+    }
     
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[InitService]\x1b[0m Database initialization complete');
     

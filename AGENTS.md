@@ -28,8 +28,13 @@ IC-Lib/
 - PostgreSQL with UUIDv7: `UUID PRIMARY KEY DEFAULT uuidv7()`
 - Extract timestamps: `created_at(id)` function
 - JSONB for flexible data (activity_log, ECO changes, notification preferences)
-- Key views: `components_full`, `component_specifications_view`, `active_parts`, `alternative_parts`, `eco_orders_full`
+- Key views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`, `eco_orders_full`
 - DB runs on separate hardware; use PostgreSQL extension (Home-Servers/iclib) to inspect
+- Base schema and seed entrypoints live in `database/init-*.sql` and are for fresh initialization or full rebuilds only
+- Incremental schema/data changes for existing databases must go in `database/migrations/{number}_{description}.sql`
+- Do not place compatibility `ALTER`, backfill `UPDATE`, constraint rewrites, or legacy cleanup blocks in `database/init-*.sql`
+- Keep migration SQL idempotent when practical (`IF NOT EXISTS`, safe backfills, guarded `DO $$` blocks) because startup applies pending files from `database/migrations`
+- When adding a migration-owned column/view/table that startup should verify, update the server schema inspection expectations instead of putting the repair into `init-schema.sql`
 
 ## Auth
 

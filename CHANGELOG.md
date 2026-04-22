@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File Library selected-file actions now include a text `Copy File Path` control that copies the configured user storage path plus the CAD subfolder and filename
 - Projects now open a `Generate BOM` column picker that can export tracked part metadata, CAD fields, distributor part numbers, and sequential alternative-part columns
 - Admin Settings now include a `BOM` tab for configuring the default column set used when opening the project BOM generator
+- Database startup now applies idempotent SQL migrations from `database/migrations`, beginning with the extracted legacy schema-repair migration
 
 ### Changed
 
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Projects now use the lighter transparent modal backdrop treatment for create, edit, delete, quantity, and BOM dialogs, and the Add Component action now uses the primary blue button style
 - Project component cards now use a tighter three-row layout with manufacturer details folded into the header, `Value`/`Part Type`/`Package` shown as compact metadata, brighter `Quantity` emphasis, and inline text actions for quantity changes and deletes
 - Project deletion is now only exposed from the Edit Project modal instead of the project list, reducing accidental deletes from the main project picker
+- Database bootstrap docs and startup verification now treat `database/init-*.sql` as fresh-install entrypoints and `database/migrations/*.sql` as the only home for incremental schema repairs
 
 ### Fixed
 
@@ -35,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File Library footprint rename now allows case-only base-name normalization on paired `.psm`/`.dra` files without tripping duplicate-file validation
 - Project quantity edits no longer fall back to browser prompts, BOM exports now pull real distributor rows instead of assuming component details include them, and bulk project-import errors now surface in-app instead of browser alerts
 - Project details now pull `Part Type` and `Package` metadata directly from the project payload, including alternative-part rows, instead of leaving those compact card fields empty
+- `init-schema.sql` no longer mixes in legacy `ALTER`/backfill migrations, startup now verifies the real CIS view names, and failed SQL migrations now stop initialization instead of silently continuing
 
 ## [1.9.3] - 2026-04-21
 

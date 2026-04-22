@@ -43,8 +43,8 @@ export const STARTUP_REQUIRED_TABLES = EXPECTED_SCHEMA_TABLES.filter(
 );
 
 export const EXPECTED_SCHEMA_VIEWS = [
-  'active_parts',
-  'new_parts',
+  'production_parts',
+  'prototype_parts',
   'archived_parts',
   'alternative_parts',
 ];
