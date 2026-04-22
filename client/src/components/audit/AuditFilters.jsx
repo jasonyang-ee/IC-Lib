@@ -29,11 +29,6 @@ const AuditFilters = ({
         />
       </div>
 
-      {actions && (
-        <div className="flex items-end justify-start lg:justify-end lg:pl-4">
-          {actions}
-        </div>
-      )}
 
       {/* Activity Type Filter */}
       <div>
@@ -98,6 +93,14 @@ const AuditFilters = ({
           className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
         />
       </div>
+
+      {/* Export to CSV */}
+      {actions && (
+        <div className="flex items-end justify-start lg:justify-end lg:pl-4">
+          {actions}
+        </div>
+      )}
+
     </div>
   </div>
 );
