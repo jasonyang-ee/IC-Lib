@@ -11,11 +11,21 @@ const DeleteModal = ({ target, onClose, onConfirm, isPending }) => (
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Delete File</h3>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-          Are you sure you want to delete <strong className="text-gray-900 dark:text-gray-100">{target.fileName}</strong>?
+          Are you sure you want to delete <strong className="text-gray-900 dark:text-gray-100">{target.displayName || target.fileName}</strong>?
         </p>
+        {target.fileNames?.length > 1 && (
+          <div className="mb-4 rounded-lg border border-gray-200 dark:border-[#3a3a3a] bg-gray-50 dark:bg-[#333333] p-3">
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Files</p>
+            <div className="space-y-1">
+              {target.fileNames.map((fileName) => (
+                <p key={fileName} className="text-sm text-gray-700 dark:text-gray-300">{fileName}</p>
+              ))}
+            </div>
+          </div>
+        )}
         {target.componentCount > 0 && (
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            This will permanently delete the physical file from disk and remove it from{' '}
+            This will permanently delete the physical file{target.fileNames?.length > 1 ? 's' : ''} from disk and remove it from{' '}
             <strong>{target.componentCount}</strong> component reference{target.componentCount !== 1 ? 's' : ''}.
           </p>
         )}
@@ -40,7 +50,7 @@ const DeleteModal = ({ target, onClose, onConfirm, isPending }) => (
           ) : (
             <>
               <Trash2 className="w-4 h-4" />
-              Delete File
+              Delete {target.fileNames?.length > 1 ? 'Files' : 'File'}
             </>
           )}
         </button>

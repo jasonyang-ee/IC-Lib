@@ -22,6 +22,61 @@ function getTypeInfo(type) {
   return TYPE_MAP[type] || null;
 }
 
+function getFileExtension(fileName) {
+  return path.extname(String(fileName || '')).toLowerCase();
+}
+
+function getFileBaseName(fileName) {
+  const normalizedFileName = String(fileName || '');
+  const extension = getFileExtension(normalizedFileName);
+  return extension ? normalizedFileName.slice(0, -extension.length) : normalizedFileName;
+}
+
+function sanitizeFileBaseName(fileName) {
+  return String(fileName || '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
+function buildFootprintPairTargets(fileNames, newBaseName) {
+  const normalizedFileNames = [...new Set(
+    (Array.isArray(fileNames) ? fileNames : [])
+      .map((fileName) => String(fileName || '').trim())
+      .filter(Boolean),
+  )];
+
+  if (normalizedFileNames.length !== 2) {
+    throw new Error('Footprint pair rename requires exactly one .psm file and one .dra file');
+  }
+
+  const extensions = normalizedFileNames.map(getFileExtension);
+  if (!extensions.includes('.psm') || !extensions.includes('.dra')) {
+    throw new Error('Footprint pair rename requires one .psm file and one .dra file');
+  }
+
+  const baseNames = new Set(normalizedFileNames.map((fileName) => getFileBaseName(fileName).toLowerCase()));
+  if (baseNames.size !== 1) {
+    throw new Error('Footprint pair rename requires matching .psm and .dra base names');
+  }
+
+  const sanitizedBaseName = sanitizeFileBaseName(newBaseName);
+  if (!sanitizedBaseName) {
+    throw new Error('Invalid filename after sanitization');
+  }
+
+  return normalizedFileNames.map((oldFileName) => {
+    const extension = getFileExtension(oldFileName);
+    const newFileName = extension === '.psm'
+      ? `${sanitizedBaseName}${extension}`.toLowerCase()
+      : `${sanitizedBaseName}${extension}`;
+
+    return { oldFileName, newFileName };
+  });
+}
+
 /**
  * Get all unique file names by file type with component count.
  * Uses cad_files + component_cad_files junction tables.
@@ -81,10 +136,16 @@ export const getFileTypeStats = async (req, res) => {
 export const getComponentsByFile = async (req, res) => {
   try {
     const { type } = req.params;
-    const { fileName } = req.query;
+    const { fileName, fileNames } = req.query;
 
-    if (!fileName) {
-      return res.status(400).json({ error: 'fileName query parameter is required' });
+    const requestedFileNames = [...new Set(
+      (Array.isArray(fileNames) ? fileNames : (fileNames ? [fileNames] : [fileName]))
+        .map((name) => String(name || '').trim())
+        .filter(Boolean),
+    )];
+
+    if (requestedFileNames.length === 0) {
+      return res.status(400).json({ error: 'fileName or fileNames query parameter is required' });
     }
 
     const info = getTypeInfo(type);
@@ -92,13 +153,20 @@ export const getComponentsByFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
-    const components = await cadFileService.getComponentsByFileName(fileName, info.fileType);
+    const componentMap = new Map();
+    for (const requestedFileName of requestedFileNames) {
+      const components = await cadFileService.getComponentsByFileName(requestedFileName, info.fileType);
+      components.forEach((component) => {
+        componentMap.set(component.id, component);
+      });
+    }
 
     res.json({
-      fileName,
+      fileName: requestedFileNames[0],
+      fileNames: requestedFileNames,
       type,
       column: info.column,
-      components,
+      components: [...componentMap.values()],
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:', error.message);
@@ -111,42 +179,7 @@ export const getComponentsByFile = async (req, res) => {
  * Uses cadFileService.renameCadFile for the rename operation.
  */
 export const massUpdateFileName = async (req, res) => {
-  try {
-    const { type } = req.params;
-    const { oldFileName, newFileName } = req.body;
-
-    if (!oldFileName || !newFileName) {
-      return res.status(400).json({ error: 'oldFileName and newFileName are required' });
-    }
-
-    const info = getTypeInfo(type);
-    if (!info) {
-      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
-    }
-
-    // Find the cad_file record
-    const cadFile = await cadFileService.findCadFile(oldFileName, info.fileType);
-    if (!cadFile) {
-      return res.status(404).json({ error: `File "${oldFileName}" not found in database` });
-    }
-
-    // Get affected components before rename
-    const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
-
-    // Rename via cadFileService (handles cad_files update + TEXT regen)
-    await cadFileService.renameCadFile(cadFile.id, newFileName);
-
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Updated ${affectedBefore.length} components: ${info.column} "${oldFileName}" -> "${newFileName}"`);
-
-    res.json({
-      success: true,
-      updatedCount: affectedBefore.length,
-      updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
-    });
-  } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error mass updating file name:', error.message);
-    res.status(500).json({ error: 'Failed to update file name' });
-  }
+  res.status(400).json({ error: 'Database-only rename is no longer supported. Rename updates must apply to both the physical file and CAD links.' });
 };
 
 /**
@@ -246,6 +279,113 @@ export const renamePhysicalFile = async (req, res) => {
 };
 
 /**
+ * Rename a grouped footprint pair (.psm + .dra) together.
+ */
+export const renameFootprintGroup = async (req, res) => {
+  const client = await pool.connect();
+  const renamedPaths = [];
+  let transactionStarted = false;
+
+  try {
+    const { fileNames, newBaseName } = req.body;
+    const info = getTypeInfo('footprint');
+    const renameTargets = buildFootprintPairTargets(fileNames, newBaseName);
+    const affectedComponentIds = new Set();
+    const cadFiles = [];
+
+    for (const target of renameTargets) {
+      const cadFile = await cadFileService.findCadFile(target.oldFileName, info.fileType);
+      if (!cadFile) {
+        return res.status(404).json({ error: `File "${target.oldFileName}" not found in database` });
+      }
+
+      const oldPath = path.join(LIBRARY_BASE, info.subdir, cadFile.file_name);
+      if (!fs.existsSync(oldPath)) {
+        return res.status(404).json({ error: `File "${target.oldFileName}" not found on disk` });
+      }
+
+      const newPath = path.join(LIBRARY_BASE, info.subdir, target.newFileName);
+      if (target.newFileName !== cadFile.file_name && fs.existsSync(newPath)) {
+        return res.status(409).json({ error: `File "${target.newFileName}" already exists in the footprint directory` });
+      }
+
+      const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
+      linkedComponents.forEach((component) => affectedComponentIds.add(component.id));
+
+      cadFiles.push({
+        cadFile,
+        oldPath,
+        newPath,
+        newFileName: target.newFileName,
+      });
+    }
+
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    for (const file of cadFiles) {
+      if (file.cadFile.file_name === file.newFileName) {
+        continue;
+      }
+
+      fs.renameSync(file.oldPath, file.newPath);
+      renamedPaths.push({ oldPath: file.oldPath, newPath: file.newPath });
+
+      await client.query(`
+        UPDATE cad_files
+        SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+      `, [file.newFileName, `${info.subdir}/${file.newFileName}`, file.cadFile.id]);
+    }
+
+    for (const componentId of affectedComponentIds) {
+      await cadFileService.regenerateCadText(componentId, info.fileType, client);
+    }
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+
+    res.json({
+      success: true,
+      renamedFiles: cadFiles.map((file) => ({
+        oldFileName: file.cadFile.file_name,
+        newFileName: file.newFileName,
+      })),
+      updatedCount: affectedComponentIds.size,
+    });
+  } catch (error) {
+    if (transactionStarted) {
+      await client.query('ROLLBACK');
+    }
+
+    for (let index = renamedPaths.length - 1; index >= 0; index -= 1) {
+      const renamedPath = renamedPaths[index];
+      try {
+        if (fs.existsSync(renamedPath.newPath)) {
+          fs.renameSync(renamedPath.newPath, renamedPath.oldPath);
+        }
+      } catch {
+        // Best-effort rollback of physical file names.
+      }
+    }
+
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming footprint group:', error.message);
+
+    const status = error.message?.includes('not found')
+      ? 404
+      : error.message?.includes('already exists')
+        ? 409
+        : /requires|Invalid filename/.test(error.message || '')
+          ? 400
+          : 500;
+
+    res.status(status).json({ error: status === 500 ? 'Failed to rename footprint files' : error.message });
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Delete a physical file from disk and remove from cad_files + TEXT columns.
  * Uses cadFileService.deleteCadFile which handles junction + TEXT regen.
  */
@@ -275,8 +415,13 @@ export const deletePhysicalFile = async (req, res) => {
       return res.json({ success: true, fileName, updatedCount: 0, updatedComponents: [] });
     }
 
+    const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
+    if (linkedComponents.length > 0) {
+      return res.status(409).json({ error: 'Files linked to components cannot be deleted from File Library' });
+    }
+
     // Delete via cadFileService (handles physical file + DB + TEXT regen)
-    const { linkedComponents } = await cadFileService.deleteCadFile(cadFile.id);
+    await cadFileService.deleteCadFile(cadFile.id);
 
     console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete: "${fileName}", updated ${linkedComponents.length} components`);
 
@@ -289,6 +434,61 @@ export const deletePhysicalFile = async (req, res) => {
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
     res.status(500).json({ error: 'Failed to delete file' });
+  }
+};
+
+/**
+ * Delete multiple files together after confirming none are linked to components.
+ */
+export const deleteFileGroup = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { fileNames } = req.body;
+
+    const info = getTypeInfo(type);
+    if (!info) {
+      return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
+    }
+
+    const normalizedFileNames = [...new Set(
+      (Array.isArray(fileNames) ? fileNames : [])
+        .map((fileName) => String(fileName || '').trim())
+        .filter(Boolean),
+    )];
+
+    if (normalizedFileNames.length === 0) {
+      return res.status(400).json({ error: 'fileNames array is required' });
+    }
+
+    const cadFiles = [];
+    for (const fileName of normalizedFileNames) {
+      const cadFile = await cadFileService.findCadFile(fileName, info.fileType);
+      if (!cadFile) {
+        return res.status(404).json({ error: `File "${fileName}" not found in database` });
+      }
+
+      const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
+      if (linkedComponents.length > 0) {
+        return res.status(409).json({ error: 'Files linked to components cannot be deleted from File Library' });
+      }
+
+      cadFiles.push(cadFile);
+    }
+
+    for (const cadFile of cadFiles) {
+      await cadFileService.deleteCadFile(cadFile.id);
+    }
+
+    res.json({
+      success: true,
+      deletedCount: cadFiles.length,
+      deletedFiles: cadFiles.map((cadFile) => cadFile.file_name),
+      updatedCount: 0,
+      updatedComponents: [],
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting file group:', error.message);
+    res.status(500).json({ error: 'Failed to delete file group' });
   }
 };
 

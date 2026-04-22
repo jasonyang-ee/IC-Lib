@@ -7,7 +7,9 @@ import {
   massUpdateFileName,
   searchFiles,
   renamePhysicalFile,
+  renameFootprintGroup,
   deletePhysicalFile,
+  deleteFileGroup,
   bulkDeleteOrphanFiles,
   getOrphanFiles,
   getCadFilesForComponent,
@@ -60,8 +62,14 @@ router.put('/type/:type/rename', canWrite, massUpdateFileName);
 // Rename physical file on disk + update DB refs (requires write permission)
 router.put('/type/:type/rename-file', canWrite, renamePhysicalFile);
 
+// Rename grouped footprint files together (requires write permission)
+router.put('/type/footprint/rename-group', canWrite, renameFootprintGroup);
+
 // Delete physical file from disk + remove DB refs (requires write permission)
 router.delete('/type/:type/delete-file', canWrite, deletePhysicalFile);
+
+// Delete multiple files of the same type together (requires write permission)
+router.post('/type/:type/delete-group', canWrite, deleteFileGroup);
 
 // Bulk delete orphan files for a type (requires write permission)
 router.post('/type/:type/delete-orphans', canWrite, bulkDeleteOrphanFiles);

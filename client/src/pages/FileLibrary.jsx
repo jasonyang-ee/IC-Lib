@@ -41,6 +41,101 @@ const subdirMap = {
   pad: 'pad',
 };
 
+const FOOTPRINT_PAIR_EXTENSIONS = ['.psm', '.dra'];
+
+const getFileExtension = (fileName) => {
+  const normalizedFileName = String(fileName || '');
+  const lastDotIndex = normalizedFileName.lastIndexOf('.');
+  return lastDotIndex >= 0 ? normalizedFileName.slice(lastDotIndex).toLowerCase() : '';
+};
+
+const getFileBaseName = (fileName) => {
+  const extension = getFileExtension(fileName);
+  return extension ? String(fileName || '').slice(0, -extension.length) : String(fileName || '');
+};
+
+const normalizeFootprintGroupBase = (fileName) => getFileBaseName(fileName).toLowerCase();
+
+const getComponentCount = (file) => Number(file?.component_count || 0);
+
+const buildFileEntryKey = (type, fileNames) => {
+  const normalizedFileNames = Array.isArray(fileNames) ? fileNames : [fileNames];
+  if (type === 'footprint' && normalizedFileNames.length > 1) {
+    return `pair:${normalizeFootprintGroupBase(normalizedFileNames[0])}`;
+  }
+
+  return `file:${String(normalizedFileNames[0] || '').toLowerCase()}`;
+};
+
+const buildSingleFileEntry = (file, selectedType) => ({
+  key: buildFileEntryKey(selectedType, file.file_name),
+  kind: 'single',
+  displayName: file.file_name,
+  file_type: file.file_type || routeTypeToFileType[selectedType],
+  fileNames: [file.file_name],
+  files: [file],
+  componentCount: getComponentCount(file),
+  canDelete: getComponentCount(file) === 0,
+  searchText: file.file_name.toLowerCase(),
+});
+
+const buildFootprintEntries = (files) => {
+  const groupedFiles = new Map();
+  const entries = [];
+
+  for (const file of files || []) {
+    const extension = getFileExtension(file.file_name);
+    if (!FOOTPRINT_PAIR_EXTENSIONS.includes(extension)) {
+      entries.push(buildSingleFileEntry(file, 'footprint'));
+      continue;
+    }
+
+    const groupKey = normalizeFootprintGroupBase(file.file_name);
+    if (!groupedFiles.has(groupKey)) {
+      groupedFiles.set(groupKey, []);
+    }
+    groupedFiles.get(groupKey).push(file);
+  }
+
+  for (const [groupKey, groupFiles] of groupedFiles.entries()) {
+    const psmFile = groupFiles.find((file) => getFileExtension(file.file_name) === '.psm');
+    const draFile = groupFiles.find((file) => getFileExtension(file.file_name) === '.dra');
+
+    if (psmFile && draFile) {
+      const pairFiles = [psmFile, draFile].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { sensitivity: 'base' }));
+      entries.push({
+        key: `pair:${groupKey}`,
+        kind: 'pair',
+        displayName: getFileBaseName(pairFiles[0].file_name),
+        file_type: 'footprint',
+        fileNames: pairFiles.map((file) => file.file_name),
+        files: pairFiles,
+        componentCount: Math.max(...pairFiles.map((file) => getComponentCount(file))),
+        canDelete: pairFiles.every((file) => getComponentCount(file) === 0),
+        searchText: `${groupKey} ${pairFiles.map((file) => file.file_name.toLowerCase()).join(' ')}`,
+      });
+
+      const leftovers = groupFiles.filter((file) => file !== psmFile && file !== draFile);
+      leftovers.forEach((file) => entries.push(buildSingleFileEntry(file, 'footprint')));
+      continue;
+    }
+
+    groupFiles.forEach((file) => entries.push(buildSingleFileEntry(file, 'footprint')));
+  }
+
+  return entries.sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
+};
+
+const buildFileEntries = (files, selectedType) => {
+  if (selectedType === 'footprint') {
+    return buildFootprintEntries(files);
+  }
+
+  return (files || [])
+    .map((file) => buildSingleFileEntry(file, selectedType))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
+};
+
 const FileLibrary = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -53,10 +148,10 @@ const FileLibrary = () => {
 
   // File Types view state
   const [selectedType, setSelectedType] = useState('footprint');
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedEntryKey, setSelectedEntryKey] = useState(null);
   const [showOrphans, setShowOrphans] = useState(false);
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
-  const [selectedOrphanFiles, setSelectedOrphanFiles] = useState([]);
+  const [selectedOrphanEntryKeys, setSelectedOrphanEntryKeys] = useState([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [selectedCISFile, setSelectedCISFile] = useState('');
 
@@ -67,11 +162,16 @@ const FileLibrary = () => {
   // Shared state
   const [searchQuery, setSearchQuery] = useState('');
   const [showRenameModal, setShowRenameModal] = useState(false);
-  const [renameData, setRenameData] = useState({ oldName: '', newName: '', selectedIds: [] });
-  const [selectAllComponents, setSelectAllComponents] = useState(true);
+  const [renameData, setRenameData] = useState({
+    mode: 'single',
+    oldName: '',
+    currentValue: '',
+    newName: '',
+    fileNames: [],
+    files: [],
+  });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [isPhysicalRename, setIsPhysicalRename] = useState(true);
 
   // --- URL parameter handling ---
   useEffect(() => {
@@ -155,17 +255,6 @@ const FileLibrary = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Components using selected file (File Types view)
-  const { data: componentsData, isLoading: isLoadingComponents } = useQuery({
-    queryKey: ['componentsByFile', selectedType, selectedFile],
-    queryFn: async () => {
-      const response = await api.getComponentsByFile(selectedType, selectedFile);
-      return response.data;
-    },
-    enabled: viewMode === VIEW_FILE_TYPES && !!selectedFile && !!selectedType && !showOrphans,
-    staleTime: 5 * 60 * 1000,
-  });
-
   // Search files
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['fileSearch', searchQuery],
@@ -174,6 +263,53 @@ const FileLibrary = () => {
       return response.data;
     },
     enabled: searchQuery.length > 2,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const rawSelectedTypeFiles = useMemo(
+    () => (showOrphans ? (orphanData?.orphans || []) : (filesData?.files || [])),
+    [filesData?.files, orphanData?.orphans, showOrphans],
+  );
+
+  const displayedEntries = useMemo(() => {
+    if (selectedType === 'footprint') {
+      const footprintEntries = buildFileEntries(rawSelectedTypeFiles, selectedType);
+      if (!searchQuery.trim()) {
+        return footprintEntries;
+      }
+
+      const normalizedSearch = searchQuery.trim().toLowerCase();
+      return footprintEntries.filter((entry) => entry.searchText.includes(normalizedSearch));
+    }
+
+    const visibleFiles = showOrphans
+      ? rawSelectedTypeFiles.filter((file) => !searchQuery.trim() || file.file_name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+      : searchQuery.length > 2 && searchResults?.results
+        ? searchResults.results.filter((result) => result.file_type === routeTypeToFileType[selectedType])
+        : rawSelectedTypeFiles;
+
+    return buildFileEntries(visibleFiles, selectedType);
+  }, [rawSelectedTypeFiles, searchQuery, searchResults?.results, selectedType, showOrphans]);
+
+  const displayedEntryMap = useMemo(
+    () => new Map(displayedEntries.map((entry) => [entry.key, entry])),
+    [displayedEntries],
+  );
+
+  const selectedEntry = selectedEntryKey ? displayedEntryMap.get(selectedEntryKey) || null : null;
+
+  // Components using selected file (File Types view)
+  const { data: componentsData, isLoading: isLoadingComponents } = useQuery({
+    queryKey: ['componentsByFile', selectedType, selectedEntryKey],
+    queryFn: async () => {
+      const response = await api.getComponentsByFile(
+        selectedType,
+        selectedEntry?.fileNames?.[0],
+        selectedEntry?.fileNames?.length > 1 ? selectedEntry.fileNames : undefined,
+      );
+      return response.data;
+    },
+    enabled: viewMode === VIEW_FILE_TYPES && !!selectedEntry && !!selectedType && !showOrphans,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -224,33 +360,33 @@ const FileLibrary = () => {
   // MUTATIONS
   // ==============================
 
-  // Mass rename (DB-only)
-  const renameMutation = useMutation({
-    mutationFn: async ({ type, oldFileName, newFileName, componentIds }) => {
-      await api.massRenameFile(type, { oldFileName, newFileName, componentIds });
-    },
-    onSuccess: (_, variables) => {
-      invalidateAll();
-      showSuccess(`Renamed "${variables.oldFileName}" to "${variables.newFileName}" in database`);
-      setShowRenameModal(false);
-      setSelectedFile(variables.newFileName);
-    },
-    onError: (error) => {
-      showError('Failed to rename file: ' + (error.response?.data?.error || error.message));
-    },
-  });
-
-  // Physical file rename
   const physicalRenameMutation = useMutation({
-    mutationFn: async ({ type, oldFileName, newFileName }) => {
-      const response = await api.renamePhysicalFile(type, { oldFileName, newFileName });
+    mutationFn: async ({ type, files, newName, mode }) => {
+      if (mode === 'pair') {
+        const response = await api.renameFootprintGroup(files.map((file) => file.file_name), newName);
+        return response.data;
+      }
+
+      const response = await api.renamePhysicalFile(type, {
+        oldFileName: files[0].file_name,
+        newFileName: newName,
+      });
       return response.data;
     },
     onSuccess: (data, variables) => {
       invalidateAll();
-      showSuccess(`Renamed "${variables.oldFileName}" to "${variables.newFileName}" (${data.updatedComponents} component${data.updatedComponents !== 1 ? 's' : ''} updated)`);
+      const updatedCount = Number.isFinite(data.updatedCount) ? data.updatedCount : 0;
+      showSuccess(
+        variables.mode === 'pair'
+          ? `Renamed ${data.renamedFiles?.length || 0} footprint files (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`
+          : `Renamed "${variables.files[0].file_name}" to "${data.newFileName}" (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`,
+      );
       setShowRenameModal(false);
-      setSelectedFile(variables.newFileName);
+      if (variables.mode === 'pair') {
+        setSelectedEntryKey(buildFileEntryKey(variables.type, data.renamedFiles?.map((file) => file.newFileName) || []));
+      } else {
+        setSelectedEntryKey(buildFileEntryKey(variables.type, data.newFileName));
+      }
     },
     onError: (error) => {
       showError('Failed to rename file: ' + (error.response?.data?.error || error.message));
@@ -259,15 +395,22 @@ const FileLibrary = () => {
 
   // Physical file delete
   const deleteMutation = useMutation({
-    mutationFn: async ({ type, fileName }) => {
-      const response = await api.deletePhysicalFile(type, { fileName });
+    mutationFn: async ({ type, fileNames }) => {
+      const response = fileNames.length > 1
+        ? await api.deleteFileGroup(type, fileNames)
+        : await api.deletePhysicalFile(type, { fileName: fileNames[0] });
       return response.data;
     },
     onSuccess: (data, variables) => {
       invalidateAll();
-      showSuccess(`Deleted "${variables.fileName}" (removed from ${data.updatedComponents} component${data.updatedComponents !== 1 ? 's' : ''})`);
+      const updatedCount = Number.isFinite(data.updatedCount) ? data.updatedCount : 0;
+      showSuccess(
+        variables.fileNames.length > 1
+          ? `Deleted ${variables.fileNames.length} files`
+          : `Deleted "${variables.fileNames[0]}"${updatedCount > 0 ? ` (removed from ${updatedCount} component${updatedCount !== 1 ? 's' : ''})` : ''}`,
+      );
       setShowDeleteModal(false);
-      setSelectedFile(null);
+      setSelectedEntryKey(null);
       setDeleteTarget(null);
     },
     onError: (error) => {
@@ -284,8 +427,8 @@ const FileLibrary = () => {
       invalidateAll();
       showSuccess(`Deleted ${data.deletedCount} orphan file${data.deletedCount !== 1 ? 's' : ''}`);
       setShowBulkDeleteConfirm(false);
-      setSelectedOrphanFiles([]);
-      setSelectedFile(null);
+      setSelectedOrphanEntryKeys([]);
+      setSelectedEntryKey(null);
     },
     onError: (error) => {
       showError('Failed to delete orphan files: ' + (error.response?.data?.error || error.message));
@@ -311,52 +454,46 @@ const FileLibrary = () => {
     if (!stats) return 0;
     return stats[typeId] || 0;
   };
-
-  // Filter files for the file types view based on search
-  const displayedFiles = useMemo(() => {
-    if (showOrphans) {
-      const orphanFiles = orphanData?.orphans || [];
-      if (!searchQuery.trim()) {
-        return orphanFiles;
-      }
-
-      const normalizedSearch = searchQuery.trim().toLowerCase();
-      return orphanFiles.filter((file) => file.file_name.toLowerCase().includes(normalizedSearch));
-    }
-
-    if (searchQuery.length > 2 && searchResults?.results) {
-      return searchResults.results.filter((result) => result.file_type === routeTypeToFileType[selectedType]);
-    }
-
-    return filesData?.files || [];
-  }, [filesData?.files, orphanData?.orphans, searchQuery, searchResults?.results, selectedType, showOrphans]);
-
   const linkedPartsFilter = showOrphans ? 'orphans' : 'all';
-  const allDisplayedOrphansSelected = displayedFiles.length > 0
-    && displayedFiles.every((file) => selectedOrphanFiles.includes(file.file_name));
+  const allDisplayedOrphansSelected = displayedEntries.length > 0
+    && displayedEntries.every((entry) => selectedOrphanEntryKeys.includes(entry.key));
+
+  const selectedOrphanFileNames = [...new Set(
+    selectedOrphanEntryKeys.flatMap((entryKey) => displayedEntryMap.get(entryKey)?.fileNames || []),
+  )];
+
+  const isRenameUnchanged = renameData.mode === 'pair'
+    ? renameData.newName.trim() === renameData.currentValue
+    : renameData.newName === renameData.currentValue;
 
   useEffect(() => {
     if (!showOrphans) {
       setBulkSelectMode(false);
-      setSelectedOrphanFiles([]);
+      setSelectedOrphanEntryKeys([]);
     }
   }, [showOrphans]);
 
   useEffect(() => {
     if (!bulkSelectMode) {
-      setSelectedOrphanFiles([]);
+      setSelectedOrphanEntryKeys([]);
     }
   }, [bulkSelectMode]);
 
   useEffect(() => {
-    setSelectedOrphanFiles((previous) => previous.filter((fileName) => displayedFiles.some((file) => file.file_name === fileName)));
-  }, [displayedFiles]);
+    setSelectedOrphanEntryKeys((previous) => previous.filter((entryKey) => displayedEntryMap.has(entryKey)));
+  }, [displayedEntryMap]);
+
+  useEffect(() => {
+    if (selectedEntryKey && !displayedEntryMap.has(selectedEntryKey)) {
+      setSelectedEntryKey(null);
+    }
+  }, [displayedEntryMap, selectedEntryKey]);
 
   // ==============================
   // HANDLERS
   // ==============================
 
-  const handleCopyPath = (fileName, typeId) => {
+  const handleCopyPath = (fileNameOrNames, typeId) => {
     const basePath = storagePathData?.path || '';
     if (!basePath) {
       showError('Set your file storage path in User Settings first');
@@ -364,38 +501,39 @@ const FileLibrary = () => {
     }
     const subdir = subdirMap[typeId || selectedType] || selectedType;
     const sep = basePath.includes('\\') ? '\\' : '/';
-    const fullPath = `${basePath}${sep}${subdir}${sep}${fileName}`;
+    const fileNames = Array.isArray(fileNameOrNames) ? fileNameOrNames : [fileNameOrNames];
+    const fullPath = fileNames.map((fileName) => `${basePath}${sep}${subdir}${sep}${fileName}`).join('\n');
     navigator.clipboard.writeText(fullPath);
-    showSuccess('Path copied');
+    showSuccess(fileNames.length > 1 ? 'Paths copied' : 'Path copied');
   };
 
   const handleTypeChange = (typeId) => {
     setSelectedType(typeId);
-    setSelectedFile(null);
+    setSelectedEntryKey(null);
     setSearchQuery('');
-    setSelectedOrphanFiles([]);
+    setSelectedOrphanEntryKeys([]);
   };
 
-  const handleSelectFile = (fileName) => {
-    setSelectedFile(fileName);
+  const handleSelectFile = (entryKey) => {
+    setSelectedEntryKey(entryKey);
   };
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
-    setSelectedFile(null);
+    setSelectedEntryKey(null);
     setSelectedComponentId(null);
     setSearchQuery('');
     setBulkSelectMode(false);
-    setSelectedOrphanFiles([]);
+    setSelectedOrphanEntryKeys([]);
   };
 
   const handleLinkedPartsFilterChange = (value) => {
     const shouldShowOrphans = value === 'orphans';
     setShowOrphans(shouldShowOrphans);
-    setSelectedFile(null);
+    setSelectedEntryKey(null);
     if (!shouldShowOrphans) {
       setBulkSelectMode(false);
-      setSelectedOrphanFiles([]);
+      setSelectedOrphanEntryKeys([]);
     }
   };
 
@@ -407,31 +545,31 @@ const FileLibrary = () => {
     setBulkSelectMode((previous) => !previous);
   };
 
-  const handleToggleOrphanFileSelection = (fileName) => {
-    setSelectedOrphanFiles((previous) => (
-      previous.includes(fileName)
-        ? previous.filter((selectedFileName) => selectedFileName !== fileName)
-        : [...previous, fileName]
+  const handleToggleOrphanEntrySelection = (entryKey) => {
+    setSelectedOrphanEntryKeys((previous) => (
+      previous.includes(entryKey)
+        ? previous.filter((selectedKey) => selectedKey !== entryKey)
+        : [...previous, entryKey]
     ));
   };
 
   const handleToggleSelectAllDisplayedOrphans = () => {
     if (allDisplayedOrphansSelected) {
-      setSelectedOrphanFiles([]);
+      setSelectedOrphanEntryKeys([]);
       return;
     }
 
-    setSelectedOrphanFiles(displayedFiles.map((file) => file.file_name));
+    setSelectedOrphanEntryKeys(displayedEntries.map((entry) => entry.key));
   };
 
   const handleConfirmBulkDelete = () => {
-    if (selectedOrphanFiles.length === 0) {
+    if (selectedOrphanFileNames.length === 0) {
       return;
     }
 
     bulkDeleteOrphansMutation.mutate({
       type: selectedType,
-      fileNames: selectedOrphanFiles,
+      fileNames: selectedOrphanFileNames,
     });
   };
 
@@ -445,39 +583,68 @@ const FileLibrary = () => {
   };
 
   // --- Rename handlers ---
-  const handleOpenRename = (fileName, type) => {
+  const handleOpenRename = (entryOrFileName = selectedEntry, type) => {
     const ft = type || selectedType;
+
+    if (typeof entryOrFileName === 'string') {
+      setRenameData({
+        mode: 'single',
+        oldName: entryOrFileName,
+        currentValue: entryOrFileName,
+        newName: entryOrFileName,
+        fileNames: [entryOrFileName],
+        files: [{ file_name: entryOrFileName }],
+        type: ft,
+      });
+      setShowRenameModal(true);
+      return;
+    }
+
+    const entry = entryOrFileName || selectedEntry;
+    if (!entry) {
+      return;
+    }
+
+    if (entry.kind === 'pair') {
+      const currentBaseName = getFileBaseName(entry.fileNames[0]);
+      setRenameData({
+        mode: 'pair',
+        oldName: entry.displayName,
+        currentValue: currentBaseName,
+        newName: currentBaseName,
+        fileNames: entry.fileNames,
+        files: entry.files,
+        type: ft,
+      });
+      setShowRenameModal(true);
+      return;
+    }
+
     setRenameData({
-      oldName: fileName || selectedFile,
-      newName: fileName || selectedFile,
-      selectedIds: componentsData?.components?.map(c => c.id) || [],
+      mode: 'single',
+      oldName: entry.fileNames[0],
+      currentValue: entry.fileNames[0],
+      newName: entry.fileNames[0],
+      fileNames: entry.fileNames,
+      files: entry.files,
       type: ft,
     });
-    setSelectAllComponents(true);
-    setIsPhysicalRename(true);
     setShowRenameModal(true);
   };
 
   const handleRenameSubmit = () => {
-    if (!renameData.newName.trim() || renameData.newName === renameData.oldName) {
+    if (!renameData.newName.trim() || isRenameUnchanged) {
       showError('Please enter a new file name');
       return;
     }
+
     const type = renameData.type || selectedType;
-    if (isPhysicalRename) {
-      physicalRenameMutation.mutate({
-        type,
-        oldFileName: renameData.oldName,
-        newFileName: renameData.newName.trim(),
-      });
-    } else {
-      renameMutation.mutate({
-        type,
-        oldFileName: renameData.oldName,
-        newFileName: renameData.newName.trim(),
-        componentIds: selectAllComponents ? null : renameData.selectedIds,
-      });
-    }
+    physicalRenameMutation.mutate({
+      type,
+      files: renameData.files,
+      newName: renameData.newName.trim(),
+      mode: renameData.mode,
+    });
   };
 
   const handleUseMPN = () => {
@@ -485,6 +652,11 @@ const FileLibrary = () => {
     if (components && components.length > 0) {
       const mpn = components[0].manufacturer_pn;
       if (mpn) {
+        if (renameData.mode === 'pair') {
+          setRenameData((previous) => ({ ...previous, newName: mpn }));
+          return;
+        }
+
         const ext = renameData.oldName.includes('.')
           ? renameData.oldName.substring(renameData.oldName.lastIndexOf('.'))
           : '';
@@ -503,6 +675,12 @@ const FileLibrary = () => {
           showError('Package name is empty after formatting');
           return;
         }
+
+        if (renameData.mode === 'pair') {
+          setRenameData((previous) => ({ ...previous, newName: formattedPkg }));
+          return;
+        }
+
         const ext = renameData.oldName.includes('.')
           ? renameData.oldName.substring(renameData.oldName.lastIndexOf('.'))
           : '';
@@ -511,21 +689,31 @@ const FileLibrary = () => {
     }
   };
 
-  const toggleComponentSelection = (componentId) => {
-    setRenameData(prev => ({
-      ...prev,
-      selectedIds: prev.selectedIds.includes(componentId)
-        ? prev.selectedIds.filter(id => id !== componentId)
-        : [...prev.selectedIds, componentId],
-    }));
-  };
-
   // --- Delete handlers ---
-  const handleOpenDelete = (fileName, type, componentCount) => {
+  const handleOpenDelete = (entryOrFileName = selectedEntry, type, componentCount) => {
+    if (typeof entryOrFileName === 'string') {
+      setDeleteTarget({
+        displayName: entryOrFileName,
+        fileName: entryOrFileName,
+        fileNames: [entryOrFileName],
+        type: type || selectedType,
+        componentCount: componentCount ?? componentsData?.components?.length ?? 0,
+      });
+      setShowDeleteModal(true);
+      return;
+    }
+
+    const entry = entryOrFileName || selectedEntry;
+    if (!entry) {
+      return;
+    }
+
     setDeleteTarget({
-      fileName: fileName || selectedFile,
+      displayName: entry.displayName,
+      fileName: entry.fileNames[0],
+      fileNames: entry.fileNames,
       type: type || selectedType,
-      componentCount: componentCount ?? componentsData?.components?.length ?? 0,
+      componentCount: entry.componentCount,
     });
     setShowDeleteModal(true);
   };
@@ -534,7 +722,7 @@ const FileLibrary = () => {
     if (!deleteTarget) return;
     deleteMutation.mutate({
       type: deleteTarget.type,
-      fileName: deleteTarget.fileName,
+      fileNames: deleteTarget.fileNames,
     });
   };
 
@@ -599,19 +787,19 @@ const FileLibrary = () => {
         <FileTypesView
           fileTypes={fileTypes}
           selectedType={selectedType}
-          selectedFile={selectedFile}
+          selectedEntry={selectedEntry}
           showOrphans={showOrphans}
           linkedPartsFilter={linkedPartsFilter}
           onLinkedPartsFilterChange={handleLinkedPartsFilterChange}
           bulkSelectMode={bulkSelectMode}
-          selectedOrphanFiles={selectedOrphanFiles}
+          selectedOrphanEntryKeys={selectedOrphanEntryKeys}
           allDisplayedOrphansSelected={allDisplayedOrphansSelected}
           onToggleBulkSelectMode={handleToggleBulkSelectMode}
-          onToggleOrphanFileSelection={handleToggleOrphanFileSelection}
+          onToggleOrphanEntrySelection={handleToggleOrphanEntrySelection}
           onToggleSelectAllDisplayedOrphans={handleToggleSelectAllDisplayedOrphans}
           onOpenBulkDelete={() => setShowBulkDeleteConfirm(true)}
           isBulkDeletePending={bulkDeleteOrphansMutation.isPending}
-          displayedFiles={displayedFiles}
+          displayedEntries={displayedEntries}
           isLoadingFiles={isLoadingFiles || isLoadingOrphans}
           componentsData={componentsData}
           isLoadingComponents={isLoadingComponents}
@@ -653,10 +841,6 @@ const FileLibrary = () => {
         <RenameModal
           renameData={renameData}
           setRenameData={setRenameData}
-          isPhysicalRename={isPhysicalRename}
-          setIsPhysicalRename={setIsPhysicalRename}
-          selectAllComponents={selectAllComponents}
-          setSelectAllComponents={setSelectAllComponents}
           componentsData={componentsData}
           selectedType={renameData.type || selectedType}
           fileTypes={fileTypes}
@@ -664,8 +848,8 @@ const FileLibrary = () => {
           onSubmit={handleRenameSubmit}
           onUseMPN={handleUseMPN}
           onUsePackage={handleUsePackage}
-          onToggleComponent={toggleComponentSelection}
-          isPending={renameMutation.isPending || physicalRenameMutation.isPending}
+          isPending={physicalRenameMutation.isPending}
+          isUnchanged={isRenameUnchanged}
         />
       )}
 
@@ -684,7 +868,7 @@ const FileLibrary = () => {
         onClose={() => setShowBulkDeleteConfirm(false)}
         onConfirm={handleConfirmBulkDelete}
         title="Delete Selected Orphan Files"
-        message={`Delete ${selectedOrphanFiles.length} selected orphan file${selectedOrphanFiles.length !== 1 ? 's' : ''}? This permanently removes the physical file and its orphan database record.`}
+        message={`Delete ${selectedOrphanEntryKeys.length} selected orphan file group${selectedOrphanEntryKeys.length !== 1 ? 's' : ''}? This permanently removes the physical file and its orphan database record.`}
         confirmText="Delete Selected"
         isLoading={bulkDeleteOrphansMutation.isPending}
       />

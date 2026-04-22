@@ -342,11 +342,15 @@ export const api = {
   // File Library (CAD file management)
   getFileTypeStats: () => apiClient.get('/file-library/stats'),
   getFilesByType: (type) => apiClient.get(`/file-library/type/${type}`),
-  getComponentsByFile: (type, fileName, cadFileId) => apiClient.get(`/file-library/type/${type}/components`, { params: { fileName, cadFileId } }),
+  getComponentsByFile: (type, fileName, fileNames) => apiClient.get(`/file-library/type/${type}/components`, {
+    params: fileNames?.length ? { fileNames } : { fileName },
+  }),
   massRenameFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename`, data),
   searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
+  renameFootprintGroup: (fileNames, newBaseName) => apiClient.put('/file-library/type/footprint/rename-group', { fileNames, newBaseName }),
   deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
+  deleteFileGroup: (type, fileNames) => apiClient.post(`/file-library/type/${type}/delete-group`, { fileNames }),
   bulkDeleteOrphanFiles: (type, fileNames) => apiClient.post(`/file-library/type/${type}/delete-orphans`, { fileNames }),
   checkCollisionsBatch: (files) => apiClient.post('/files/check-collisions-batch', { files }),
 
