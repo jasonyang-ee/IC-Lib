@@ -80,24 +80,29 @@ const drawTable = (doc, headers, rows, colWidths) => {
   const rowHeight = 16;
   const cellPadding = 4;
 
+  const drawHeaderRow = () => {
+    const headerY = doc.y;
+    doc.rect(tableX, headerY, contentWidth, rowHeight).fill(COLORS.headerBg);
+
+    let headerX = tableX;
+    for (let i = 0; i < headers.length; i++) {
+      doc
+        .fontSize(FONT_SIZE.small)
+        .font('Helvetica-Bold')
+        .fillColor(COLORS.gray)
+        .text(headers[i], headerX + cellPadding, headerY + 4, {
+          width: colWidths[i] - cellPadding * 2,
+          lineBreak: false,
+        });
+      headerX += colWidths[i];
+    }
+
+    doc.y = headerY + rowHeight;
+  };
+
   // Header row
   checkPage(doc, rowHeight * 2);
-  const headerY = doc.y;
-  doc.rect(tableX, headerY, contentWidth, rowHeight).fill(COLORS.headerBg);
-
-  let x = tableX;
-  for (let i = 0; i < headers.length; i++) {
-    doc
-      .fontSize(FONT_SIZE.small)
-      .font('Helvetica-Bold')
-      .fillColor(COLORS.gray)
-      .text(headers[i], x + cellPadding, headerY + 4, {
-        width: colWidths[i] - cellPadding * 2,
-        lineBreak: false,
-      });
-    x += colWidths[i];
-  }
-  doc.y = headerY + rowHeight;
+  drawHeaderRow();
 
   // Data rows
   for (const row of rows) {
@@ -114,7 +119,11 @@ const drawTable = (doc, headers, rows, colWidths) => {
       maxHeight = Math.max(maxHeight, cellHeights[i]);
     }
 
-    checkPage(doc, maxHeight);
+    if (doc.y + maxHeight > PAGE.height - PAGE.marginBottom) {
+      doc.addPage();
+      doc.y = PAGE.marginTop;
+      drawHeaderRow();
+    }
 
     // Draw bottom border
     const rowY = doc.y;
@@ -125,7 +134,7 @@ const drawTable = (doc, headers, rows, colWidths) => {
       .lineWidth(0.3)
       .stroke();
 
-    x = tableX;
+    let x = tableX;
     for (let i = 0; i < row.length; i++) {
       const text = String(row[i] ?? '-');
       doc

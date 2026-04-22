@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Category-change ECO approvals now regenerate copied CAD text fields on the newly created component, keeping CAD link tables and exported TEXT fields aligned
 - ECO mode now allows renaming staged temp CAD uploads before approval, including keeping paired footprint temp files in sync
 - ECO mode now keeps CAD rename actions available for staged temp uploads and preserves temp-file identity after delete/replace flows, so newly uploaded replacement CAD files can still be renamed before submission
+- ECO PDF tables now repeat their column headers after page breaks so multi-page sections remain readable
 - Production-part ECOs now carry a production approval tag for spec, filename, and distributor changes, and inventory-only distributor payloads no longer create approval tags
 - CAD renames now target the exact staged upload or saved library file so add/edit flows do not leave both the original and renamed file in the library
 - ECO CAD unlink submissions now read linked file names from the live file-library API payload, so deleted CAD links are actually staged and removed on approval

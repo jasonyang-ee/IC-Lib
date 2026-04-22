@@ -56,18 +56,23 @@ const Sidebar = () => {
 
   if (!isReviewer) {
     menuItems.push(
-      { path: '/file-library', icon: FolderOpen, label: 'File Library' },
-      { path: '/inventory', icon: Package, label: 'Inventory' },
-      { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
-      { path: '/projects', icon: Layers, label: 'Projects' },
-      { path: '/reports', icon: FileText, label: 'Reports' },
-      { path: '/audit', icon: TriangleAlert, label: 'Audit Log' },
+      { path: '/file-library', icon: FolderOpen, label: 'File Library' }
     );
   }
 
   // Add ECO menu item if feature is enabled (reviewers can approve ECOs)
   if (ecoEnabled) {
     menuItems.push({ path: '/eco', icon: FileEdit, label: 'ECO' });
+  }
+
+  if (!isReviewer) {
+    menuItems.push(
+      { path: '/inventory', icon: Package, label: 'Inventory' },
+      { path: '/vendor-search', icon: Search, label: 'Vendor Search' },
+      { path: '/projects', icon: Layers, label: 'Projects' },
+      { path: '/reports', icon: FileText, label: 'Reports' },
+      { path: '/audit', icon: TriangleAlert, label: 'Audit Log' },
+    );
   }
 
   // User Settings available to all authenticated users
