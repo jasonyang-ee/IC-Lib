@@ -31,28 +31,33 @@ const UserSettings = () => {
   // Notification preferences state
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState({
-    eco_submitted: true,
-    eco_approved: true,
-    eco_rejected: true,
-    eco_assigned: true
+    notify_eco_created: false,
+    notify_eco_approved: false,
+    notify_eco_rejected: false,
+    notify_eco_pending_approval: false,
+    notify_eco_stage_advanced: false,
   });
 
   // Load profile data on mount
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const response = await api.getProfile();
-        const profile = response.data;
+        const [profileResponse, preferencesResponse] = await Promise.all([
+          api.getProfile(),
+          api.smtp.getPreferences(),
+        ]);
+        const profile = profileResponse.data;
         setProfileForm({
           email: profile.email || '',
           displayName: profile.displayName || '',
           fileStoragePath: profile.fileStoragePath || ''
         });
-        setNotificationPreferences(profile.notificationPreferences || {
-          eco_submitted: true,
-          eco_approved: true,
-          eco_rejected: true,
-          eco_assigned: true
+        setNotificationPreferences({
+          notify_eco_created: preferencesResponse.data.notify_eco_created ?? false,
+          notify_eco_approved: preferencesResponse.data.notify_eco_approved ?? false,
+          notify_eco_rejected: preferencesResponse.data.notify_eco_rejected ?? false,
+          notify_eco_pending_approval: preferencesResponse.data.notify_eco_pending_approval ?? false,
+          notify_eco_stage_advanced: preferencesResponse.data.notify_eco_stage_advanced ?? false,
         });
       } catch (error) {
         console.error('Failed to load profile:', error);
@@ -91,7 +96,7 @@ const UserSettings = () => {
     setIsSavingNotifications(true);
 
     try {
-      await api.updateNotificationPreferences(notificationPreferences);
+      await api.smtp.updatePreferences(notificationPreferences);
       showSuccess('Notification preferences updated');
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message;
@@ -308,14 +313,14 @@ const UserSettings = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-[#3a3a3a]">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">ECO Submitted</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when an ECO is submitted for your approval</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">ECO Created</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when a new ECO is submitted</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={notificationPreferences.eco_submitted}
-                    onChange={() => handleNotificationChange('eco_submitted')}
+                    checked={notificationPreferences.notify_eco_created}
+                    onChange={() => handleNotificationChange('notify_eco_created')}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
@@ -330,8 +335,8 @@ const UserSettings = () => {
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={notificationPreferences.eco_approved}
-                    onChange={() => handleNotificationChange('eco_approved')}
+                    checked={notificationPreferences.notify_eco_approved}
+                    onChange={() => handleNotificationChange('notify_eco_approved')}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
@@ -346,8 +351,8 @@ const UserSettings = () => {
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={notificationPreferences.eco_rejected}
-                    onChange={() => handleNotificationChange('eco_rejected')}
+                    checked={notificationPreferences.notify_eco_rejected}
+                    onChange={() => handleNotificationChange('notify_eco_rejected')}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
@@ -356,14 +361,30 @@ const UserSettings = () => {
 
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">ECO Assigned</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when assigned as an ECO approver</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Approval Requested</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when an ECO is submitted for your approval</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={notificationPreferences.eco_assigned}
-                    onChange={() => handleNotificationChange('eco_assigned')}
+                    checked={notificationPreferences.notify_eco_pending_approval}
+                    onChange={() => handleNotificationChange('notify_eco_pending_approval')}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">ECO Stage Advanced</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Notify when an ECO advances to the next approval stage</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPreferences.notify_eco_stage_advanced}
+                    onChange={() => handleNotificationChange('notify_eco_stage_advanced')}
                     className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>

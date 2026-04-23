@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FeatureFlagsProvider } from './contexts/FeatureFlagsContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import App from './App.jsx'
+import { getRouterBasename } from './utils/basePath'
 import './index.css'
 
 // Initialize dark mode from localStorage before render
@@ -27,54 +28,7 @@ const initializeDarkMode = () => {
 
 initializeDarkMode();
 
-// Detect base path for React Router
-// This allows the app to work with both subdomain and directory-style reverse proxy
-const getBasename = () => {
-  // 1. Check environment variable BASE_URL (if set during build)
-  // Note: Vite's BASE_URL might be './' for relative paths, which is invalid for React Router
-  const envBase = import.meta.env.BASE_URL;
-  if (envBase && envBase !== '/' && envBase.startsWith('/') && !envBase.startsWith('./')) {
-    console.log('Using BASE_URL from environment:', envBase);
-    // Remove trailing slash if present (React Router doesn't like trailing slashes)
-    return envBase.replace(/\/$/, '');
-  }
-  
-  // 2. Check if there's a base tag in the HTML
-  const baseTag = document.querySelector('base');
-  if (baseTag && baseTag.getAttribute('href')) {
-    const href = baseTag.getAttribute('href');
-    // Only use if it's an absolute path (not relative like './')
-    if (href.startsWith('/') && !href.startsWith('./')) {
-      console.log('Using base tag:', href);
-      return href.replace(/\/$/, '');
-    }
-  }
-  
-  // 3. Auto-detect from pathname (for directory-style deployments)
-  // Extract first path segment (e.g., /test from /test/dashboard)
-  const pathname = window.location.pathname;
-  const match = pathname.match(/^\/([^/]+)/);
-  
-  if (match && match[1] !== '') {
-    const segment = match[1];
-    // List of known app routes (not base paths)
-    const knownRoutes = ['login', 'dashboard', 'library', 'inventory', 'projects', 'eco',
-                         'vendor-search', 'reports', 'audit', 'user-settings', 'admin-settings', 'settings'];
-    
-    // If the segment is not a known route, assume it's a base path
-    if (!knownRoutes.includes(segment)) {
-      const detectedBase = '/' + segment;
-      console.log('Auto-detected basename from pathname:', detectedBase);
-      return detectedBase;
-    }
-  }
-  
-  // 4. Default to root for subdomain-style deployments
-  console.log('Using default basename: /');
-  return '/';
-};
-
-const basename = getBasename();
+const basename = getRouterBasename();
 
 const queryClient = new QueryClient({
   defaultOptions: {

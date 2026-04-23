@@ -866,11 +866,11 @@ CREATE OR REPLACE TRIGGER update_smtp_settings_updated_at
 CREATE TABLE IF NOT EXISTS email_notification_preferences (
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    notify_eco_created BOOLEAN DEFAULT true,
-    notify_eco_approved BOOLEAN DEFAULT true,
-    notify_eco_rejected BOOLEAN DEFAULT true,
-    notify_eco_pending_approval BOOLEAN DEFAULT true,
-    notify_eco_stage_advanced BOOLEAN DEFAULT true,
+    notify_eco_created BOOLEAN DEFAULT false,
+    notify_eco_approved BOOLEAN DEFAULT false,
+    notify_eco_rejected BOOLEAN DEFAULT false,
+    notify_eco_pending_approval BOOLEAN DEFAULT false,
+    notify_eco_stage_advanced BOOLEAN DEFAULT false,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id)
 );

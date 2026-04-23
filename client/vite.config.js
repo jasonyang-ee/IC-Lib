@@ -7,6 +7,24 @@ import path from 'path'
 // Read version from root package.json
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'))
 
+const normalizeSubdirectoryPath = (value) => {
+	if (!value) {
+		return null
+	}
+
+	const trimmedValue = value.trim()
+	if (!trimmedValue || trimmedValue === '/') {
+		return null
+	}
+
+	const withLeadingSlash = trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`
+	return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`
+}
+
+const configuredSubdirectoryPath = normalizeSubdirectoryPath(
+	process.env.CONFIG_SUBDIRECTORY_PATH || process.env.BASE_URL,
+)
+
 // https://vite.dev/config/
 export default defineConfig({
 	plugins: [react()],
@@ -15,10 +33,9 @@ export default defineConfig({
 		__APP_VERSION__: JSON.stringify(packageJson.version),
 	},
 	
-	// Use relative paths for assets - works with both subdomain and directory-style reverse proxy
-	// If BASE_URL env is set (e.g., BASE_URL=/mypath), use it for both assets and routing
-	// Otherwise default to './' for relative paths
-	base: process.env.BASE_URL && process.env.BASE_URL !== '/' ? process.env.BASE_URL : './',
+	// Use relative paths by default so the bundle still works behind a path-stripping proxy.
+	// When deploying under a fixed subdirectory, CONFIG_SUBDIRECTORY_PATH sets the Vite base.
+	base: configuredSubdirectoryPath || './',
 	
 	build: {
 		// Ensure assets use relative paths

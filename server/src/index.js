@@ -45,7 +45,7 @@ const PORT = process.env.PORT || 3500;
 
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const BASE_URL = process.env.BASE_URL || '';
+const SUBDIRECTORY_PATH = process.env.CONFIG_SUBDIRECTORY_PATH || process.env.BASE_URL || '';
 
 // Middleware
 app.use(helmet());
@@ -159,8 +159,8 @@ async function startServer() {
     app.listen(PORT, async () => {
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Running on port ${PORT}`);
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Environment: ${NODE_ENV}`);
-      if (BASE_URL) {
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Base URL: ${BASE_URL}`);
+      if (SUBDIRECTORY_PATH) {
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Subdirectory path: ${SUBDIRECTORY_PATH}`);
       }
       console.log('');
 

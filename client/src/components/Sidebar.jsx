@@ -5,8 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { canAccessUserSettings, isLimitedNavigationRole } from '../utils/accessControl';
 
+const getInitialDarkMode = () => {
+  const savedMode = localStorage.getItem('darkMode');
+  return savedMode === null ? true : savedMode === 'true';
+};
+
 const Sidebar = () => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const { user, logout, isAdmin } = useAuth();
   const { ecoEnabled } = useFeatureFlags();
@@ -17,9 +22,7 @@ const Sidebar = () => {
   const logoPath = './logo_bg.png';
 
   useEffect(() => {
-    // Initialize dark mode from localStorage
-    const savedMode = localStorage.getItem('darkMode') === 'true';
-    setDarkMode(savedMode);
+    setDarkMode(getInitialDarkMode());
   }, []);
 
   const toggleDarkMode = () => {

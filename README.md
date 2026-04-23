@@ -90,6 +90,8 @@ services:
 
 ## Reverse Proxy with Subdirectory Support
 
+Set `CONFIG_SUBDIRECTORY_PATH` to the public mount path when you deploy the app behind a subdirectory, for example `CONFIG_SUBDIRECTORY_PATH=/anypath/`. Keep `CONFIG_BASE_URL` set to the full public URL when email links should point back into that same path.
+
 ### Caddy
 
 ```
@@ -104,6 +106,8 @@ iclib.domain.tld {
 	}
 }
 ```
+
+Run the container with `CONFIG_SUBDIRECTORY_PATH=/anypath/` and `CONFIG_BASE_URL=https://iclib.domain.tld/anypath/`.
 
 ### Nginx
 
@@ -136,3 +140,5 @@ server {
 	}
 }
 ```
+
+Run the container with `CONFIG_SUBDIRECTORY_PATH=/anypath/` and `CONFIG_BASE_URL=https://iclib.domain.tld/anypath/`.

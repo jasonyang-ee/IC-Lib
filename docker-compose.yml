@@ -10,6 +10,7 @@ services:
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       - CONFIG_ECO=false
       - CONFIG_BASE_URL=http://localhost:80
+      # - CONFIG_SUBDIRECTORY_PATH=/
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server

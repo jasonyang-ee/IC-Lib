@@ -178,10 +178,11 @@ export const getNotificationPreferences = async (req, res) => {
     if (result.rows.length === 0) {
       // Return defaults if no preferences set
       return res.json({
-        notify_eco_created: true,
-        notify_eco_approved: true,
-        notify_eco_rejected: true,
-        notify_eco_pending_approval: true,
+        notify_eco_created: false,
+        notify_eco_approved: false,
+        notify_eco_rejected: false,
+        notify_eco_pending_approval: false,
+        notify_eco_stage_advanced: false,
       });
     }
 
@@ -202,26 +203,29 @@ export const updateNotificationPreferences = async (req, res) => {
       notify_eco_approved,
       notify_eco_rejected,
       notify_eco_pending_approval,
+      notify_eco_stage_advanced,
     } = req.body;
 
     const result = await pool.query(`
       INSERT INTO email_notification_preferences (
         user_id, notify_eco_created, notify_eco_approved, 
-        notify_eco_rejected, notify_eco_pending_approval
-      ) VALUES ($1, $2, $3, $4, $5)
+        notify_eco_rejected, notify_eco_pending_approval, notify_eco_stage_advanced
+      ) VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (user_id) DO UPDATE SET
         notify_eco_created = EXCLUDED.notify_eco_created,
         notify_eco_approved = EXCLUDED.notify_eco_approved,
         notify_eco_rejected = EXCLUDED.notify_eco_rejected,
         notify_eco_pending_approval = EXCLUDED.notify_eco_pending_approval,
+        notify_eco_stage_advanced = EXCLUDED.notify_eco_stage_advanced,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `, [
       req.user.id,
-      notify_eco_created ?? true,
-      notify_eco_approved ?? true,
-      notify_eco_rejected ?? true,
-      notify_eco_pending_approval ?? true,
+      notify_eco_created ?? false,
+      notify_eco_approved ?? false,
+      notify_eco_rejected ?? false,
+      notify_eco_pending_approval ?? false,
+      notify_eco_stage_advanced ?? false,
     ]);
 
     res.json(result.rows[0]);

@@ -7,10 +7,10 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255),
   display_name VARCHAR(100),
   notification_preferences JSONB DEFAULT '{
-    "eco_submitted": true,
-    "eco_approved": true,
-    "eco_rejected": true,
-    "eco_assigned": true
+    "eco_submitted": false,
+    "eco_approved": false,
+    "eco_rejected": false,
+    "eco_assigned": false
   }'::jsonb,
   file_storage_path VARCHAR(1000),
   created_by UUID REFERENCES users(id),

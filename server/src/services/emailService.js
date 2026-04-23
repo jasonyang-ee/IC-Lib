@@ -140,7 +140,7 @@ const buildWelcomeEmailText = ({ recipientName, username, passwordLabel, passwor
 const ECO_EMAIL_VARIANTS = {
   eco_created: {
     eyebrow: 'ECO Submitted',
-    title: 'New ECO Submitted',
+    title: 'ECO Submitted',
     paragraphs: ['An Engineering Change Order has been submitted and is ready for review.'],
     accentColor: '#2563eb',
     ctaLabel: 'Review ECO',
@@ -570,7 +570,7 @@ async function getECONotificationRecipients(notificationType) {
       LEFT JOIN email_notification_preferences enp ON u.id = enp.user_id
       WHERE u.email IS NOT NULL
         AND u.role <> 'read-only'
-        AND (enp.${column} = true OR enp.${column} IS NULL)
+        AND enp.${column} = true
     `;
 
     if (notificationType === 'eco_pending_approval') {
@@ -605,11 +605,11 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
 
   // Generate email content
   const subjects = {
-    'eco_created': `[ECO-${eco.eco_number}] New Engineering Change Order Created`,
-    'eco_approved': `[ECO-${eco.eco_number}] Engineering Change Order Approved`,
-    'eco_rejected': `[ECO-${eco.eco_number}] Engineering Change Order Rejected`,
-    'eco_pending_approval': `[ECO-${eco.eco_number}] Engineering Change Order Assigned For Approval`,
-    'eco_stage_advanced': `[ECO-${eco.eco_number}] ECO Advanced to ${additionalInfo.to_stage || 'Next Stage'}`,
+    'eco_created': `[${eco.eco_number}] New Engineering Change Order Created`,
+    'eco_approved': `[${eco.eco_number}] Engineering Change Order Approved`,
+    'eco_rejected': `[${eco.eco_number}] Engineering Change Order Rejected`,
+    'eco_pending_approval': `[${eco.eco_number}] Engineering Change Order Assigned For Approval`,
+    'eco_stage_advanced': `[${eco.eco_number}] ECO Advanced to ${additionalInfo.to_stage || 'Next Stage'}`,
   };
 
   const subject = subjects[actionType] || `ECO Notification: ${eco.eco_number}`;
