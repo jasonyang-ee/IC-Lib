@@ -9,16 +9,18 @@ import { UserManagement, CategorySpecificationsManager, ApprovalStagesSettings, 
 
 const DEFAULT_ECO_PDF_HEADER = 'Engineer Change Order';
 
+const normalizeEcoPdfBranding = (brandingData) => ({
+  eco_logo_filename: brandingData?.eco_logo_filename || '',
+  eco_pdf_header_text: brandingData?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
+  eco_complete_notification_email: brandingData?.eco_complete_notification_email || '',
+});
+
 // ECO PDF Branding Setting Component
 const EcoPdfBrandingSetting = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
-  const [branding, setBranding] = useState({
-    eco_logo_filename: '',
-    eco_pdf_header_text: DEFAULT_ECO_PDF_HEADER,
-    eco_complete_notification_email: '',
-  });
-  const [hasBrandingChanges, setHasBrandingChanges] = useState(false);
+  const [branding, setBranding] = useState(normalizeEcoPdfBranding());
+  const [savedBranding, setSavedBranding] = useState(normalizeEcoPdfBranding());
 
   const { data: brandingData } = useQuery({
     queryKey: ['ecoPdfBranding'],
@@ -29,59 +31,88 @@ const EcoPdfBrandingSetting = () => {
   });
 
   useEffect(() => {
-    if (!brandingData || hasBrandingChanges) {
+    if (!brandingData) {
       return;
     }
 
-    setBranding({
-      eco_logo_filename: brandingData.eco_logo_filename || '',
-      eco_pdf_header_text: brandingData.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
-      eco_complete_notification_email: brandingData.eco_complete_notification_email || '',
+    const nextBranding = normalizeEcoPdfBranding(brandingData);
+
+    setSavedBranding((prevSavedBranding) => {
+      const hasLocalChanges = prevSavedBranding.eco_logo_filename !== branding.eco_logo_filename
+        || prevSavedBranding.eco_pdf_header_text !== branding.eco_pdf_header_text
+        || prevSavedBranding.eco_complete_notification_email !== branding.eco_complete_notification_email;
+
+      if (!hasLocalChanges) {
+        setBranding(nextBranding);
+        return nextBranding;
+      }
+
+      return prevSavedBranding;
     });
-  }, [brandingData, hasBrandingChanges]);
+  }, [brandingData, branding]);
 
   const saveBrandingMutation = useMutation({
     mutationFn: (data) => api.updateEcoPdfBranding(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ecoPdfBranding'] });
-      setHasBrandingChanges(false);
-      showSuccess('ECO PDF branding saved successfully!');
-    },
-    onError: (error) => {
-      const errorMsg = error.response?.data?.error || error.message;
-      showError(`Error saving ECO PDF branding: ${errorMsg}`);
-    },
   });
 
   const handleBrandingChange = (field, value) => {
     setBranding(prev => ({ ...prev, [field]: value }));
-    setHasBrandingChanges(true);
   };
 
-  const handleBrandingSave = () => {
-    saveBrandingMutation.mutate({
+  const hasPdfBrandingChanges = branding.eco_logo_filename !== savedBranding.eco_logo_filename
+    || branding.eco_pdf_header_text !== savedBranding.eco_pdf_header_text;
+  const hasNotificationChanges = branding.eco_complete_notification_email !== savedBranding.eco_complete_notification_email;
+
+  const saveBrandingSection = async (updates, successMessage) => {
+    try {
+      await saveBrandingMutation.mutateAsync({
+        ...savedBranding,
+        ...updates,
+      });
+      queryClient.invalidateQueries({ queryKey: ['ecoPdfBranding'] });
+      setSavedBranding(prev => ({ ...prev, ...updates }));
+      showSuccess(successMessage);
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message;
+      showError(`Error saving ECO PDF branding: ${errorMsg}`);
+    }
+  };
+
+  const handlePdfBrandingSave = () => {
+    saveBrandingSection({
       eco_logo_filename: branding.eco_logo_filename,
       eco_pdf_header_text: branding.eco_pdf_header_text,
-      eco_complete_notification_email: branding.eco_complete_notification_email,
-    });
+    }, 'ECO PDF branding saved successfully!');
   };
 
-  const handleBrandingReset = () => {
-    setBranding({
-      eco_logo_filename: brandingData?.eco_logo_filename || '',
-      eco_pdf_header_text: brandingData?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
-      eco_complete_notification_email: brandingData?.eco_complete_notification_email || '',
-    });
-    setHasBrandingChanges(false);
+  const handleNotificationSave = () => {
+    saveBrandingSection({
+      eco_complete_notification_email: branding.eco_complete_notification_email,
+    }, 'ECO complete notification saved successfully!');
+  };
+
+  const handlePdfBrandingReset = () => {
+    setBranding(prev => ({
+      ...prev,
+      eco_logo_filename: savedBranding.eco_logo_filename,
+      eco_pdf_header_text: savedBranding.eco_pdf_header_text,
+    }));
+  };
+
+  const handleNotificationReset = () => {
+    setBranding(prev => ({
+      ...prev,
+      eco_complete_notification_email: savedBranding.eco_complete_notification_email,
+    }));
   };
 
   return (
-    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
-        ECO PDF Branding
-      </h3>
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          ECO PDF Branding
+        </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
         <div className="space-y-4 min-w-0">
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -110,6 +141,41 @@ const EcoPdfBrandingSetting = () => {
             />
           </div>
 
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Place the logo image in the container&apos;s /image directory, then enter the filename here. Header text prints beside the logo in ECO PDF exports.
+          </p>
+
+          <div className="flex justify-end gap-2">
+            {hasPdfBrandingChanges && (
+              <button
+                onClick={handlePdfBrandingReset}
+                className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors text-sm"
+              >
+                Reset
+              </button>
+            )}
+            <button
+              onClick={handlePdfBrandingSave}
+              disabled={!hasPdfBrandingChanges || saveBrandingMutation.isPending}
+              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm"
+            >
+              {saveBrandingMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a]">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          ECO Complete Notification
+        </h3>
+
+        <div className="space-y-4 min-w-0">
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               ECO Complete Notification
@@ -125,35 +191,31 @@ const EcoPdfBrandingSetting = () => {
               Approved ECO PDFs will be emailed to this document-control address. Leave blank to disable.
             </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {hasBrandingChanges && (
-            <button
-              onClick={handleBrandingReset}
-              className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors text-sm"
-            >
-              Reset
-            </button>
-          )}
-          <button
-            onClick={handleBrandingSave}
-            disabled={!hasBrandingChanges || saveBrandingMutation.isPending}
-            className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm"
-          >
-            {saveBrandingMutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
+          <div className="flex justify-end gap-2">
+            {hasNotificationChanges && (
+              <button
+                onClick={handleNotificationReset}
+                className="px-3 py-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium transition-colors text-sm"
+              >
+                Reset
+              </button>
             )}
-            Save
-          </button>
+            <button
+              onClick={handleNotificationSave}
+              disabled={!hasNotificationChanges || saveBrandingMutation.isPending}
+              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white font-medium rounded-md transition-colors flex items-center gap-1.5 text-sm"
+            >
+              {saveBrandingMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              Save
+            </button>
+          </div>
         </div>
       </div>
-
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-        Place logo image (PNG/JPG) in container&apos;s /image directory, then enter filename here. Header text prints beside logo in ECO PDF exports. The complete-notification address receives the approved ECO PDF as an email attachment.
-      </p>
     </div>
   );
 };

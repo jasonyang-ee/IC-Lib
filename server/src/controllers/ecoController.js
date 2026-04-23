@@ -192,7 +192,7 @@ const buildEcoPdfPayload = async (client, ecoId) => {
     WHERE eas.is_active = true
     ORDER BY eas.stage_order
   `, [ecoId]);
-  stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
+  stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco) };
 
   const cadFilesResult = await client.query(`
     SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
@@ -464,12 +464,29 @@ const getMatchingStagesForEco = (stages, eco, { fallbackToAll = false } = {}) =>
   return fallbackToAll ? normalizedStages : [];
 };
 
+const hasStageConfigurationMismatch = (eco, stages) => {
+  if (eco?.current_stage_order === null || eco?.current_stage_order === undefined) {
+    return false;
+  }
+
+  const activeStagesAtCurrentOrder = stages.filter(
+    (stage) => stage.is_active === true && stage.stage_order === eco.current_stage_order,
+  );
+
+  if (activeStagesAtCurrentOrder.length === 0) {
+    return false;
+  }
+
+  return getMatchingStagesForEco(activeStagesAtCurrentOrder, eco).length === 0;
+};
+
 const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map()) => {
   if (eco?.current_stage_order === null || eco?.current_stage_order === undefined) {
     return {
       current_stage_names: null,
       current_stage_required_approvals: null,
       current_stage_approval_count: 0,
+      current_stage_configuration_mismatch: false,
     };
   }
 
@@ -477,6 +494,7 @@ const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map
     stages.filter((stage) => stage.is_active === true && stage.stage_order === eco.current_stage_order),
     eco,
   );
+  const currentStageConfigurationMismatch = hasStageConfigurationMismatch(eco, stages);
 
   return {
     current_stage_names: matchingStages.length > 0
@@ -489,6 +507,7 @@ const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map
       (sum, stage) => sum + Number(approvedCountsByStageId.get(stage.id) || 0),
       0,
     ),
+    current_stage_configuration_mismatch: currentStageConfigurationMismatch,
   };
 };
 
@@ -939,7 +958,6 @@ export const getECOById = async (req, res) => {
     `, [id]);
 
     // Get all active approval stages for this ECO's pipeline type, with assigned approvers
-    // Fallback: if no stages match the pipeline type, show ALL active stages
     const stagesQuery = `
       SELECT
         eas.*,
@@ -958,7 +976,7 @@ export const getECOById = async (req, res) => {
       ORDER BY eas.stage_order
     `;
     let stagesResult = await client.query(stagesQuery, [id]);
-    stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
+    stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco) };
 
     // Get CAD file changes
     const cadFilesResult = await client.query(`

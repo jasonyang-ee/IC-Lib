@@ -16,10 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reports now read from the current CAD text/junction model, show category CAD coverage across all file types, and surface manufacturer coverage with unassigned parts included
 - ECO approval stage tags in admin settings now render as separate `Status Tags` and `Change Tags` rows in add, edit, and read-only views
+- ECO settings now keep the approval-stage header actions aligned on a single row, shorten the stage summary copy, and split PDF branding from complete-notification email settings into separate cards with bottom-right save actions
 
 ### Fixed
 
 - ECO `Approve` and `Reject` buttons now stay visible but render disabled for approver-capable users who are not eligible to act on the current stage, matching backend stage assignment and delegation rules
+- ECO details no longer show fallback approval stages that do not actually match the ECO tags, and blocked approvals now surface approval-stage tag mismatches instead of implying the assigned-user list is wrong
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 
 ## [1.9.4] - 2026-04-22

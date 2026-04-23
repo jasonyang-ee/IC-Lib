@@ -323,27 +323,22 @@ const ApprovalStagesSettings = () => {
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             Approval Stages
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-            Configure the multi-stage approval pipeline for ECOs. Each stage requires a set number of approvals before advancing.
-            Stages with the same order number run in parallel. Export/import restores stage order, tags, and assigned approvers; missing users are skipped.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1 lg:pb-0">
           <button
             onClick={() => exportMutation.mutate()}
             disabled={exportMutation.isPending}
-            className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1"
+            className="px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
           >
             {exportMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Export JSON
           </button>
           <label
-            className={`px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 cursor-pointer ${importMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap ${importMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}
           >
             {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             Import JSON
@@ -358,13 +353,17 @@ const ApprovalStagesSettings = () => {
           {!isAdding && (
             <button
               onClick={() => setIsAdding(true)}
-              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1"
+              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-1 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               Add Stage
             </button>
           )}
         </div>
+        </div>
+        <p className="max-w-4xl text-gray-600 dark:text-gray-400 text-sm">
+          Configure the ECO approval pipeline. Same-order stages run in parallel, and export/import preserves stage order, tags, and assigned approvers.
+        </p>
       </div>
 
       {/* Add new stage form */}

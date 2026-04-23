@@ -67,12 +67,17 @@ const ECOListItem = ({
   const isExpanded = expandedECO === eco.id;
   const ecoPipelineTypes = getEcoPipelineTypes(eco);
   const ecoDetailPipelineTypes = getEcoPipelineTypes(ecoDetails);
+  const hasStageConfigurationMismatch = Boolean(
+    ecoDetails?.current_stage_configuration_mismatch ?? eco?.current_stage_configuration_mismatch,
+  );
   const canActOnCurrentStage = canApprove && currentUserCanAct;
   const approvalActionDisabled = !canActOnCurrentStage || approvePending;
   const rejectionActionDisabled = !canActOnCurrentStage || rejectPending;
   const actionDisabledTitle = canActOnCurrentStage
     ? undefined
-    : 'You are not assigned to the current approval stage for this ECO.';
+    : hasStageConfigurationMismatch
+      ? 'The active approval-stage settings do not currently match this ECO.'
+      : 'You are not assigned to the current approval stage for this ECO.';
 
   // Group stages by stage_order for parallel display
   const groupStagesByOrder = (stages) => {
@@ -143,6 +148,14 @@ const ECOListItem = ({
                         ({eco.current_stage_approval_count || 0}/{eco.current_stage_required_approvals} approvals)
                       </span>
                     )}
+                  </p>
+                </div>
+              )}
+
+              {isPendingApproval(eco.status) && hasStageConfigurationMismatch && (
+                <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
+                  <p className="text-amber-700 dark:text-amber-300 text-xs">
+                    <strong>Approval Routing Mismatch:</strong> The active stage tags no longer match this ECO, so assigned approvers at this order cannot act until the stage configuration is updated.
                   </p>
                 </div>
               )}
@@ -232,66 +245,76 @@ const ECOListItem = ({
               )}
 
               {/* Approval Progress (stages and votes) */}
-              {ecoDetails.stages && ecoDetails.stages.length > 0 && (
+              {(hasStageConfigurationMismatch
+                || (ecoDetails.stages && ecoDetails.stages.length > 0)
+                || (ecoDetails.approvals && ecoDetails.approvals.length > 0)
+                || (isPendingApproval(ecoDetails.status) && canApprove)) && (
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     Approval Progress
                   </h4>
-                  <div className="flex gap-2 flex-wrap mb-3">
-                    {groupStagesByOrder(ecoDetails.stages).map((group) => {
-                      const isParallel = group.stages.length > 1;
-                      return (
-                        <div
-                          key={group.order}
-                          className={`flex gap-1 ${isParallel ? 'p-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#2a2a2a]' : ''}`}
-                        >
-                          {group.stages.map((stage) => {
-                            const isCurrent = ecoDetails.current_stage_order === stage.stage_order;
-                            const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
-                            const isPast = stage.stage_order < ecoDetails.current_stage_order;
-                            const isRejected = ecoDetails.status === 'rejected' && isCurrent;
+                  {hasStageConfigurationMismatch && (
+                    <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                      The active approval-stage tags at this stage order do not match this ECO's tags. That is why assigned users cannot approve it from this screen.
+                    </div>
+                  )}
 
-                            // Color priority: rejected (red) > complete (green) > current (blue) > future (gray)
-                            let stageColorClass;
-                            if (isRejected) {
-                              stageColorClass = 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600 text-red-700 dark:text-red-400';
-                            } else if (isPast || isComplete) {
-                              stageColorClass = 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400';
-                            } else if (isCurrent) {
-                              stageColorClass = 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400';
-                            } else {
-                              stageColorClass = 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400';
-                            }
+                  {ecoDetails.stages && ecoDetails.stages.length > 0 && (
+                    <div className="flex gap-2 flex-wrap mb-3">
+                      {groupStagesByOrder(ecoDetails.stages).map((group) => {
+                        const isParallel = group.stages.length > 1;
+                        return (
+                          <div
+                            key={group.order}
+                            className={`flex gap-1 ${isParallel ? 'p-1 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#2a2a2a]' : ''}`}
+                          >
+                            {group.stages.map((stage) => {
+                              const isCurrent = ecoDetails.current_stage_order === stage.stage_order;
+                              const isComplete = parseInt(stage.approval_count) >= stage.required_approvals;
+                              const isPast = stage.stage_order < ecoDetails.current_stage_order;
+                              const isRejected = ecoDetails.status === 'rejected' && isCurrent;
 
-                            return (
-                              <div
-                                key={stage.id}
-                                className={`px-3 py-2 rounded border text-sm ${stageColorClass}`}
-                              >
-                                <div className="font-medium">{stage.stage_name}</div>
-                                <div className="text-xs mt-0.5">
-                                  {stage.approval_count}/{stage.required_approvals} approvals
-                                  {isRejected && ' (rejected)'}
-                                  {(isPast || isComplete) && !isRejected && ' (complete)'}
-                                  {isCurrent && !isComplete && !isRejected && ' (current)'}
+                              let stageColorClass;
+                              if (isRejected) {
+                                stageColorClass = 'border-red-400 bg-red-50 dark:bg-red-900/20 dark:border-red-600 text-red-700 dark:text-red-400';
+                              } else if (isPast || isComplete) {
+                                stageColorClass = 'border-green-400 bg-green-50 dark:bg-green-900/20 dark:border-green-600 text-green-700 dark:text-green-400';
+                              } else if (isCurrent) {
+                                stageColorClass = 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600 text-blue-700 dark:text-blue-400';
+                              } else {
+                                stageColorClass = 'border-gray-300 dark:border-[#444] bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400';
+                              }
+
+                              return (
+                                <div
+                                  key={stage.id}
+                                  className={`px-3 py-2 rounded border text-sm ${stageColorClass}`}
+                                >
+                                  <div className="font-medium">{stage.stage_name}</div>
+                                  <div className="text-xs mt-0.5">
+                                    {stage.approval_count}/{stage.required_approvals} approvals
+                                    {isRejected && ' (rejected)'}
+                                    {(isPast || isComplete) && !isRejected && ' (complete)'}
+                                    {isCurrent && !isComplete && !isRejected && ' (current)'}
+                                  </div>
+                                  {isParallel && (
+                                    <div className="text-xs mt-0.5 opacity-50">
+                                      order {stage.stage_order}
+                                    </div>
+                                  )}
+                                  {stage.assigned_approvers?.length > 0 && (
+                                    <div className="text-xs mt-0.5 opacity-70">
+                                      {stage.assigned_approvers.map(a => a.display_name || 'Unknown').join(', ')}
+                                    </div>
+                                  )}
                                 </div>
-                                {isParallel && (
-                                  <div className="text-xs mt-0.5 opacity-50">
-                                    order {stage.stage_order}
-                                  </div>
-                                )}
-                                {stage.assigned_approvers?.length > 0 && (
-                                  <div className="text-xs mt-0.5 opacity-70">
-                                    {stage.assigned_approvers.map(a => a.display_name || 'Unknown').join(', ')}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Vote History */}
                   {ecoDetails.approvals && ecoDetails.approvals.length > 0 && (
@@ -355,11 +378,15 @@ const ECOListItem = ({
                         rows={2}
                         placeholder={canActOnCurrentStage
                           ? 'Add optional comments with your approval...'
-                          : 'You are not assigned to the current approval stage.'}
+                          : hasStageConfigurationMismatch
+                            ? 'The active approval-stage settings do not currently match this ECO.'
+                            : 'You are not assigned to the current approval stage.'}
                       />
                       {!canActOnCurrentStage && (
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          This ECO is waiting on a different approver in the current stage.
+                          {hasStageConfigurationMismatch
+                            ? 'This ECO is blocked by a stage-tag mismatch, not by the personal assignee list.'
+                            : 'This ECO is waiting on a different approver in the current stage.'}
                         </p>
                       )}
                     </div>
