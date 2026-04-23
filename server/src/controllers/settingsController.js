@@ -1974,7 +1974,6 @@ const EXPORT_TABLES = [
   'smtp_settings',
   'email_notification_preferences',
   'email_log',
-  'schema_version',
 ];
 
 /**

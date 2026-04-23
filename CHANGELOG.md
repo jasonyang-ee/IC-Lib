@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Projects now open a `Generate BOM` column picker that can export tracked part metadata, CAD fields, distributor part numbers, and sequential alternative-part columns
 - Admin Settings now include a `BOM` tab for configuring the default column set used when opening the project BOM generator
 - Database startup now applies idempotent SQL migrations from `database/migrations`, beginning with the extracted legacy schema-repair migration
+- Migration tracking now stores sequence numbers and descriptions in `schema_migrations`
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project component cards now use a tighter three-row layout with manufacturer details folded into the header, `Value`/`Part Type`/`Package` shown as compact metadata, brighter `Quantity` emphasis, and inline text actions for quantity changes and deletes
 - Project deletion is now only exposed from the Edit Project modal instead of the project list, reducing accidental deletes from the main project picker
 - Database bootstrap docs and startup verification now treat `database/init-*.sql` as fresh-install entrypoints and `database/migrations/*.sql` as the only home for incremental schema repairs
+- Database migrations now use `{sequence}_{description}.sql` names, with numeric sequence sorting so releases do not need zero-padded filenames or version tags in filenames
 
 ### Fixed
 
@@ -38,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project quantity edits no longer fall back to browser prompts, BOM exports now pull real distributor rows instead of assuming component details include them, and bulk project-import errors now surface in-app instead of browser alerts
 - Project details now pull `Part Type` and `Package` metadata directly from the project payload, including alternative-part rows, instead of leaving those compact card fields empty
 - `init-schema.sql` no longer mixes in legacy `ALTER`/backfill migrations, startup now verifies the real CIS view names, and failed SQL migrations now stop initialization instead of silently continuing
+- `schema_version` is now consolidated into `schema_migrations`, logical database backups no longer try to export that legacy table, and existing databases now refresh the `alternative_parts` view to include both manufacturer name and manufacturer part number
 
 ## [1.9.3] - 2026-04-21
 

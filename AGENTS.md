@@ -31,7 +31,9 @@ IC-Lib/
 - Key views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`, `eco_orders_full`
 - DB runs on separate hardware; use PostgreSQL extension (Home-Servers/iclib) to inspect
 - Base schema and seed entrypoints live in `database/init-*.sql` and are for fresh initialization or full rebuilds only
-- Incremental schema/data changes for existing databases must go in `database/migrations/{number}_{description}.sql`
+- Incremental schema/data changes for existing databases must go in `database/migrations/{sequence}_{description}.sql` (example: `2_schema_version_tracking_update.sql`)
+- Use plain integer sequence numbers without leading zeros and rely on the migration runner's numeric sort instead of lexicographic filename padding
+- If you want release traceability, keep the app version in the migration header comment and `CHANGELOG.md`, not in the filename
 - Do not place compatibility `ALTER`, backfill `UPDATE`, constraint rewrites, or legacy cleanup blocks in `database/init-*.sql`
 - Keep migration SQL idempotent when practical (`IF NOT EXISTS`, safe backfills, guarded `DO $$` blocks) because startup applies pending files from `database/migrations`
 - When adding a migration-owned column/view/table that startup should verify, update the server schema inspection expectations instead of putting the repair into `init-schema.sql`

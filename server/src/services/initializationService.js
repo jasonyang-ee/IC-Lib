@@ -9,6 +9,10 @@ import {
   STARTUP_REQUIRED_TABLES,
   inspectDatabaseSchema,
 } from './schemaInspectionService.js';
+import {
+  compareMigrationFilenames,
+  parseMigrationFilename,
+} from './migrationNaming.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,13 +24,48 @@ async function runMigrations() {
   const client = await pool.connect();
   
   try {
-    // Create migrations tracking table if it doesn't exist
+    // Create or upgrade the migrations tracking table.
     await client.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         id SERIAL PRIMARY KEY,
         filename VARCHAR(255) UNIQUE NOT NULL,
+        sequence_number INTEGER,
+        description TEXT,
         executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await client.query('ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS sequence_number INTEGER');
+    await client.query('ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS description TEXT');
+    await client.query('ALTER TABLE schema_migrations DROP COLUMN IF EXISTS version_tag');
+
+    await client.query(`
+      DELETE FROM schema_migrations versioned
+      USING schema_migrations numeric
+      WHERE versioned.filename ~ '^v[^_]+_[0-9]+_.+\\.sql$'
+        AND numeric.filename = regexp_replace(versioned.filename, '^v[^_]+_', '')
+    `);
+
+    await client.query(`
+      UPDATE schema_migrations
+      SET filename = regexp_replace(filename, '^v[^_]+_', '')
+      WHERE filename ~ '^v[^_]+_[0-9]+_.+\\.sql$'
+    `);
+
+    await client.query(`
+      WITH parsed_migrations AS (
+        SELECT
+          id,
+          regexp_match(filename, '^([0-9]+)_(.+)\\.sql$') AS parts
+        FROM schema_migrations
+        WHERE filename ~ '^[0-9]+_.+\\.sql$'
+      )
+      UPDATE schema_migrations sm
+      SET sequence_number = parsed_migrations.parts[1]::INTEGER,
+          description = replace(parsed_migrations.parts[2], '_', ' ')
+      FROM parsed_migrations
+      WHERE sm.id = parsed_migrations.id
+        AND (sm.sequence_number IS NULL OR sm.description IS NULL)
     `);
     
     // Get list of already executed migrations
@@ -43,7 +82,7 @@ async function runMigrations() {
     
     const migrationFiles = fs.readdirSync(migrationsPath)
       .filter(f => f.endsWith('.sql'))
-      .sort(); // Sort to ensure execution order
+      .sort(compareMigrationFilenames);
     
     if (migrationFiles.length === 0) {
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m No migration files found');
@@ -61,13 +100,18 @@ async function runMigrations() {
       
       const filePath = path.join(migrationsPath, filename);
       const sql = fs.readFileSync(filePath, 'utf8');
+      const migrationMetadata = parseMigrationFilename(filename);
       
       try {
         await client.query('BEGIN');
         await client.query(sql);
         await client.query(
-          'INSERT INTO schema_migrations (filename) VALUES ($1)',
-          [filename],
+          'INSERT INTO schema_migrations (filename, sequence_number, description) VALUES ($1, $2, $3)',
+          [
+            filename,
+            migrationMetadata.sequenceNumber,
+            migrationMetadata.description,
+          ],
         );
         await client.query('COMMIT');
         console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);

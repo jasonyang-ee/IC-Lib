@@ -13,7 +13,6 @@ export const EXPECTED_SCHEMA_TABLES = [
   'inventory',
   'inventory_alternative',
   'footprint_sources',
-  'schema_version',
   'activity_log',
   'activity_types',
   'user_activity_log',

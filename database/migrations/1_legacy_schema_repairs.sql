@@ -144,3 +144,13 @@ CREATE INDEX IF NOT EXISTS idx_eco_orders_parent ON eco_orders(parent_eco_id);
 -- Remove UNIQUE constraint on eco_number (retries reuse the same ECO number)
 ALTER TABLE eco_orders DROP CONSTRAINT IF EXISTS eco_orders_eco_number_key;
 DROP INDEX IF EXISTS eco_orders_eco_number_key;
+
+-- Ensure alternative_parts exposes both alternative manufacturer and manufacturer part number
+CREATE OR REPLACE VIEW alternative_parts AS
+SELECT
+    c.part_number,
+    ca.manufacturer_pn AS manufacturer_pn,
+    m.name AS manufacturer_name
+FROM components_alternative ca
+LEFT JOIN components c ON ca.component_id = c.id
+LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id;

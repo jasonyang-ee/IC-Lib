@@ -454,31 +454,16 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 LEFT JOIN component_categories cat ON c.category_id = cat.id
 WHERE c.approval_status = 'archived';
 
--- Create a view that includes the alternative parts with manufacturer name
+-- Create a view that includes the alternative parts with manufacturer name and part number
 -- Includes part_number from parent component for CIS RelationModel join key
 CREATE OR REPLACE VIEW alternative_parts AS
 SELECT
     c.part_number,
-    ca.manufacturer_pn,
+    ca.manufacturer_pn AS manufacturer_pn,
     m.name AS manufacturer_name
 FROM components_alternative ca
 LEFT JOIN components c ON ca.component_id = c.id
 LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id;
-
--- ============================================================================
--- Schema version tracking
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS schema_version (
-    version VARCHAR(20) PRIMARY KEY,
-    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    description TEXT
-);
-
-INSERT INTO schema_version (version, description) VALUES
-    ('1.8.0', 'TEXT CAD columns for CIS integration, cad_files junction tables for internal file management')
-ON CONFLICT (version) DO NOTHING;
-
 -- Default category specifications are in init-settings.sql (run via "Init Categories" in admin UI)
 
 -- ============================================================================
