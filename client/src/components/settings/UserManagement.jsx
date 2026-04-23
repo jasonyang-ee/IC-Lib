@@ -8,6 +8,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 const UserManagement = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
+  const modalBackdropClass = 'fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4';
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
@@ -18,6 +19,21 @@ const UserManagement = () => {
     role: 'read-only'
   });
   const fileInputRef = useRef(null);
+
+  const resetFormData = () => {
+    setFormData({ username: '', password: '', role: 'read-only', display_name: '', email: '' });
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    resetFormData();
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setSelectedUser(null);
+    resetFormData();
+  };
 
   // Fetch all users
   const { data: users, isLoading } = useQuery({
@@ -35,8 +51,7 @@ const UserManagement = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
-      setShowCreateModal(false);
-      setFormData({ username: '', password: '', role: 'read-only', display_name: '', email: '' });
+      closeCreateModal();
       showSuccess('User created successfully!');
     },
     onError: (error) => {
@@ -52,8 +67,7 @@ const UserManagement = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
-      setShowEditModal(false);
-      setSelectedUser(null);
+      closeEditModal();
       showSuccess('User updated successfully!');
     },
     onError: (error) => {
@@ -70,6 +84,7 @@ const UserManagement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
       setShowDeleteConfirm(null);
+      closeEditModal();
       showSuccess('User deleted successfully!');
     },
     onError: (error) => {
@@ -306,8 +321,8 @@ const UserManagement = () => {
       {/* Create User Modal */}
       {showCreateModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}
+          className={modalBackdropClass}
+          onClick={(e) => e.target === e.currentTarget && closeCreateModal()}
         >
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Create New User</h3>
@@ -388,7 +403,7 @@ const UserManagement = () => {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={closeCreateModal}
                 className="btn-secondary"
               >
                 Cancel
@@ -408,8 +423,8 @@ const UserManagement = () => {
       {/* Edit User Modal */}
       {showEditModal && selectedUser && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => e.target === e.currentTarget && setShowEditModal(false)}
+          className={modalBackdropClass}
+          onClick={(e) => e.target === e.currentTarget && closeEditModal()}
         >
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Edit User</h3>
@@ -480,7 +495,7 @@ const UserManagement = () => {
               </button>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowEditModal(false)}
+                  onClick={closeEditModal}
                   className="btn-secondary"
                 >
                   Cancel
@@ -500,7 +515,10 @@ const UserManagement = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div
+          className={modalBackdropClass}
+          onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(null)}
+        >
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">

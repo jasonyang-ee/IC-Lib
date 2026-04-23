@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import pool from '../config/database.js';
 import cadFileService from '../services/cadFileService.js';
+import { normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +17,7 @@ const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
 // IMPORTANT: Extensions must be unique across categories (except for ambiguous ones handled by path-based logic)
 const FILE_CATEGORIES = {
   footprint: {
-    extensions: ['.brd', '.psm', '.dra'],
+    extensions: ['.brd', '.psm', '.bsm', '.dra'],
     subdir: 'footprint',
   },
   pad: {
@@ -182,10 +183,7 @@ function moveToCategory(sourcePath, category, overwrite = false) {
   // Lowercase extension for consistency
   const rawExt = path.extname(rawFilename);
   let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
-  // .psm files are always fully lowercase
-  if (rawExt.toLowerCase() === '.psm') {
-    filename = filename.toLowerCase();
-  }
+  filename = normalizeFootprintFilenameCase(filename);
   const targetPath = path.join(targetDir, filename);
 
   // Collision check: reject if file already exists (unless overwrite)
@@ -247,9 +245,9 @@ function extractSmartZipToTemp(zipPath) {
   }
 
   const validEDAExtensions = new Set([
-    '.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra',
+    '.brd', '.kicad_mod', '.lbr', '.psm', '.bsm', '.fsm', '.bxl', '.dra',
     '.pad', '.plb',
-    '.olb', '.lib', '.kicad_sym', '.bsm', '.schlib', '.edf',
+    '.olb', '.lib', '.kicad_sym', '.schlib', '.edf',
     '.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t',
     '.cir', '.sub', '.inc', '.mod',
     '.dcm', '.asc', '.hkp',
@@ -292,10 +290,7 @@ function extractSmartZipToTemp(zipPath) {
     }
 
     if (category) {
-      // .psm files are always fully lowercase
-      if (ext === '.psm') {
-        filename = filename.toLowerCase();
-      }
+      filename = normalizeFootprintFilenameCase(filename);
 
       // Skip duplicate files (same filename+category from different subdirs in ZIP)
       const dedupeKey = `${category}:${filename.toLowerCase()}`;
@@ -361,10 +356,7 @@ export async function uploadTempFile(req, res) {
         // Normalize filename with lowercase extension
         const origExt = path.extname(file.originalname);
         let normalizedFilename = path.basename(file.originalname, origExt) + origExt.toLowerCase();
-        // .psm files are always fully lowercase
-        if (origExt.toLowerCase() === '.psm') {
-          normalizedFilename = normalizedFilename.toLowerCase();
-        }
+        normalizedFilename = normalizeFootprintFilenameCase(normalizedFilename);
         const category = getFileCategory(normalizedFilename);
 
         if (!category) {
@@ -429,10 +421,7 @@ export async function finalizeTempFile(req, res) {
           const rawFilename = safeName.replace(/^\d+-\d+-/, '');
           const rawExt = path.extname(rawFilename);
           let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
-          // .psm files are always fully lowercase
-          if (rawExt.toLowerCase() === '.psm') {
-            filename = filename.toLowerCase();
-          }
+          filename = normalizeFootprintFilenameCase(filename);
           fs.unlinkSync(tempPath);
           if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
             await autoLinkFileToComponent(category, filename, mfgPartNumber);
@@ -681,11 +670,7 @@ export async function renameFile(req, res) {
     }
 
     let sanitizedNewFilename = newBaseName + finalExt;
-
-    // .psm files are always fully lowercase (base name + extension)
-    if (finalExt === '.psm') {
-      sanitizedNewFilename = sanitizedNewFilename.toLowerCase();
-    }
+    sanitizedNewFilename = normalizeFootprintFilenameCase(sanitizedNewFilename);
 
     const tempDir = path.join(LIBRARY_BASE, 'temp');
     let oldPath = null;

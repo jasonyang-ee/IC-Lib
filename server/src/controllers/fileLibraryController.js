@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
+import { buildFootprintRenameTargets } from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,25 +23,6 @@ function getTypeInfo(type) {
   return TYPE_MAP[type] || null;
 }
 
-function getFileExtension(fileName) {
-  return path.extname(String(fileName || '')).toLowerCase();
-}
-
-function getFileBaseName(fileName) {
-  const normalizedFileName = String(fileName || '');
-  const extension = getFileExtension(normalizedFileName);
-  return extension ? normalizedFileName.slice(0, -extension.length) : normalizedFileName;
-}
-
-function sanitizeFileBaseName(fileName) {
-  return String(fileName || '')
-    .replace(/\.[^.]+$/, '')
-    .replace(/[<>:"/\\|?*]/g, '_')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-}
-
 function isSamePhysicalFile(firstPath, secondPath) {
   try {
     const firstStat = fs.statSync(firstPath);
@@ -49,42 +31,6 @@ function isSamePhysicalFile(firstPath, secondPath) {
   } catch {
     return false;
   }
-}
-
-function buildFootprintPairTargets(fileNames, newBaseName) {
-  const normalizedFileNames = [...new Set(
-    (Array.isArray(fileNames) ? fileNames : [])
-      .map((fileName) => String(fileName || '').trim())
-      .filter(Boolean),
-  )];
-
-  if (normalizedFileNames.length !== 2) {
-    throw new Error('Footprint pair rename requires exactly one .psm file and one .dra file');
-  }
-
-  const extensions = normalizedFileNames.map(getFileExtension);
-  if (!extensions.includes('.psm') || !extensions.includes('.dra')) {
-    throw new Error('Footprint pair rename requires one .psm file and one .dra file');
-  }
-
-  const baseNames = new Set(normalizedFileNames.map((fileName) => getFileBaseName(fileName).toLowerCase()));
-  if (baseNames.size !== 1) {
-    throw new Error('Footprint pair rename requires matching .psm and .dra base names');
-  }
-
-  const sanitizedBaseName = sanitizeFileBaseName(newBaseName);
-  if (!sanitizedBaseName) {
-    throw new Error('Invalid filename after sanitization');
-  }
-
-  return normalizedFileNames.map((oldFileName) => {
-    const extension = getFileExtension(oldFileName);
-    const newFileName = extension === '.psm'
-      ? `${sanitizedBaseName}${extension}`.toLowerCase()
-      : `${sanitizedBaseName}${extension}`;
-
-    return { oldFileName, newFileName };
-  });
 }
 
 /**
@@ -289,7 +235,7 @@ export const renamePhysicalFile = async (req, res) => {
 };
 
 /**
- * Rename a grouped footprint pair (.psm + .dra) together.
+ * Rename a grouped footprint pair (.psm/.bsm + .dra) together.
  */
 export const renameFootprintGroup = async (req, res) => {
   const client = await pool.connect();
@@ -299,7 +245,7 @@ export const renameFootprintGroup = async (req, res) => {
   try {
     const { fileNames, newBaseName } = req.body;
     const info = getTypeInfo('footprint');
-    const renameTargets = buildFootprintPairTargets(fileNames, newBaseName);
+    const renameTargets = buildFootprintRenameTargets(fileNames, newBaseName);
     const affectedComponentIds = new Set();
     const cadFiles = [];
 

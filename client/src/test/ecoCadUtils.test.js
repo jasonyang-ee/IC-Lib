@@ -42,6 +42,23 @@ describe('ecoCadUtils', () => {
     ]);
   });
 
+  it('treats .bsm and .dra as one removable footprint pair', () => {
+    const changes = buildEcoCadFileChanges({
+      currentCadFiles: {
+        footprint: [{ file_name: 'QFN50.bsm' }, { file_name: 'QFN50.dra' }],
+      },
+      desiredCadFields: {
+        pcb_footprint: [],
+      },
+      stagedCadFiles: [],
+    });
+
+    expect(changes).toEqual([
+      { action: 'unlink', file_type: 'footprint', file_name: 'QFN50.bsm' },
+      { action: 'unlink', file_type: 'footprint', file_name: 'QFN50.dra' },
+    ]);
+  });
+
   it('does not create duplicate link actions for files already linked to the component', () => {
     const changes = buildEcoCadFileChanges({
       currentCadFiles: {

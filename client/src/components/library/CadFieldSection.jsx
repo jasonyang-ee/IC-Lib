@@ -1,4 +1,5 @@
 import { FileText } from 'lucide-react';
+import { isFootprintSecondaryFile } from '../../utils/footprintFiles';
 
 const FILE_TYPE_LABELS = {
   schematic: 'Schematic',
@@ -27,8 +28,8 @@ const stripExt = (name) => {
  */
 export default function CadFieldSection({ field, values = [] }) {
   const label = FILE_TYPE_LABELS[field] || field;
-  // Filter out .dra files - CIS only needs .psm for footprints
-  const filtered = values.filter(v => !v.toLowerCase().endsWith('.dra'));
+  // CIS text stores the shared footprint base via the primary file (.psm or .bsm), so hide the paired .dra file.
+  const filtered = values.filter((value) => field !== 'pcb_footprint' || !isFootprintSecondaryFile(value));
 
   return (
     <div className="space-y-1">

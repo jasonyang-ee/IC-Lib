@@ -29,6 +29,7 @@ import { parse } from 'csv-parse/sync';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../server/src/utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,7 +109,7 @@ function scanDirectory(dirPath, extensions = null) {
 }
 
 // Pre-scan library directories at startup
-const footprintFileMap = scanDirectory(path.join(LIBRARY_BASE, 'footprint'), ['.dra', '.psm']);
+const footprintFileMap = scanDirectory(path.join(LIBRARY_BASE, 'footprint'), [FOOTPRINT_SECONDARY_EXTENSION, ...FOOTPRINT_PRIMARY_EXTENSIONS]);
 const symbolFileMap = scanDirectory(path.join(LIBRARY_BASE, 'symbol'), ['.olb']);
 const modelFileMap = scanDirectory(path.join(LIBRARY_BASE, 'model'));
 const pspiceFileMap = scanDirectory(path.join(LIBRARY_BASE, 'pspice'));
@@ -185,7 +186,7 @@ async function regenerateAllCadText(client, componentId) {
 async function linkCadFiles(client, componentId, record) {
   let linked = 0;
 
-  // a. Footprint: comma-separated base names -> search .dra and .psm in library/footprint
+  // a. Footprint: comma-separated base names -> search .dra and the paired primary file (.psm or .bsm) in library/footprint
   const footprintValue = record['PCB Footprint']?.trim();
   if (footprintValue) {
     const baseNames = footprintValue.split(',').map(s => s.trim()).filter(Boolean);

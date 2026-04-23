@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils/cadFileNaming';
+import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -95,16 +96,6 @@ const RenameConfirmationModal = ({ show, title, oldFilename, newFilename, onConf
     </div>
   );
 };
-
-/** Enforce lowercase base name for .psm files (PSM files are always fully lowercase) */
-function enforcePsmCase(filename) {
-  if (filename.toLowerCase().endsWith('.psm')) {
-    const ext = filename.substring(filename.lastIndexOf('.'));
-    const base = filename.substring(0, filename.lastIndexOf('.'));
-    return base.toLowerCase() + ext.toLowerCase();
-  }
-  return filename;
-}
 
 function syncConfirmedCadRename({
   renameData,
@@ -487,7 +478,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     renameMutation.mutate({
       category: renaming.category,
       oldFilename: renaming.filename,
-      newFilename: enforcePsmCase(renaming.newName + ext),
+      newFilename: normalizeFootprintFilenameCase(renaming.newName + ext),
       tempFilename: renaming.tempFilename || undefined,
       pairedFilename: renaming.pairedFilename || undefined,
       pairedTempFilename: renaming.pairedTempFilename || undefined,
@@ -499,7 +490,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const newFilename = enforcePsmCase(buildCadShortcutFilename(file.name, sanitizedMpn));
+    const newFilename = normalizeFootprintFilenameCase(buildCadShortcutFilename(file.name, sanitizedMpn));
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches MPN');
@@ -542,7 +533,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       showError('Package name is empty after formatting');
       return;
     }
-    const newFilename = enforcePsmCase(buildCadShortcutFilename(file.name, sanitizedPkg));
+    const newFilename = normalizeFootprintFilenameCase(buildCadShortcutFilename(file.name, sanitizedPkg));
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches package');
@@ -580,12 +571,22 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   // Link existing file mutation
   const linkMutation = useMutation({
-    mutationFn: async ({ cadFileId }) => {
-      return api.linkFileToComponent(cadFileId, componentId);
+    mutationFn: async ({ cadFiles }) => {
+      if (!Array.isArray(cadFiles) || cadFiles.length === 0) {
+        throw new Error('No files selected');
+      }
+
+      const missingRegistration = cadFiles.find((file) => !file.id);
+      if (missingRegistration) {
+        throw new Error('Selected file is not registered in the CAD library yet');
+      }
+
+      await Promise.all(cadFiles.map((file) => api.linkFileToComponent(file.id, componentId)));
+      return { linkedCount: cadFiles.length };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
-      showSuccess('File linked successfully');
+      showSuccess(result.linkedCount > 1 ? `${result.linkedCount} files linked successfully` : 'File linked successfully');
     },
     onError: (error) => {
       showError('Link failed: ' + (error.response?.data?.error || error.message));
@@ -795,42 +796,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       ) : hasFiles ? (
         <div className="space-y-2 mb-3">
           {CATEGORY_ORDER.filter(cat => files[cat]?.length > 0).map((category) => {
-            // For footprint category, group .psm and .dra files by base name (case-insensitive)
             const categoryFiles = files[category];
-            let displayItems;
-            if (category === 'footprint') {
-              const psmFiles = categoryFiles.filter(f => f.name.toLowerCase().endsWith('.psm'));
-              const draFiles = categoryFiles.filter(f => f.name.toLowerCase().endsWith('.dra'));
-              const otherFiles = categoryFiles.filter(f => !f.name.toLowerCase().endsWith('.psm') && !f.name.toLowerCase().endsWith('.dra'));
-              const paired = [];
-              const usedDra = new Set();
-              for (const psm of psmFiles) {
-                const psmBase = psm.name.substring(0, psm.name.lastIndexOf('.')).toLowerCase();
-                const matchingDra = draFiles.find(d => {
-                  const draBase = d.name.substring(0, d.name.lastIndexOf('.')).toLowerCase();
-                  return draBase === psmBase && !usedDra.has(d.name);
-                });
-                if (matchingDra) {
-                  usedDra.add(matchingDra.name);
-                  paired.push({ type: 'pair', psm, dra: matchingDra });
-                } else {
-                  paired.push({ type: 'single', file: psm });
-                }
-              }
-              // Add unpaired .dra files
-              for (const dra of draFiles) {
-                if (!usedDra.has(dra.name)) {
-                  paired.push({ type: 'single', file: dra });
-                }
-              }
-              // Add other footprint files
-              for (const f of otherFiles) {
-                paired.push({ type: 'single', file: f });
-              }
-              displayItems = paired;
-            } else {
-              displayItems = categoryFiles.map(f => ({ type: 'single', file: f }));
-            }
+            const displayItems = category === 'footprint'
+              ? groupFootprintFiles(categoryFiles)
+              : categoryFiles.map(f => ({ type: 'single', file: f }));
 
             return (
             <div key={category}>
@@ -839,11 +808,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
               </p>
               {displayItems.map((item) => {
                 if (item.type === 'pair') {
-                  // Grouped .psm + .dra pair
-                  const { psm, dra } = item;
-                  const isRenamingPair = isRenaming(category, psm.name);
+                  const { primary, dra, pairLabel } = item;
+                  const isRenamingPair = isRenaming(category, primary.name);
                   return (
-                    <div key={psm.name} className="mb-1">
+                    <div key={primary.name} className="mb-1">
                       {isRenamingPair ? (
                         <div className="flex items-center gap-1 py-1 px-2 rounded text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                           <input
@@ -857,7 +825,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                             className="flex-1 px-1.5 py-0.5 border border-gray-300 dark:border-[#444] rounded text-xs bg-white dark:bg-[#2a2a2a] dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-500"
                             autoFocus
                           />
-                          <span className="text-gray-400 dark:text-gray-500 text-xs">.psm/.dra</span>
+                          <span className="text-gray-400 dark:text-gray-500 text-xs">{pairLabel}</span>
                           <button
                             type="button"
                             onClick={submitRename}
@@ -876,44 +844,44 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                         </div>
                       ) : (
                         <div className="rounded text-xs bg-gray-50 dark:bg-[#333333] border border-gray-200 dark:border-[#444]">
-                          {/* .psm file line */}
+                          {/* Primary footprint file line */}
                           <div className="flex items-start justify-between gap-2 py-1 px-2">
-                            {psm.missing ? (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={psm.name}>
-                                {psm.name}
+                            {primary.missing ? (
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={primary.name}>
+                                {primary.name}
                                 <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
                               </span>
                             ) : mfgPartNumber ? (
                               <a
-                                href={api.getFileDownloadUrl(category, mfgPartNumber, psm.name)}
+                                href={api.getFileDownloadUrl(category, mfgPartNumber, primary.name)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                                title={psm.name}
+                                title={primary.name}
                               >
-                                {psm.name}
+                                {primary.name}
                               </a>
                             ) : (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={psm.name}>{psm.name}</span>
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={primary.name}>{primary.name}</span>
                             )}
-                            {!psm.missing && (
+                            {!primary.missing && (
                               <span className="text-gray-400 dark:text-gray-500 shrink-0">
-                                {psm.size < 1024 ? `${psm.size} B` : psm.size < 1024 * 1024 ? `${(psm.size / 1024).toFixed(1)} KB` : `${(psm.size / (1024 * 1024)).toFixed(1)} MB`}
+                                {primary.size < 1024 ? `${primary.size} B` : primary.size < 1024 * 1024 ? `${(primary.size / 1024).toFixed(1)} KB` : `${(primary.size / (1024 * 1024)).toFixed(1)} MB`}
                               </span>
                             )}
                             {canEdit && (
                               <div className="flex items-center gap-1 shrink-0">
-                                {canRenameCadFile(category, psm, dra) && (
+                                {canRenameCadFile(category, primary, dra) && (
                                   <>
-                                    <button type="button" onClick={() => requestMpnRename(category, psm, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
+                                    <button type="button" onClick={() => requestMpnRename(category, primary, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply MPN as filename">MPN</button>
                                     {packageSize && (
-                                      <button type="button" onClick={() => requestPkgRename(category, psm, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply package size as filename">PKG</button>
+                                      <button type="button" onClick={() => requestPkgRename(category, primary, dra)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 text-xs px-1" title="Apply package size as filename">PKG</button>
                                     )}
-                                    <button type="button" onClick={() => startRename(category, psm, dra)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1" title="Rename file pair">Rename</button>
+                                    <button type="button" onClick={() => startRename(category, primary, dra)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs px-1" title="Rename file pair">Rename</button>
                                   </>
                                 )}
                                 {showDelete && (
-                                  <button type="button" onClick={() => setDeleteConfirm({ show: true, category, filename: psm.name })} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs px-1" title="Delete file">x</button>
+                                  <button type="button" onClick={() => setDeleteConfirm({ show: true, category, filename: primary.name })} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs px-1" title="Delete file">x</button>
                                 )}
                               </div>
                             )}
@@ -1181,11 +1149,16 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       <CadFilePickerModal
         isOpen={linkPicker.show}
         onClose={() => setLinkPicker({ show: false, category: '' })}
-        onSelect={(file) => {
+        onSelect={async (selection) => {
           const cat = linkPicker.category;
+          const selectedFiles = Array.isArray(selection?.files) ? selection.files : [selection];
+          if (!cat || selectedFiles.length === 0) {
+            return;
+          }
 
           // Check single-file category conflict
           if (cat && SINGLE_FILE_CATEGORIES.includes(cat) && filesRef.current[cat]?.length > 0) {
+            const [file] = selectedFiles;
             setFileConflict({
               category: cat,
               categoryLabel: SINGLE_FILE_LABELS[cat] || CATEGORY_LABELS[cat] || cat,
@@ -1199,27 +1172,35 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             return;
           }
 
-          if (!ecoMode && file.id && componentId) {
-            linkMutation.mutate({ cadFileId: file.id });
+          if (!ecoMode && componentId) {
+            try {
+              await linkMutation.mutateAsync({ cadFiles: selectedFiles });
+            } catch {
+              return;
+            }
           }
-          if (onFileUploaded && cat) {
-            onFileUploaded(cat, file.file_name);
+
+          for (const file of selectedFiles) {
+            if (onFileUploaded && file.file_name) {
+              onFileUploaded(cat, file.file_name);
+            }
+            if (file.file_name) {
+              notifyCadFileAdded(cat, file.file_name);
+              clearStagedRemoval(cat, file.file_name);
+            }
           }
-          if (cat && file.file_name) {
-            notifyCadFileAdded(cat, file.file_name);
-          }
-          // Add to localUploads so the file appears in the list immediately
-          if (cat && file.file_name) {
-            clearStagedRemoval(cat, file.file_name);
-            setLocalUploads(prev => {
-              const updated = { ...prev };
-              if (!updated[cat]) updated[cat] = [];
-              if (!updated[cat].find(f => f.name === file.file_name)) {
+
+          setLocalUploads(prev => {
+            const updated = { ...prev };
+            if (!updated[cat]) updated[cat] = [];
+            for (const file of selectedFiles) {
+              if (!file.file_name) continue;
+              if (!updated[cat].find(existingFile => existingFile.name === file.file_name)) {
                 updated[cat].push({ name: file.file_name, size: 0, storage: 'local' });
               }
-              return updated;
-            });
-          }
+            }
+            return updated;
+          });
         }}
         fileType={linkPicker.category || undefined}
         excludeFileIds={[]}

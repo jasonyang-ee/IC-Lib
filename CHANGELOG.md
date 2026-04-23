@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reports now read from the current CAD text/junction model, show category CAD coverage across all file types, and surface manufacturer coverage with unassigned parts included
 - ECO approval stage tags in admin settings now render as separate `Status Tags` and `Change Tags` rows in add, edit, and read-only views
 - ECO settings now keep the approval-stage header actions aligned on a single row, shorten the stage summary copy, and split PDF branding from complete-notification email settings into separate cards with bottom-right save actions
+- Footprint pairing now treats `.dra` plus either `.psm` or `.bsm` as the linked footprint set across Parts Library, File Library, and import/upload flows, and footprint pickers now select those pairs together instead of file-by-file
 
 ### Fixed
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin Settings ECO inputs now opt out of browser autofill across numbering, approval-stage, and branding fields, avoiding the Firefox `autoCompleteType` null console error on that tab
 - Admin Settings now renders the ECO tab through a dedicated component, and ECO branding state no longer self-resets in a render loop, so the branding/notification inputs stay editable and sidebar navigation no longer gets stuck after opening that tab
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
+- User Management delete confirmation now closes cleanly after deleting a user and uses the lighter shared modal backdrop styling instead of the old solid black overlay
 
 ## [1.9.4] - 2026-04-22
 

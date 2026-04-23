@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
+import { groupFootprintFiles } from '../../utils/footprintFiles';
 
 const CATEGORY_LABELS = {
   symbol: 'Schematic',
@@ -17,40 +18,23 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
   // Map: conflict key -> 'use_existing' | 'overwrite'
   const [resolutions, setResolutions] = useState({});
 
-  // Group footprint .psm/.dra pairs by case-insensitive base name
   const grouped = useMemo(() => {
     const footprintConflicts = conflicts.filter(c => c.category === 'footprint');
     const otherConflicts = conflicts.filter(c => c.category !== 'footprint');
 
-    const psmFiles = footprintConflicts.filter(c => c.filename.toLowerCase().endsWith('.psm'));
-    const draFiles = footprintConflicts.filter(c => c.filename.toLowerCase().endsWith('.dra'));
-    const otherFp = footprintConflicts.filter(c =>
-      !c.filename.toLowerCase().endsWith('.psm') && !c.filename.toLowerCase().endsWith('.dra'),
-    );
+    const pairs = groupFootprintFiles(footprintConflicts, (conflict) => conflict.filename).map((group) => {
+      if (group.type === 'pair') {
+        return {
+          type: 'pair',
+          primary: group.primary,
+          dra: group.dra,
+          key: `pair:${group.primary.tempFilename}`,
+        };
+      }
 
-    const pairs = [];
-    const usedDra = new Set();
-    for (const psm of psmFiles) {
-      const base = psm.filename.substring(0, psm.filename.lastIndexOf('.')).toLowerCase();
-      const match = draFiles.find(d => {
-        const dBase = d.filename.substring(0, d.filename.lastIndexOf('.')).toLowerCase();
-        return dBase === base && !usedDra.has(d.tempFilename);
-      });
-      if (match) {
-        usedDra.add(match.tempFilename);
-        pairs.push({ type: 'pair', psm, dra: match, key: `pair:${psm.tempFilename}` });
-      } else {
-        pairs.push({ type: 'single', conflict: psm, key: psm.tempFilename });
-      }
-    }
-    for (const dra of draFiles) {
-      if (!usedDra.has(dra.tempFilename)) {
-        pairs.push({ type: 'single', conflict: dra, key: dra.tempFilename });
-      }
-    }
-    for (const f of otherFp) {
-      pairs.push({ type: 'single', conflict: f, key: f.tempFilename });
-    }
+      return { type: 'single', conflict: group.file, key: group.file.tempFilename };
+    });
+
     for (const c of otherConflicts) {
       pairs.push({ type: 'single', conflict: c, key: c.tempFilename });
     }
@@ -76,7 +60,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
     for (const group of grouped) {
       const resolution = resolutions[group.key];
       if (group.type === 'pair') {
-        result.push({ tempFilename: group.psm.tempFilename, category: group.psm.category, filename: group.psm.filename, resolution });
+        result.push({ tempFilename: group.primary.tempFilename, category: group.primary.category, filename: group.primary.filename, resolution });
         result.push({ tempFilename: group.dra.tempFilename, category: group.dra.category, filename: group.dra.filename, resolution });
       } else {
         result.push({ tempFilename: group.conflict.tempFilename, category: group.conflict.category, filename: group.conflict.filename, resolution });
@@ -124,7 +108,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
           {grouped.map((group) => {
             const selected = resolutions[group.key];
             const categoryLabel = group.type === 'pair'
-              ? CATEGORY_LABELS[group.psm.category] || group.psm.category
+              ? CATEGORY_LABELS[group.primary.category] || group.primary.category
               : CATEGORY_LABELS[group.conflict.category] || group.conflict.category;
 
             return (
@@ -136,7 +120,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
                   </span>
                   {group.type === 'pair' ? (
                     <div className="mt-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{group.psm.filename}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{group.primary.filename}</p>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{group.dra.filename}</p>
                     </div>
                   ) : (

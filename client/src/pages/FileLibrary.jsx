@@ -3,6 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { formatPackageFilenameBase } from '../utils/cadFileNaming';
+import {
+  getCadFileBaseName,
+  groupFootprintFiles,
+  isFootprintSecondaryFile,
+  normalizeFootprintGroupBase,
+} from '../utils/footprintFiles';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -42,21 +48,6 @@ const subdirMap = {
   pad: 'pad',
 };
 
-const FOOTPRINT_PAIR_EXTENSIONS = ['.psm', '.dra'];
-
-const getFileExtension = (fileName) => {
-  const normalizedFileName = String(fileName || '');
-  const lastDotIndex = normalizedFileName.lastIndexOf('.');
-  return lastDotIndex >= 0 ? normalizedFileName.slice(lastDotIndex).toLowerCase() : '';
-};
-
-const getFileBaseName = (fileName) => {
-  const extension = getFileExtension(fileName);
-  return extension ? String(fileName || '').slice(0, -extension.length) : String(fileName || '');
-};
-
-const normalizeFootprintGroupBase = (fileName) => getFileBaseName(fileName).toLowerCase();
-
 const selectPreferredCopyFiles = (fileNames, typeId) => {
   const normalizedFileNames = Array.isArray(fileNames) ? fileNames : [fileNames];
 
@@ -64,7 +55,7 @@ const selectPreferredCopyFiles = (fileNames, typeId) => {
     return normalizedFileNames;
   }
 
-  const draFiles = normalizedFileNames.filter((fileName) => getFileExtension(fileName) === '.dra');
+  const draFiles = normalizedFileNames.filter((fileName) => isFootprintSecondaryFile(fileName));
   return draFiles.length > 0 ? draFiles : normalizedFileNames;
 };
 
@@ -92,50 +83,28 @@ const buildSingleFileEntry = (file, selectedType) => ({
 });
 
 const buildFootprintEntries = (files) => {
-  const groupedFiles = new Map();
-  const entries = [];
+  return groupFootprintFiles(files, (file) => file.file_name)
+    .map((item) => {
+      if (item.type !== 'pair') {
+        return buildSingleFileEntry(item.file, 'footprint');
+      }
 
-  for (const file of files || []) {
-    const extension = getFileExtension(file.file_name);
-    if (!FOOTPRINT_PAIR_EXTENSIONS.includes(extension)) {
-      entries.push(buildSingleFileEntry(file, 'footprint'));
-      continue;
-    }
+      const pairFiles = item.files.slice().sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { sensitivity: 'base' }));
+      const groupKey = normalizeFootprintGroupBase(item.primary.file_name);
 
-    const groupKey = normalizeFootprintGroupBase(file.file_name);
-    if (!groupedFiles.has(groupKey)) {
-      groupedFiles.set(groupKey, []);
-    }
-    groupedFiles.get(groupKey).push(file);
-  }
-
-  for (const [groupKey, groupFiles] of groupedFiles.entries()) {
-    const psmFile = groupFiles.find((file) => getFileExtension(file.file_name) === '.psm');
-    const draFile = groupFiles.find((file) => getFileExtension(file.file_name) === '.dra');
-
-    if (psmFile && draFile) {
-      const pairFiles = [psmFile, draFile].sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { sensitivity: 'base' }));
-      entries.push({
+      return {
         key: `pair:${groupKey}`,
         kind: 'pair',
-        displayName: getFileBaseName(pairFiles[0].file_name),
+        displayName: getCadFileBaseName(item.primary.file_name),
         file_type: 'footprint',
         fileNames: pairFiles.map((file) => file.file_name),
         files: pairFiles,
         componentCount: Math.max(...pairFiles.map((file) => getComponentCount(file))),
         canDelete: pairFiles.every((file) => getComponentCount(file) === 0),
         searchText: `${groupKey} ${pairFiles.map((file) => file.file_name.toLowerCase()).join(' ')}`,
-      });
-
-      const leftovers = groupFiles.filter((file) => file !== psmFile && file !== draFile);
-      leftovers.forEach((file) => entries.push(buildSingleFileEntry(file, 'footprint')));
-      continue;
-    }
-
-    groupFiles.forEach((file) => entries.push(buildSingleFileEntry(file, 'footprint')));
-  }
-
-  return entries.sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
+      };
+    })
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
 };
 
 const buildFileEntries = (files, selectedType) => {
@@ -628,7 +597,7 @@ const FileLibrary = () => {
     }
 
     if (entry.kind === 'pair') {
-      const currentBaseName = getFileBaseName(entry.fileNames[0]);
+      const currentBaseName = getCadFileBaseName(entry.fileNames[0]);
       setRenameData({
         mode: 'pair',
         oldName: entry.displayName,

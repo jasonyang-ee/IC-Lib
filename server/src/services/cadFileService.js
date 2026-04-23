@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -385,12 +386,12 @@ export async function findCadFile(fileName, fileType) {
 // Extension whitelist per file type (used by filesystem scan)
 const SCAN_CATEGORIES = {
   footprint: {
-    extensions: ['.brd', '.kicad_mod', '.lbr', '.psm', '.fsm', '.bxl', '.dra'],
+    extensions: ['.brd', '.kicad_mod', '.lbr', ...FOOTPRINT_PRIMARY_EXTENSIONS, '.fsm', '.bxl', FOOTPRINT_SECONDARY_EXTENSION],
     subdir: 'footprint',
     fileType: 'footprint',
   },
   symbol: {
-    extensions: ['.olb', '.lib', '.kicad_sym', '.bsm', '.schlib'],
+    extensions: ['.olb', '.lib', '.kicad_sym', '.schlib'],
     subdir: 'symbol',
     fileType: 'symbol',
   },
@@ -541,8 +542,8 @@ export async function syncComponentCadFiles(componentId, cadData) {
       if (!baseName || typeof baseName !== 'string') continue;
       if (alreadyLinked.has(baseName)) continue;
 
-      // Find ALL existing cad_files by base name pattern match (case-insensitive)
-      // This ensures both .psm and .dra files get linked for footprints
+      // Find ALL existing cad_files by base name pattern match (case-insensitive).
+      // This keeps footprint pairs linked together for either .psm/.dra or .bsm/.dra.
       const matches = await pool.query(`
         SELECT id FROM cad_files
         WHERE file_type = $1 AND LOWER(regexp_replace(file_name, '\\.[^.]+$', '')) = LOWER($2)
