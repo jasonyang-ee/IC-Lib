@@ -54,6 +54,7 @@ const ECOListItem = ({
   ecoDetails,
   isLoadingDetails,
   canApprove,
+  currentUserCanAct,
   approvalComments,
   onApprovalCommentsChange,
   onToggleExpanded,
@@ -66,6 +67,12 @@ const ECOListItem = ({
   const isExpanded = expandedECO === eco.id;
   const ecoPipelineTypes = getEcoPipelineTypes(eco);
   const ecoDetailPipelineTypes = getEcoPipelineTypes(ecoDetails);
+  const canActOnCurrentStage = canApprove && currentUserCanAct;
+  const approvalActionDisabled = !canActOnCurrentStage || approvePending;
+  const rejectionActionDisabled = !canActOnCurrentStage || rejectPending;
+  const actionDisabledTitle = canActOnCurrentStage
+    ? undefined
+    : 'You are not assigned to the current approval stage for this ECO.';
 
   // Group stages by stage_order for parallel display
   const groupStagesByOrder = (stages) => {
@@ -182,14 +189,16 @@ const ECOListItem = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onApprove(eco.id)}
-                disabled={approvePending}
+                disabled={approvalActionDisabled}
+                title={actionDisabledTitle}
                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors"
               >
                 Approve
               </button>
               <button
                 onClick={() => onReject(eco.id)}
-                disabled={rejectPending}
+                disabled={rejectionActionDisabled}
+                title={actionDisabledTitle}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-md transition-colors"
               >
                 Reject
@@ -341,10 +350,18 @@ const ECOListItem = ({
                       <textarea
                         value={approvalComments}
                         onChange={(e) => onApprovalCommentsChange(e.target.value)}
+                        disabled={!canActOnCurrentStage}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-[#444] rounded-md bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         rows={2}
-                        placeholder="Add optional comments with your approval..."
+                        placeholder={canActOnCurrentStage
+                          ? 'Add optional comments with your approval...'
+                          : 'You are not assigned to the current approval stage.'}
                       />
+                      {!canActOnCurrentStage && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          This ECO is waiting on a different approver in the current stage.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

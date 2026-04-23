@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Loader2, Check, X, Users, Edit, Trash2, Download, Upload } from 'lucide-react';
 import { api } from '../../utils/api';
-import { DEFAULT_STAGE_PIPELINE_TYPES, PIPELINE_TYPE_OPTIONS } from '../../utils/ecoPipelineTypes';
+import { DEFAULT_STAGE_PIPELINE_TYPES, getStagePipelineTypeGroups } from '../../utils/ecoPipelineTypes';
 import {
   buildApprovalStageImportSummary,
   getApprovalStageBackupFilename,
@@ -256,6 +256,62 @@ const ApprovalStagesSettings = () => {
   const stageGroups = getStageGroups();
   const sortedGroupKeys = Object.keys(stageGroups).map(Number).sort((a, b) => a - b);
 
+  const renderStageTagEditor = (pipelineTypes, onTogglePipelineType) => (
+    <div className="space-y-2">
+      {getStagePipelineTypeGroups(pipelineTypes).map((group) => (
+        <div key={group.id}>
+          <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+            {group.label}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {group.options.map((pipelineType) => {
+              const isSelected = group.selected.includes(pipelineType.value);
+              return (
+                <button
+                  key={pipelineType.value}
+                  type="button"
+                  onClick={() => onTogglePipelineType(pipelineType.value)}
+                  className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                    isSelected
+                      ? pipelineType.color + ' border-current font-semibold'
+                      : 'bg-white dark:bg-[#2a2a2a] border-gray-300 dark:border-[#444] text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                  }`}
+                >
+                  {pipelineType.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderStageTagRows = (pipelineTypes) => (
+    <div className="mt-1 space-y-1">
+      {getStagePipelineTypeGroups(pipelineTypes).map((group) => (
+        <div key={group.id} className="flex flex-wrap items-center gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">
+            {group.label}
+          </span>
+          {group.selected.length > 0 ? group.selected.map((pipelineType) => {
+            const selectedOption = group.options.find((option) => option.value === pipelineType);
+            return (
+              <span
+                key={pipelineType}
+                className={`px-1.5 py-0.5 rounded text-xs font-medium ${selectedOption?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
+              >
+                {selectedOption?.label || pipelineType}
+              </span>
+            );
+          }) : (
+            <span className="text-xs text-gray-400 dark:text-gray-500">Any</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -355,25 +411,7 @@ const ApprovalStagesSettings = () => {
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
               Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {PIPELINE_TYPE_OPTIONS.map((pt) => {
-                const isSelected = (newStage.pipeline_types || []).includes(pt.value);
-                return (
-                  <button
-                    key={pt.value}
-                    type="button"
-                    onClick={() => toggleNewStagePipelineType(pt.value)}
-                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                      isSelected
-                        ? pt.color + ' border-current font-semibold'
-                        : 'bg-white dark:bg-[#2a2a2a] border-gray-300 dark:border-[#444] text-gray-500 dark:text-gray-400 hover:border-gray-400'
-                    }`}
-                  >
-                    {pt.label}
-                  </button>
-                );
-              })}
-            </div>
+            {renderStageTagEditor(newStage.pipeline_types, toggleNewStagePipelineType)}
           </div>
           <div className="flex gap-2 mt-3">
             <button
@@ -508,25 +546,7 @@ const ApprovalStagesSettings = () => {
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
                               Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
                             </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {PIPELINE_TYPE_OPTIONS.map((pt) => {
-                                const isSelected = (editingStage.pipeline_types || []).includes(pt.value);
-                                return (
-                                  <button
-                                    key={pt.value}
-                                    type="button"
-                                    onClick={() => toggleEditStagePipelineType(pt.value)}
-                                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                                      isSelected
-                                        ? pt.color + ' border-current font-semibold'
-                                        : 'bg-white dark:bg-[#2a2a2a] border-gray-300 dark:border-[#444] text-gray-500 dark:text-gray-400 hover:border-gray-400'
-                                    }`}
-                                  >
-                                    {pt.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            {renderStageTagEditor(editingStage.pipeline_types, toggleEditStagePipelineType)}
                           </div>
                         </div>
                       ) : (
@@ -553,19 +573,7 @@ const ApprovalStagesSettings = () => {
                             )}
                           </div>
                           {/* Pipeline type badges */}
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {(stage.pipeline_types || []).map((pt) => {
-                              const ptOption = PIPELINE_TYPE_OPTIONS.find(o => o.value === pt);
-                              return (
-                                <span
-                                  key={pt}
-                                  className={`px-1.5 py-0.5 rounded text-xs font-medium ${ptOption?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}
-                                >
-                                  {ptOption?.label || pt}
-                                </span>
-                              );
-                            })}
-                          </div>
+                          {renderStageTagRows(stage.pipeline_types)}
                         </div>
                       )}
 

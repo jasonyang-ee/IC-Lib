@@ -32,6 +32,19 @@ const LEGACY_PIPELINE_TYPE_MAP = Object.freeze({
 
 const VALID_PIPELINE_TYPES = new Set(DEFAULT_STAGE_PIPELINE_TYPES);
 
+export const PIPELINE_TYPE_OPTION_GROUPS = Object.freeze([
+  {
+    id: 'status',
+    label: 'Status Tags',
+    values: ['proto_status_change', 'prod_status_change'],
+  },
+  {
+    id: 'change',
+    label: 'Change Tags',
+    values: ['spec', 'filename', 'distributor', 'alt_parts'],
+  },
+]);
+
 const normalizePipelineTypes = (pipelineTypes, fallbackType = 'spec') => {
   const normalized = [...new Set(
     (Array.isArray(pipelineTypes) ? pipelineTypes : [])
@@ -39,6 +52,16 @@ const normalizePipelineTypes = (pipelineTypes, fallbackType = 'spec') => {
   )];
 
   return normalized.length > 0 ? normalized : [fallbackType];
+};
+
+export const getStagePipelineTypeGroups = (pipelineTypes = DEFAULT_STAGE_PIPELINE_TYPES) => {
+  const normalized = normalizePipelineTypes(pipelineTypes);
+
+  return PIPELINE_TYPE_OPTION_GROUPS.map((group) => ({
+    ...group,
+    options: PIPELINE_TYPE_OPTIONS.filter((option) => group.values.includes(option.value)),
+    selected: normalized.filter((pipelineType) => group.values.includes(pipelineType)),
+  }));
 };
 
 export const getEcoPipelineTypes = (eco) => {

@@ -583,6 +583,132 @@ const findEligibleStageVote = async (client, ecoId, currentStages, user) => {
   return null;
 };
 
+const findEligibleStageVoteWithCache = async (client, ecoId, currentStages, user, caches) => {
+  const {
+    stageApproverCache,
+    usedApproverCache,
+  } = caches;
+
+  for (const stage of currentStages) {
+    if (!canUserSatisfyStageRole(user.role, stage.required_role)) {
+      continue;
+    }
+
+    let stageApproversPromise = stageApproverCache.get(stage.id);
+    if (!stageApproversPromise) {
+      stageApproversPromise = getStageApproverAssignments(client, stage.id);
+      stageApproverCache.set(stage.id, stageApproversPromise);
+    }
+
+    const usedApproverKey = `${ecoId}:${stage.id}`;
+    let usedApproverIdsPromise = usedApproverCache.get(usedApproverKey);
+    if (!usedApproverIdsPromise) {
+      usedApproverIdsPromise = getUsedStageApproverIds(client, ecoId, stage.id);
+      usedApproverCache.set(usedApproverKey, usedApproverIdsPromise);
+    }
+
+    const [stageApprovers, usedApproverIds] = await Promise.all([
+      stageApproversPromise,
+      usedApproverIdsPromise,
+    ]);
+
+    const effectiveApproverId = stageApprovers.length > 0
+      ? resolveEffectiveApproverId({
+          stageApprovers,
+          actingUserId: user.id,
+          usedApproverIds,
+        })
+      : (usedApproverIds.includes(user.id) ? null : user.id);
+
+    if (!effectiveApproverId) {
+      continue;
+    }
+
+    return {
+      stage,
+      actingForUserId: stageApprovers.length > 0 && effectiveApproverId !== user.id
+        ? effectiveApproverId
+        : null,
+    };
+  }
+
+  return null;
+};
+
+const attachCurrentUserActionability = async (client, ecos, user) => {
+  if (!Array.isArray(ecos) || ecos.length === 0) {
+    return ecos;
+  }
+
+  if (!user) {
+    return ecos.map((eco) => ({
+      ...eco,
+      current_user_can_act: false,
+    }));
+  }
+
+  const stagesResult = await client.query(`
+    SELECT *
+    FROM eco_approval_stages
+    WHERE is_active = true
+    ORDER BY stage_order ASC, id ASC
+  `);
+
+  const activeStages = stagesResult.rows;
+  const stageApproverCache = new Map();
+  const usedApproverCache = new Map();
+
+  return Promise.all(ecos.map(async (eco) => {
+    const isPendingApproval = eco.status === 'pending' || eco.status === 'in_review';
+
+    if (!isPendingApproval) {
+      return {
+        ...eco,
+        current_user_can_act: false,
+      };
+    }
+
+    if (eco.initiated_by === user.id && user.role !== 'admin') {
+      return {
+        ...eco,
+        current_user_can_act: false,
+      };
+    }
+
+    if (eco.current_stage_order === null || eco.current_stage_order === undefined) {
+      return {
+        ...eco,
+        current_user_can_act: canUserSatisfyStageRole(user.role, 'reviewer'),
+      };
+    }
+
+    const currentStages = getMatchingStagesForEco(
+      activeStages.filter((stage) => stage.stage_order === eco.current_stage_order),
+      eco,
+    );
+
+    if (currentStages.length === 0) {
+      return {
+        ...eco,
+        current_user_can_act: false,
+      };
+    }
+
+    const eligibleVote = await findEligibleStageVoteWithCache(
+      client,
+      eco.id,
+      currentStages,
+      user,
+      { stageApproverCache, usedApproverCache },
+    );
+
+    return {
+      ...eco,
+      current_user_can_act: !!eligibleVote,
+    };
+  }));
+};
+
 // Get all ECO orders with details
 export const getAllECOs = async (req, res) => {
   try {
@@ -641,12 +767,13 @@ export const getAllECOs = async (req, res) => {
 
     const result = await pool.query(query, params);
     const enrichedRows = await enrichEcosWithCurrentStageSummary(pool, result.rows);
+    const actionableRows = await attachCurrentUserActionability(pool, enrichedRows, req.user);
 
     // For rejected view, only show the latest ECO per eco_number,
     // and exclude eco_numbers that have a final approved or pending/in_review status
     // (those belong in the approved or pending views)
     if (status === 'rejected') {
-      const ecoNumbers = [...new Set(enrichedRows.map(r => r.eco_number))];
+      const ecoNumbers = [...new Set(actionableRows.map(r => r.eco_number))];
       const resolvedNumbers = new Set();
       if (ecoNumbers.length > 0) {
         const resolved = await pool.query(
@@ -658,7 +785,7 @@ export const getAllECOs = async (req, res) => {
 
       const seen = new Set();
       const deduped = [];
-      for (const row of enrichedRows) {
+      for (const row of actionableRows) {
         if (resolvedNumbers.has(row.eco_number)) continue;
         if (!seen.has(row.eco_number)) {
           seen.add(row.eco_number);
@@ -668,7 +795,7 @@ export const getAllECOs = async (req, res) => {
       return res.json(deduped);
     }
 
-    res.json(enrichedRows);
+    res.json(actionableRows);
   } catch (error) {
     console.error('Error fetching ECO orders:', error);
     res.status(500).json({ error: 'Failed to fetch ECO orders' });
@@ -719,6 +846,7 @@ export const getECOById = async (req, res) => {
     
     let eco = ecoResult.rows[0];
     [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
+    [eco] = await attachCurrentUserActionability(client, [eco], req.user);
     
     // Get all changes (with category name resolution for category_id changes)
     const changesResult = await client.query(`

@@ -184,6 +184,7 @@ const ECO = () => {
                   ecoDetails={ecoDetails}
                   isLoadingDetails={isLoadingDetails}
                   canApprove={canApprove()}
+                  currentUserCanAct={Boolean(eco.current_user_can_act)}
                   approvalComments={approvalComments}
                   onApprovalCommentsChange={setApprovalComments}
                   onToggleExpanded={toggleExpanded}

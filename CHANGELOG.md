@@ -10,14 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Documentation now includes `doc/spec.md` and `doc/application-feature-workflow.excalidraw` with a rendered PNG that map the end-to-end workflow from vendor search through BOM export
+- Reports now include a dashboard-aligned `Library Quality` view plus grouped `Footprint Issues` and estimated inventory value coverage reporting
 
 ### Changed
 
-- 
+- Reports now read from the current CAD text/junction model, show category CAD coverage across all file types, and surface manufacturer coverage with unassigned parts included
+- ECO approval stage tags in admin settings now render as separate `Status Tags` and `Change Tags` rows in add, edit, and read-only views
 
 ### Fixed
 
-- 
+- ECO `Approve` and `Reject` buttons now stay visible but render disabled for approver-capable users who are not eligible to act on the current stage, matching backend stage assignment and delegation rules
+- Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 
 ## [1.9.4] - 2026-04-22
 
