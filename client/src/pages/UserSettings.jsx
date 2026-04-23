@@ -30,12 +30,14 @@ const UserSettings = () => {
 
   // Notification preferences state
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [availableDelegates, setAvailableDelegates] = useState([]);
   const [notificationPreferences, setNotificationPreferences] = useState({
     notify_eco_created: false,
     notify_eco_approved: false,
     notify_eco_rejected: false,
     notify_eco_pending_approval: false,
     notify_eco_stage_advanced: false,
+    delegation: '',
   });
 
   // Load profile data on mount
@@ -44,20 +46,23 @@ const UserSettings = () => {
       try {
         const [profileResponse, preferencesResponse] = await Promise.all([
           api.getProfile(),
-          api.smtp.getPreferences(),
+          api.getNotificationPreferences(),
         ]);
         const profile = profileResponse.data;
+        const preferences = preferencesResponse.data;
         setProfileForm({
           email: profile.email || '',
           displayName: profile.displayName || '',
           fileStoragePath: profile.fileStoragePath || ''
         });
+        setAvailableDelegates(preferences.availableDelegates || []);
         setNotificationPreferences({
-          notify_eco_created: preferencesResponse.data.notify_eco_created ?? false,
-          notify_eco_approved: preferencesResponse.data.notify_eco_approved ?? false,
-          notify_eco_rejected: preferencesResponse.data.notify_eco_rejected ?? false,
-          notify_eco_pending_approval: preferencesResponse.data.notify_eco_pending_approval ?? false,
-          notify_eco_stage_advanced: preferencesResponse.data.notify_eco_stage_advanced ?? false,
+          notify_eco_created: preferences.notify_eco_created ?? false,
+          notify_eco_approved: preferences.notify_eco_approved ?? false,
+          notify_eco_rejected: preferences.notify_eco_rejected ?? false,
+          notify_eco_pending_approval: preferences.notify_eco_pending_approval ?? false,
+          notify_eco_stage_advanced: preferences.notify_eco_stage_advanced ?? false,
+          delegation: preferences.delegation || '',
         });
       } catch (error) {
         console.error('Failed to load profile:', error);
@@ -96,11 +101,18 @@ const UserSettings = () => {
     setIsSavingNotifications(true);
 
     try {
-      await api.smtp.updatePreferences(notificationPreferences);
-      showSuccess('Notification preferences updated');
+      await api.updateNotificationPreferences({
+        notify_eco_created: notificationPreferences.notify_eco_created,
+        notify_eco_approved: notificationPreferences.notify_eco_approved,
+        notify_eco_rejected: notificationPreferences.notify_eco_rejected,
+        notify_eco_pending_approval: notificationPreferences.notify_eco_pending_approval,
+        notify_eco_stage_advanced: notificationPreferences.notify_eco_stage_advanced,
+        delegation: notificationPreferences.delegation || null,
+      });
+      showSuccess('ECO preferences updated');
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message;
-      showError(`Failed to update notifications: ${errorMsg}`);
+      showError(`Failed to update ECO preferences: ${errorMsg}`);
     } finally {
       setIsSavingNotifications(false);
     }
@@ -110,6 +122,13 @@ const UserSettings = () => {
     setNotificationPreferences(prev => ({
       ...prev,
       [key]: !prev[key]
+    }));
+  };
+
+  const handleDelegationChange = (value) => {
+    setNotificationPreferences(prev => ({
+      ...prev,
+      delegation: value,
     }));
   };
 
@@ -299,16 +318,38 @@ const UserSettings = () => {
             </form>
           </div>
 
-          {/* Notification Preferences */}
+          {/* ECO Preferences */}
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center gap-3 mb-6">
               <Bell className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Notification Preferences</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ECO Preferences</h2>
             </div>
 
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Choose which notifications you want to receive via email. Requires SMTP configuration and a valid email address.
+              Choose which ECO emails you want to receive and who may act for you when you are out of office. Requires SMTP configuration and a valid email address.
             </p>
+
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Alternative Approver
+              </label>
+              <select
+                value={notificationPreferences.delegation}
+                onChange={(e) => handleDelegationChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                disabled={isSavingNotifications}
+              >
+                <option value="">No delegation</option>
+                {availableDelegates.map((delegate) => (
+                  <option key={delegate.id} value={delegate.id}>
+                    {(delegate.display_name || delegate.username)} ({delegate.role.replace('-', ' ')})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                If you are explicitly assigned to an ECO stage, only you or this delegated active user may approve on your behalf.
+              </p>
+            </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-[#3a3a3a]">
@@ -407,7 +448,7 @@ const UserSettings = () => {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Save Preferences
+                    Save ECO Preferences
                   </>
                 )}
               </button>

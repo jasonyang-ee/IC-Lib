@@ -5,6 +5,28 @@ import { generateToken } from '../middleware/auth.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 
 const SALT_ROUNDS = 10;
+const ECO_NOTIFICATION_FIELDS = [
+  'notify_eco_created',
+  'notify_eco_approved',
+  'notify_eco_rejected',
+  'notify_eco_pending_approval',
+  'notify_eco_stage_advanced',
+];
+const ECO_NOTIFICATION_DEFAULTS = {
+  notify_eco_created: false,
+  notify_eco_approved: false,
+  notify_eco_rejected: false,
+  notify_eco_pending_approval: false,
+  notify_eco_stage_advanced: false,
+};
+
+const pickEcoNotificationPreferences = (row = {}) => ECO_NOTIFICATION_FIELDS.reduce(
+  (preferences, key) => ({
+    ...preferences,
+    [key]: row[key] ?? ECO_NOTIFICATION_DEFAULTS[key],
+  }),
+  { ...ECO_NOTIFICATION_DEFAULTS },
+);
 
 /**
  * Login - Authenticate user and return JWT token
@@ -614,26 +636,37 @@ export const getFileStoragePath = async (req, res) => {
  */
 export const getNotificationPreferences = async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT notification_preferences FROM users WHERE id = $1',
-      [req.user.userId],
-    );
+    const [preferencesResult, delegatesResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          u.delegation,
+          enp.notify_eco_created,
+          enp.notify_eco_approved,
+          enp.notify_eco_rejected,
+          enp.notify_eco_pending_approval,
+          enp.notify_eco_stage_advanced
+        FROM users u
+        LEFT JOIN email_notification_preferences enp ON enp.user_id = u.id
+        WHERE u.id = $1
+      `, [req.user.userId]),
+      pool.query(`
+        SELECT id, username, display_name, role
+        FROM users
+        WHERE is_active = true AND id <> $1
+        ORDER BY COALESCE(NULLIF(BTRIM(display_name), ''), username), username
+      `, [req.user.userId]),
+    ]);
 
-    if (result.rows.length === 0) {
+    if (preferencesResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Return default preferences if null
-    const preferences = result.rows[0].notification_preferences || {
-      eco_submitted: true,
-      eco_approved: true,
-      eco_rejected: true,
-      eco_assigned: true,
-      component_updated: false,
-      low_stock: false,
-    };
-
-    res.json(preferences);
+    const preferencesRow = preferencesResult.rows[0];
+    res.json({
+      ...pickEcoNotificationPreferences(preferencesRow),
+      delegation: preferencesRow.delegation || null,
+      availableDelegates: delegatesResult.rows,
+    });
   } catch (error) {
     console.error('[error] [Auth] Get notification preferences error:', error);
     res.status(500).json({ error: 'Failed to fetch notification preferences' });
@@ -645,60 +678,121 @@ export const getNotificationPreferences = async (req, res) => {
  */
 export const updateNotificationPreferences = async (req, res) => {
   try {
-    const preferences = req.body;
+    const { delegation, ...preferences } = req.body || {};
+    const invalidKeys = Object.keys(preferences).filter((key) => !ECO_NOTIFICATION_FIELDS.includes(key));
 
-    // Validate preferences structure
-    const validKeys = ['eco_submitted', 'eco_approved', 'eco_rejected', 'eco_assigned', 'component_updated', 'low_stock'];
-    const invalidKeys = Object.keys(preferences).filter(key => !validKeys.includes(key));
-    
     if (invalidKeys.length > 0) {
-      return res.status(400).json({ 
-        error: `Invalid preference keys: ${invalidKeys.join(', ')}. Valid keys are: ${validKeys.join(', ')}`, 
+      return res.status(400).json({
+        error: `Invalid preference keys: ${invalidKeys.join(', ')}. Valid keys are: ${ECO_NOTIFICATION_FIELDS.join(', ')}`,
       });
     }
 
-    // Ensure all values are booleans
     for (const [key, value] of Object.entries(preferences)) {
       if (typeof value !== 'boolean') {
-        return res.status(400).json({ 
-          error: `Preference "${key}" must be a boolean value`, 
+        return res.status(400).json({
+          error: `Preference "${key}" must be a boolean value`,
         });
       }
     }
 
-    // Get current preferences and merge
-    const currentResult = await pool.query(
-      'SELECT notification_preferences FROM users WHERE id = $1',
-      [req.user.userId],
-    );
+    const nextDelegation = delegation === '' ? null : delegation ?? null;
+
+    if (nextDelegation !== null && typeof nextDelegation !== 'string') {
+      return res.status(400).json({ error: 'Delegation must be a user ID or null' });
+    }
+
+    if (nextDelegation === req.user.userId) {
+      return res.status(400).json({ error: 'Delegation cannot target your own account' });
+    }
+
+    const [currentResult, delegateResult] = await Promise.all([
+      pool.query(`
+        SELECT
+          u.id,
+          enp.notify_eco_created,
+          enp.notify_eco_approved,
+          enp.notify_eco_rejected,
+          enp.notify_eco_pending_approval,
+          enp.notify_eco_stage_advanced
+        FROM users u
+        LEFT JOIN email_notification_preferences enp ON enp.user_id = u.id
+        WHERE u.id = $1
+      `, [req.user.userId]),
+      nextDelegation === null
+        ? Promise.resolve({ rows: [{ id: null }] })
+        : pool.query(
+          'SELECT id FROM users WHERE id = $1 AND is_active = true',
+          [nextDelegation],
+        ),
+    ]);
 
     if (currentResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const currentPreferences = currentResult.rows[0].notification_preferences || {};
+    if (delegateResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Delegation must target an active user' });
+    }
+
+    const currentPreferences = pickEcoNotificationPreferences(currentResult.rows[0]);
     const mergedPreferences = { ...currentPreferences, ...preferences };
+    const client = await pool.connect();
 
-    // Update preferences
-    await pool.query(
-      'UPDATE users SET notification_preferences = $1 WHERE id = $2',
-      [JSON.stringify(mergedPreferences), req.user.userId],
-    );
+    try {
+      await client.query('BEGIN');
 
-    // Log activity
+      await client.query(
+        'UPDATE users SET delegation = $1 WHERE id = $2',
+        [nextDelegation, req.user.userId],
+      );
+
+      await client.query(`
+        INSERT INTO email_notification_preferences (
+          user_id,
+          notify_eco_created,
+          notify_eco_approved,
+          notify_eco_rejected,
+          notify_eco_pending_approval,
+          notify_eco_stage_advanced
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (user_id) DO UPDATE SET
+          notify_eco_created = EXCLUDED.notify_eco_created,
+          notify_eco_approved = EXCLUDED.notify_eco_approved,
+          notify_eco_rejected = EXCLUDED.notify_eco_rejected,
+          notify_eco_pending_approval = EXCLUDED.notify_eco_pending_approval,
+          notify_eco_stage_advanced = EXCLUDED.notify_eco_stage_advanced,
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        req.user.userId,
+        mergedPreferences.notify_eco_created,
+        mergedPreferences.notify_eco_approved,
+        mergedPreferences.notify_eco_rejected,
+        mergedPreferences.notify_eco_pending_approval,
+        mergedPreferences.notify_eco_stage_advanced,
+      ]);
+
+      await client.query('COMMIT');
+    } catch (transactionError) {
+      await client.query('ROLLBACK');
+      throw transactionError;
+    } finally {
+      client.release();
+    }
+
     try {
       await pool.query(
         `INSERT INTO user_activity_log (type_name, description, user_id)
          VALUES ('notification_preferences_updated', $1, $2)`,
-        [`User ${req.user.username} updated notification preferences`, req.user.userId],
+        [`User ${req.user.username} updated ECO preferences`, req.user.userId],
       );
     } catch (logError) {
       console.error('[error] [Auth] Failed to log notification preferences update:', logError);
     }
 
     res.json({
-      message: 'Notification preferences updated successfully',
-      preferences: mergedPreferences,
+      message: 'ECO preferences updated successfully',
+      ...mergedPreferences,
+      delegation: nextDelegation,
     });
   } catch (error) {
     console.error('[error] [Auth] Update notification preferences error:', error);

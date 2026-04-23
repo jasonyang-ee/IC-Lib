@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     "eco_assigned": false
   }'::jsonb,
   file_storage_path VARCHAR(1000),
+  delegation UUID REFERENCES users(id) ON DELETE SET NULL,
   created_by UUID REFERENCES users(id),
   last_login TIMESTAMP,
   is_active BOOLEAN DEFAULT true

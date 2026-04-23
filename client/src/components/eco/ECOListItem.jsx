@@ -27,6 +27,14 @@ const getStatusLabel = (status) => {
   return status;
 };
 
+const getApprovalActorLabel = (approval) => {
+  if (!approval.acting_for_user_id) {
+    return approval.user_name;
+  }
+
+  return `${approval.user_name} for ${approval.acting_for_user_name || approval.acting_for_username || 'Unknown user'}`;
+};
+
 const getApprovalStatusBadge = (status) => {
   const styles = {
     production: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
@@ -297,7 +305,7 @@ const ECOListItem = ({
                                 {approval.stage_name}
                               </td>
                               <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">
-                                {approval.user_name}
+                                {getApprovalActorLabel(approval)}
                               </td>
                               <td className="px-4 py-2 text-gray-600 dark:text-gray-400 text-xs capitalize">
                                 {approval.user_role?.replace('-', ' ') || '-'}
@@ -787,7 +795,7 @@ const ECOListItem = ({
                             <div className="space-y-0.5">
                               {parentEco.approvals.map((vote, vIdx) => (
                                 <div key={vIdx} className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                  <span className="font-medium">{vote.user_name}</span>
+                                  <span className="font-medium">{getApprovalActorLabel(vote)}</span>
                                   <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                                     vote.decision === 'approved'
                                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'

@@ -50,6 +50,7 @@ export const EXPECTED_SCHEMA_VIEWS = [
 
 export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'file_storage_path' },
+  { table: 'users', column: 'delegation' },
   { table: 'cad_files', column: 'missing' },
   { table: 'project_components', column: 'notes' },
   { table: 'admin_settings', column: 'eco_logo_filename' },
@@ -58,6 +59,7 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'eco_orders', column: 'pipeline_type' },
   { table: 'eco_orders', column: 'pipeline_types' },
   { table: 'eco_approval_stages', column: 'pipeline_types' },
+  { table: 'eco_approvals', column: 'acting_for_user_id' },
   { table: 'eco_alternative_parts', column: 'distributors' },
   { table: 'eco_alternative_parts', column: 'manufacturer_name' },
 ];

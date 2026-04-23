@@ -665,7 +665,7 @@ const ApprovalStagesSettings = () => {
         <p className="text-xs text-blue-700 dark:text-blue-300">
           ECOs progress through stages in order. Each stage must receive its required number of approvals before advancing.
           Stages with the same order number run in parallel -- all must be completed before proceeding.
-          You can assign specific users to each stage -- if approvers are assigned, only those users (and admins) can approve at that stage.
+          You can assign specific users to each stage -- if approvers are assigned, only those users or their delegated backups can approve at that stage.
           If no approvers are assigned, any user with the minimum role can approve.
           Stage tags control which ECO changes a stage applies to.
         </p>

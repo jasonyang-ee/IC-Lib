@@ -650,10 +650,10 @@ CREATE TABLE IF NOT EXISTS eco_approvals (
     eco_id UUID NOT NULL REFERENCES eco_orders(id) ON DELETE CASCADE,
     stage_id UUID NOT NULL REFERENCES eco_approval_stages(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id),
+    acting_for_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     decision VARCHAR(20) NOT NULL,
     comments TEXT,
-    CONSTRAINT check_approval_decision CHECK (decision IN ('approved', 'rejected')),
-    CONSTRAINT unique_vote_per_stage UNIQUE(eco_id, stage_id, user_id)
+    CONSTRAINT check_approval_decision CHECK (decision IN ('approved', 'rejected'))
 );
 
 -- Table: eco_changes
@@ -731,6 +731,10 @@ CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_part
 CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_eco ON eco_approvals(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_stage ON eco_approvals(stage_id);
+CREATE INDEX IF NOT EXISTS idx_eco_approvals_user ON eco_approvals(user_id);
+CREATE INDEX IF NOT EXISTS idx_eco_approvals_acting_for ON eco_approvals(acting_for_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_eco_approvals_effective_vote
+    ON eco_approvals (eco_id, stage_id, (COALESCE(acting_for_user_id, user_id)));
 CREATE INDEX IF NOT EXISTS idx_eco_cad_files_eco ON eco_cad_files(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_cad_files_cad_file ON eco_cad_files(cad_file_id);
 

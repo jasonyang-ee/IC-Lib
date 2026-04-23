@@ -23,6 +23,10 @@ import {
   normalizeImportedApprovalStages,
   resolveImportedApproverIds,
 } from '../services/ecoApprovalStageBackupService.js';
+import {
+  canUserSatisfyStageRole,
+  resolveEffectiveApproverId,
+} from '../services/ecoApprovalEligibilityService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
@@ -155,9 +159,11 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
     const approvals = await client.query(`
       SELECT ea.*, created_at(ea.id) as created_at,
         ${userDisplayNameSql('u')} as user_name, u.role as user_role,
+        ${userDisplayNameSql('af')} as acting_for_user_name, af.username as acting_for_username,
         eas.stage_name
       FROM eco_approvals ea
       LEFT JOIN users u ON ea.user_id = u.id
+      LEFT JOIN users af ON ea.acting_for_user_id = af.id
       LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
       WHERE ea.eco_id = $1 ORDER BY ea.id
     `, [currentId]);
@@ -246,6 +252,59 @@ const getMatchingStagesForEco = (stages, eco, { fallbackToAll = false } = {}) =>
   }
 
   return fallbackToAll ? normalizedStages : [];
+};
+
+const getStageApproverAssignments = async (client, stageId) => {
+  const result = await client.query(`
+    SELECT esa.user_id, u.delegation
+    FROM eco_stage_approvers esa
+    JOIN users u ON esa.user_id = u.id
+    WHERE esa.stage_id = $1
+    ORDER BY esa.id
+  `, [stageId]);
+
+  return result.rows;
+};
+
+const getUsedStageApproverIds = async (client, ecoId, stageId) => {
+  const result = await client.query(`
+    SELECT COALESCE(acting_for_user_id, user_id) AS effective_user_id
+    FROM eco_approvals
+    WHERE eco_id = $1 AND stage_id = $2
+  `, [ecoId, stageId]);
+
+  return result.rows.map(({ effective_user_id: effectiveUserId }) => effectiveUserId);
+};
+
+const findEligibleStageVote = async (client, ecoId, currentStages, user) => {
+  for (const stage of currentStages) {
+    if (!canUserSatisfyStageRole(user.role, stage.required_role)) {
+      continue;
+    }
+
+    const stageApprovers = await getStageApproverAssignments(client, stage.id);
+    const usedApproverIds = await getUsedStageApproverIds(client, ecoId, stage.id);
+    const effectiveApproverId = stageApprovers.length > 0
+      ? resolveEffectiveApproverId({
+          stageApprovers,
+          actingUserId: user.id,
+          usedApproverIds,
+        })
+      : (usedApproverIds.includes(user.id) ? null : user.id);
+
+    if (!effectiveApproverId) {
+      continue;
+    }
+
+    return {
+      stage,
+      actingForUserId: stageApprovers.length > 0 && effectiveApproverId !== user.id
+        ? effectiveApproverId
+        : null,
+    };
+  }
+
+  return null;
 };
 
 // Get all ECO orders with details
@@ -461,10 +520,13 @@ export const getECOById = async (req, res) => {
         created_at(ea.id) as created_at,
         ${userDisplayNameSql('u')} as user_name,
         u.role as user_role,
+        ${userDisplayNameSql('af')} as acting_for_user_name,
+        af.username as acting_for_username,
         eas.stage_name,
         eas.stage_order
       FROM eco_approvals ea
       LEFT JOIN users u ON ea.user_id = u.id
+      LEFT JOIN users af ON ea.acting_for_user_id = af.id
       LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
       WHERE ea.eco_id = $1
       ORDER BY eas.stage_order, ea.id
@@ -1418,49 +1480,21 @@ export const approveECO = async (req, res) => {
       return res.status(400).json({ error: 'No active approval stages found for the current stage order and pipeline type.' });
     }
 
-    // Find which stage the user is eligible to vote on
-    let eligibleStage = null;
-    const roleHierarchy = { 'read-only': 0, 'reviewer': 1, 'read-write': 2, 'approver': 3, 'admin': 4 };
-    const userLevel = roleHierarchy[req.user.role] || 0;
+    const eligibleVote = await findEligibleStageVote(client, id, currentStages, req.user);
 
-    for (const stage of currentStages) {
-      const requiredLevel = roleHierarchy[stage.required_role] || 3;
-      if (userLevel < requiredLevel) continue;
-
-      // Check if specific approvers are assigned to this stage
-      const stageApprovers = await client.query(
-        'SELECT user_id FROM eco_stage_approvers WHERE stage_id = $1',
-        [stage.id],
-      );
-
-      if (stageApprovers.rows.length > 0) {
-        const assignedUserIds = stageApprovers.rows.map(r => r.user_id);
-        if (!assignedUserIds.includes(req.user.id) && req.user.role !== 'admin') continue;
-      }
-
-      // Check if user already voted on this stage
-      const existingVote = await client.query(
-        'SELECT id FROM eco_approvals WHERE eco_id = $1 AND stage_id = $2 AND user_id = $3',
-        [id, stage.id, req.user.id],
-      );
-
-      if (existingVote.rows.length > 0) continue;
-
-      eligibleStage = stage;
-      break;
-    }
-
-    if (!eligibleStage) {
+    if (!eligibleVote) {
       return res.status(403).json({
-        error: 'You are not eligible to vote on any stage at the current approval level, or you have already voted.',
+        error: 'You are not eligible to act on the current approval stage, or you have already voted.',
       });
     }
 
+    const { stage: eligibleStage, actingForUserId } = eligibleVote;
+
     // Record approval vote
     await client.query(`
-      INSERT INTO eco_approvals (eco_id, stage_id, user_id, decision, comments)
-      VALUES ($1, $2, $3, 'approved', $4)
-    `, [id, eligibleStage.id, req.user.id, comments || null]);
+      INSERT INTO eco_approvals (eco_id, stage_id, user_id, acting_for_user_id, decision, comments)
+      VALUES ($1, $2, $3, $4, 'approved', $5)
+    `, [id, eligibleStage.id, req.user.id, actingForUserId, comments || null]);
 
     // Update status to in_review if still pending
     if (eco.status === 'pending') {
@@ -1634,47 +1668,23 @@ export const rejectECO = async (req, res) => {
       `, [currentStageOrder]);
       const currentStages = getMatchingStagesForEco(currentStagesResult.rows, eco);
 
-      // Find which stage the user is eligible to vote on
-      let eligibleStage = null;
-      const roleHierarchy = { 'read-only': 0, 'reviewer': 1, 'read-write': 2, 'approver': 3, 'admin': 4 };
-      const userLevel = roleHierarchy[req.user.role] || 0;
-
-      for (const stage of currentStages) {
-        const requiredLevel = roleHierarchy[stage.required_role] || 3;
-        if (userLevel < requiredLevel) continue;
-
-        // Check if specific approvers are assigned
-        const stageApprovers = await client.query(
-          'SELECT user_id FROM eco_stage_approvers WHERE stage_id = $1',
-          [stage.id],
-        );
-
-        if (stageApprovers.rows.length > 0) {
-          const assignedUserIds = stageApprovers.rows.map(r => r.user_id);
-          if (!assignedUserIds.includes(req.user.id) && req.user.role !== 'admin') continue;
-        }
-
-        // Check if user already voted on this stage
-        const existingVote = await client.query(
-          'SELECT id FROM eco_approvals WHERE eco_id = $1 AND stage_id = $2 AND user_id = $3',
-          [id, stage.id, req.user.id],
-        );
-
-        if (existingVote.rows.length > 0) continue;
-
-        eligibleStage = stage;
-        break;
+      if (currentStages.length === 0) {
+        return res.status(400).json({ error: 'No active approval stages found for the current stage order and pipeline type.' });
       }
 
-      if (eligibleStage) {
+      const eligibleVote = await findEligibleStageVote(client, id, currentStages, req.user);
+
+      if (eligibleVote) {
+        const { stage: eligibleStage, actingForUserId } = eligibleVote;
         await client.query(`
-          INSERT INTO eco_approvals (eco_id, stage_id, user_id, decision, comments)
-          VALUES ($1, $2, $3, 'rejected', $4)
-        `, [id, eligibleStage.id, req.user.id, rejection_reason || null]);
+          INSERT INTO eco_approvals (eco_id, stage_id, user_id, acting_for_user_id, decision, comments)
+          VALUES ($1, $2, $3, $4, 'rejected', $5)
+        `, [id, eligibleStage.id, req.user.id, actingForUserId, rejection_reason || null]);
         rejectionStageName = eligibleStage.stage_name;
-      } else if (currentStages.length > 0) {
-        // User is not eligible for any stage but we still allow rejection to proceed
-        rejectionStageName = currentStages.map(s => s.stage_name).join(', ');
+      } else {
+        return res.status(403).json({
+          error: 'You are not eligible to act on the current approval stage, or you have already voted.',
+        });
       }
     }
 
