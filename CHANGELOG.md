@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ECO approval comments now opt out of browser autofill on the review screen, avoiding the Firefox `autoCompleteType` null console error there
 - Switching users now clears cached React Query data and scopes ECO queries by user, so stage-level approval permissions refresh correctly after logging into a different account
 - Admin Settings ECO inputs now opt out of browser autofill across numbering, approval-stage, and branding fields, avoiding the Firefox `autoCompleteType` null console error on that tab
+- Admin Settings now renders the ECO tab through a dedicated component, and ECO branding state no longer self-resets in a render loop, so the branding/notification inputs stay editable and sidebar navigation no longer gets stuck after opening that tab
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 
 ## [1.9.4] - 2026-04-22
