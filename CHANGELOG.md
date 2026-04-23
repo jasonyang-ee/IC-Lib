@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.9.4] - 2026-04-22
+
+### Added
+
 - ECO PDF branding now includes an `ECO Complete Notification` recipient, and final ECO approval emails the approved PDF attachment to document control for release handling
 - Admin email settings now include one-click preview emails for ECO submitted, approved, rejected, and assigned notifications using the same recipient input
 - Server email template coverage now includes focused tests for `CONFIG_BASE_URL` precedence and preview generation
