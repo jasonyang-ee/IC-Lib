@@ -254,7 +254,7 @@ const CategoryView = ({
                                 {canWrite() && (
                                   <button
                                     onClick={() => onOpenRename(file.file_name, routeType)}
-                                    className="text-xs font-medium text-gray-700 hover:text-primary-700 dark:text-gray-300 dark:hover:text-primary-300"
+                                    className="btn-action-secondary"
                                   >
                                     Rename
                                   </button>

@@ -340,14 +340,14 @@ const FileTypesView = ({
                 <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                   <button
                     onClick={() => onOpenRename(selectedEntry)}
-                    className="text-sm font-medium text-gray-700 hover:text-primary-700 dark:text-gray-300 dark:hover:text-primary-300"
+                    className="btn-action-secondary text-sm"
                   >
                     Rename
                   </button>
                   {canDeleteFiles() && selectedEntry.canDelete && selectedEntry.componentCount === 0 && (
                     <button
                       onClick={() => onOpenDelete(selectedEntry)}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      className="btn-action-danger text-sm"
                     >
                       Delete
                     </button>

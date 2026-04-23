@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin Settings now include a `BOM` tab for configuring the default column set used when opening the project BOM generator
 - Database startup now applies idempotent SQL migrations from `database/migrations`, beginning with the extracted legacy schema-repair migration
 - Migration tracking now stores sequence numbers and descriptions in `schema_migrations`
+- Database startup now includes a readiness check so the production launcher does not report the backend as ready before initialization and migrations finish
 
 ### Changed
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project deletion is now only exposed from the Edit Project modal instead of the project list, reducing accidental deletes from the main project picker
 - Database bootstrap docs and startup verification now treat `database/init-*.sql` as fresh-install entrypoints and `database/migrations/*.sql` as the only home for incremental schema repairs
 - Database migrations now use `{sequence}_{description}.sql` names, with numeric sequence sorting so releases do not need zero-padded filenames or version tags in filenames
+- File Library and Projects inline destructive and edit actions now use compact bordered button styles instead of plain text links, while `Copy File Path` remains a text action
 
 ### Fixed
 
@@ -41,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project details now pull `Part Type` and `Package` metadata directly from the project payload, including alternative-part rows, instead of leaving those compact card fields empty
 - `init-schema.sql` no longer mixes in legacy `ALTER`/backfill migrations, startup now verifies the real CIS view names, and failed SQL migrations now stop initialization instead of silently continuing
 - `schema_version` is now consolidated into `schema_migrations`, logical database backups no longer try to export that legacy table, and existing databases now refresh the `alternative_parts` view to include both manufacturer name and manufacturer part number
+- Legacy `active_parts` and `new_parts` views are now removed by migration, and production startup logs no longer imply migration completion before the backend is actually ready
 
 ## [1.9.3] - 2026-04-21
 

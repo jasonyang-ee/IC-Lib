@@ -135,16 +135,16 @@ const ProjectDetails = ({
                     )}
                   </div>
                   {canWrite() && (
-                    <div className="flex items-center gap-4 ml-2 sm:ml-4">
+                    <div className="ml-auto flex items-center gap-2">
                       <button
                         onClick={() => onUpdateQuantity(pc)}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                        className="btn-action-secondary"
                       >
                         Change Quantity
                       </button>
                       <button
                         onClick={() => onRemoveComponent(pc)}
-                        className="text-xs font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                        className="btn-action-danger"
                       >
                         Delete
                       </button>

@@ -245,8 +245,31 @@ else
 		done
 	done
 
+    # Wait for backend readiness instead of process liveness so startup logs reflect
+    # completed initialization, including database verification and migrations.
+    HEALTH_URL="http://127.0.0.1:${PORT:-3500}/api/health"
+    MAX_HEALTH_RETRIES=60
+    HEALTH_RETRY_COUNT=0
+    until node -e "fetch(process.argv[1]).then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))" "$HEALTH_URL" 2>/dev/null; do
+        HEALTH_RETRY_COUNT=$((HEALTH_RETRY_COUNT + 1))
+        if ! kill -0 $BACKEND_PID 2>/dev/null; then
+            echo "ERROR: Backend exited before initialization completed"
+            kill $NGINX_PID 2>/dev/null || true
+            exit 1
+        fi
+
+        if [ $HEALTH_RETRY_COUNT -ge $MAX_HEALTH_RETRIES ]; then
+            echo "ERROR: Backend readiness check timed out"
+            kill $BACKEND_PID 2>/dev/null || true
+            kill $NGINX_PID 2>/dev/null || true
+            exit 1
+        fi
+
+        sleep 1
+    done
+
     echo -e "          ${GREEN}[OK]${NC} nginx started (PID: $NGINX_PID)"
-    echo -e "          ${GREEN}[OK]${NC} Backend started (PID: $BACKEND_PID)"
+    echo -e "          ${GREEN}[OK]${NC} Backend ready (PID: $BACKEND_PID)"
     echo -e "          ${GREEN}[OK]${NC} Services Running"
     echo ""
 

@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS components (
 );
 
 -- ============================================================================
--- PART 3: SUPPORTING TABLES
+-- PART 3: CORE LIBRARY SUPPORTING TABLES
 -- ============================================================================
 
 -- Table: category_specifications
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS footprint_sources (
 );
 
 -- ============================================================================
--- PART 4: INDEXES FOR PERFORMANCE
+-- PART 4: CORE LIBRARY INDEXES
 -- ============================================================================
 
 -- Components table indexes (PK index is automatic, no need for idx on id)
@@ -267,7 +267,7 @@ CREATE INDEX IF NOT EXISTS idx_component_cad_files_component ON component_cad_fi
 CREATE INDEX IF NOT EXISTS idx_component_cad_files_cad_file ON component_cad_files(cad_file_id);
 
 -- ============================================================================
--- PART 5: TRIGGERS
+-- PART 5: SHARED UPDATE TIMESTAMP TRIGGERS
 -- ============================================================================
 
 -- Trigger to update updated_at timestamp on components
@@ -305,7 +305,44 @@ CREATE OR REPLACE TRIGGER update_component_spec_values_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- PART 6: VIEWS FOR COMMON QUERIES
+-- PART 6: INVENTORY AUTO-SYNC
+-- ============================================================================
+
+-- Function: Auto-create inventory entry when component is added
+CREATE OR REPLACE FUNCTION create_inventory_entry()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Automatically create an inventory entry with 0 quantity
+    INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+    VALUES (NEW.id, 0, 0, NULL)
+    ON CONFLICT (component_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: Create inventory entry on component insert
+DROP TRIGGER IF EXISTS trigger_create_inventory ON components;
+CREATE TRIGGER trigger_create_inventory
+    AFTER INSERT ON components
+    FOR EACH ROW
+    EXECUTE FUNCTION create_inventory_entry();
+
+-- Create inventory entries for any existing components that don't have one
+INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
+SELECT
+    c.id,
+    0,
+    0,
+    NULL
+FROM components c
+WHERE NOT EXISTS (
+    SELECT 1 FROM inventory i WHERE i.component_id = c.id
+)
+ON CONFLICT (component_id) DO NOTHING;
+
+-- ============================================================================
+-- PART 7: CORE LIBRARY VIEWS
 -- ============================================================================
 
 -- View: components_full
@@ -352,7 +389,7 @@ JOIN component_categories cat ON c.category_id = cat.id
 ORDER BY csv.component_id, cs.display_order;
 
 -- ============================================================================
--- PART 7: HELPER FUNCTION FOR PART_TYPE
+-- PART 8: PART TYPE HELPER AND CIS VIEWS
 -- ============================================================================
 
 -- Function to generate part_type string from category and subcategories
@@ -467,7 +504,7 @@ LEFT JOIN manufacturers m ON ca.manufacturer_id = m.id;
 -- Default category specifications are in init-settings.sql (run via "Init Categories" in admin UI)
 
 -- ============================================================================
--- PART 8: ACTIVITY LOG (Audit Trail)
+-- PART 9: ACTIVITY LOG (Audit Trail)
 -- ============================================================================
 
 -- Table: activity_log
@@ -488,7 +525,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_part_number ON activity_log(part_num
 CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id);
 
 -- ============================================================================
--- PART 9: PROJECTS
+-- PART 10: PROJECTS
 -- ============================================================================
 
 -- Table: projects
@@ -537,48 +574,7 @@ CREATE TRIGGER trigger_update_project_component_timestamp
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- PART 10: TRIGGERS FOR AUTO-SYNC
--- ============================================================================
-
--- Function: Auto-create inventory entry when component is added
-CREATE OR REPLACE FUNCTION create_inventory_entry()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Automatically create an inventory entry with 0 quantity
-    INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
-    VALUES (NEW.id, 0, 0, NULL)
-    ON CONFLICT (component_id) DO NOTHING;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger: Create inventory entry on component insert
-DROP TRIGGER IF EXISTS trigger_create_inventory ON components;
-CREATE TRIGGER trigger_create_inventory
-    AFTER INSERT ON components
-    FOR EACH ROW
-    EXECUTE FUNCTION create_inventory_entry();
-
--- ============================================================================
--- PART 11: BACKFILL INVENTORY FOR EXISTING COMPONENTS
--- ============================================================================
-
--- Create inventory entries for any existing components that don't have one
-INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
-SELECT 
-    c.id,
-    0,
-    0,
-    NULL
-FROM components c
-WHERE NOT EXISTS (
-    SELECT 1 FROM inventory i WHERE i.component_id = c.id
-)
-ON CONFLICT (component_id) DO NOTHING;
-
--- ============================================================================
--- PART 12: ENGINEER CHANGE ORDER (ECO) TABLES
+-- PART 11: ENGINEER CHANGE ORDER (ECO) TABLES
 -- ============================================================================
 
 -- Table: eco_approval_stages
@@ -811,7 +807,7 @@ LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
 ORDER BY eo.id DESC;
 
 -- ============================================================================
--- PART 13: HELPER FUNCTION TO EXTRACT TIMESTAMP FROM UUIDV7
+-- PART 12: HELPER FUNCTION TO EXTRACT TIMESTAMP FROM UUIDV7
 -- ============================================================================
 
 -- Function to extract timestamp from uuidv7
@@ -840,7 +836,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- ============================================================================
--- PART 14: SMTP & EMAIL NOTIFICATION TABLES
+-- PART 13: SMTP & EMAIL NOTIFICATION TABLES
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS smtp_settings (
@@ -897,7 +893,7 @@ CREATE TABLE IF NOT EXISTS email_log (
 CREATE INDEX IF NOT EXISTS idx_email_log_eco ON email_log(eco_id);
 
 -- ============================================================================
--- PART 15: ADMIN SETTINGS TABLE
+-- PART 14: ADMIN SETTINGS TABLE
 -- ============================================================================
 
 -- Table: admin_settings

@@ -149,7 +149,11 @@ async function startServer() {
 
 
     // Initialize authentication (check/create users table)
-    await initializeAuthentication();
+    const initializationReady = await initializeAuthentication();
+
+    if (!initializationReady) {
+      throw new Error('Database initialization did not complete successfully');
+    }
     
     // Start server
     app.listen(PORT, async () => {
