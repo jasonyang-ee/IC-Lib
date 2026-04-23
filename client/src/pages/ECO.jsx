@@ -7,7 +7,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { ECOSidebar, ECOListItem, RejectModal } from '../components/eco';
 
 const ECO = () => {
-  const { canApprove } = useAuth();
+  const { canApprove, user } = useAuth();
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [selectedStatus, setSelectedStatus] = useState('pending');
@@ -32,7 +32,7 @@ const ECO = () => {
 
   // Fetch ECO orders
   const { data: ecoOrders = [], isLoading } = useQuery({
-    queryKey: ['ecos', selectedStatus],
+    queryKey: ['ecos', selectedStatus, user?.id || 'anonymous'],
     queryFn: async () => {
       const response = await api.getECOs({ status: selectedStatus });
       return response.data;
@@ -62,7 +62,7 @@ const ECO = () => {
 
   // Fetch ECO details when expanded
   const { data: ecoDetails, isLoading: isLoadingDetails } = useQuery({
-    queryKey: ['eco', expandedECO],
+    queryKey: ['eco', expandedECO, user?.id || 'anonymous'],
     queryFn: async () => {
       if (!expandedECO) return null;
       const response = await api.getECOById(expandedECO);

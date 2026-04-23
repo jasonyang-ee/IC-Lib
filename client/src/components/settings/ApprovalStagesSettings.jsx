@@ -345,6 +345,8 @@ const ApprovalStagesSettings = () => {
             <input
               type="file"
               accept=".json,application/json"
+                name="approval-stage-import"
+                autoComplete="off"
               className="hidden"
               disabled={importMutation.isPending}
               onChange={handleImportApprovalStages}
@@ -375,6 +377,8 @@ const ApprovalStagesSettings = () => {
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Stage Name</label>
               <input
                 type="text"
+                name="new-stage-name"
+                autoComplete="off"
                 value={newStage.stage_name}
                 onChange={(e) => setNewStage(prev => ({ ...prev, stage_name: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-[#444] rounded-md bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -385,6 +389,8 @@ const ApprovalStagesSettings = () => {
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Required Approval Counts</label>
               <input
                 type="number"
+                name="new-stage-required-approvals"
+                autoComplete="off"
                 value={newStage.required_approvals}
                 onChange={(e) => setNewStage(prev => ({ ...prev, required_approvals: Math.max(1, parseInt(e.target.value) || 1) }))}
                 min={1}
@@ -394,6 +400,8 @@ const ApprovalStagesSettings = () => {
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Minimum Role</label>
               <select
+                name="new-stage-required-role"
+                autoComplete="off"
                 value={newStage.required_role}
                 onChange={(e) => setNewStage(prev => ({ ...prev, required_role: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-[#444] rounded-md bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -499,6 +507,8 @@ const ApprovalStagesSettings = () => {
                               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Stage Name</label>
                               <input
                                 type="text"
+                                name={`edit-stage-name-${stage.id}`}
+                                autoComplete="off"
                                 value={editingStage.stage_name}
                                 onChange={(e) => setEditingStage(prev => ({ ...prev, stage_name: e.target.value }))}
                                 className="w-full px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
@@ -509,6 +519,8 @@ const ApprovalStagesSettings = () => {
                               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Required Approval Counts</label>
                               <input
                                 type="number"
+                                name={`edit-stage-required-approvals-${stage.id}`}
+                                autoComplete="off"
                                 value={editingStage.required_approvals}
                                 onChange={(e) => setEditingStage(prev => ({ ...prev, required_approvals: Math.max(1, parseInt(e.target.value) || 1) }))}
                                 min={1}
@@ -518,6 +530,8 @@ const ApprovalStagesSettings = () => {
                             <div>
                               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Minimum Role</label>
                               <select
+                                name={`edit-stage-required-role-${stage.id}`}
+                                autoComplete="off"
                                 value={editingStage.required_role}
                                 onChange={(e) => setEditingStage(prev => ({ ...prev, required_role: e.target.value }))}
                                 className="w-full px-2 py-1 border border-gray-300 dark:border-[#444] rounded bg-white dark:bg-[#1a1a1a] dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
@@ -531,6 +545,8 @@ const ApprovalStagesSettings = () => {
                               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-0.5">Stage Order</label>
                               <input
                                 type="number"
+                                name={`edit-stage-order-${stage.id}`}
+                                autoComplete="off"
                                 value={editingStage.stage_order ?? ''}
                                 onChange={(e) => setEditingStage(prev => ({ ...prev, stage_order: Math.max(1, parseInt(e.target.value) || 1) }))}
                                 min={1}

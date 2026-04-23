@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ECO details no longer show fallback approval stages that do not actually match the ECO tags, and blocked approvals now surface approval-stage tag mismatches instead of implying the assigned-user list is wrong
 - In-flight ECO approvals now reconcile to the next applicable stage order when approval-stage tags change, so updated stage routing no longer leaves pending ECOs stuck on a stale order
 - ECO approval comments now opt out of browser autofill on the review screen, avoiding the Firefox `autoCompleteType` null console error there
+- Switching users now clears cached React Query data and scopes ECO queries by user, so stage-level approval permissions refresh correctly after logging into a different account
+- Admin Settings ECO inputs now opt out of browser autofill across numbering, approval-stage, and branding fields, avoiding the Firefox `autoCompleteType` null console error on that tab
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 
 ## [1.9.4] - 2026-04-22

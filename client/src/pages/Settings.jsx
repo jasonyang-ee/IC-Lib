@@ -120,6 +120,8 @@ const EcoPdfBrandingSetting = () => {
             </label>
             <input
               type="text"
+              name="eco-logo-filename"
+              autoComplete="off"
               value={branding.eco_logo_filename}
               onChange={(e) => handleBrandingChange('eco_logo_filename', e.target.value)}
               placeholder="e.g. company-logo.png"
@@ -133,6 +135,8 @@ const EcoPdfBrandingSetting = () => {
             </label>
             <input
               type="text"
+              name="eco-pdf-header-text"
+              autoComplete="off"
               value={branding.eco_pdf_header_text}
               onChange={(e) => handleBrandingChange('eco_pdf_header_text', e.target.value)}
               placeholder={DEFAULT_ECO_PDF_HEADER}
@@ -182,6 +186,8 @@ const EcoPdfBrandingSetting = () => {
             </label>
             <input
               type="email"
+              name="eco-complete-notification-email"
+              autoComplete="off"
               value={branding.eco_complete_notification_email}
               onChange={(e) => handleBrandingChange('eco_complete_notification_email', e.target.value)}
               placeholder="document.control@example.com"
@@ -330,6 +336,8 @@ const ECOSettings = () => {
           </label>
           <input
             type="text"
+            name="eco-number-prefix"
+            autoComplete="off"
             value={formData.prefix}
             onChange={(e) => handleChange('prefix', e.target.value)}
             maxLength={20}
@@ -348,6 +356,8 @@ const ECOSettings = () => {
           </label>
           <input
             type="number"
+            name="eco-next-number"
+            autoComplete="off"
             value={formData.next_number}
             onChange={(e) => handleChange('next_number', Math.max(1, parseInt(e.target.value, 10) || 1))}
             min={1}

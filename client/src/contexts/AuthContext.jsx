@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 
 const AuthContext = createContext(null);
@@ -13,16 +14,13 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Check if user is already logged in on app load
-  useEffect(() => {
-    verifyAuth();
-  }, []);
-
-  const verifyAuth = async () => {
+  const verifyAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -36,12 +34,17 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Auth verification failed:', error);
       localStorage.removeItem('token');
+      queryClient.clear();
       setUser(null);
       setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
-  };
+  }, [queryClient]);
+
+  useEffect(() => {
+    verifyAuth();
+  }, [verifyAuth]);
 
   const login = async (username, password) => {
     try {
@@ -49,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = response.data;
       
       localStorage.setItem('token', token);
+      queryClient.clear();
       setUser(user);
       setIsAuthenticated(true);
       
@@ -66,6 +70,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('token');
+      queryClient.clear();
       setUser(null);
       setIsAuthenticated(false);
     }
