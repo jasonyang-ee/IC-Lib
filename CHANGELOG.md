@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Documentation now includes `doc/spec.md` and `doc/application-feature-workflow.excalidraw` with a rendered PNG that map the end-to-end workflow from vendor search through BOM export
 
 ### Changed
 
