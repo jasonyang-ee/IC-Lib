@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- ECO detail and PDF summaries no longer repeat paired CAD base names in component-change values when footprint or other CAD text fields are updated through paired-file ECOs
 - Read-only users no longer receive welcome or ECO notification emails
 - Read-write users can no longer delete orphan CAD files from File Library, and server routes now enforce delete access for approver/admin only
 - Sidebar user card now wraps long display names instead of truncating them

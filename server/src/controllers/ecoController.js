@@ -27,6 +27,7 @@ import {
   canUserSatisfyStageRole,
   resolveEffectiveApproverId,
 } from '../services/ecoApprovalEligibilityService.js';
+import { normalizeEcoChangeRows } from '../services/ecoChangeSummaryService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
@@ -226,7 +227,7 @@ const buildEcoPdfPayload = async (client, ecoId) => {
   return {
     ecoData: {
       ...eco,
-      changes: changesResult.rows,
+      changes: normalizeEcoChangeRows(changesResult.rows),
       distributors: distributorsResult.rows,
       alternatives: enrichedAlternatives,
       specifications: specificationsResult.rows,
@@ -430,7 +431,7 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
 
     chain.push({
       ...parentEco,
-      changes: changes.rows,
+      changes: normalizeEcoChangeRows(changes.rows),
       specifications: specs.rows,
       approvals: approvals.rows,
       distributors: distributors.rows,
@@ -870,7 +871,7 @@ export const getECOById = async (req, res) => {
 
     res.json({
       ...eco,
-      changes: changesResult.rows,
+      changes: normalizeEcoChangeRows(changesResult.rows),
       distributors: distributorsResult.rows,
       alternatives: enrichedAlternatives,
       specifications: specificationsResult.rows,
@@ -983,7 +984,7 @@ export const getLastRejectedECOByComponent = async (req, res) => {
 
     res.json({
       ...eco,
-      changes: changesResult.rows,
+      changes: normalizeEcoChangeRows(changesResult.rows),
       specifications: specificationsResult.rows,
       approvals: approvalsResult.rows,
       alternatives: alternativesResult.rows,

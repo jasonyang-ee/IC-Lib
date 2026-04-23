@@ -38,7 +38,7 @@ services:
       - DB_HOST=localhost
       - DB_PORT=5432
       - DB_USER=iclib
-      - DB_PASSWORD=123456
+      - DB_PASSWORD=change-this-to-a-secure-random-string-in-production-minimum-6-characters
       - DB_NAME=iclib
       
       # Optional: API Keys for vendor integrations
@@ -56,7 +56,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=iclib
-      - POSTGRES_PASSWORD=123456
+      - POSTGRES_PASSWORD=change-this-to-a-secure-random-string-in-production-minimum-6-characters
       - POSTGRES_DB=iclib
     volumes:
       - ./iclib/database:/var/lib/postgresql/18/docker
@@ -70,6 +70,14 @@ services:
 - `CONFIG_ECO=true`
 
   Enable ECO mode to process any parts update with approval stages.
+
+- `CONFIG_BASE_URL`
+
+  Set email link URLs to the server url + subdirectory if applicable, for example `https://iclib.domain.tld/anypath/`.
+
+- `CONFIG_SUBDIRECTORY_PATH`
+
+  Set the reverse proxy subdirectory path if the app is not able to run with sub CNAME routing. For example, if the app is served at `https://domain.tld/anypath/`, set `CONFIG_SUBDIRECTORY_PATH=/anypath/` to ensure the frontend router and asset paths work correctly.
 
 ### Docker Image
 - Docker Hub
