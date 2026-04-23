@@ -16,6 +16,7 @@ const EcoPdfBrandingSetting = () => {
   const [branding, setBranding] = useState({
     eco_logo_filename: '',
     eco_pdf_header_text: DEFAULT_ECO_PDF_HEADER,
+    eco_complete_notification_email: '',
   });
   const [hasBrandingChanges, setHasBrandingChanges] = useState(false);
 
@@ -35,6 +36,7 @@ const EcoPdfBrandingSetting = () => {
     setBranding({
       eco_logo_filename: brandingData.eco_logo_filename || '',
       eco_pdf_header_text: brandingData.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
+      eco_complete_notification_email: brandingData.eco_complete_notification_email || '',
     });
   }, [brandingData, hasBrandingChanges]);
 
@@ -60,6 +62,7 @@ const EcoPdfBrandingSetting = () => {
     saveBrandingMutation.mutate({
       eco_logo_filename: branding.eco_logo_filename,
       eco_pdf_header_text: branding.eco_pdf_header_text,
+      eco_complete_notification_email: branding.eco_complete_notification_email,
     });
   };
 
@@ -67,6 +70,7 @@ const EcoPdfBrandingSetting = () => {
     setBranding({
       eco_logo_filename: brandingData?.eco_logo_filename || '',
       eco_pdf_header_text: brandingData?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER,
+      eco_complete_notification_email: brandingData?.eco_complete_notification_email || '',
     });
     setHasBrandingChanges(false);
   };
@@ -105,6 +109,22 @@ const EcoPdfBrandingSetting = () => {
               className="w-full px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
             />
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              ECO Complete Notification
+            </label>
+            <input
+              type="email"
+              value={branding.eco_complete_notification_email}
+              onChange={(e) => handleBrandingChange('eco_complete_notification_email', e.target.value)}
+              placeholder="document.control@example.com"
+              className="w-full px-3 py-1.5 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100 text-sm"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Approved ECO PDFs will be emailed to this document-control address. Leave blank to disable.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -132,7 +152,7 @@ const EcoPdfBrandingSetting = () => {
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-        Place logo image (PNG/JPG) in container&apos;s /image directory, then enter filename here. Header text prints beside logo in ECO PDF exports.
+        Place logo image (PNG/JPG) in container&apos;s /image directory, then enter filename here. Header text prints beside logo in ECO PDF exports. The complete-notification address receives the approved ECO PDF as an email attachment.
       </p>
     </div>
   );

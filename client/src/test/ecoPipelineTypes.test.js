@@ -20,4 +20,11 @@ describe('ecoPipelineTypes', () => {
     expect(ecoMatchesPipelineType(eco, 'filename')).toBe(true);
     expect(ecoMatchesPipelineType(eco, 'distributor')).toBe(false);
   });
+
+  it('keeps the new alt-parts tag in explicit ECO tag arrays', () => {
+    expect(getEcoPipelineTypes({ pipeline_types: ['prod_status_change', 'alt_parts'] })).toEqual([
+      'prod_status_change',
+      'alt_parts',
+    ]);
+  });
 });

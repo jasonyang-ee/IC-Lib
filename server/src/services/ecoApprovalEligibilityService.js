@@ -13,6 +13,13 @@ export const canUserSatisfyStageRole = (userRole, requiredRole = 'approver') => 
   return userLevel >= requiredLevel;
 };
 
+export const canDelegateToRole = (userRole, delegateRole) => {
+  const userLevel = ROLE_HIERARCHY[userRole] || 0;
+  const delegateLevel = ROLE_HIERARCHY[delegateRole] || 0;
+
+  return delegateLevel >= userLevel;
+};
+
 export const resolveEffectiveApproverId = ({
   stageApprovers,
   actingUserId,

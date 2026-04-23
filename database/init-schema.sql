@@ -910,6 +910,7 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
     eco_logo_filename VARCHAR(200) DEFAULT '',
     eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order',
+    eco_complete_notification_email VARCHAR(255) DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

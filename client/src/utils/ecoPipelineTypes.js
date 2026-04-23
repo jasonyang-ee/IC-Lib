@@ -4,6 +4,7 @@ export const PIPELINE_TYPE_OPTIONS = Object.freeze([
   { value: 'spec', label: 'Spec', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
   { value: 'filename', label: 'Filename', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' },
   { value: 'distributor', label: 'Distributor', color: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' },
+  { value: 'alt_parts', label: 'Alt Parts', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' },
 ]);
 
 export const DEFAULT_STAGE_PIPELINE_TYPES = Object.freeze(

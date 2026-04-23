@@ -365,6 +365,48 @@ export function buildECOEmail(eco, actionType, additionalInfo = {}) {
   };
 }
 
+export function buildApprovedECOCompleteNotificationEmail(eco, { approvedByName } = {}) {
+  const systemUrl = `${getConfiguredBaseUrl()}/eco`;
+  const subject = `[${eco.eco_number}] ECO Complete Notification`;
+  const rows = [
+    { label: 'ECO Number', value: eco.eco_number, emphasize: true },
+    { label: 'Component', value: `${eco.part_number} - ${eco.component_description || 'No description'}` },
+    { label: 'Submitted By', value: eco.initiated_by_name || 'Unknown' },
+    { label: 'Approved By', value: approvedByName || 'Unknown' },
+  ];
+
+  return {
+    subject,
+    html: renderEmailLayout({
+      preheader: 'An approved ECO PDF is attached for document control release.',
+      eyebrow: 'ECO Complete Notification',
+      title: 'Approved ECO Ready For Release',
+      paragraphs: [
+        'An Engineering Change Order has completed approval.',
+        'The approved ECO PDF is attached so document control can archive and release it.',
+      ],
+      sectionTitle: 'Approved ECO Details',
+      rows,
+      accentColor: '#16a34a',
+      ctaLabel: 'Open ECO',
+      ctaUrl: systemUrl,
+      footerText: 'Automated notification from IC-Lib for document control release handling.',
+    }),
+    text: [
+      'Approved ECO Ready For Release',
+      '',
+      'An Engineering Change Order has completed approval.',
+      'The approved ECO PDF is attached so document control can archive and release it.',
+      '',
+      ...rows.map(({ label, value }) => `${label}: ${value}`),
+      '',
+      `Open ECO: ${systemUrl}`,
+      '',
+      'Automated notification from IC-Lib for document control release handling.',
+    ].join('\n'),
+  };
+}
+
 export function buildPreviewEmail(templateType = 'system_test') {
   const template = TEST_EMAIL_TEMPLATES[templateType] || TEST_EMAIL_TEMPLATES.system_test;
 
@@ -473,7 +515,7 @@ export async function createTransporter() {
 /**
  * Send an email
  */
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, attachments }) {
   const transporter = await createTransporter();
   if (!transporter) {
     console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured or disabled, skipping email');
@@ -489,6 +531,7 @@ export async function sendEmail({ to, subject, html, text }) {
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ''),
+      attachments,
     });
 
     // Log the email
@@ -650,12 +693,32 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   return results;
 }
 
+export async function sendApprovedECODocumentControlNotification({ to, eco, approvedByName, attachment }) {
+  if (!to) {
+    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No ECO document control email configured, skipping complete notification');
+    return { success: false, reason: 'No document control email configured' };
+  }
+
+  const { subject, html, text } = buildApprovedECOCompleteNotificationEmail(eco, {
+    approvedByName,
+  });
+
+  return sendEmail({
+    to,
+    subject,
+    html,
+    text,
+    attachments: attachment ? [attachment] : undefined,
+  });
+}
+
 export default {
   encrypt,
   decrypt,
   getConfiguredBaseUrl,
   buildWelcomeEmail,
   buildECOEmail,
+  buildApprovedECOCompleteNotificationEmail,
   buildPreviewEmail,
   getSMTPSettings,
   createTransporter,
@@ -663,4 +726,5 @@ export default {
   sendWelcomeEmail,
   testSMTPConnection,
   sendECONotification,
+  sendApprovedECODocumentControlNotification,
 };

@@ -4,6 +4,7 @@ export const VALID_ECO_PIPELINE_TYPES = Object.freeze([
   'spec',
   'filename',
   'distributor',
+  'alt_parts',
 ]);
 
 export const DEFAULT_STAGE_PIPELINE_TYPES = Object.freeze([...VALID_ECO_PIPELINE_TYPES]);
@@ -14,7 +15,26 @@ export const ECO_PIPELINE_TYPE_LABELS = Object.freeze({
   spec: 'Spec',
   filename: 'Filename',
   distributor: 'Distributor',
+  alt_parts: 'Alt Parts',
 });
+
+const STATUS_PIPELINE_TYPES = new Set([
+  'proto_status_change',
+  'prod_status_change',
+]);
+
+const CHANGE_DETAIL_PIPELINE_TYPES = new Set([
+  'spec',
+  'filename',
+  'distributor',
+  'alt_parts',
+]);
+
+const PRE_PRODUCTION_APPROVAL_STATUSES = new Set([
+  'new',
+  'reviewing',
+  'prototype',
+]);
 
 const CAD_LINK_FIELD_NAMES = new Set([
   'pcb_footprint',
@@ -28,6 +48,7 @@ const PRIMARY_PIPELINE_TYPE_PRIORITY = [
   'prod_status_change',
   'proto_status_change',
   'distributor',
+  'alt_parts',
   'filename',
   'spec',
 ];
@@ -86,7 +107,13 @@ const hasAlternativeMetadataChange = (alternative) => {
     ? alternative.distributors.filter(hasMeaningfulDistributorChange)
     : [];
 
-  return distributorChanges.length === 0;
+  const hasAlternativeMetadataFields = [
+    'manufacturer_id',
+    'manufacturer_pn',
+    'manufacturer_name',
+  ].some((fieldName) => alternative[fieldName] !== undefined && alternative[fieldName] !== null && alternative[fieldName] !== '');
+
+  return hasAlternativeMetadataFields || distributorChanges.length === 0;
 };
 
 export const normalizeStagePipelineTypes = (pipelineTypes) => {
@@ -135,7 +162,15 @@ export const doesStageMatchEcoPipelineTypes = (stagePipelineTypes, ecoPipelineTy
   const normalizedStageTypes = normalizeStagePipelineTypes(stagePipelineTypes);
   const normalizedEcoTypes = normalizePipelineTypeArray(ecoPipelineTypes, ['spec']);
 
-  return normalizedStageTypes.some((pipelineType) => normalizedEcoTypes.includes(pipelineType));
+  const stageStatusTypes = normalizedStageTypes.filter((pipelineType) => STATUS_PIPELINE_TYPES.has(pipelineType));
+  const stageDetailTypes = normalizedStageTypes.filter((pipelineType) => CHANGE_DETAIL_PIPELINE_TYPES.has(pipelineType));
+
+  const statusMatches = stageStatusTypes.length === 0
+    || stageStatusTypes.some((pipelineType) => normalizedEcoTypes.includes(pipelineType));
+  const detailMatches = stageDetailTypes.length === 0
+    || stageDetailTypes.some((pipelineType) => normalizedEcoTypes.includes(pipelineType));
+
+  return statusMatches && detailMatches;
 };
 
 export const detectEcoPipelineTypes = ({
@@ -151,6 +186,9 @@ export const detectEcoPipelineTypes = ({
 
   if (currentApprovalStatus === 'production') {
     detectedTypes.add('prod_status_change');
+  }
+  if (PRE_PRODUCTION_APPROVAL_STATUSES.has(currentApprovalStatus)) {
+    detectedTypes.add('proto_status_change');
   }
 
   if (statusChange?.new_value === 'prototype') {
@@ -184,8 +222,12 @@ export const detectEcoPipelineTypes = ({
     statusChange.new_value !== 'production',
   );
 
-  if (hasSpecFieldChanges || hasSpecificationChanges || hasAlternativeMetadataChanges || hasNonLifecycleStatusChange) {
+  if (hasSpecFieldChanges || hasSpecificationChanges || hasNonLifecycleStatusChange) {
     detectedTypes.add('spec');
+  }
+
+  if (hasAlternativeMetadataChanges) {
+    detectedTypes.add('alt_parts');
   }
 
   if (hasCadChanges) {

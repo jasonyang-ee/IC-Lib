@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canDelegateToRole,
   canUserSatisfyStageRole,
   resolveEffectiveApproverId,
 } from '../services/ecoApprovalEligibilityService.js';
@@ -8,6 +9,12 @@ describe('ecoApprovalEligibilityService', () => {
   it('enforces required stage roles', () => {
     expect(canUserSatisfyStageRole('approver', 'reviewer')).toBe(true);
     expect(canUserSatisfyStageRole('reviewer', 'approver')).toBe(false);
+  });
+
+  it('allows delegation only to the same or higher role', () => {
+    expect(canDelegateToRole('reviewer', 'reviewer')).toBe(true);
+    expect(canDelegateToRole('reviewer', 'approver')).toBe(true);
+    expect(canDelegateToRole('approver', 'reviewer')).toBe(false);
   });
 
   it('allows the directly assigned approver to use their own slot', () => {

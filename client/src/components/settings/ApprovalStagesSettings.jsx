@@ -352,6 +352,9 @@ const ApprovalStagesSettings = () => {
           {/* Pipeline Types Toggle */}
           <div className="mt-3">
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Stage Tags</label>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {PIPELINE_TYPE_OPTIONS.map((pt) => {
                 const isSelected = (newStage.pipeline_types || []).includes(pt.value);
@@ -502,6 +505,9 @@ const ApprovalStagesSettings = () => {
                           {/* Pipeline Types Toggle for editing */}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stage Tags</label>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
+                            </p>
                             <div className="flex flex-wrap gap-1.5">
                               {PIPELINE_TYPE_OPTIONS.map((pt) => {
                                 const isSelected = (editingStage.pipeline_types || []).includes(pt.value);
@@ -665,6 +671,7 @@ const ApprovalStagesSettings = () => {
         <p className="text-xs text-blue-700 dark:text-blue-300">
           ECOs progress through stages in order. Each stage must receive its required number of approvals before advancing.
           Stages with the same order number run in parallel -- all must be completed before proceeding.
+          Stage tags evaluate as (Proto Status OR Prod Status) AND (Spec OR Filename OR Distributor OR Alt Parts).
           You can assign specific users to each stage -- if approvers are assigned, only those users or their delegated backups can approve at that stage.
           If no approvers are assigned, any user with the minimum role can approve.
           Stage tags control which ECO changes a stage applies to.

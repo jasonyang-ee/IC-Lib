@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ECO PDF branding now includes an `ECO Complete Notification` recipient, and final ECO approval emails the approved PDF attachment to document control for release handling
 - Admin email settings now include one-click preview emails for ECO submitted, approved, rejected, and assigned notifications using the same recipient input
 - Server email template coverage now includes focused tests for `CONFIG_BASE_URL` precedence and preview generation
 - File Library selected-file actions now include a text `Copy File Path` control that copies the configured user storage path plus the CAD subfolder and filename
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration tracking now stores sequence numbers and descriptions in `schema_migrations`
 - Database startup now includes a readiness check so the production launcher does not report the backend as ready before initialization and migrations finish
 - User Settings now expose all live ECO email preference switches, including stage-advance notifications, through the SMTP-backed preference API used by actual mail delivery
+- ECO approval stages now include an `Alt Parts` tag so alternative-part changes can be routed separately from spec/metadata changes
 
 ### Changed
 
@@ -32,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Database migrations now use `{sequence}_{description}.sql` names, with numeric sequence sorting so releases do not need zero-padded filenames or version tags in filenames
 - File Library and Projects inline destructive and edit actions now use compact bordered button styles instead of plain text links, while `Copy File Path` remains a text action
 - Reverse-proxy subdirectory configuration now uses `CONFIG_SUBDIRECTORY_PATH`, with the client build and runtime router/API path helpers sharing the same base-path detection logic
+- ECO approval stage tags now evaluate as `(Proto Status OR Prod Status) AND (Spec OR Filename OR Distributor OR Alt Parts)`, so production-only detail stages no longer trigger from unrelated prototype changes
+- ECO delegation preferences now only allow the same or higher roles as backup approvers, and the delegation dropdown only offers eligible active users
 
 ### Fixed
 
@@ -47,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `schema_version` is now consolidated into `schema_migrations`, logical database backups no longer try to export that legacy table, and existing databases now refresh the `alternative_parts` view to include both manufacturer name and manufacturer part number
 - Legacy `active_parts` and `new_parts` views are now removed by migration, and production startup logs no longer imply migration completion before the backend is actually ready
 - ECO email subjects now preserve the configured ECO prefix without prepending an extra literal `ECO-`, new users default to opt-in-off email delivery, and the sidebar dark-mode toggle now matches the existing first-load dark theme default
+- ECO list/detail/PDF current-stage summaries now use the same approval-stage matcher as submission and approval flow, keeping displayed active stages aligned with the configured tag logic
 
 ## [1.9.3] - 2026-04-21
 

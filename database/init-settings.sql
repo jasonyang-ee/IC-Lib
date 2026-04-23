@@ -67,12 +67,13 @@ CREATE TABLE IF NOT EXISTS admin_settings (
     global_leading_zeros INTEGER NOT NULL DEFAULT 5,
     eco_logo_filename VARCHAR(200) DEFAULT '',
     eco_pdf_header_text VARCHAR(200) DEFAULT 'Engineer Change Order',
+    eco_complete_notification_email VARCHAR(255) DEFAULT '',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_settings_singleton ON admin_settings((1));
 
-INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros, eco_logo_filename, eco_pdf_header_text)
-SELECT false, '', 5, '', 'Engineer Change Order'
+INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros, eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email)
+SELECT false, '', 5, '', 'Engineer Change Order', ''
 WHERE NOT EXISTS (SELECT 1 FROM admin_settings);
 
 -- ============================================================================

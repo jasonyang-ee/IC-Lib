@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_STAGE_PIPELINE_TYPES,
   detectEcoPipelineTypes,
+  doesStageMatchEcoPipelineTypes,
   getEcoPipelineTypes,
   normalizeStagePipelineTypes,
 } from '../services/ecoPipelineService.js';
@@ -43,5 +44,36 @@ describe('ecoPipelineService', () => {
     expect(detectEcoPipelineTypes({
       distributors: [{ stock_quantity: 25, price_breaks: [{ quantity: 1, price: 0.12 }] }],
     })).toEqual([]);
+  });
+
+  it('tags prototype-part changes with the prototype status tag', () => {
+    expect(detectEcoPipelineTypes({
+      changes: [{ field_name: 'description', old_value: 'old', new_value: 'new' }],
+      currentApprovalStatus: 'prototype',
+    })).toEqual(['proto_status_change', 'spec']);
+  });
+
+  it('separates alternative-part metadata into the alt-parts tag', () => {
+    expect(detectEcoPipelineTypes({
+      alternatives: [{ action: 'add', manufacturer_pn: 'ALT-001' }],
+      currentApprovalStatus: 'production',
+    })).toEqual(['prod_status_change', 'alt_parts']);
+  });
+
+  it('matches status and detail tag buckets independently', () => {
+    expect(doesStageMatchEcoPipelineTypes(
+      ['prod_status_change', 'spec', 'distributor'],
+      ['prod_status_change', 'spec'],
+    )).toBe(true);
+
+    expect(doesStageMatchEcoPipelineTypes(
+      ['prod_status_change', 'spec', 'distributor'],
+      ['proto_status_change', 'spec'],
+    )).toBe(false);
+
+    expect(doesStageMatchEcoPipelineTypes(
+      ['prod_status_change', 'spec', 'distributor'],
+      ['prod_status_change', 'filename'],
+    )).toBe(false);
   });
 });

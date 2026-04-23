@@ -1563,10 +1563,11 @@ export const importCategories = async (req, res) => {
 // Get ECO logo filename from admin_settings
 export const getEcoLogoFilename = async (req, res) => {
   try {
-    const result = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
+    const result = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email FROM admin_settings LIMIT 1');
     res.json({
       eco_logo_filename: result.rows[0]?.eco_logo_filename || '',
       eco_pdf_header_text: sanitizeEcoPdfHeaderText(result.rows[0]?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER),
+      eco_complete_notification_email: result.rows[0]?.eco_complete_notification_email || '',
     });
   } catch (error) {
     console.error('Error reading ECO logo filename:', error);
@@ -1577,7 +1578,7 @@ export const getEcoLogoFilename = async (req, res) => {
 // Update ECO logo filename in admin_settings
 export const updateEcoLogoFilename = async (req, res) => {
   try {
-    const { eco_logo_filename, eco_pdf_header_text } = req.body || {};
+    const { eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email } = req.body || {};
 
     if (eco_logo_filename !== undefined && typeof eco_logo_filename !== 'string') {
       return res.status(400).json({ error: 'eco_logo_filename must be a string' });
@@ -1587,7 +1588,19 @@ export const updateEcoLogoFilename = async (req, res) => {
       return res.status(400).json({ error: 'eco_pdf_header_text must be a string' });
     }
 
-    const existingResult = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
+    if (eco_complete_notification_email !== undefined && typeof eco_complete_notification_email !== 'string') {
+      return res.status(400).json({ error: 'eco_complete_notification_email must be a string' });
+    }
+
+    const nextNotificationEmail = eco_complete_notification_email !== undefined
+      ? eco_complete_notification_email.trim()
+      : undefined;
+
+    if (nextNotificationEmail !== undefined && nextNotificationEmail !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextNotificationEmail)) {
+      return res.status(400).json({ error: 'eco_complete_notification_email must be a valid email address' });
+    }
+
+    const existingResult = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email FROM admin_settings LIMIT 1');
     const existing = existingResult.rows[0] || {};
     const nextLogoFilename = eco_logo_filename !== undefined
       ? eco_logo_filename.trim()
@@ -1595,19 +1608,24 @@ export const updateEcoLogoFilename = async (req, res) => {
     const nextHeaderText = eco_pdf_header_text !== undefined
       ? sanitizeEcoPdfHeaderText(eco_pdf_header_text)
       : sanitizeEcoPdfHeaderText(existing.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER);
+    const resolvedNotificationEmail = nextNotificationEmail !== undefined
+      ? nextNotificationEmail
+      : (existing.eco_complete_notification_email || '');
 
     await pool.query(`
-      INSERT INTO admin_settings (eco_logo_filename, eco_pdf_header_text)
-      VALUES ($1, $2)
+      INSERT INTO admin_settings (eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email)
+      VALUES ($1, $2, $3)
       ON CONFLICT ((1)) DO UPDATE SET
         eco_logo_filename = EXCLUDED.eco_logo_filename,
         eco_pdf_header_text = EXCLUDED.eco_pdf_header_text,
+        eco_complete_notification_email = EXCLUDED.eco_complete_notification_email,
         updated_at = CURRENT_TIMESTAMP
-    `, [nextLogoFilename, nextHeaderText]);
+    `, [nextLogoFilename, nextHeaderText, resolvedNotificationEmail]);
     res.json({
       success: true,
       eco_logo_filename: nextLogoFilename,
       eco_pdf_header_text: nextHeaderText,
+      eco_complete_notification_email: resolvedNotificationEmail,
     });
   } catch (error) {
     console.error('Error updating ECO logo filename:', error);

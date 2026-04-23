@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import pool from '../config/database.js';
 import { generateToken } from '../middleware/auth.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
+import { canDelegateToRole } from '../services/ecoApprovalEligibilityService.js';
 
 const SALT_ROUNDS = 10;
 const ECO_NOTIFICATION_FIELDS = [
@@ -662,10 +663,12 @@ export const getNotificationPreferences = async (req, res) => {
     }
 
     const preferencesRow = preferencesResult.rows[0];
+    const eligibleDelegates = delegatesResult.rows.filter((delegate) => canDelegateToRole(req.user.role, delegate.role));
+
     res.json({
       ...pickEcoNotificationPreferences(preferencesRow),
       delegation: preferencesRow.delegation || null,
-      availableDelegates: delegatesResult.rows,
+      availableDelegates: eligibleDelegates,
     });
   } catch (error) {
     console.error('[error] [Auth] Get notification preferences error:', error);
@@ -721,7 +724,7 @@ export const updateNotificationPreferences = async (req, res) => {
       nextDelegation === null
         ? Promise.resolve({ rows: [{ id: null }] })
         : pool.query(
-          'SELECT id FROM users WHERE id = $1 AND is_active = true',
+          'SELECT id, role FROM users WHERE id = $1 AND is_active = true',
           [nextDelegation],
         ),
     ]);
@@ -732,6 +735,10 @@ export const updateNotificationPreferences = async (req, res) => {
 
     if (delegateResult.rows.length === 0) {
       return res.status(400).json({ error: 'Delegation must target an active user' });
+    }
+
+    if (nextDelegation !== null && !canDelegateToRole(req.user.role, delegateResult.rows[0].role)) {
+      return res.status(400).json({ error: 'Delegation must target a user with the same or higher role' });
     }
 
     const currentPreferences = pickEcoNotificationPreferences(currentResult.rows[0]);

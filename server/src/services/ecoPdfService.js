@@ -196,6 +196,22 @@ const formatFieldName = (field) => {
   return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 };
 
+const createEcoPdfDocument = (ecoData, headerText) => new PDFDocument({
+  size: 'LETTER',
+  margins: {
+    top: PAGE.marginTop,
+    bottom: PAGE.marginBottom,
+    left: PAGE.marginLeft,
+    right: PAGE.marginRight,
+  },
+  info: {
+    Title: `ECO ${ecoData.eco_number}`,
+    Author: 'IC-Lib',
+    Subject: `${headerText} - ${ecoData.eco_number}`,
+  },
+  bufferPages: true,
+});
+
 /**
  * Generate a PDF document for an ECO order.
  * @param {Object} ecoData - Full ECO data from getECOById (with changes, distributors, etc.)
@@ -207,21 +223,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
     ? options.headerText.trim()
     : DEFAULT_ECO_PDF_HEADER;
 
-  const doc = new PDFDocument({
-    size: 'LETTER',
-    margins: {
-      top: PAGE.marginTop,
-      bottom: PAGE.marginBottom,
-      left: PAGE.marginLeft,
-      right: PAGE.marginRight,
-    },
-    info: {
-      Title: `ECO ${ecoData.eco_number}`,
-      Author: 'IC-Lib',
-      Subject: `${headerText} - ${ecoData.eco_number}`,
-    },
-    bufferPages: true,
-  });
+  const doc = options.document || createEcoPdfDocument(ecoData, headerText);
 
   // ===== LOGO =====
   let headerStartY = PAGE.marginTop;
@@ -743,6 +745,25 @@ export const generateECOPdf = (ecoData, options = {}) => {
     );
   }
 
-  doc.end();
+  if (options.autoEnd !== false) {
+    doc.end();
+  }
   return doc;
+};
+
+export const generateECOPdfBuffer = async (ecoData, options = {}) => {
+  const headerText = typeof options.headerText === 'string' && options.headerText.trim().length > 0
+    ? options.headerText.trim()
+    : DEFAULT_ECO_PDF_HEADER;
+  const doc = createEcoPdfDocument(ecoData, headerText);
+  const chunks = [];
+
+  const bufferPromise = new Promise((resolve, reject) => {
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  generateECOPdf(ecoData, { ...options, document: doc });
+  return bufferPromise;
 };

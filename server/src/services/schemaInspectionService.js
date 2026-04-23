@@ -55,6 +55,7 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'project_components', column: 'notes' },
   { table: 'admin_settings', column: 'eco_logo_filename' },
   { table: 'admin_settings', column: 'eco_pdf_header_text' },
+  { table: 'admin_settings', column: 'eco_complete_notification_email' },
   { table: 'eco_orders', column: 'current_stage_order' },
   { table: 'eco_orders', column: 'pipeline_type' },
   { table: 'eco_orders', column: 'pipeline_types' },

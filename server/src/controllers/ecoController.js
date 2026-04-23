@@ -1,7 +1,7 @@
 import pool from '../config/database.js';
-import { sendECONotification } from '../services/emailService.js';
+import { sendApprovedECODocumentControlNotification, sendECONotification } from '../services/emailService.js';
 import { regenerateCadText } from '../services/cadFileService.js';
-import { generateECOPdf } from '../services/ecoPdfService.js';
+import { generateECOPdf, generateECOPdfBuffer } from '../services/ecoPdfService.js';
 import {
   DEFAULT_ECO_PDF_HEADER,
   DEFAULT_ECO_PREFIX,
@@ -69,6 +69,215 @@ const getECOForEmail = async (client, ecoId) => {
     WHERE eo.id = $1
   `, [ecoId]);
   return result.rows[0];
+};
+
+const getEcoCompleteNotificationEmail = async (client) => {
+  const result = await client.query('SELECT eco_complete_notification_email FROM admin_settings LIMIT 1');
+  return result.rows[0]?.eco_complete_notification_email?.trim() || '';
+};
+
+const buildEcoPdfPayload = async (client, ecoId) => {
+  const ecoResult = await client.query(`
+    SELECT
+      eo.*,
+      created_at(eo.id) as created_at,
+      ${userDisplayNameSql('u1')} as initiated_by_name,
+      ${userDisplayNameSql('u2')} as approved_by_name,
+      c.part_number as component_part_number,
+      c.description as component_description,
+      cc.name as category_name,
+      m.name as manufacturer_name
+    FROM eco_orders eo
+    LEFT JOIN users u1 ON eo.initiated_by = u1.id
+    LEFT JOIN users u2 ON eo.approved_by = u2.id
+    LEFT JOIN components c ON eo.component_id = c.id
+    LEFT JOIN component_categories cc ON c.category_id = cc.id
+    LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+    WHERE eo.id = $1
+  `, [ecoId]);
+
+  if (ecoResult.rows.length === 0) {
+    return null;
+  }
+
+  let eco = ecoResult.rows[0];
+  [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
+
+  const changesResult = await client.query(`
+    SELECT
+      ec.*,
+      CASE WHEN ec.field_name = 'category_id' THEN
+        (SELECT name FROM component_categories WHERE id::text = ec.old_value)
+      END as old_category_name,
+      CASE WHEN ec.field_name = 'category_id' THEN
+        (SELECT name FROM component_categories WHERE id::text = ec.new_value)
+      END as new_category_name,
+      CASE WHEN ec.field_name = 'manufacturer_id' THEN
+        (SELECT name FROM manufacturers WHERE id::text = ec.old_value)
+      END as old_manufacturer_name,
+      CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
+        (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
+      WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
+        SUBSTRING(ec.new_value FROM 5)
+      END as new_manufacturer_name
+    FROM eco_changes ec
+    WHERE eco_id = $1
+    ORDER BY id
+  `, [ecoId]);
+
+  const distributorsResult = await client.query(`
+    SELECT ed.*, d.name as distributor_name
+    FROM eco_distributors ed
+    LEFT JOIN distributors d ON ed.distributor_id = d.id
+    WHERE ed.eco_id = $1
+    ORDER BY ed.id
+  `, [ecoId]);
+
+  const alternativesResult = await client.query(`
+    SELECT
+      ea.id,
+      ea.eco_id,
+      ea.alternative_id,
+      ea.action,
+      ea.manufacturer_id,
+      ea.manufacturer_pn,
+      ea.distributors,
+      COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
+      ca.manufacturer_pn as existing_manufacturer_pn,
+      cam.name as existing_manufacturer_name
+    FROM eco_alternative_parts ea
+    LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
+    LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
+    LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
+    WHERE ea.eco_id = $1
+    ORDER BY ea.id
+  `, [ecoId]);
+
+  const specificationsResult = await client.query(`
+    SELECT es.*, cs.spec_name, cs.unit
+    FROM eco_specifications es
+    LEFT JOIN category_specifications cs ON es.category_spec_id = cs.id
+    WHERE es.eco_id = $1
+    ORDER BY cs.display_order
+  `, [ecoId]);
+
+  const approvalsResult = await client.query(`
+    SELECT
+      ea.*, created_at(ea.id) as created_at,
+      ${userDisplayNameSql('u')} as user_name,
+      u.role as user_role,
+      eas.stage_name, eas.stage_order
+    FROM eco_approvals ea
+    LEFT JOIN users u ON ea.user_id = u.id
+    LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
+    WHERE ea.eco_id = $1
+    ORDER BY eas.stage_order, ea.id
+  `, [ecoId]);
+
+  let stagesResult = await client.query(`
+    SELECT
+      eas.*,
+      (SELECT COUNT(*) FROM eco_approvals ea
+       WHERE ea.eco_id = $1 AND ea.stage_id = eas.id AND ea.decision = 'approved'
+      ) as approval_count,
+      COALESCE(
+        (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'display_name', NULLIF(BTRIM(u.display_name), ''), 'role', u.role))
+         FROM eco_stage_approvers esa
+         JOIN users u ON esa.user_id = u.id
+         WHERE esa.stage_id = eas.id
+        ), '[]'::json
+      ) as assigned_approvers
+    FROM eco_approval_stages eas
+    WHERE eas.is_active = true
+    ORDER BY eas.stage_order
+  `, [ecoId]);
+  stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
+
+  const cadFilesResult = await client.query(`
+    SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
+    FROM eco_cad_files ecf
+    LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
+    WHERE ecf.eco_id = $1
+    ORDER BY ecf.id
+  `, [ecoId]);
+
+  const enrichedAlternatives = await Promise.all(alternativesResult.rows.map(async (alt) => {
+    let dists = alt.distributors || [];
+    if (typeof dists === 'string') {
+      try { dists = JSON.parse(dists); } catch { dists = []; }
+    }
+    if (dists.length > 0) {
+      const distIds = [...new Set(dists.map((dist) => dist.distributor_id).filter(Boolean))];
+      if (distIds.length > 0) {
+        const distNames = await client.query('SELECT id, name FROM distributors WHERE id = ANY($1)', [distIds]);
+        const nameMap = Object.fromEntries(distNames.rows.map((row) => [row.id, row.name]));
+        dists = dists.map((dist) => ({ ...dist, distributor_name: nameMap[dist.distributor_id] || null }));
+      }
+    }
+    return { ...alt, distributors: dists };
+  }));
+
+  const rejectionHistory = eco.parent_eco_id
+    ? await fetchRejectionHistory(client, eco.parent_eco_id)
+    : [];
+
+  const logoResult = await client.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
+
+  return {
+    ecoData: {
+      ...eco,
+      changes: changesResult.rows,
+      distributors: distributorsResult.rows,
+      alternatives: enrichedAlternatives,
+      specifications: specificationsResult.rows,
+      approvals: approvalsResult.rows,
+      stages: stagesResult.rows,
+      cad_files: cadFilesResult.rows,
+      rejection_history: rejectionHistory,
+    },
+    logoFilename: logoResult.rows[0]?.eco_logo_filename || '',
+    headerText: sanitizeEcoPdfHeaderText(logoResult.rows[0]?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER),
+  };
+};
+
+const buildApprovedEcoPdfAttachment = async (client, ecoId) => {
+  const pdfPayload = await buildEcoPdfPayload(client, ecoId);
+  if (!pdfPayload) {
+    return null;
+  }
+
+  const pdfBuffer = await generateECOPdfBuffer(pdfPayload.ecoData, {
+    logoFilename: pdfPayload.logoFilename,
+    headerText: pdfPayload.headerText,
+  });
+
+  return {
+    filename: `${pdfPayload.ecoData.eco_number}.pdf`,
+    content: pdfBuffer,
+    contentType: 'application/pdf',
+  };
+};
+
+const notifyApprovedECOCompletion = async (ecoId, approvedByName) => {
+  const ecoForEmail = await getECOForEmail(pool, ecoId);
+  await sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approvedByName });
+
+  const documentControlEmail = await getEcoCompleteNotificationEmail(pool);
+  if (!documentControlEmail) {
+    return;
+  }
+
+  const attachment = await buildApprovedEcoPdfAttachment(pool, ecoId);
+  if (!attachment) {
+    throw new Error(`Failed to generate approved ECO PDF attachment for ECO ${ecoId}`);
+  }
+
+  await sendApprovedECODocumentControlNotification({
+    to: documentControlEmail,
+    eco: ecoForEmail,
+    approvedByName,
+    attachment,
+  });
 };
 
 const resolveCadFileId = async (client, cadFile) => {
@@ -254,6 +463,72 @@ const getMatchingStagesForEco = (stages, eco, { fallbackToAll = false } = {}) =>
   return fallbackToAll ? normalizedStages : [];
 };
 
+const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map()) => {
+  if (eco?.current_stage_order === null || eco?.current_stage_order === undefined) {
+    return {
+      current_stage_names: null,
+      current_stage_required_approvals: null,
+      current_stage_approval_count: 0,
+    };
+  }
+
+  const matchingStages = getMatchingStagesForEco(
+    stages.filter((stage) => stage.is_active === true && stage.stage_order === eco.current_stage_order),
+    eco,
+  );
+
+  return {
+    current_stage_names: matchingStages.length > 0
+      ? matchingStages.map((stage) => stage.stage_name).join(', ')
+      : null,
+    current_stage_required_approvals: matchingStages.length > 0
+      ? matchingStages.reduce((sum, stage) => sum + Number(stage.required_approvals || 0), 0)
+      : null,
+    current_stage_approval_count: matchingStages.reduce(
+      (sum, stage) => sum + Number(approvedCountsByStageId.get(stage.id) || 0),
+      0,
+    ),
+  };
+};
+
+const enrichEcosWithCurrentStageSummary = async (db, ecos) => {
+  if (!Array.isArray(ecos) || ecos.length === 0) {
+    return ecos;
+  }
+
+  const stagesResult = await db.query(`
+    SELECT *
+    FROM eco_approval_stages
+    WHERE is_active = true
+    ORDER BY stage_order ASC, id ASC
+  `);
+
+  const ecoIds = [...new Set(ecos.map((eco) => eco.id).filter(Boolean))];
+  const approvedCountsByEcoId = new Map();
+
+  if (ecoIds.length > 0) {
+    const approvalCountsResult = await db.query(`
+      SELECT eco_id, stage_id, COUNT(*)::int AS approved_count
+      FROM eco_approvals
+      WHERE eco_id = ANY($1) AND decision = 'approved'
+      GROUP BY eco_id, stage_id
+    `, [ecoIds]);
+
+    approvalCountsResult.rows.forEach(({ eco_id: ecoId, stage_id: stageId, approved_count: approvedCount }) => {
+      if (!approvedCountsByEcoId.has(ecoId)) {
+        approvedCountsByEcoId.set(ecoId, new Map());
+      }
+
+      approvedCountsByEcoId.get(ecoId).set(stageId, Number(approvedCount));
+    });
+  }
+
+  return ecos.map((eco) => ({
+    ...eco,
+    ...buildCurrentStageSummary(eco, stagesResult.rows, approvedCountsByEcoId.get(eco.id) || new Map()),
+  }));
+};
+
 const getStageApproverAssignments = async (client, stageId) => {
   const result = await client.query(`
     SELECT esa.user_id, u.delegation
@@ -364,12 +639,13 @@ export const getAllECOs = async (req, res) => {
     query += ' ORDER BY eo.id DESC';
 
     const result = await pool.query(query, params);
+    const enrichedRows = await enrichEcosWithCurrentStageSummary(pool, result.rows);
 
     // For rejected view, only show the latest ECO per eco_number,
     // and exclude eco_numbers that have a final approved or pending/in_review status
     // (those belong in the approved or pending views)
     if (status === 'rejected') {
-      const ecoNumbers = [...new Set(result.rows.map(r => r.eco_number))];
+      const ecoNumbers = [...new Set(enrichedRows.map(r => r.eco_number))];
       const resolvedNumbers = new Set();
       if (ecoNumbers.length > 0) {
         const resolved = await pool.query(
@@ -381,7 +657,7 @@ export const getAllECOs = async (req, res) => {
 
       const seen = new Set();
       const deduped = [];
-      for (const row of result.rows) {
+      for (const row of enrichedRows) {
         if (resolvedNumbers.has(row.eco_number)) continue;
         if (!seen.has(row.eco_number)) {
           seen.add(row.eco_number);
@@ -391,7 +667,7 @@ export const getAllECOs = async (req, res) => {
       return res.json(deduped);
     }
 
-    res.json(result.rows);
+    res.json(enrichedRows);
   } catch (error) {
     console.error('Error fetching ECO orders:', error);
     res.status(500).json({ error: 'Failed to fetch ECO orders' });
@@ -440,7 +716,8 @@ export const getECOById = async (req, res) => {
       return res.status(404).json({ error: 'ECO order not found' });
     }
     
-    const eco = ecoResult.rows[0];
+    let eco = ecoResult.rows[0];
+    [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
     
     // Get all changes (with category name resolution for category_id changes)
     const changesResult = await client.query(`
@@ -637,7 +914,8 @@ export const getLastRejectedECOByComponent = async (req, res) => {
       return res.json(null);
     }
 
-    const eco = ecoResult.rows[0];
+    let eco = ecoResult.rows[0];
+    [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
 
     // Fetch full change data for the rejected ECO
     const changesResult = await client.query(`
@@ -1424,7 +1702,8 @@ export const approveECO = async (req, res) => {
       return res.status(404).json({ error: 'ECO order not found' });
     }
 
-    const eco = ecoResult.rows[0];
+    let eco = ecoResult.rows[0];
+    [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
     if (eco.status !== 'pending' && eco.status !== 'in_review') {
       return res.status(400).json({ error: 'ECO order is not pending approval' });
     }
@@ -1457,9 +1736,8 @@ export const approveECO = async (req, res) => {
 
       const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
       const approverName = approverResult.rows[0]?.display_name || 'Unknown';
-      const ecoForEmail = await getECOForEmail(pool, id);
-      sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approverName }).catch(err => {
-        console.error('Error sending ECO approval notification:', err);
+      notifyApprovedECOCompletion(id, approverName).catch(err => {
+        console.error('Error sending approved ECO completion notifications:', err);
       });
 
       return res.json({
@@ -1592,9 +1870,8 @@ export const approveECO = async (req, res) => {
 
       const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
       const approverName = approverResult.rows[0]?.display_name || 'Unknown';
-      const ecoForEmail = await getECOForEmail(pool, id);
-      sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approverName }).catch(err => {
-        console.error('Error sending ECO approval notification:', err);
+      notifyApprovedECOCompletion(id, approverName).catch(err => {
+        console.error('Error sending approved ECO completion notifications:', err);
       });
 
       return res.json({
@@ -1730,178 +2007,19 @@ export const generateECOPDFEndpoint = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Reuse the same data-fetching logic as getECOById
-    const ecoResult = await client.query(`
-      SELECT
-        eo.*,
-        created_at(eo.id) as created_at,
-        ${userDisplayNameSql('u1')} as initiated_by_name,
-        ${userDisplayNameSql('u2')} as approved_by_name,
-        c.part_number as component_part_number,
-        c.description as component_description,
-        (SELECT string_agg(eas.stage_name, ', ' ORDER BY eas.id)
-         FROM eco_approval_stages eas
-         WHERE eas.is_active = true
-           AND eas.stage_order = eo.current_stage_order
-           AND eas.pipeline_types && eo.pipeline_types
-        ) as current_stage_names
-      FROM eco_orders eo
-      LEFT JOIN users u1 ON eo.initiated_by = u1.id
-      LEFT JOIN users u2 ON eo.approved_by = u2.id
-      LEFT JOIN components c ON eo.component_id = c.id
-      WHERE eo.id = $1
-    `, [id]);
-
-    if (ecoResult.rows.length === 0) {
+    const pdfPayload = await buildEcoPdfPayload(client, id);
+    if (!pdfPayload) {
       return res.status(404).json({ error: 'ECO order not found' });
     }
 
-    const eco = ecoResult.rows[0];
-
-    const changesResult = await client.query(`
-      SELECT
-        ec.*,
-        CASE WHEN ec.field_name = 'category_id' THEN
-          (SELECT name FROM component_categories WHERE id::text = ec.old_value)
-        END as old_category_name,
-        CASE WHEN ec.field_name = 'category_id' THEN
-          (SELECT name FROM component_categories WHERE id::text = ec.new_value)
-        END as new_category_name,
-        CASE WHEN ec.field_name = 'manufacturer_id' THEN
-          (SELECT name FROM manufacturers WHERE id::text = ec.old_value)
-        END as old_manufacturer_name,
-        CASE WHEN ec.field_name = 'manufacturer_id' AND ec.new_value NOT LIKE 'NEW:%' THEN
-          (SELECT name FROM manufacturers WHERE id::text = ec.new_value)
-        WHEN ec.field_name = 'manufacturer_id' AND ec.new_value LIKE 'NEW:%' THEN
-          SUBSTRING(ec.new_value FROM 5)
-        END as new_manufacturer_name
-      FROM eco_changes ec
-      WHERE eco_id = $1
-      ORDER BY id
-    `, [id]);
-
-    const distributorsResult = await client.query(`
-      SELECT ed.*, d.name as distributor_name
-      FROM eco_distributors ed
-      LEFT JOIN distributors d ON ed.distributor_id = d.id
-      WHERE ed.eco_id = $1
-      ORDER BY ed.id
-    `, [id]);
-
-    const alternativesResult = await client.query(`
-      SELECT
-        ea.id,
-        ea.eco_id,
-        ea.alternative_id,
-        ea.action,
-        ea.manufacturer_id,
-        ea.manufacturer_pn,
-        ea.distributors,
-        COALESCE(ea.manufacturer_name, m.name) as manufacturer_name,
-        ca.manufacturer_pn as existing_manufacturer_pn,
-        cam.name as existing_manufacturer_name
-      FROM eco_alternative_parts ea
-      LEFT JOIN manufacturers m ON ea.manufacturer_id = m.id
-      LEFT JOIN components_alternative ca ON ea.alternative_id = ca.id
-      LEFT JOIN manufacturers cam ON ca.manufacturer_id = cam.id
-      WHERE ea.eco_id = $1
-      ORDER BY ea.id
-    `, [id]);
-
-    const specificationsResult = await client.query(`
-      SELECT es.*, cs.spec_name, cs.unit
-      FROM eco_specifications es
-      LEFT JOIN category_specifications cs ON es.category_spec_id = cs.id
-      WHERE es.eco_id = $1
-      ORDER BY cs.display_order
-    `, [id]);
-
-    const approvalsResult = await client.query(`
-      SELECT
-        ea.*, created_at(ea.id) as created_at,
-        ${userDisplayNameSql('u')} as user_name,
-        u.role as user_role,
-        eas.stage_name, eas.stage_order
-      FROM eco_approvals ea
-      LEFT JOIN users u ON ea.user_id = u.id
-      LEFT JOIN eco_approval_stages eas ON ea.stage_id = eas.id
-      WHERE ea.eco_id = $1
-      ORDER BY eas.stage_order, ea.id
-    `, [id]);
-
-    // Get all active stages - fallback to all if pipeline filter yields nothing
-    const pdfStagesQuery = `
-      SELECT
-        eas.*,
-        (SELECT COUNT(*) FROM eco_approvals ea
-         WHERE ea.eco_id = $1 AND ea.stage_id = eas.id AND ea.decision = 'approved'
-        ) as approval_count,
-        COALESCE(
-          (SELECT json_agg(json_build_object('user_id', u.id, 'username', u.username, 'display_name', NULLIF(BTRIM(u.display_name), ''), 'role', u.role))
-           FROM eco_stage_approvers esa
-           JOIN users u ON esa.user_id = u.id
-           WHERE esa.stage_id = eas.id
-          ), '[]'::json
-        ) as assigned_approvers
-      FROM eco_approval_stages eas
-      WHERE eas.is_active = true
-      ORDER BY eas.stage_order
-    `;
-    let stagesResult = await client.query(pdfStagesQuery, [id]);
-    stagesResult = { rows: getMatchingStagesForEco(stagesResult.rows, eco, { fallbackToAll: true }) };
-
-    const cadFilesResult = await client.query(`
-      SELECT ecf.*, cf.file_name as existing_file_name, cf.file_type as existing_file_type
-      FROM eco_cad_files ecf
-      LEFT JOIN cad_files cf ON ecf.cad_file_id = cf.id
-      WHERE ecf.eco_id = $1
-      ORDER BY ecf.id
-    `, [id]);
-
-    // Enrich alternatives with distributor names
-    const enrichedAlternatives = await Promise.all(alternativesResult.rows.map(async (alt) => {
-      let dists = alt.distributors || [];
-      if (typeof dists === 'string') {
-        try { dists = JSON.parse(dists); } catch { dists = []; }
-      }
-      if (dists.length > 0) {
-        const distIds = [...new Set(dists.map(d => d.distributor_id).filter(Boolean))];
-        if (distIds.length > 0) {
-          const distNames = await client.query('SELECT id, name FROM distributors WHERE id = ANY($1)', [distIds]);
-          const nameMap = Object.fromEntries(distNames.rows.map(r => [r.id, r.name]));
-          dists = dists.map(d => ({ ...d, distributor_name: nameMap[d.distributor_id] || null }));
-        }
-      }
-      return { ...alt, distributors: dists };
-    }));
-
-    // Fetch rejection history chain for PDF
-    const rejectionHistory = eco.parent_eco_id
-      ? await fetchRejectionHistory(client, eco.parent_eco_id)
-      : [];
-
-    const ecoData = {
-      ...eco,
-      changes: changesResult.rows,
-      distributors: distributorsResult.rows,
-      alternatives: enrichedAlternatives,
-      specifications: specificationsResult.rows,
-      approvals: approvalsResult.rows,
-      stages: stagesResult.rows,
-      cad_files: cadFilesResult.rows,
-      rejection_history: rejectionHistory,
-    };
-
-    // Fetch logo filename from admin settings
-    const logoResult = await client.query('SELECT eco_logo_filename, eco_pdf_header_text FROM admin_settings LIMIT 1');
-    const logoFilename = logoResult.rows[0]?.eco_logo_filename || '';
-    const headerText = sanitizeEcoPdfHeaderText(logoResult.rows[0]?.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER);
-
     // Generate PDF
-    const pdfDoc = generateECOPdf(ecoData, { logoFilename, headerText });
+    const pdfDoc = generateECOPdf(pdfPayload.ecoData, {
+      logoFilename: pdfPayload.logoFilename,
+      headerText: pdfPayload.headerText,
+    });
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${eco.eco_number}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${pdfPayload.ecoData.eco_number}.pdf"`);
     pdfDoc.pipe(res);
   } catch (error) {
     console.error('Error generating ECO PDF:', error);
