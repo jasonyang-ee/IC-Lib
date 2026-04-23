@@ -371,9 +371,11 @@ const ECOListItem = ({
                         Approval Comments (optional)
                       </label>
                       <textarea
+                        name={`eco-approval-comments-${eco.id}`}
                         value={approvalComments}
                         onChange={(e) => onApprovalCommentsChange(e.target.value)}
                         disabled={!canActOnCurrentStage}
+                        autoComplete="off"
                         className="w-full px-3 py-2 border border-gray-300 dark:border-[#444] rounded-md bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         rows={2}
                         placeholder={canActOnCurrentStage

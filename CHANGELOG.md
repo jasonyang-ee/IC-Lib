@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ECO `Approve` and `Reject` buttons now stay visible but render disabled for approver-capable users who are not eligible to act on the current stage, matching backend stage assignment and delegation rules
 - ECO details no longer show fallback approval stages that do not actually match the ECO tags, and blocked approvals now surface approval-stage tag mismatches instead of implying the assigned-user list is wrong
+- In-flight ECO approvals now reconcile to the next applicable stage order when approval-stage tags change, so updated stage routing no longer leaves pending ECOs stuck on a stale order
+- ECO approval comments now opt out of browser autofill on the review screen, avoiding the Firefox `autoCompleteType` null console error there
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 
 ## [1.9.4] - 2026-04-22

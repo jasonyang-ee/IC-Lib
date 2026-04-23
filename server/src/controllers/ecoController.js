@@ -27,6 +27,7 @@ import {
   canUserSatisfyStageRole,
   resolveEffectiveApproverId,
 } from '../services/ecoApprovalEligibilityService.js';
+import { resolveEcoApprovalProgress } from '../services/ecoApprovalProgressService.js';
 import { normalizeEcoChangeRows } from '../services/ecoChangeSummaryService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
@@ -464,39 +465,23 @@ const getMatchingStagesForEco = (stages, eco, { fallbackToAll = false } = {}) =>
   return fallbackToAll ? normalizedStages : [];
 };
 
-const hasStageConfigurationMismatch = (eco, stages) => {
-  if (eco?.current_stage_order === null || eco?.current_stage_order === undefined) {
-    return false;
-  }
-
-  const activeStagesAtCurrentOrder = stages.filter(
-    (stage) => stage.is_active === true && stage.stage_order === eco.current_stage_order,
-  );
-
-  if (activeStagesAtCurrentOrder.length === 0) {
-    return false;
-  }
-
-  return getMatchingStagesForEco(activeStagesAtCurrentOrder, eco).length === 0;
-};
-
 const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map()) => {
-  if (eco?.current_stage_order === null || eco?.current_stage_order === undefined) {
+  const resolvedProgress = resolveEcoApprovalProgress(eco, stages, approvedCountsByStageId);
+
+  if (resolvedProgress.currentStageOrder === null) {
     return {
+      current_stage_order: null,
       current_stage_names: null,
       current_stage_required_approvals: null,
       current_stage_approval_count: 0,
-      current_stage_configuration_mismatch: false,
+      current_stage_configuration_mismatch: resolvedProgress.currentStageConfigurationMismatch,
     };
   }
 
-  const matchingStages = getMatchingStagesForEco(
-    stages.filter((stage) => stage.is_active === true && stage.stage_order === eco.current_stage_order),
-    eco,
-  );
-  const currentStageConfigurationMismatch = hasStageConfigurationMismatch(eco, stages);
+  const matchingStages = resolvedProgress.currentStages;
 
   return {
+    current_stage_order: resolvedProgress.currentStageOrder,
     current_stage_names: matchingStages.length > 0
       ? matchingStages.map((stage) => stage.stage_name).join(', ')
       : null,
@@ -507,7 +492,7 @@ const buildCurrentStageSummary = (eco, stages, approvedCountsByStageId = new Map
       (sum, stage) => sum + Number(approvedCountsByStageId.get(stage.id) || 0),
       0,
     ),
-    current_stage_configuration_mismatch: currentStageConfigurationMismatch,
+    current_stage_configuration_mismatch: resolvedProgress.currentStageConfigurationMismatch,
   };
 };
 
@@ -2073,7 +2058,8 @@ export const rejectECO = async (req, res) => {
       return res.status(404).json({ error: 'ECO order not found' });
     }
 
-    const eco = ecoResult.rows[0];
+    let eco = ecoResult.rows[0];
+    [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
     if (eco.status !== 'pending' && eco.status !== 'in_review') {
       return res.status(400).json({ error: 'ECO order is not pending approval' });
     }
