@@ -43,8 +43,7 @@ COPY server/ .
 COPY --from=frontend-builder /app/client/dist /usr/share/nginx/html
 
 # Configure nginx for non-root execution
-COPY docker/nginx-main.conf /etc/nginx/nginx.conf
-COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Create directories for CAD file library and templates
 RUN mkdir -p /app/library/footprint /app/library/symbol /app/library/pad /app/library/pspice \

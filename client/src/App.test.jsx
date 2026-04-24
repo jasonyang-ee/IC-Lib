@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
@@ -31,9 +31,8 @@ describe('App', () => {
         <App />
       </BrowserRouter>
     );
-    
-    // The app should render something
-    expect(document.body).toBeDefined();
+
+    expect(screen.getByRole('heading', { name: 'IC-Lib' })).toBeInTheDocument();
   });
 
   it('shows login page when not authenticated', () => {
@@ -42,9 +41,7 @@ describe('App', () => {
         <App />
       </BrowserRouter>
     );
-    
-    // Should redirect to login or show login
-    // This is a basic smoke test
-    expect(document.querySelector('body')).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Username')).toBeInTheDocument();
   });
 });

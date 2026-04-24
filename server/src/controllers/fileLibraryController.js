@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
 import { buildFootprintRenameTargets } from '../utils/footprintFiles.js';
+import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -195,42 +196,46 @@ export const renamePhysicalFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
+    const safeOldFileName = assertSafeLeafName(oldFileName, 'oldFileName');
+    const safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+
     // Find the cad_file record
-    const cadFile = await cadFileService.findCadFile(oldFileName, info.fileType);
+    const cadFile = await cadFileService.findCadFile(safeOldFileName, info.fileType);
     if (!cadFile) {
       // Check if the physical file exists even without a DB record
-      const oldPath = path.join(LIBRARY_BASE, info.subdir, oldFileName);
+      const oldPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, safeOldFileName);
       if (!fs.existsSync(oldPath)) {
-        return res.status(404).json({ error: `File "${oldFileName}" not found` });
+        return res.status(404).json({ error: `File "${safeOldFileName}" not found` });
       }
       // Physical-only rename (no DB record yet)
-      const newPath = path.join(LIBRARY_BASE, info.subdir, newFileName);
+      const newPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, safeNewFileName);
       if (fs.existsSync(newPath)) {
-        return res.status(409).json({ error: `File "${newFileName}" already exists in the ${type} directory` });
+        return res.status(409).json({ error: `File "${safeNewFileName}" already exists in the ${type} directory` });
       }
       fs.renameSync(oldPath, newPath);
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename (no DB record): "${oldFileName}" -> "${newFileName}"`);
-      return res.json({ success: true, oldFileName, newFileName, updatedCount: 0, updatedComponents: [] });
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename (no DB record): "${safeOldFileName}" -> "${safeNewFileName}"`);
+      return res.json({ success: true, oldFileName: safeOldFileName, newFileName: safeNewFileName, updatedCount: 0, updatedComponents: [] });
     }
 
     // Get affected components before rename
     const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
 
     // Rename via cadFileService (handles physical rename + cad_files update + TEXT regen)
-    await cadFileService.renameCadFile(cadFile.id, newFileName);
+    await cadFileService.renameCadFile(cadFile.id, safeNewFileName);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${oldFileName}" -> "${newFileName}", updated ${affectedBefore.length} components`);
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${safeOldFileName}" -> "${safeNewFileName}", updated ${affectedBefore.length} components`);
 
     res.json({
       success: true,
-      oldFileName,
-      newFileName,
+      oldFileName: safeOldFileName,
+      newFileName: safeNewFileName,
       updatedCount: affectedBefore.length,
       updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming physical file:', error.message);
-    res.status(500).json({ error: 'Failed to rename file' });
+    const status = /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to rename file' : error.message });
   }
 };
 
@@ -245,7 +250,11 @@ export const renameFootprintGroup = async (req, res) => {
   try {
     const { fileNames, newBaseName } = req.body;
     const info = getTypeInfo('footprint');
-    const renameTargets = buildFootprintRenameTargets(fileNames, newBaseName);
+    const renameTargets = buildFootprintRenameTargets(fileNames, newBaseName).map((target) => ({
+      ...target,
+      oldFileName: assertSafeLeafName(target.oldFileName, 'oldFileName'),
+      newFileName: assertSafeLeafName(target.newFileName, 'newFileName'),
+    }));
     const affectedComponentIds = new Set();
     const cadFiles = [];
 
@@ -255,12 +264,12 @@ export const renameFootprintGroup = async (req, res) => {
         return res.status(404).json({ error: `File "${target.oldFileName}" not found in database` });
       }
 
-      const oldPath = path.join(LIBRARY_BASE, info.subdir, cadFile.file_name);
+      const oldPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, assertSafeLeafName(cadFile.file_name, 'fileName'));
       if (!fs.existsSync(oldPath)) {
         return res.status(404).json({ error: `File "${target.oldFileName}" not found on disk` });
       }
 
-      const newPath = path.join(LIBRARY_BASE, info.subdir, target.newFileName);
+      const newPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, target.newFileName);
       if (
         target.newFileName !== cadFile.file_name
         && fs.existsSync(newPath)
@@ -363,16 +372,18 @@ export const deletePhysicalFile = async (req, res) => {
       return res.status(400).json({ error: 'Invalid file type. Must be one of: footprint, schematic, step, pspice, pad' });
     }
 
+    const safeFileName = assertSafeLeafName(fileName, 'fileName');
+
     // Find the cad_file record
-    const cadFile = await cadFileService.findCadFile(fileName, info.fileType);
+    const cadFile = await cadFileService.findCadFile(safeFileName, info.fileType);
     if (!cadFile) {
       // No DB record — just delete the physical file if it exists
-      const filePath = path.join(LIBRARY_BASE, info.subdir, fileName);
+      const filePath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, safeFileName);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete (no DB record): "${fileName}"`);
-      return res.json({ success: true, fileName, updatedCount: 0, updatedComponents: [] });
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete (no DB record): "${safeFileName}"`);
+      return res.json({ success: true, fileName: safeFileName, updatedCount: 0, updatedComponents: [] });
     }
 
     const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
@@ -387,13 +398,14 @@ export const deletePhysicalFile = async (req, res) => {
 
     res.json({
       success: true,
-      fileName,
+      fileName: safeFileName,
       updatedCount: linkedComponents.length,
       updatedComponents: linkedComponents.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
-    res.status(500).json({ error: 'Failed to delete file' });
+    const status = /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to delete file' : error.message });
   }
 };
 
@@ -412,8 +424,7 @@ export const deleteFileGroup = async (req, res) => {
 
     const normalizedFileNames = [...new Set(
       (Array.isArray(fileNames) ? fileNames : [])
-        .map((fileName) => String(fileName || '').trim())
-        .filter(Boolean),
+        .map((fileName) => assertSafeLeafName(fileName, 'fileName')),
     )];
 
     if (normalizedFileNames.length === 0) {
@@ -497,9 +508,7 @@ export const bulkDeleteOrphanFiles = async (req, res) => {
     }
 
     const requestedFileNames = [...new Set(
-      fileNames
-        .map((fileName) => String(fileName || '').trim())
-        .filter(Boolean),
+      fileNames.map((fileName) => assertSafeLeafName(fileName, 'fileName')),
     )];
 
     if (requestedFileNames.length === 0) {

@@ -1,7 +1,9 @@
 {
-  "name": "CIP-import-scripts",
-  "version": "1.0.0",
+  "name": "ic-lib-scripts",
+  "version": "1.9.4",
+  "author": "Jason Yang",
   "description": "CIP Database import scripts for IC Lib",
+  "private": true,
   "main": "import.js",
   "type": "module",
   "scripts": {
@@ -14,14 +16,6 @@
     "lint:fix": "eslint . --fix",
     "test": "node import.js --dry-run --file=Diodes"
   },
-  "keywords": [
-    "csv",
-    "import",
-    "database",
-    "allegro"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "csv-parse": "^5.5.3",
     "csv-stringify": "^6.4.5",

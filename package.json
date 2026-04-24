@@ -1,9 +1,11 @@
 {
   "name": "ic-lib",
   "version": "1.9.4",
-  "description": "IC Component Library Management System - PCB parts library with inventory management, vendor integration, and ECO workflow",
   "author": "Jason Yang",
+  "description": "IC Component Library Management System - PCB parts library with inventory management, vendor integration, and ECO workflow",
   "license": "LicenseRef-IC-Lib-1.0",
+  "private": true,
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jasonyang-ee/IC-Lib.git"
@@ -23,22 +25,14 @@
   "bugs": {
     "url": "https://github.com/jasonyang-ee/IC-Lib/issues"
   },
-  "private": true,
-  "type": "module",
+
   "scripts": {
-    "start": "./start.sh",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "build": "npm run build:client",
     "build:client": "cd client && npm run build",
-    "check": "./check.sh",
-    "check:lint": "./check.sh --lint-only",
-    "check:test": "./check.sh --test-only",
-    "check:coverage": "./check.sh --coverage",
-    "lint:fix": "cd client && npm run lint:fix && cd ../server && npm run lint:fix",
-    "docker:build": "./build.sh",
-    "release": "./release.sh"
+    "lint:fix": "cd client && npm run lint:fix && cd ../server && npm run lint:fix"
   },
   "engines": {
     "node": ">=22.0.0",

@@ -259,6 +259,14 @@ if [ -f server/package.json ]; then
     git add server/package.json server/package-lock.json 2>/dev/null || true
 fi
 
+# Update scripts/package.json if exists
+if [ -f scripts/package.json ]; then
+    cd scripts
+    npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
+    cd ..
+    git add scripts/package.json scripts/package-lock.json 2>/dev/null || true
+fi
+
 # -----------------------------------------------------------------------------
 # Update CHANGELOG.md
 # -----------------------------------------------------------------------------

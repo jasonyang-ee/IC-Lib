@@ -1,8 +1,14 @@
-export { default as DatabaseManagement } from './DatabaseManagement';
 export { default as BOMSettings } from './BOMSettings';
 export { default as SMTPSettings } from './SMTPSettings';
-export { default as ECOSection } from './ECOSection';
 export { default as ECOSettingsTab } from './ECOSettingsTab';
 export { default as UserManagement } from './UserManagement';
 export { default as CategorySpecificationsManager } from './CategorySpecificationsManager';
 export { default as ApprovalStagesSettings } from './ApprovalStagesSettings';
+export { default as BomTab } from './tabs/BomTab';
+export { default as CategoryTab } from './tabs/CategoryTab';
+export { default as EcoTab } from './tabs/EcoTab';
+export { default as EmailTab } from './tabs/EmailTab';
+export { default as LogsTab } from './tabs/LogsTab';
+export { default as OperationTab } from './tabs/OperationTab';
+export { default as UpdateTab } from './tabs/UpdateTab';
+export { default as UserTab } from './tabs/UserTab';

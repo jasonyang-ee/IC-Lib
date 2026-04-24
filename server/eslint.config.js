@@ -1,5 +1,6 @@
 import globals from 'globals';
 import pluginJs from '@eslint/js';
+import vitest from '@vitest/eslint-plugin';
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
@@ -30,6 +31,17 @@ export default [
       'array-bracket-spacing': ['error', 'never'],
       'arrow-spacing': ['error', { before: true, after: true }],
       'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1 }],
+    },
+  },
+  {
+    files: ['src/**/*.{test,spec}.{js,mjs}', 'src/test/**/*.{js,mjs}'],
+    ...vitest.configs.recommended,
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+        ...vitest.environments.env.globals,
+      },
     },
   },
 ];

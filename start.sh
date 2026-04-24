@@ -268,9 +268,9 @@ else
         sleep 1
     done
 
-    echo -e "          ${GREEN}[OK]${NC} nginx started (PID: $NGINX_PID)"
-    echo -e "          ${GREEN}[OK]${NC} Backend ready (PID: $BACKEND_PID)"
-    echo -e "          ${GREEN}[OK]${NC} Services Running"
+    echo -e "          ${GREEN}[STARTER]${NC} nginx started (PID: $NGINX_PID)"
+    echo -e "          ${GREEN}[STARTER]${NC} Backend ready (PID: $BACKEND_PID)"
+    echo -e "          ${GREEN}[STARTER]${NC} Services Running"
     echo ""
 
     # Wait for either process to exit

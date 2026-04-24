@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * CSV Import Script for Legacy CIS Database to New Schema
+ * CSV Import Script for Legacy CIP/CIS combo Database to New Schema
  *
- * This script imports CSV files exported from the legacy CIS database
+ * This script imports CSV files exported from the legacy CIP/CIS database
  * into the new PostgreSQL schema defined in /database/init-schema.sql
  *
  * Features:

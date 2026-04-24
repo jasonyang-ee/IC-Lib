@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ECO approval stage tags in admin settings now render as separate `Status Tags` and `Change Tags` rows in add, edit, and read-only views
 - ECO settings now keep the approval-stage header actions aligned on a single row, shorten the stage summary copy, and split PDF branding from complete-notification email settings into separate cards with bottom-right save actions
 - Footprint pairing now treats `.dra` plus either `.psm` or `.bsm` as the linked footprint set across Parts Library, File Library, and import/upload flows, and footprint pickers now select those pairs together instead of file-by-file
+- Admin Settings now uses a one-tab-one-component layout for `User`, `BOM`, `Category`, `ECO`, `Email`, `Update`, `Operation`, and `Logs`, with shared common modals, loading states, and typeahead inputs reused across the settings surface
+- Container runtime now uses one consolidated `docker/nginx.conf`, and the production Docker image copies a single nginx configuration instead of splitting main and site config files
+- Client and server ESLint flat configs now apply Vitest rules to test files, and client tests also enforce Testing Library rules for cleaner test assertions and DOM access patterns
 
 ### Fixed
 
@@ -30,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin Settings now renders the ECO tab through a dedicated component, and ECO branding state no longer self-resets in a render loop, so the branding/notification inputs stay editable and sidebar navigation no longer gets stuck after opening that tab
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 - User Management delete confirmation now closes cleanly after deleting a user and uses the lighter shared modal backdrop styling instead of the old solid black overlay
+- File-library rename/delete flows, CAD file rename/delete operations, and ECO PDF logo loading now reject unsafe nested or traversal filenames and enforce base-directory containment before touching the filesystem
 
 ## [1.9.4] - 2026-04-22
 

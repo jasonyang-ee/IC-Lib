@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DEFAULT_ECO_PDF_HEADER } from './ecoSettingsService.js';
 import { ECO_PIPELINE_TYPE_LABELS, getEcoPipelineTypes } from './ecoPipelineService.js';
+import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
 // Colors
 const COLORS = {
@@ -232,9 +233,10 @@ export const generateECOPdf = (ecoData, options = {}) => {
     const imageDir = process.env.NODE_ENV === 'production'
       ? '/app/image'
       : path.join(process.cwd(), '..', 'image');
-    const logoPath = path.join(imageDir, options.logoFilename);
 
     try {
+      const safeLogoFilename = assertSafeLeafName(options.logoFilename, 'logoFilename');
+      const logoPath = resolvePathWithinBase(imageDir, safeLogoFilename);
       if (fs.existsSync(logoPath)) {
         doc.image(logoPath, PAGE.marginLeft, PAGE.marginTop, { height: 40 });
         headerStartY = PAGE.marginTop + 48; // shift title below logo

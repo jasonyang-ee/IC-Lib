@@ -1,8 +1,9 @@
 
-## Commands
+## Commands and Skills
 
 - `./start.sh` — start dev server (client + server).
-- `./test.sh` — always run all lint and tests before ending the conversation.
+- `./test.sh` — always run this bash script for lint and tests before ending the conversation.
+- `/caveman-commit` — summarize all changes into a single commit message with bullet points before ending the conversation.
 
 ## Project Structure
 

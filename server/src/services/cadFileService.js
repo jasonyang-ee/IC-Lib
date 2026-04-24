@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../utils/footprintFiles.js';
+import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -206,17 +207,18 @@ export async function renameCadFile(cadFileId, newFileName) {
   }
 
   const cadFile = cfResult.rows[0];
-  const oldFileName = cadFile.file_name;
+  const oldFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
   const subdir = TYPE_SUBDIR[cadFile.file_type];
+  const safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
 
   if (!subdir) throw new Error(`Invalid file type: ${cadFile.file_type}`);
 
-  const oldPath = path.join(LIBRARY_BASE, subdir, oldFileName);
-  const newPath = path.join(LIBRARY_BASE, subdir, newFileName);
+  const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, oldFileName);
+  const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeNewFileName);
 
   // Collision check
   if (fs.existsSync(newPath)) {
-    throw new Error(`File "${newFileName}" already exists in the ${cadFile.file_type} directory`);
+    throw new Error(`File "${safeNewFileName}" already exists in the ${cadFile.file_type} directory`);
   }
 
   // Rename physical file if it exists
@@ -232,14 +234,14 @@ export async function renameCadFile(cadFileId, newFileName) {
     UPDATE cad_files
     SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
     WHERE id = $3
-  `, [newFileName, `${subdir}/${newFileName}`, cadFileId]);
+  `, [safeNewFileName, `${subdir}/${safeNewFileName}`, cadFileId]);
 
   // Regenerate TEXT columns for all affected components
   for (const comp of affectedComponents) {
     await regenerateCadText(comp.id, cadFile.file_type);
   }
 
-  return { oldFileName, newFileName, fileType: cadFile.file_type };
+  return { oldFileName, newFileName: safeNewFileName, fileType: cadFile.file_type };
 }
 
 /**
@@ -258,10 +260,11 @@ export async function deleteCadFile(cadFileId) {
 
   const cadFile = cfResult.rows[0];
   const subdir = TYPE_SUBDIR[cadFile.file_type];
+  const safeFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
 
   // Delete physical file if it exists
   if (subdir) {
-    const filePath = path.join(LIBRARY_BASE, subdir, cadFile.file_name);
+    const filePath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeFileName);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
