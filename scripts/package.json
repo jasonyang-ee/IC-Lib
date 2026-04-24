@@ -1,6 +1,6 @@
 {
   "name": "ic-lib-scripts",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "author": "Jason Yang",
   "description": "CIP Database import scripts for IC Lib",
   "private": true,

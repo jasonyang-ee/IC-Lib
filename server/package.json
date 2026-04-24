@@ -1,6 +1,6 @@
 {
   "name": "ic-lib-server",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "author": "Jason Yang",
   "description": "IC Lib Backend API Server",
   "private": true,

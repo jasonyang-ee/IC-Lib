@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.9.5] - 2026-04-24
+
+### Added
+
 - Documentation now includes `doc/spec.md` and `doc/application-feature-workflow.excalidraw` with a rendered PNG that map the end-to-end workflow from vendor search through BOM export
 - Reports now include a dashboard-aligned `Library Quality` view plus grouped `Footprint Issues` and estimated inventory value coverage reporting
 - Test coverage now includes explicit auth-controller cookie tests, project and inventory route-guard tests, and client ProtectedRoute behavior tests for the login redirect path
