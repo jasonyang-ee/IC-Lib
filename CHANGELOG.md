@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation now includes `doc/spec.md` and `doc/application-feature-workflow.excalidraw` with a rendered PNG that map the end-to-end workflow from vendor search through BOM export
 - Reports now include a dashboard-aligned `Library Quality` view plus grouped `Footprint Issues` and estimated inventory value coverage reporting
+- Test coverage now includes explicit auth-controller cookie tests, project and inventory route-guard tests, and client ProtectedRoute behavior tests for the login redirect path
 
 ### Changed
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Admin Settings now uses a one-tab-one-component layout for `User`, `BOM`, `Category`, `ECO`, `Email`, `Update`, `Operation`, and `Logs`, with shared common modals, loading states, and typeahead inputs reused across the settings surface
 - Container runtime now uses one consolidated `docker/nginx.conf`, and the production Docker image copies a single nginx configuration instead of splitting main and site config files
 - Client and server ESLint flat configs now apply Vitest rules to test files, and client tests also enforce Testing Library rules for cleaner test assertions and DOM access patterns
+- Client authentication now uses server-issued HttpOnly cookies with credentialed API requests instead of persisting JWTs in browser localStorage
 
 ### Fixed
 
@@ -34,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reports no longer flag footprint issues from the legacy `footprint_sources` table, and the inventory value report no longer returns a hardcoded zero total
 - User Management delete confirmation now closes cleanly after deleting a user and uses the lighter shared modal backdrop styling instead of the old solid black overlay
 - File-library rename/delete flows, CAD file rename/delete operations, and ECO PDF logo loading now reject unsafe nested or traversal filenames and enforce base-directory containment before touching the filesystem
+- Project and inventory mutation endpoints now require authenticated write-capable users, so anonymous callers can no longer create, update, consume, or delete those records through the API
 
 ## [1.9.4] - 2026-04-22
 

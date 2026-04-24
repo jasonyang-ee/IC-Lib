@@ -40,16 +40,30 @@ describe('AuthProvider', () => {
     loginMock.mockReset();
     logoutMock.mockReset();
     verifyAuthMock.mockReset();
-    localStorage.clear();
+    verifyAuthMock.mockRejectedValue({ response: { status: 401 } });
   });
 
-  it('clears cached queries after login', async () => {
+  it('verifies auth state on mount without reading or writing localStorage', async () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+    const queryClient = new QueryClient();
+
+    renderAuthProvider(queryClient);
+
+    await waitFor(() => expect(verifyAuthMock).toHaveBeenCalledTimes(1));
+    expect(getItemSpy).not.toHaveBeenCalledWith('token');
+    expect(setItemSpy).not.toHaveBeenCalledWith('token', expect.anything());
+    expect(removeItemSpy).not.toHaveBeenCalledWith('token');
+  });
+
+  it('clears cached queries after login without persisting a token in localStorage', async () => {
     const queryClient = new QueryClient();
     const clearSpy = vi.spyOn(queryClient, 'clear');
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
 
     loginMock.mockResolvedValue({
       data: {
-        token: 'token-123',
         user: { id: 'user-1', username: 'tester', role: 'approver', displayName: 'Tester' },
       },
     });
@@ -58,22 +72,22 @@ describe('AuthProvider', () => {
     fireEvent.click(screen.getByText('login'));
 
     await waitFor(() => expect(loginMock).toHaveBeenCalledWith({ username: 'tester', password: 'secret' }));
-    await waitFor(() => expect(clearSpy).toHaveBeenCalledTimes(1));
-    expect(localStorage.getItem('token')).toBe('token-123');
+    await waitFor(() => expect(clearSpy).toHaveBeenCalledTimes(2));
+    expect(setItemSpy).not.toHaveBeenCalledWith('token', expect.anything());
   });
 
-  it('clears cached queries after logout', async () => {
+  it('clears cached queries after logout without removing a local token', async () => {
     const queryClient = new QueryClient();
     const clearSpy = vi.spyOn(queryClient, 'clear');
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
 
     logoutMock.mockResolvedValue({});
 
     renderAuthProvider(queryClient);
-    localStorage.setItem('token', 'token-123');
     fireEvent.click(screen.getByText('logout'));
 
     await waitFor(() => expect(logoutMock).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(clearSpy).toHaveBeenCalledTimes(1));
-    expect(localStorage.getItem('token')).toBeNull();
+    await waitFor(() => expect(clearSpy).toHaveBeenCalledTimes(2));
+    expect(removeItemSpy).not.toHaveBeenCalledWith('token');
   });
 });

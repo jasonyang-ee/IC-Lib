@@ -1,5 +1,6 @@
 import express from 'express';
 import * as inventoryController from '../controllers/inventoryController.js';
+import { authenticate, canWrite } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -13,13 +14,13 @@ router.get('/:id', inventoryController.getInventoryById);
 router.get('/component/:componentId', inventoryController.getInventoryByComponent);
 
 // Create inventory entry
-router.post('/', inventoryController.createInventory);
+router.post('/', authenticate, canWrite, inventoryController.createInventory);
 
 // Update inventory
-router.put('/:id', inventoryController.updateInventory);
+router.put('/:id', authenticate, canWrite, inventoryController.updateInventory);
 
 // Delete inventory
-router.delete('/:id', inventoryController.deleteInventory);
+router.delete('/:id', authenticate, canWrite, inventoryController.deleteInventory);
 
 // Get low stock items
 router.get('/alerts/low-stock', inventoryController.getLowStockItems);
@@ -31,6 +32,6 @@ router.post('/search/barcode', inventoryController.searchByBarcode);
 router.get('/:id/alternatives', inventoryController.getAlternativeInventory);
 
 // Update alternative inventory (location and quantity)
-router.put('/alternatives/:altId', inventoryController.updateAlternativeInventory);
+router.put('/alternatives/:altId', authenticate, canWrite, inventoryController.updateAlternativeInventory);
 
 export default router;

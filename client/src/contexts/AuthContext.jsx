@@ -19,21 +19,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check if user is already logged in on app load
+  // Check if the server-issued auth cookie is still valid on app load.
   const verifyAuth = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
       const response = await api.verifyAuth();
       setUser(response.data.user);
       setIsAuthenticated(true);
     } catch (error) {
-      console.error('Auth verification failed:', error);
-      localStorage.removeItem('token');
+      if (error.response?.status !== 401) {
+        console.error('Auth verification failed:', error);
+      }
       queryClient.clear();
       setUser(null);
       setIsAuthenticated(false);
@@ -49,9 +44,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.login({ username, password });
-      const { token, user } = response.data;
+      const { user } = response.data;
       
-      localStorage.setItem('token', token);
       queryClient.clear();
       setUser(user);
       setIsAuthenticated(true);
@@ -69,7 +63,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem('token');
       queryClient.clear();
       setUser(null);
       setIsAuthenticated(false);

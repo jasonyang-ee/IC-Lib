@@ -5,7 +5,24 @@ if (!JWT_SECRET) {
   console.error('\x1b[31m[FATAL]\x1b[0m \x1b[36m[Auth]\x1b[0m JWT_SECRET environment variable is not set. Server cannot start securely.');
   process.exit(1);
 }
-const JWT_EXPIRES_IN = '24h';
+export const JWT_EXPIRES_IN = '24h';
+export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'token';
+const AUTH_COOKIE_MAX_AGE = 24 * 60 * 60 * 1000;
+
+export const getAuthCookieOptions = ({ clear = false } = {}) => {
+  const options = {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  };
+
+  if (!clear) {
+    options.maxAge = AUTH_COOKIE_MAX_AGE;
+  }
+
+  return options;
+};
 
 /**
  * Generate JWT token for authenticated user
@@ -37,18 +54,18 @@ export const verifyToken = (token) => {
  */
 export const authenticate = (req, res, next) => {
   try {
-    // Get token from Authorization header or cookie
+    // Get token from cookie or Authorization header
     let token = null;
-    
-    // Check Authorization header first (Bearer token)
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
+
+    if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
+      token = req.cookies[AUTH_COOKIE_NAME];
     }
-    
-    // Fallback to cookie if no Authorization header
-    if (!token && req.cookies && req.cookies.token) {
-      token = req.cookies.token;
+
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
     }
 
     if (!token) {

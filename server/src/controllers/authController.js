@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import pool from '../config/database.js';
-import { generateToken } from '../middleware/auth.js';
+import { AUTH_COOKIE_NAME, generateToken, getAuthCookieOptions } from '../middleware/auth.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 import { canDelegateToRole } from '../services/ecoApprovalEligibilityService.js';
 
@@ -30,7 +30,7 @@ const pickEcoNotificationPreferences = (row = {}) => ECO_NOTIFICATION_FIELDS.red
 );
 
 /**
- * Login - Authenticate user and return JWT token
+ * Login - Authenticate user and set JWT cookie
  */
 export const login = async (req, res) => {
   try {
@@ -96,9 +96,10 @@ export const login = async (req, res) => {
     // Generate JWT token
     const token = generateToken(user);
 
-    // Return token and user info
+    res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+
+    // Return user info only; JWT stays in the HttpOnly cookie
     res.json({
-      token,
       user: {
         id: user.id,
         username: user.username,
@@ -147,7 +148,7 @@ export const verify = async (req, res) => {
 };
 
 /**
- * Logout - Client-side token deletion, log activity
+ * Logout - Clear JWT cookie and log activity
  */
 export const logout = async (req, res) => {
   try {
@@ -168,6 +169,8 @@ export const logout = async (req, res) => {
         console.error('Failed to log logout activity:', logError);
       }
     }
+
+    res.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions({ clear: true }));
 
     res.json({ message: 'Logged out successfully' });
   } catch (error) {

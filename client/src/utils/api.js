@@ -9,24 +9,11 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (basePath + '/api');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-// Request interceptor - Add JWT token to requests
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Response interceptor - Handle auth errors
 apiClient.interceptors.response.use(
@@ -39,8 +26,6 @@ apiClient.interceptors.response.use(
       const isLoginPage = pathname.endsWith('/login');
       
       if (!isLoginPage) {
-        localStorage.removeItem('token');
-
         // Redirect to login with proper base path
         window.location.href = buildAppPath('/login');
       }
