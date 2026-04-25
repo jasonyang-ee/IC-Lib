@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.9.7] - 2026-04-24
+
+### Added
+
 - Parts Library status filtering now uses a compact two-column button filter with default `new`, `reviewing`, `prototype`, and `production` visibility, while vendor-selection and ECO detail coverage now include focused client tests for the new UI behavior
 
 ### Changed
