@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 
+
+### Fixed
+
+- 
+
+## [1.9.8] - 2026-04-25
+
+### Added
+
+- 
+
+### Changed
+
 - Admin users can now use direct `Edit Component` actions in Parts Library even while ECO workflow is enabled, leaving ECO initiation available as separate path
 
 ### Fixed

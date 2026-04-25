@@ -1,6 +1,6 @@
 {
   "name": "ic-lib",
-  "version": "1.9.7",
+  "version": "1.9.8",
   "author": "Jason Yang",
   "description": "IC Component Library Management System - PCB parts library with inventory management, vendor integration, and ECO workflow",
   "license": "LicenseRef-IC-Lib-1.0",
