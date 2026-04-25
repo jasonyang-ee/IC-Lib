@@ -25,6 +25,7 @@ import { FileTypesView, CategoryView, RenameModal, DeleteModal } from '../compon
 import { ConfirmationModal } from '../components/common';
 import { routeTypeToFileType } from '../components/fileLibrary/constants';
 import { canDeleteLibraryFiles as canDeleteLibraryFilesForRole } from '../utils/accessControl';
+import { THREE_D_MODEL_LABEL } from '../utils/cadFileTypes';
 
 // View modes
 const VIEW_FILE_TYPES = 'fileTypes';
@@ -35,7 +36,7 @@ const fileTypes = [
   { id: 'schematic', label: 'Schematic Symbol', icon: Zap, color: 'text-green-500', bgColor: 'bg-green-100 dark:bg-green-900/30' },
   { id: 'footprint', label: 'PCB Footprint', icon: Cpu, color: 'text-blue-500', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
   { id: 'pad', label: 'Pad File', icon: Layers, color: 'text-teal-500', bgColor: 'bg-teal-100 dark:bg-teal-900/30' },
-  { id: 'step', label: 'STEP 3D Model', icon: Box, color: 'text-purple-500', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
+  { id: 'step', label: THREE_D_MODEL_LABEL, icon: Box, color: 'text-purple-500', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
   { id: 'pspice', label: 'PSpice Model', icon: FileCode, color: 'text-orange-500', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
 ];
 

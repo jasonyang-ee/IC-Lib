@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils/cadFileNaming';
+import { CAD_FILE_UPLOAD_ACCEPT, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
 import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus } from 'lucide-react';
@@ -12,7 +13,7 @@ const CATEGORY_LABELS = {
   symbol: 'Schematic',
   footprint: 'Footprint',
   pad: 'Pad',
-  model: '3D Model',
+  model: THREE_D_MODEL_LABEL,
   pspice: 'PSpice',
   libraries: 'Library Archive',
 };
@@ -25,7 +26,7 @@ const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'model', 'pspice'];
 
 // Categories restricted to a single file per component
 const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
-const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: '3D STEP Model' };
+const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: THREE_D_MODEL_LABEL };
 const MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024;
 
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
@@ -1096,7 +1097,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             multiple
             onChange={handleFileInput}
             className="hidden"
-            accept=".brd,.kicad_mod,.lbr,.pad,.olb,.psm,.fsm,.bxl,.plb,.lib,.kicad_sym,.bsm,.SchLib,.step,.stp,.iges,.igs,.wrl,.3ds,.x_t,.mod,.cir,.sub,.inc,.zip"
+            accept={CAD_FILE_UPLOAD_ACCEPT}
           />
           {uploading ? (
             <p className="text-sm text-gray-600 dark:text-gray-400">Uploading...</p>

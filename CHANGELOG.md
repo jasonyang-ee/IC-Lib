@@ -9,15 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+
 
 ### Changed
 
-- 
+- Parts Library and File Library now label `step_model` assets as `3D Model`, matching support for `.stp`, `.step`, `.stl`, and `.iges` files in file-management flows
 
 ### Fixed
 
-- 
+- CAD upload, ZIP import, and library scan flows now share one 3D-model extension list, so `.stl` files are accepted consistently alongside existing model formats
 
 ## [1.9.5] - 2026-04-24
 

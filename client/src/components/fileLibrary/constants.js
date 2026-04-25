@@ -1,8 +1,10 @@
+import { THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
+
 // Map file type IDs from cad_files.file_type to display labels
 export const fileTypeLabels = {
   footprint: 'PCB Footprint',
   symbol: 'Schematic',
-  model: 'STEP 3D Model',
+  model: THREE_D_MODEL_LABEL,
   pspice: 'PSpice Model',
   pad: 'Pad File',
 };

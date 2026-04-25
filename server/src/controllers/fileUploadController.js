@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import pool from '../config/database.js';
+import { MODEL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
 import { normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
 
@@ -29,7 +30,7 @@ const FILE_CATEGORIES = {
     subdir: 'symbol',
   },
   model: {
-    extensions: ['.step', '.stp', '.iges', '.igs', '.3ds'],
+    extensions: MODEL_FILE_EXTENSIONS,
     subdir: 'model',
   },
   pspice: {
@@ -248,7 +249,7 @@ function extractSmartZipToTemp(zipPath) {
     '.brd', '.kicad_mod', '.lbr', '.psm', '.bsm', '.fsm', '.bxl', '.dra',
     '.pad', '.plb',
     '.olb', '.lib', '.kicad_sym', '.schlib', '.edf',
-    '.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t',
+    ...MODEL_FILE_EXTENSIONS,
     '.cir', '.sub', '.inc', '.mod',
     '.dcm', '.asc', '.hkp',
   ]);

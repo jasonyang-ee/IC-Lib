@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { MODEL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
 import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../utils/footprintFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
@@ -399,7 +400,7 @@ const SCAN_CATEGORIES = {
     fileType: 'symbol',
   },
   model: {
-    extensions: ['.step', '.stp', '.iges', '.igs', '.wrl', '.3ds', '.x_t'],
+    extensions: MODEL_FILE_EXTENSIONS,
     subdir: 'model',
     fileType: 'model',
   },
