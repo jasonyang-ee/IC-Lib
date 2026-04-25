@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Parts Library file-conflict dialogs no longer show a top-right close icon, so save-time conflict handling must continue through explicit resolution or `Abort`
+- Parts Library edit mode now persists alternative-part deletions even when the save leaves a component with no alternatives remaining
 
 ## [1.9.7] - 2026-04-24
 

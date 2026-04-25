@@ -1142,75 +1142,73 @@ const Library = () => {
         }
         
         // Handle alternatives - create new, update existing, delete removed
-        if (editData.alternatives && editData.alternatives.length > 0) {
-          // Get existing alternatives to compare
-          const existingAlternatives = alternativesData || [];
-          const existingIds = new Set(existingAlternatives.map(alt => alt.id));
-          const currentIds = new Set(editData.alternatives.filter(alt => alt.id).map(alt => alt.id));
-          
-          // Delete alternatives that were removed
-          const toDelete = existingAlternatives.filter(alt => !currentIds.has(alt.id));
-          for (const alt of toDelete) {
-            await api.deleteComponentAlternative(selectedComponent.id, alt.id);
-          }
-          
-          // Create or update alternatives
-          for (const alt of editData.alternatives) {
-            // Validate required fields
-            if (!alt.manufacturer_id || !alt.manufacturer_pn?.trim()) {
-              continue; // Skip invalid alternatives
-            }
-            
-            let altManufacturerId = alt.manufacturer_id;
-            
-            // Check if alternative manufacturer needs to be created
-            if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
-              const newManufacturerName = altManufacturerId.substring(4);
-              try {
-                const response = await createManufacturerMutation.mutateAsync({ 
-                  name: newManufacturerName 
-                });
-                altManufacturerId = response.data.id;
-              } catch (error) {
-                console.error('Error creating alternative manufacturer:', error);
-                continue; // Skip this alternative if manufacturer creation fails
-              }
-            }
-            
-            if (alt.id && existingIds.has(alt.id)) {
-              // Update existing alternative
-              await api.updateComponentAlternative(selectedComponent.id, alt.id, {
-                manufacturer_id: altManufacturerId,
-                manufacturer_pn: alt.manufacturer_pn,
-                distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
-                  distributor_id: d.distributor_id,
-                  sku: d.sku || '',
-                  url: d.url || '',
-                  in_stock: d.in_stock || false,
-                  stock_quantity: d.stock_quantity || 0,
-                  price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
-                })) || []
-              });
-            } else {
-              // Create new alternative
-              await api.createComponentAlternative(selectedComponent.id, {
-                manufacturer_id: altManufacturerId,
-                manufacturer_pn: alt.manufacturer_pn,
-                distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
-                  distributor_id: d.distributor_id,
-                  sku: d.sku || '',
-                  url: d.url || '',
-                  in_stock: d.in_stock || false,
-                  stock_quantity: d.stock_quantity || 0,
-                  price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
-                })) || []
-              });
-            }
-          }
-          
-          // Refresh alternatives data
-          queryClient.invalidateQueries(['componentAlternatives']);
+        const existingAlternatives = alternativesData || [];
+        const existingIds = new Set(existingAlternatives.map(alt => alt.id));
+        const currentAlternatives = editData.alternatives || [];
+        const currentIds = new Set(currentAlternatives.filter(alt => alt.id).map(alt => alt.id));
+
+        // Delete alternatives that were removed, including when user removed last one.
+        const toDelete = existingAlternatives.filter(alt => !currentIds.has(alt.id));
+        for (const alt of toDelete) {
+          await api.deleteComponentAlternative(selectedComponent.id, alt.id);
         }
+
+        // Create or update alternatives
+        for (const alt of currentAlternatives) {
+          // Validate required fields
+          if (!alt.manufacturer_id || !alt.manufacturer_pn?.trim()) {
+            continue; // Skip invalid alternatives
+          }
+
+          let altManufacturerId = alt.manufacturer_id;
+
+          // Check if alternative manufacturer needs to be created
+          if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
+            const newManufacturerName = altManufacturerId.substring(4);
+            try {
+              const response = await createManufacturerMutation.mutateAsync({
+                name: newManufacturerName
+              });
+              altManufacturerId = response.data.id;
+            } catch (error) {
+              console.error('Error creating alternative manufacturer:', error);
+              continue; // Skip this alternative if manufacturer creation fails
+            }
+          }
+
+          if (alt.id && existingIds.has(alt.id)) {
+            // Update existing alternative
+            await api.updateComponentAlternative(selectedComponent.id, alt.id, {
+              manufacturer_id: altManufacturerId,
+              manufacturer_pn: alt.manufacturer_pn,
+              distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
+                distributor_id: d.distributor_id,
+                sku: d.sku || '',
+                url: d.url || '',
+                in_stock: d.in_stock || false,
+                stock_quantity: d.stock_quantity || 0,
+                price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
+              })) || []
+            });
+          } else {
+            // Create new alternative
+            await api.createComponentAlternative(selectedComponent.id, {
+              manufacturer_id: altManufacturerId,
+              manufacturer_pn: alt.manufacturer_pn,
+              distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
+                distributor_id: d.distributor_id,
+                sku: d.sku || '',
+                url: d.url || '',
+                in_stock: d.in_stock || false,
+                stock_quantity: d.stock_quantity || 0,
+                price_breaks: Array.isArray(d.price_breaks) ? d.price_breaks : []
+              })) || []
+            });
+          }
+        }
+
+        // Refresh alternatives data
+        queryClient.invalidateQueries(['componentAlternatives']);
         
         // Refresh the component details
         queryClient.invalidateQueries(['components']);
