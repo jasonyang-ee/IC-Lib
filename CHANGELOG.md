@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - CAD upload, ZIP import, and library scan flows now share one 3D-model extension list, so `.stl` files are accepted consistently alongside existing model formats
+- GitHub Actions coverage uploads now use the current Codecov `files` input, and the client check job now generates coverage before upload
 
 ## [1.9.5] - 2026-04-24
 
