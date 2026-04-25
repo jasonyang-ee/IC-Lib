@@ -8,6 +8,7 @@ export const canAccessFullNavigation = (role) => fullNavigationRoles.includes(ro
 export const canAccessUserSettings = (role) => userSettingsRoles.includes(role);
 export const isLimitedNavigationRole = (role) => limitedNavigationRoles.includes(role);
 export const canDeleteLibraryFiles = (role) => fileLibraryDeleteRoles.includes(role);
+export const canDirectEditLibraryComponents = (role) => role === 'admin';
 
 export const getDefaultRouteForRole = (role, ecoEnabled) => {
   if (isLimitedNavigationRole(role)) {

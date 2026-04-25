@@ -16,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { canDirectEditLibraryComponents } from '../utils/accessControl';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
 const LIBRARY_STATUS_FILTERS = [
@@ -89,6 +90,7 @@ const Library = () => {
   const { canWrite, canApprove, user } = useAuth();
   const { ecoEnabled: isECOEnabled } = useFeatureFlags();
   const { showSuccess, showError, showInfo } = useNotification();
+  const canDirectEditLibraryComponent = canDirectEditLibraryComponents(user?.role);
   
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -3231,16 +3233,27 @@ const Library = () => {
                   
                   {/* Show different buttons based on ECO configuration */}
                   {isECOEnabled ? (
-                    // ECO Mode: Show only "Initiate ECO" button
-                    selectedComponent && canWrite() && (
-                      <button
-                        onClick={() => handleInitiateECO(selectedComponent)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                      >
-                        <FileEdit className="w-4 h-4" />
-                        Initiate ECO
-                      </button>
-                    )
+                    // ECO Mode: admin can bypass ECO with direct edit, others must initiate ECO.
+                    <>
+                      {selectedComponent && canWrite() && canDirectEditLibraryComponent && (
+                        <button
+                          onClick={handleEdit}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Component
+                        </button>
+                      )}
+                      {selectedComponent && canWrite() && (
+                        <button
+                          onClick={() => handleInitiateECO(selectedComponent)}
+                          className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <FileEdit className="w-4 h-4" />
+                          Initiate ECO
+                        </button>
+                      )}
+                    </>
                   ) : (
                     // Normal Mode: Show Edit and Delete buttons
                     <>

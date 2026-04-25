@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- 
+- Admin users can now use direct `Edit Component` actions in Parts Library even while ECO workflow is enabled, leaving ECO initiation available as separate path
 
 ### Fixed
 
-- 
+- Parts Library file-conflict dialogs no longer show a top-right close icon, so save-time conflict handling must continue through explicit resolution or `Abort`
 
 ## [1.9.7] - 2026-04-24
 

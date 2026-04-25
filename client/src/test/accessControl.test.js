@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canAccessFullNavigation,
   canAccessUserSettings,
+  canDirectEditLibraryComponents,
   canDeleteLibraryFiles,
   getDefaultRouteForRole,
 } from '../utils/accessControl';
@@ -24,5 +25,12 @@ describe('accessControl', () => {
     expect(canDeleteLibraryFiles('read-write')).toBe(false);
     expect(canDeleteLibraryFiles('approver')).toBe(true);
     expect(canDeleteLibraryFiles('admin')).toBe(true);
+  });
+
+  it('only allows admin to bypass ECO for direct library edits', () => {
+    expect(canDirectEditLibraryComponents('read-write')).toBe(false);
+    expect(canDirectEditLibraryComponents('approver')).toBe(false);
+    expect(canDirectEditLibraryComponents('admin')).toBe(true);
+    expect(canDirectEditLibraryComponents(undefined)).toBe(false);
   });
 });

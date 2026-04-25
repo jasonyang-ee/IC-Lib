@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { groupFootprintFiles } from '../../utils/footprintFiles';
 
 const CATEGORY_LABELS = {
@@ -75,17 +75,6 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
         className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-end mb-2 shrink-0">
-          <button
-            type="button"
-            onClick={onAbort}
-            disabled={isProcessing}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50"
-            aria-label="Close file conflict dialog"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
         {/* Header */}
         <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20 shrink-0">
           <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
