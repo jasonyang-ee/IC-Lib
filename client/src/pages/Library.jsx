@@ -25,7 +25,7 @@ const LIBRARY_STATUS_FILTERS = [
   { value: 'production', label: 'Production' },
   { value: 'archived', label: 'Archived' },
 ];
-const DEFAULT_LIBRARY_STATUSES = ['new', 'prototype', 'production'];
+const DEFAULT_LIBRARY_STATUSES = ['new', 'reviewing', 'prototype', 'production'];
 
 /**
  * Normalize distributor rows to always have 4 entries in standard order,
@@ -3021,29 +3021,26 @@ const Library = () => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Filter</h3>
-            <div className="space-y-2">
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-3 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Filter</h3>
+            <div className="grid grid-cols-2 gap-1.5">
               {LIBRARY_STATUS_FILTERS.map((status) => {
                 const checked = selectedApprovalStatuses.includes(status.value);
 
                 return (
-                  <label
+                  <button
+                    type="button"
                     key={status.value}
-                    className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors cursor-pointer ${
+                    onClick={() => toggleApprovalStatusFilter(status.value)}
+                    aria-pressed={checked}
+                    className={`rounded-md border px-2.5 py-1.5 text-left text-sm font-medium transition-colors ${
                       checked
-                        ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20'
-                        : 'border-gray-200 hover:bg-gray-50 dark:border-[#444444] dark:hover:bg-[#333333]'
+                        ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/20 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-[#444444] dark:text-gray-300 dark:hover:bg-[#333333]'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleApprovalStatusFilter(status.value)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{status.label}</span>
-                  </label>
+                    {status.label}
+                  </button>
                 );
               })}
             </div>

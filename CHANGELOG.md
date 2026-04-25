@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Parts Library status filtering now uses a checkbox filter panel with default `new`, `prototype`, and `production` visibility, while vendor-selection and ECO detail coverage now include focused client tests for the new UI behavior
+- Parts Library status filtering now uses a compact two-column button filter with default `new`, `reviewing`, `prototype`, and `production` visibility, while vendor-selection and ECO detail coverage now include focused client tests for the new UI behavior
 
 ### Changed
 
