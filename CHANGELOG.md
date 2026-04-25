@@ -9,15 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Parts Library status filtering now uses a checkbox filter panel with default `new`, `prototype`, and `production` visibility, while vendor-selection and ECO detail coverage now include focused client tests for the new UI behavior
 
 ### Changed
 
-- 
+- Vendor Search part-selection dialogs now use the lighter shared modal backdrop style and show each candidate part's category and approval status in a compact right-side summary column
+- ECO detail and PDF summaries now break category changes into a dedicated warning section that calls out old-part archival and new-part creation instead of burying that change in the generic component-change table
 
 ### Fixed
 
-- 
+- Parts Library CAD file picker and file-replacement confirmation dialogs no longer close on accidental backdrop clicks during edit/add/ECO file workflows, and each now includes an explicit top-right close button
 
 ## [1.9.6] - 2026-04-24
 

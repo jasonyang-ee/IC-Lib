@@ -382,6 +382,8 @@ const VendorSearch = () => {
               ...alt,
               parent_component_id: component.id,
               parent_part_number: component.part_number,
+              category_name: component.category_name,
+              approval_status: component.approval_status,
               is_alternative: true
             });
           });

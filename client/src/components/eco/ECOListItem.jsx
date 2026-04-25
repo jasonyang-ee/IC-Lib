@@ -73,6 +73,10 @@ const ECOListItem = ({
   const canActOnCurrentStage = canApprove && currentUserCanAct;
   const approvalActionDisabled = !canActOnCurrentStage || approvePending;
   const rejectionActionDisabled = !canActOnCurrentStage || rejectPending;
+  const categoryChange = ecoDetails?.changes?.find((change) => change.field_name === 'category_id') || null;
+  const componentFieldChanges = ecoDetails?.changes?.filter((change) => change.field_name !== 'category_id') || [];
+  const categoryChangePartNumber = ecoDetails?.part_number || ecoDetails?.component_part_number || eco?.component_part_number || eco?.part_number;
+  const categoryChangeApproved = (ecoDetails?.status || eco.status) === 'approved';
   const actionDisabledTitle = canActOnCurrentStage
     ? undefined
     : hasStageConfigurationMismatch
@@ -396,8 +400,44 @@ const ECOListItem = ({
                 </div>
               )}
 
+              {categoryChange && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    Category Change
+                  </h4>
+                  <div className="bg-amber-50 dark:bg-amber-900/10 rounded border border-amber-200 dark:border-amber-800 p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Current Category</p>
+                        <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{categoryChange.old_category_name || categoryChange.old_value || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">New Category</p>
+                        <p className="mt-1 font-medium text-gray-900 dark:text-gray-100">{categoryChange.new_category_name || categoryChange.new_value || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                        Old part archived
+                      </span>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                        New part created
+                      </span>
+                    </div>
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      {categoryChangeApproved
+                        ? (categoryChangePartNumber ? `${categoryChangePartNumber} was archived.` : 'Current part was archived.')
+                        : (categoryChangePartNumber ? `${categoryChangePartNumber} will be archived after approval.` : 'Current part will be archived after approval.')}
+                      {' '}
+                      {categoryChangeApproved ? 'A new part number was created in ' : 'A new part number will be created in '}
+                      {categoryChange.new_category_name || 'new category'}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Component Field Changes */}
-              {ecoDetails.changes && ecoDetails.changes.length > 0 && (
+              {componentFieldChanges.length > 0 && (
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     Component Changes
@@ -412,7 +452,7 @@ const ECOListItem = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-[#3a3a3a]">
-                        {ecoDetails.changes.map((change, idx) => {
+                        {componentFieldChanges.map((change, idx) => {
                           // Helper to get display value for special fields
                           const getDisplayValue = (field, value, isOld) => {
                             if (field === '_status_proposal') {
@@ -667,7 +707,7 @@ const ECOListItem = ({
               )}
 
               {/* No changes message */}
-              {(!ecoDetails.changes || ecoDetails.changes.length === 0) &&
+              {!categoryChange && componentFieldChanges.length === 0 &&
                (!ecoDetails.specifications || ecoDetails.specifications.length === 0) &&
                (!ecoDetails.alternatives || ecoDetails.alternatives.length === 0) &&
                (!ecoDetails.distributors || ecoDetails.distributors.length === 0) &&

@@ -1,5 +1,13 @@
 import { X } from 'lucide-react';
 
+const STATUS_BADGE_CLASSES = {
+  new: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  reviewing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  prototype: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  production: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  archived: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+};
+
 const PartSelectionModal = ({
   appendMode,
   selectedParts,
@@ -15,8 +23,8 @@ const PartSelectionModal = ({
   onFilterParts,
 }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-3xl w-full max-h-[80vh] flex flex-col border border-gray-200 dark:border-[#3a3a3a] shadow-2xl animate-fadeIn">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {appendMode === 'distributor' ? 'Select Part to Update Distributors' : 'Select Part to Add Alternative'}
@@ -81,10 +89,10 @@ const PartSelectionModal = ({
               <div
                 key={component.is_alternative ? `alt-${component.id}` : component.id}
                 onClick={() => onSelectPart(component)}
-                className="p-4 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
+                className="p-3.5 border border-gray-200 dark:border-[#3a3a3a] rounded-lg hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer transition-colors"
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-gray-900 dark:text-gray-100">
                         {component.is_alternative ? component.parent_part_number : component.part_number}
@@ -106,6 +114,20 @@ const PartSelectionModal = ({
                     <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                       {component.description}
                     </p>
+                  </div>
+                  <div className="w-36 shrink-0 space-y-2 text-xs">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Category</p>
+                      <p className="mt-0.5 text-sm text-gray-800 dark:text-gray-200 truncate">
+                        {component.category_name || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</p>
+                      <span className={`mt-1 inline-flex px-2 py-0.5 rounded text-xs font-medium capitalize ${STATUS_BADGE_CLASSES[component.approval_status] || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                        {component.approval_status || 'unknown'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

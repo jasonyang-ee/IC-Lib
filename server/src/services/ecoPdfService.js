@@ -386,20 +386,56 @@ export const generateECOPdf = (ecoData, options = {}) => {
     }
   }
 
+  const categoryChange = ecoData.changes?.find((change) => change.field_name === 'category_id') || null;
+  const componentChanges = ecoData.changes?.filter((change) => change.field_name !== 'category_id') || [];
+
+  if (categoryChange) {
+    drawSectionHeading(doc, 'Category Change');
+
+    const currentPartNumber = ecoData.part_number || ecoData.component_part_number || '-';
+    const currentCategory = categoryChange.old_category_name || categoryChange.old_value || '-';
+    const nextCategory = categoryChange.new_category_name || categoryChange.new_value || '-';
+    const categoryHeaders = ['Current Part', 'Current Category', 'New Category'];
+    const categoryColWidths = [contentWidth * 0.34, contentWidth * 0.33, contentWidth * 0.33];
+
+    drawTable(doc, categoryHeaders, [[currentPartNumber, currentCategory, nextCategory]], categoryColWidths);
+
+    const archiveLine = ecoData.status === 'approved'
+      ? `${currentPartNumber !== '-' ? currentPartNumber : 'Current part'} was archived.`
+      : `${currentPartNumber !== '-' ? currentPartNumber : 'Current part'} will be archived after approval.`;
+    const createLine = `${ecoData.status === 'approved' ? 'A new part number was created in ' : 'A new part number will be created in '}${nextCategory !== '-' ? nextCategory : 'the new category'}.`;
+
+    checkPage(doc, 24);
+    doc
+      .fontSize(FONT_SIZE.small)
+      .font('Helvetica-Bold')
+      .fillColor(COLORS.red)
+      .text('ARCHIVE', PAGE.marginLeft, doc.y, { continued: true })
+      .font('Helvetica')
+      .fillColor(COLORS.darkText)
+      .text(`  ${archiveLine}`);
+    doc
+      .fontSize(FONT_SIZE.small)
+      .font('Helvetica-Bold')
+      .fillColor(COLORS.blue)
+      .text('CREATE', PAGE.marginLeft, doc.y, { continued: true })
+      .font('Helvetica')
+      .fillColor(COLORS.darkText)
+      .text(`  ${createLine}`);
+    doc.y += 4;
+  }
+
   // ===== COMPONENT CHANGES =====
-  if (ecoData.changes && ecoData.changes.length > 0) {
+  if (componentChanges.length > 0) {
     drawSectionHeading(doc, 'Component Changes');
 
     const changeHeaders = ['Field', 'Old Value', 'New Value'];
     const changeColWidths = [contentWidth * 0.25, contentWidth * 0.375, contentWidth * 0.375];
-    const changeRows = ecoData.changes.map(c => {
+    const changeRows = componentChanges.map(c => {
       let oldVal = c.old_value || '';
       let newVal = c.new_value || '';
 
-      if (c.field_name === 'category_id') {
-        oldVal = c.old_category_name || oldVal;
-        newVal = c.new_category_name || newVal;
-      } else if (c.field_name === 'manufacturer_id') {
+      if (c.field_name === 'manufacturer_id') {
         oldVal = c.old_manufacturer_name || oldVal;
         newVal = c.new_manufacturer_name || newVal;
       } else if (c.field_name === '_status_proposal') {

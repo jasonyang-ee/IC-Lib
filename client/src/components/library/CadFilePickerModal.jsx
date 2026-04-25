@@ -93,7 +93,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+    <div data-testid="cad-file-picker-backdrop" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div
         className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col border border-gray-200 dark:border-[#3a3a3a]"
         onClick={(e) => e.stopPropagation()}

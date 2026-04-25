@@ -5,7 +5,7 @@ import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils
 import { CAD_FILE_UPLOAD_ACCEPT, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
 import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Download, AlertCircle, Plus } from 'lucide-react';
+import { Download, AlertCircle, Plus, X } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
 import CadFilePickerModal from './CadFilePickerModal';
 
@@ -56,11 +56,22 @@ function forEachUploadResult(results, fn) {
 const RenameConfirmationModal = ({ show, title, oldFilename, newFilename, onConfirm, onDismiss, isPending }) => {
   if (!show) return null;
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onDismiss}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div
         className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex items-start justify-end mb-2">
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={isPending}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50"
+            aria-label="Close file rename confirmation"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
         <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/20">
           <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
         </div>
@@ -1209,11 +1220,22 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
       {/* Single-file category conflict modal */}
       {fileConflict && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !conflictPending && setFileConflict(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div
             className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="flex items-start justify-end mb-2">
+              <button
+                type="button"
+                onClick={() => !conflictPending && setFileConflict(null)}
+                disabled={conflictPending}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50"
+                aria-label="Close file replacement dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
               <AlertCircle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
             </div>

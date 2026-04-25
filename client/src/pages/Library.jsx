@@ -18,6 +18,14 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
+const LIBRARY_STATUS_FILTERS = [
+  { value: 'new', label: 'New' },
+  { value: 'reviewing', label: 'Reviewing' },
+  { value: 'prototype', label: 'Prototype' },
+  { value: 'production', label: 'Production' },
+  { value: 'archived', label: 'Archived' },
+];
+const DEFAULT_LIBRARY_STATUSES = ['new', 'prototype', 'production'];
 
 /**
  * Normalize distributor rows to always have 4 entries in standard order,
@@ -84,7 +92,7 @@ const Library = () => {
   
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
+  const [selectedApprovalStatuses, setSelectedApprovalStatuses] = useState(DEFAULT_LIBRARY_STATUSES);
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
@@ -440,12 +448,11 @@ const Library = () => {
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
-    queryKey: ['components', selectedCategory, debouncedSearch, selectedApprovalStatus],
+    queryKey: ['components', selectedCategory, debouncedSearch],
     queryFn: async () => {
       const response = await api.getComponents({
         category: selectedCategory,
         search: debouncedSearch,
-        approvalStatus: selectedApprovalStatus,
       });
       return response.data;
     },
@@ -2928,7 +2935,9 @@ const Library = () => {
   // Memoize sorted components to avoid re-sorting on every render
   const sortedComponents = useMemo(() => {
     if (!components) return [];
-    return [...components].sort((a, b) => {
+    return components
+      .filter((component) => selectedApprovalStatuses.includes(component.approval_status))
+      .sort((a, b) => {
       let aVal = a[sortBy] || '';
       let bVal = b[sortBy] || '';
 
@@ -2950,7 +2959,15 @@ const Library = () => {
       if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [components, sortBy, sortOrder]);
+  }, [components, selectedApprovalStatuses, sortBy, sortOrder]);
+
+  const toggleApprovalStatusFilter = (status) => {
+    setSelectedApprovalStatuses((currentStatuses) => (
+      currentStatuses.includes(status)
+        ? currentStatuses.filter((currentStatus) => currentStatus !== status)
+        : [...currentStatuses, status]
+    ));
+  };
 
   // Virtualizer for component table rows
   const rowVirtualizer = useVirtualizer({
@@ -3001,6 +3018,34 @@ const Library = () => {
                   {category.name}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-4 border border-gray-200 dark:border-[#3a3a3a] shrink-0">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Filter</h3>
+            <div className="space-y-2">
+              {LIBRARY_STATUS_FILTERS.map((status) => {
+                const checked = selectedApprovalStatuses.includes(status.value);
+
+                return (
+                  <label
+                    key={status.value}
+                    className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors cursor-pointer ${
+                      checked
+                        ? 'border-primary-300 bg-primary-50 dark:border-primary-700 dark:bg-primary-900/20'
+                        : 'border-gray-200 hover:bg-gray-50 dark:border-[#444444] dark:hover:bg-[#333333]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleApprovalStatusFilter(status.value)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{status.label}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -3108,23 +3153,6 @@ const Library = () => {
                     ↓ Desc
                   </button>
                 </div>
-              </div>
-
-              {/* Approval Status Filter */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400 w-12.5">Status:</label>
-                <select
-                  value={selectedApprovalStatus}
-                  onChange={(e) => setSelectedApprovalStatus(e.target.value)}
-                  className="flex-1 px-3 py-1 border border-gray-300 dark:border-[#444444] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#333333] dark:text-gray-100"
-                >
-                  <option value="">All Status</option>
-                  <option value="new">New</option>
-                  <option value="reviewing">Reviewing</option>
-                  <option value="prototype">Prototype</option>
-                  <option value="production">Production</option>
-                  <option value="archived">Archived</option>
-                </select>
               </div>
             </div>
           </div>
