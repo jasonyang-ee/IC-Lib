@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- Server container now includes a CLI-only `repair admin-reset` command that resets the default `admin` user password to a new random six-character string and prints it to the server console
 
 ### Changed
 

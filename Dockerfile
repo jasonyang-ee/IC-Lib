@@ -60,7 +60,8 @@ RUN mkdir -p /var/lib/nginx/logs /run/nginx \
 
 # Copy startup script
 COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+COPY docker/repair /usr/local/bin/repair
+RUN chmod +x /app/start.sh /usr/local/bin/repair
 
 # Production environment variables (can be overridden at runtime)
 ENV NODE_ENV=production \

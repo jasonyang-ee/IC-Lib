@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
+    "repair": "node src/repair.js",
     "check": "eslint . && vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
