@@ -34,7 +34,7 @@
     "lint:fix": "cd client && npm run lint:fix && cd ../server && npm run lint:fix"
   },
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=25.0.0",
     "npm": ">=10.0.0"
   }
 }

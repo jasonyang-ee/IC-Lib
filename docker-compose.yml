@@ -17,7 +17,7 @@ services:
       - DB_HOST=localhost
       - DB_PORT=5432
       - DB_USER=iclib
-      - DB_PASSWORD=123456
+      - DB_PASSWORD=change-this-to-a-secure-db-password-minimum-6-characters
       - DB_NAME=iclib
       
       # Optional: API Keys for vendor integrations
@@ -37,7 +37,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=iclib
-      - POSTGRES_PASSWORD=123456
+      - POSTGRES_PASSWORD=change-this-to-a-secure-db-password-minimum-6-characters
       - POSTGRES_DB=iclib
     volumes:
       - ./iclib/database:/var/lib/postgresql/18/docker

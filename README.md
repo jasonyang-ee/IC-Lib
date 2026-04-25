@@ -32,13 +32,15 @@ services:
       # Authentication Settings
       - JWT_SECRET=change-this-to-a-secure-random-string-in-production-minimum-32-characters
       - CONFIG_ECO=false  # Runtime feature flag for ECO menu/routes
+	  # - CONFIG_BASE_URL=https://iclib.domain.tld/anypath/
+      # - CONFIG_SUBDIRECTORY_PATH=/anypath/
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
       - DB_HOST=localhost
       - DB_PORT=5432
       - DB_USER=iclib
-      - DB_PASSWORD=change-this-to-a-secure-random-string-in-production-minimum-6-characters
+      - DB_PASSWORD=change-this-to-a-secure-db-password-in-production-minimum-6-characters
       - DB_NAME=iclib
       
       # Optional: API Keys for vendor integrations
@@ -56,7 +58,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=iclib
-      - POSTGRES_PASSWORD=change-this-to-a-secure-random-string-in-production-minimum-6-characters
+      - POSTGRES_PASSWORD=change-this-to-a-secure-db-password-in-production-minimum-6-characters
       - POSTGRES_DB=iclib
     volumes:
       - ./iclib/database:/var/lib/postgresql/18/docker
