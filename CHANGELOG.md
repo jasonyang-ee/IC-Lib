@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- 
+- Replaced the narrative `SPEC.md` workflow doc with a caveman-style SDD backfill that captures live interfaces, constraints, invariants, known drift bugs, and next alignment tasks across auth, admin/runtime ops, CAD governance, ECO, inventory, projects, and reporting
 
 ### Fixed
 
