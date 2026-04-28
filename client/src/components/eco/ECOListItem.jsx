@@ -35,6 +35,38 @@ const getApprovalActorLabel = (approval) => {
   return `${approval.user_name} for ${approval.acting_for_user_name || approval.acting_for_username || 'Unknown user'}`;
 };
 
+const getCadFileActionBadge = (action) => {
+  if (action === 'link') {
+    return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
+  }
+
+  if (action === 'rename') {
+    return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400';
+  }
+
+  return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+};
+
+const renderCadFileActionIcon = (action) => {
+  if (action === 'link') {
+    return <Link2 className="w-3 h-3" />;
+  }
+
+  if (action === 'unlink') {
+    return <Unlink2 className="w-3 h-3" />;
+  }
+
+  return null;
+};
+
+const getCadFileActionLabel = (change) => {
+  if (change.action === 'rename' && change.new_file_name) {
+    return `${change.file_name || change.existing_file_name} -> ${change.new_file_name}`;
+  }
+
+  return change.file_name || change.existing_file_name;
+};
+
 const getApprovalStatusBadge = (status) => {
   const styles = {
     production: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
@@ -554,19 +586,38 @@ const ECOListItem = ({
                         key={idx}
                         className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] p-3 flex items-center gap-3"
                       >
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                          cf.action === 'link'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        }`}>
-                          {cf.action === 'link' ? <Link2 className="w-3 h-3" /> : <Unlink2 className="w-3 h-3" />}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${getCadFileActionBadge(cf.action)}`}>
+                          {renderCadFileActionIcon(cf.action)}
                           {cf.action}
                         </span>
                         <span className="text-sm text-gray-700 dark:text-gray-300">
-                          {cf.file_name || cf.existing_file_name}
+                          {getCadFileActionLabel(cf)}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           ({cf.file_type || cf.existing_file_type})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {ecoDetails.affected_components && ecoDetails.affected_components.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    Affected Parts
+                  </h4>
+                  <div className="space-y-2">
+                    {ecoDetails.affected_components.map((component) => (
+                      <div
+                        key={component.component_id || component.id || component.part_number}
+                        className="bg-white dark:bg-[#2a2a2a] rounded border border-gray-200 dark:border-[#3a3a3a] p-3 flex items-center justify-between gap-3"
+                      >
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {component.part_number}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Returns to {component.original_approval_status}
                         </span>
                       </div>
                     ))}
@@ -862,11 +913,8 @@ const ECOListItem = ({
                             <div className="space-y-0.5">
                               {parentEco.cad_files.map((cf, cfIdx) => (
                                 <div key={cfIdx} className="text-xs text-gray-600 dark:text-gray-400">
-                                  <span className={`inline-block px-1 py-0.5 rounded text-xs font-medium mr-1 ${
-                                    cf.action === 'link' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                                    'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                  }`}>{cf.action}</span>
-                                  {cf.file_name || cf.existing_file_name}
+                                  <span className={`inline-block px-1 py-0.5 rounded text-xs font-medium mr-1 ${getCadFileActionBadge(cf.action)}`}>{cf.action}</span>
+                                  {getCadFileActionLabel(cf)}
                                   <span className="text-gray-400 ml-1">({cf.file_type || cf.existing_file_type})</span>
                                 </div>
                               ))}

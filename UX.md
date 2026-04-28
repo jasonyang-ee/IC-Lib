@@ -130,6 +130,7 @@
   - selected file shows linked components + links back to Library
   - footprint pairs grouped
   - rename/delete permission-gated
+  - ECO on + non-admin + shared rename affecting >1 part -> create 1 mass ECO, push affected parts to `reviewing`, apply rename only after approval
   - orphan-only multi-select delete for delete-capable roles
   - CIS template/config downloads in sidebar
 - Category mode:
@@ -304,6 +305,7 @@
 - Footprint pairs are grouped across upload, rename, file-library views.
 - Standard add/edit conflict modal can reuse existing files or overwrite with new uploads.
 - ECO mode intentionally blocks overwrite of existing library files.
+- ECO mode shared file-library renames for non-admin users stage approval before any shared filename changes land.
 - File-path copy depends on per-user storage base path.
 - BOM export defaults come from admin settings but remain user-selectable each export.
 - Approval-stage assignees can narrow action to named users; delegations allow approved backup action.

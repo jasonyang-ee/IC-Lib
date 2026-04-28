@@ -186,6 +186,14 @@ const getApprovalStatusLabel = (status) => {
   return labels[status] || status || '';
 };
 
+const formatCadFileChangeName = (cadFileChange) => {
+  if (cadFileChange?.action === 'rename' && cadFileChange?.new_file_name) {
+    return `${cadFileChange.file_name || cadFileChange.existing_file_name || '-'} -> ${cadFileChange.new_file_name}`;
+  }
+
+  return cadFileChange?.file_name || cadFileChange?.existing_file_name || '-';
+};
+
 const formatFieldName = (field) => {
   if (field === 'category_id') return 'Category';
   if (field === 'manufacturer_id') return 'Manufacturer';
@@ -543,10 +551,22 @@ export const generateECOPdf = (ecoData, options = {}) => {
     const cadColWidths = [contentWidth * 0.15, contentWidth * 0.55, contentWidth * 0.30];
     const cadRows = ecoData.cad_files.map(cf => [
       (cf.action || '').toUpperCase(),
-      cf.file_name || cf.existing_file_name || '-',
+      formatCadFileChangeName(cf),
       cf.file_type || cf.existing_file_type || '-',
     ]);
     drawTable(doc, cadHeaders, cadRows, cadColWidths);
+  }
+
+  if (ecoData.affected_components && ecoData.affected_components.length > 0) {
+    drawSectionHeading(doc, 'Affected Parts');
+
+    const affectedHeaders = ['Part Number', 'Restores To'];
+    const affectedColWidths = [contentWidth * 0.65, contentWidth * 0.35];
+    const affectedRows = ecoData.affected_components.map(component => [
+      component.part_number || '-',
+      getApprovalStatusLabel(component.original_approval_status),
+    ]);
+    drawTable(doc, affectedHeaders, affectedRows, affectedColWidths);
   }
 
   // ===== REJECTION HISTORY =====
@@ -724,10 +744,28 @@ export const generateECOPdf = (ecoData, options = {}) => {
         const cadColWidths = [contentWidth * 0.15, contentWidth * 0.55, contentWidth * 0.30];
         const cadRows = parentEco.cad_files.map(cf => [
           (cf.action || '').toUpperCase(),
-          cf.file_name || cf.existing_file_name || '-',
+          formatCadFileChangeName(cf),
           cf.file_type || cf.existing_file_type || '-',
         ]);
         drawTable(doc, cadHeaders, cadRows, cadColWidths);
+      }
+
+      if (parentEco.affected_components && parentEco.affected_components.length > 0) {
+        doc.y += 4;
+        checkPage(doc, 30);
+        doc
+          .fontSize(FONT_SIZE.small)
+          .font('Helvetica-Bold')
+          .fillColor(COLORS.darkText)
+          .text('Affected Parts:', PAGE.marginLeft, doc.y);
+        doc.y += 2;
+        const affectedHeaders = ['Part Number', 'Restores To'];
+        const affectedColWidths = [contentWidth * 0.65, contentWidth * 0.35];
+        const affectedRows = parentEco.affected_components.map(component => [
+          component.part_number || '-',
+          getApprovalStatusLabel(component.original_approval_status),
+        ]);
+        drawTable(doc, affectedHeaders, affectedRows, affectedColWidths);
       }
 
       // Votes

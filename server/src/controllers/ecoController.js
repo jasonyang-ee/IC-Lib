@@ -29,6 +29,13 @@ import {
 } from '../services/ecoApprovalEligibilityService.js';
 import { resolveEcoApprovalProgress } from '../services/ecoApprovalProgressService.js';
 import { normalizeEcoChangeRows } from '../services/ecoChangeSummaryService.js';
+import {
+  applyMassFileRenameEco,
+  attachMassFileRenameMetadata,
+  buildMassFileRenameCadRows,
+  getMassFileRenameContext,
+  restoreMassFileRenameStatuses,
+} from '../services/massFileRenameEcoService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
@@ -70,7 +77,9 @@ const getECOForEmail = async (client, ecoId) => {
     LEFT JOIN components c ON eo.component_id = c.id
     WHERE eo.id = $1
   `, [ecoId]);
-  return result.rows[0];
+
+  const [eco] = await attachMassFileRenameMetadata(client, result.rows);
+  return eco;
 };
 
 const getEcoCompleteNotificationEmail = async (client) => {
@@ -104,6 +113,8 @@ const buildEcoPdfPayload = async (client, ecoId) => {
 
   let eco = ecoResult.rows[0];
   [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
+  [eco] = await attachMassFileRenameMetadata(client, [eco]);
+  const massFileRenameContext = await getMassFileRenameContext(client, ecoId);
 
   const changesResult = await client.query(`
     SELECT
@@ -234,7 +245,11 @@ const buildEcoPdfPayload = async (client, ecoId) => {
       specifications: specificationsResult.rows,
       approvals: approvalsResult.rows,
       stages: stagesResult.rows,
-      cad_files: cadFilesResult.rows,
+      cad_files: [
+        ...cadFilesResult.rows,
+        ...buildMassFileRenameCadRows(massFileRenameContext),
+      ],
+      affected_components: massFileRenameContext?.components || eco.affected_components || [],
       rejection_history: rejectionHistory,
     },
     logoFilename: logoResult.rows[0]?.eco_logo_filename || '',
@@ -430,6 +445,8 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
       WHERE ecf.eco_id = $1 ORDER BY ecf.id
     `, [currentId]);
 
+    const massFileRenameContext = await getMassFileRenameContext(client, currentId);
+
     chain.push({
       ...parentEco,
       changes: normalizeEcoChangeRows(changes.rows),
@@ -437,7 +454,12 @@ const fetchRejectionHistory = async (client, parentEcoId) => {
       approvals: approvals.rows,
       distributors: distributors.rows,
       alternatives: enrichedAlternatives,
-      cad_files: cadFiles.rows,
+      ...(await attachMassFileRenameMetadata(client, [parentEco]))[0],
+      cad_files: [
+        ...cadFiles.rows,
+        ...buildMassFileRenameCadRows(massFileRenameContext),
+      ],
+      affected_components: massFileRenameContext?.components || [],
     });
 
     currentId = parentEco.parent_eco_id;
@@ -772,12 +794,13 @@ export const getAllECOs = async (req, res) => {
     const result = await pool.query(query, params);
     const enrichedRows = await enrichEcosWithCurrentStageSummary(pool, result.rows);
     const actionableRows = await attachCurrentUserActionability(pool, enrichedRows, req.user);
+    const decoratedRows = await attachMassFileRenameMetadata(pool, actionableRows);
 
     // For rejected view, only show the latest ECO per eco_number,
     // and exclude eco_numbers that have a final approved or pending/in_review status
     // (those belong in the approved or pending views)
     if (status === 'rejected') {
-      const ecoNumbers = [...new Set(actionableRows.map(r => r.eco_number))];
+      const ecoNumbers = [...new Set(decoratedRows.map(r => r.eco_number))];
       const resolvedNumbers = new Set();
       if (ecoNumbers.length > 0) {
         const resolved = await pool.query(
@@ -789,7 +812,7 @@ export const getAllECOs = async (req, res) => {
 
       const seen = new Set();
       const deduped = [];
-      for (const row of actionableRows) {
+      for (const row of decoratedRows) {
         if (resolvedNumbers.has(row.eco_number)) continue;
         if (!seen.has(row.eco_number)) {
           seen.add(row.eco_number);
@@ -799,7 +822,7 @@ export const getAllECOs = async (req, res) => {
       return res.json(deduped);
     }
 
-    res.json(actionableRows);
+    res.json(decoratedRows);
   } catch (error) {
     console.error('Error fetching ECO orders:', error);
     res.status(500).json({ error: 'Failed to fetch ECO orders' });
@@ -851,6 +874,8 @@ export const getECOById = async (req, res) => {
     let eco = ecoResult.rows[0];
     [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
     [eco] = await attachCurrentUserActionability(client, [eco], req.user);
+    [eco] = await attachMassFileRenameMetadata(client, [eco]);
+    const massFileRenameContext = await getMassFileRenameContext(client, id);
     
     // Get all changes (with category name resolution for category_id changes)
     const changesResult = await client.query(`
@@ -1008,7 +1033,11 @@ export const getECOById = async (req, res) => {
       specifications: specificationsResult.rows,
       approvals: approvalsResult.rows,
       stages: stagesResult.rows,
-      cad_files: cadFilesResult.rows,
+      cad_files: [
+        ...cadFilesResult.rows,
+        ...buildMassFileRenameCadRows(massFileRenameContext),
+      ],
+      affected_components: massFileRenameContext?.components || eco.affected_components || [],
       rejection_history: rejectionHistory,
     });
   } catch (error) {
@@ -1836,6 +1865,7 @@ export const approveECO = async (req, res) => {
 
     let eco = ecoResult.rows[0];
     [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
+    const massFileRenameContext = await getMassFileRenameContext(client, id);
     if (eco.status !== 'pending' && eco.status !== 'in_review') {
       return res.status(400).json({ error: 'ECO order is not pending approval' });
     }
@@ -1850,7 +1880,9 @@ export const approveECO = async (req, res) => {
 
     if (currentStageOrder === null) {
       // No stages configured — fall back to single-approval (backward compat)
-      const result = await applyECOChanges(client, eco, id);
+      const result = massFileRenameContext
+        ? await applyMassFileRenameEco(client, id, req.user.id)
+        : await applyECOChanges(client, eco, id);
 
       await client.query(`
         UPDATE eco_orders
@@ -1982,7 +2014,9 @@ export const approveECO = async (req, res) => {
       }
 
       // All stages complete — apply changes and approve
-      const result = await applyECOChanges(client, eco, id);
+      const result = massFileRenameContext
+        ? await applyMassFileRenameEco(client, id, req.user.id)
+        : await applyECOChanges(client, eco, id);
       const finalStageNames = currentStages.map(s => s.stage_name).join(', ');
 
       await client.query(`
@@ -2060,6 +2094,7 @@ export const rejectECO = async (req, res) => {
 
     let eco = ecoResult.rows[0];
     [eco] = await enrichEcosWithCurrentStageSummary(client, [eco]);
+    const massFileRenameContext = await getMassFileRenameContext(client, id);
     if (eco.status !== 'pending' && eco.status !== 'in_review') {
       return res.status(400).json({ error: 'ECO order is not pending approval' });
     }
@@ -2107,11 +2142,17 @@ export const rejectECO = async (req, res) => {
       RETURNING *
     `, [req.user.id, rejection_reason || null, id]);
 
+    if (massFileRenameContext) {
+      const restoredComponents = await restoreMassFileRenameStatuses(client, id, req.user.id);
+      result.rows[0].restored_components = restoredComponents;
+    }
+
     // Log ECO rejection activity
     await logECOActivity(client, eco, 'eco_rejected', {
       rejected_by: req.user.id,
       rejection_reason: rejection_reason || 'No reason provided',
       stage: rejectionStageName || null,
+      restored_components_count: result.rows[0].restored_components?.length || 0,
     }, req.user.id);
 
     await client.query('COMMIT');
@@ -2167,30 +2208,42 @@ export const deleteECO = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
+    await client.query('BEGIN');
+
+    const massFileRenameContext = await getMassFileRenameContext(client, id);
 
     // Check if user can delete (must be creator or admin)
-    let deleteQuery = `
-      DELETE FROM eco_orders
+    let selectQuery = `
+      SELECT *
+      FROM eco_orders
       WHERE id = $1 AND status IN ('pending', 'in_review')
     `;
     const params = [id];
 
     // If not admin, restrict to own ECOs
     if (req.user.role !== 'admin') {
-      deleteQuery += ' AND initiated_by = $2';
+      selectQuery += ' AND initiated_by = $2';
       params.push(req.user.id);
     }
 
-    deleteQuery += ' RETURNING *';
-
-    const result = await client.query(deleteQuery, params);
+    const result = await client.query(selectQuery, params);
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'ECO order not found or cannot be deleted' });
     }
 
+    if (massFileRenameContext) {
+      await restoreMassFileRenameStatuses(client, id, req.user.id);
+    }
+
+    await client.query('DELETE FROM eco_orders WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+
     res.json({ message: 'ECO order deleted successfully' });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error deleting ECO order:', error);
     res.status(500).json({ error: 'Failed to delete ECO order' });
   } finally {

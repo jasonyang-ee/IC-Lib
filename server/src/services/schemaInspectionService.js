@@ -34,6 +34,8 @@ export const EXPECTED_SCHEMA_TABLES = [
   'component_cad_files',
   'admin_settings',
   'eco_cad_files',
+  'eco_file_rename_files',
+  'eco_file_rename_components',
   'schema_migrations',
 ];
 

@@ -360,12 +360,21 @@ const FileLibrary = () => {
     onSuccess: (data, variables) => {
       invalidateAll();
       const updatedCount = Number.isFinite(data.updatedCount) ? data.updatedCount : 0;
-      showSuccess(
-        variables.mode === 'pair'
-          ? `Renamed ${data.renamedFiles?.length || 0} footprint files (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`
-          : `Renamed "${variables.files[0].file_name}" to "${data.newFileName}" (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`,
-      );
+      if (data.stagedEco) {
+        showSuccess(
+          `${data.ecoNumber || 'ECO'} created. ${updatedCount} part${updatedCount !== 1 ? 's' : ''} moved to reviewing; the rename will apply after approval.`,
+        );
+      } else {
+        showSuccess(
+          variables.mode === 'pair'
+            ? `Renamed ${data.renamedFiles?.length || 0} footprint files (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`
+            : `Renamed "${variables.files[0].file_name}" to "${data.newFileName}" (${updatedCount} component${updatedCount !== 1 ? 's' : ''} updated)`,
+        );
+      }
       setShowRenameModal(false);
+      if (data.stagedEco) {
+        return;
+      }
       if (variables.mode === 'pair') {
         setSelectedEntryKey(buildFileEntryKey(variables.type, data.renamedFiles?.map((file) => file.newFileName) || []));
       } else {
@@ -432,6 +441,7 @@ const FileLibrary = () => {
     queryClient.invalidateQueries({ queryKey: ['sharingComponents'] });
     queryClient.invalidateQueries({ queryKey: ['categoryComponentsForFiles'] });
     queryClient.invalidateQueries({ queryKey: ['fileSearch'] });
+    queryClient.invalidateQueries({ queryKey: ['ecos'] });
   };
 
   const getTypeCount = (typeId) => {

@@ -2,15 +2,15 @@
 
 - `./start.sh` — start dev server (client + server).
 - `./test.sh` — run lint + tests before end.
-- `/caveman-commit` — single commit summary.
+- `/caveman-commit` — single commit summary. always use and provide at end of chat.
 - `/caveman-compress` — compress this `AGENTS.md`.
 - `/spec` — sync `SPEC.md` with code + future SDD.
 
 ## AI File Purpose
 
 - `AGENTS.md` = repo work rules.
-- `SPEC.md` = system truth.
-- `UX.md` = user path map.
+- `SPEC.md` = system truth. read prior to backend and frontend dev. update as code evolves.
+- `UX.md` = user path map. read prior to frontend dev. update as UI evolves.
 
 ## Project Structure
 
