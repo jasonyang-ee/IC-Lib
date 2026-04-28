@@ -160,7 +160,10 @@ describe('FileLibrary shared rename flow', () => {
   it('warns non-admin users before creating a shared rename ECO', async () => {
     getComponentsByFileMock.mockResolvedValue({
       data: {
-        components: [{ id: 'comp-1' }, { id: 'comp-2' }],
+        components: [
+          { id: 'comp-1', approval_status: 'prototype' },
+          { id: 'comp-2', approval_status: 'new' },
+        ],
       },
     });
     renamePhysicalFileMock.mockResolvedValueOnce({
@@ -168,7 +171,7 @@ describe('FileLibrary shared rename flow', () => {
         success: true,
         stagedEco: true,
         ecoNumber: 'ECO-12',
-        updatedCount: 2,
+        updatedCount: 1,
       },
     });
 
@@ -181,6 +184,8 @@ describe('FileLibrary shared rename flow', () => {
     expect(renamePhysicalFileMock).not.toHaveBeenCalled();
 
     expect(await screen.findByText('Create Shared Rename ECO')).toBeInTheDocument();
+    expect(screen.getByText(/move 1 controlled part to reviewing/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 new part will stay editable/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create ECO' }));
 
     await waitFor(() => {
@@ -189,6 +194,32 @@ describe('FileLibrary shared rename flow', () => {
         newFileName: 'renamed-symbol.olb',
       });
     });
+  });
+
+  it('renames shared files directly when every affected part is still new', async () => {
+    getComponentsByFileMock.mockResolvedValue({
+      data: {
+        components: [
+          { id: 'comp-1', approval_status: 'new' },
+          { id: 'comp-2', approval_status: 'new' },
+        ],
+      },
+    });
+
+    renderComponent();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
+
+    await waitFor(() => {
+      expect(renamePhysicalFileMock).toHaveBeenCalledWith('schematic', {
+        oldFileName: 'shared-symbol.olb',
+        newFileName: 'renamed-symbol.olb',
+      });
+    });
+
+    expect(screen.queryByText('Create Shared Rename ECO')).not.toBeInTheDocument();
   });
 
   it('lets admin users rename shared files directly without the ECO warning', async () => {

@@ -20,6 +20,14 @@ const ECO_NOTIFICATION_DEFAULTS = {
   notify_eco_pending_approval: false,
   notify_eco_stage_advanced: false,
 };
+const VALID_USER_ROLES = Object.freeze([
+  'read-only',
+  'reviewer',
+  'lab',
+  'read-write',
+  'approver',
+  'admin',
+]);
 
 const pickEcoNotificationPreferences = (row = {}) => ECO_NOTIFICATION_FIELDS.reduce(
   (preferences, key) => ({
@@ -219,9 +227,9 @@ export const createUser = async (req, res) => {
       });
     }
 
-    if (!['read-only', 'reviewer', 'read-write', 'approver', 'admin'].includes(role)) {
+    if (!VALID_USER_ROLES.includes(role)) {
       return res.status(400).json({
-        error: 'Invalid role. Must be: read-only, reviewer, read-write, approver, or admin',
+        error: 'Invalid role. Must be: read-only, reviewer, lab, read-write, approver, or admin',
       });
     }
 
@@ -368,7 +376,7 @@ export const updateUser = async (req, res) => {
     }
 
     if (role !== undefined) {
-      if (!['read-only', 'reviewer', 'read-write', 'approver', 'admin'].includes(role)) {
+      if (!VALID_USER_ROLES.includes(role)) {
         return res.status(400).json({
           error: 'Invalid role',
         });

@@ -3,7 +3,7 @@ import { LayoutDashboard, Package, Search, FileText, Sun, Moon, LogOut, User, Us
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
-import { canAccessUserSettings, isLimitedNavigationRole } from '../utils/accessControl';
+import { canAccessFileLibrary, canAccessUserSettings, isLimitedNavigationRole } from '../utils/accessControl';
 
 const getInitialDarkMode = () => {
   const savedMode = localStorage.getItem('darkMode');
@@ -57,7 +57,7 @@ const Sidebar = () => {
 
   menuItems.push({ path: '/library', icon: Cpu, label: 'Parts Library' });
 
-  if (!isLimitedNavigation) {
+  if (!isLimitedNavigation && canAccessFileLibrary(user?.role)) {
     menuItems.push(
       { path: '/file-library', icon: FolderOpen, label: 'File Library' }
     );

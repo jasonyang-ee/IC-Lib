@@ -36,8 +36,8 @@ function isSamePhysicalFile(firstPath, secondPath) {
   }
 }
 
-function shouldStageSharedFileRename(req, affectedCount) {
-  return isEcoEnabled() && req.user?.role !== 'admin' && affectedCount > 1;
+function shouldStageSharedFileRename(req, affectedCount, ecoAffectedCount) {
+  return isEcoEnabled() && req.user?.role !== 'admin' && affectedCount > 1 && ecoAffectedCount > 0;
 }
 
 /**
@@ -225,14 +225,15 @@ export const renamePhysicalFile = async (req, res) => {
 
     // Get affected components before rename
     const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
+    const ecoAffectedComponents = affectedBefore.filter((component) => component.approval_status !== 'new');
 
-    if (shouldStageSharedFileRename(req, affectedBefore.length)) {
+    if (shouldStageSharedFileRename(req, affectedBefore.length, ecoAffectedComponents.length)) {
       const client = await pool.connect();
 
       try {
         await client.query('BEGIN');
 
-        const { eco, summary } = await createMassFileRenameEco(client, {
+        const { eco, summary, stagedComponents } = await createMassFileRenameEco(client, {
           user: req.user,
           files: [{
             cad_file_id: cadFile.id,
@@ -240,13 +241,13 @@ export const renamePhysicalFile = async (req, res) => {
             old_file_name: safeOldFileName,
             new_file_name: safeNewFileName,
           }],
-          affectedComponents: affectedBefore,
+          affectedComponents: ecoAffectedComponents,
           notes: `File Library rename staged: "${safeOldFileName}" -> "${safeNewFileName}"`,
         });
 
         await client.query('COMMIT');
 
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared rename ECO ${eco.eco_number}: "${safeOldFileName}" -> "${safeNewFileName}" (${affectedBefore.length} components)`);
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared rename ECO ${eco.eco_number}: "${safeOldFileName}" -> "${safeNewFileName}" (${stagedComponents.length} controlled components)`);
 
         return res.json({
           success: true,
@@ -256,8 +257,10 @@ export const renamePhysicalFile = async (req, res) => {
           summary,
           oldFileName: safeOldFileName,
           newFileName: safeNewFileName,
-          updatedCount: affectedBefore.length,
-          updatedComponents: affectedBefore.map((component) => ({
+          affectedCount: affectedBefore.length,
+          skippedCount: affectedBefore.length - stagedComponents.length,
+          updatedCount: stagedComponents.length,
+          updatedComponents: stagedComponents.map((component) => ({
             id: component.id,
             part_number: component.part_number,
             original_status: component.approval_status,
@@ -346,11 +349,14 @@ export const renameFootprintGroup = async (req, res) => {
       });
     }
 
-    if (shouldStageSharedFileRename(req, affectedComponentIds.size)) {
+    const allAffectedComponents = [...affectedComponents.values()];
+    const ecoAffectedComponents = allAffectedComponents.filter((component) => component.approval_status !== 'new');
+
+    if (shouldStageSharedFileRename(req, affectedComponentIds.size, ecoAffectedComponents.length)) {
       await client.query('BEGIN');
       transactionStarted = true;
 
-      const { eco, summary } = await createMassFileRenameEco(client, {
+      const { eco, summary, stagedComponents } = await createMassFileRenameEco(client, {
         user: req.user,
         files: cadFiles.map((file) => ({
           cad_file_id: file.cadFile.id,
@@ -358,14 +364,14 @@ export const renameFootprintGroup = async (req, res) => {
           old_file_name: file.cadFile.file_name,
           new_file_name: file.newFileName,
         })),
-        affectedComponents: [...affectedComponents.values()],
+        affectedComponents: ecoAffectedComponents,
         notes: `File Library footprint rename staged (${cadFiles.length} files)`,
       });
 
       await client.query('COMMIT');
       transactionStarted = false;
 
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared footprint rename ECO ${eco.eco_number} (${affectedComponentIds.size} components)`);
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared footprint rename ECO ${eco.eco_number} (${stagedComponents.length} controlled components)`);
 
       return res.json({
         success: true,
@@ -377,8 +383,10 @@ export const renameFootprintGroup = async (req, res) => {
           oldFileName: file.cadFile.file_name,
           newFileName: file.newFileName,
         })),
-        updatedCount: affectedComponentIds.size,
-        updatedComponents: [...affectedComponents.values()].map((component) => ({
+        affectedCount: affectedComponentIds.size,
+        skippedCount: allAffectedComponents.length - stagedComponents.length,
+        updatedCount: stagedComponents.length,
+        updatedComponents: stagedComponents.map((component) => ({
           id: component.id,
           part_number: component.part_number,
           original_status: component.approval_status,

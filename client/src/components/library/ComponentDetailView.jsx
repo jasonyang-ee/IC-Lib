@@ -43,6 +43,7 @@ const CopyableField = ({ label, value, isLink, onCopy }) => (
  * - selectedAlternative: object
  * - setSelectedAlternative: setter
  * - onCopy: (text, label) => void
+ * - canAccessFileLibrary: boolean
  * - canApprove: () => boolean
  * - canWrite: () => boolean
  * - updatingApproval: boolean
@@ -55,6 +56,7 @@ const ComponentDetailView = ({
   selectedAlternative,
   setSelectedAlternative,
   onCopy,
+  canAccessFileLibrary,
   canApprove,
   canWrite,
   updatingApproval,
@@ -169,13 +171,17 @@ const ComponentDetailView = ({
                 <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>
               ) : files.map((fileName, idx) => (
                 <div key={idx} className={idx > 0 ? 'border-gray-200 dark:border-[#444444] pt-0.5 mt-0.5' : ''}>
-                  <button
-                    onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
-                    className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
-                    title="View in File Library"
-                  >
-                    {fileName}
-                  </button>
+                  {canAccessFileLibrary ? (
+                    <button
+                      onClick={() => navigate(`/file-library?type=${config.routeType}&file=${encodeURIComponent(fileName)}`)}
+                      className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
+                      title="View in File Library"
+                    >
+                      {fileName}
+                    </button>
+                  ) : (
+                    <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">{fileName}</span>
+                  )}
                 </div>
               ))}
             </div>

@@ -12,11 +12,17 @@ describe('massFileRenameEcoService', () => {
     expect(resolveMassFileRenamePipelineTypes([])).toEqual([MASS_FILE_RENAME_PIPELINE_TYPE]);
   });
 
-  it('adds both lifecycle pipeline tags when affected parts span prototype and production states', () => {
+  it('skips new-part lifecycle tagging while still tagging controlled states', () => {
     expect(resolveMassFileRenamePipelineTypes(['new', 'production', 'archived'])).toEqual([
       'shared_file_rename',
-      'proto_status_change',
       'prod_status_change',
+    ]);
+  });
+
+  it('keeps the prototype lifecycle tag when controlled shared renames touch prototype parts', () => {
+    expect(resolveMassFileRenamePipelineTypes(['new', 'prototype'])).toEqual([
+      'shared_file_rename',
+      'proto_status_change',
     ]);
   });
 

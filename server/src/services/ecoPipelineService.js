@@ -1,3 +1,5 @@
+import { resolveEcoLifecyclePipelineType } from './componentLifecycleService.js';
+
 export const VALID_ECO_PIPELINE_TYPES = Object.freeze([
   'proto_status_change',
   'prod_status_change',
@@ -32,12 +34,7 @@ const CHANGE_DETAIL_PIPELINE_TYPES = new Set([
   'distributor',
   'alt_parts',
 ]);
-
-const PRE_PRODUCTION_APPROVAL_STATUSES = new Set([
-  'new',
-  'reviewing',
-  'prototype',
-]);
+const LIFECYCLE_STATUS_PROPOSALS = new Set(['prototype', 'production', 'archived']);
 
 const CAD_LINK_FIELD_NAMES = new Set([
   'pcb_footprint',
@@ -187,19 +184,18 @@ export const detectEcoPipelineTypes = ({
 } = {}) => {
   const detectedTypes = new Set();
   const statusChange = changes.find((change) => change?.field_name === '_status_proposal');
+  const proposedApprovalStatus = statusChange?.new_value ?? null;
+  const lifecyclePipelineType = resolveEcoLifecyclePipelineType({
+    currentApprovalStatus,
+    proposedStatus: proposedApprovalStatus,
+  });
 
-  if (currentApprovalStatus === 'production') {
-    detectedTypes.add('prod_status_change');
-  }
-  if (PRE_PRODUCTION_APPROVAL_STATUSES.has(currentApprovalStatus)) {
-    detectedTypes.add('proto_status_change');
+  if (lifecyclePipelineType) {
+    detectedTypes.add(lifecyclePipelineType);
   }
 
-  if (statusChange?.new_value === 'prototype') {
-    detectedTypes.add('proto_status_change');
-  }
-  if (statusChange?.new_value === 'production') {
-    detectedTypes.add('prod_status_change');
+  if (currentApprovalStatus === 'new' && !lifecyclePipelineType) {
+    return [];
   }
 
   const hasSpecFieldChanges = changes.some((change) => (
@@ -222,8 +218,7 @@ export const detectEcoPipelineTypes = ({
   const hasAlternativeMetadataChanges = Array.isArray(alternatives) && alternatives.some(hasAlternativeMetadataChange);
   const hasNonLifecycleStatusChange = Boolean(
     statusChange &&
-    statusChange.new_value !== 'prototype' &&
-    statusChange.new_value !== 'production',
+    !LIFECYCLE_STATUS_PROPOSALS.has(statusChange.new_value),
   );
 
   if (hasSpecFieldChanges || hasSpecificationChanges || hasNonLifecycleStatusChange) {

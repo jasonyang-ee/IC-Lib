@@ -1,7 +1,6 @@
 const STATUS_PROPOSAL_OPTIONS = Object.freeze({
   new: [
     { newValue: 'prototype', label: 'Propose Prototype', tone: 'prototype' },
-    { newValue: 'archived', label: 'Propose Archive', tone: 'archived' },
   ],
   reviewing: [
     { newValue: 'archived', label: 'Propose Archive', tone: 'archived' },

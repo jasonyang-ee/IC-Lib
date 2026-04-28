@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canAccessFullNavigation,
+  canAccessFileLibrary,
   canAccessUserSettings,
   canDirectEditLibraryComponents,
   canDeleteLibraryFiles,
@@ -21,6 +22,13 @@ describe('accessControl', () => {
     expect(getDefaultRouteForRole('reviewer', false)).toBe('/library');
   });
 
+  it('treats lab as a write-capable full-nav role without File Library page access', () => {
+    expect(canAccessFullNavigation('lab')).toBe(true);
+    expect(canAccessFileLibrary('lab')).toBe(false);
+    expect(canAccessUserSettings('lab')).toBe(true);
+    expect(getDefaultRouteForRole('lab', true)).toBe('/');
+  });
+
   it('only allows approver and admin to delete file-library files', () => {
     expect(canDeleteLibraryFiles('read-write')).toBe(false);
     expect(canDeleteLibraryFiles('approver')).toBe(true);
@@ -28,9 +36,10 @@ describe('accessControl', () => {
   });
 
   it('only allows admin to bypass ECO for direct library edits', () => {
-    expect(canDirectEditLibraryComponents('read-write')).toBe(false);
-    expect(canDirectEditLibraryComponents('approver')).toBe(false);
-    expect(canDirectEditLibraryComponents('admin')).toBe(true);
-    expect(canDirectEditLibraryComponents(undefined)).toBe(false);
+    expect(canDirectEditLibraryComponents('read-write', 'prototype')).toBe(false);
+    expect(canDirectEditLibraryComponents('lab', 'new')).toBe(true);
+    expect(canDirectEditLibraryComponents('approver', 'new')).toBe(true);
+    expect(canDirectEditLibraryComponents('admin', 'production')).toBe(true);
+    expect(canDirectEditLibraryComponents(undefined, 'new')).toBe(false);
   });
 });

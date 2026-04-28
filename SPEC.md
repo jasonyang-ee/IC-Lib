@@ -12,7 +12,7 @@ C1: stack React 19 + Vite + TailwindCSS v4 + React Query 5 | Express 4 | Postgre
 C2: DB primary keys ! `UUID DEFAULT uuidv7()`; create time derive via `created_at(id)`.
 C3: app owns flat CAD tree `library/footprint|symbol|model|pspice|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`.
 C4: query/report/runtime surfaces rely on views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file`.
-C5: roles `read-only|reviewer|read-write|approver|admin`; UI nav + server mutations gate by role; some server read APIs intentionally public.
+C5: roles `read-only|reviewer|lab|read-write|approver|admin`; `lab` = `read-write` except File Library page/browse/manage access ⊥; some component-scoped CAD helper APIs still usable from Parts Library edit flow.
 C6: runtime flags/env ! support `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, DB creds, vendor API creds, `SMTP_ENCRYPTION_KEY`.
 C7: startup may repair missing base schema from `database/init-*.sql`; incremental change ! live in `database/migrations/<int>_<desc>.sql`.
 C8: file ops & import/repair flows must work on shared repo filesystem; path escape ⊥.
@@ -37,7 +37,7 @@ I.env: env `JWT_SECRET` ! set; `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIREC
 ## §V
 
 V1: `JWT_SECRET` ! set; auth token via HttpOnly cookie `AUTH_COOKIE_NAME` 24h or Bearer fallback; missing|invalid|expired -> 401.
-V2: role gates hold: `read-only` ⊥ write; `reviewer` ⊥ write & ∈ ECO approval; `read-write|approver|admin` ∈ lib/project/inventory mutate; `approver|admin` ∈ hard CAD delete; `admin` ∈ admin/user/settings mutate.
+V2: role gates hold: `read-only` ⊥ write; `reviewer` ⊥ write & ∈ ECO approval; `lab|read-write|approver|admin` ∈ lib/project/inventory mutate; `lab` ⊥ File Library page/browse/manage routes but may use component-scoped CAD helper APIs during Parts Library edit; `approver|admin` ∈ hard CAD delete; `admin` ∈ admin/user/settings mutate.
 V3: default client route: limited role -> `/eco` if eco flag on else `/library`; full role -> `/`.
 V4: startup ! verify users schema + base tables/views + repairable columns; missing base objects -> run `database/init-users.sql`, `database/init-schema.sql`, `database/init-settings.sql`; pending migrations run numeric order; post-migration missing required cols -> boot fail.
 V5: migration filename contract: new files `database/migrations/<int>_<desc>.sql`; sort by int, not lexicographic; legacy zero-pad still parse numeric.
@@ -50,13 +50,13 @@ V11: ECO routes auth ! always; any auth user may view; create -> `canWrite`; app
 V12: ECO pipeline tags ∈ `{proto_status_change,prod_status_change,spec,filename,shared_file_rename,distributor,alt_parts}`; legacy `general|spec_cad|status_change` normalize; stage match needs status-tag match & detail-tag match.
 V13: ECO vote uniqueness ! one effective vote per `(eco_id, stage_id, COALESCE(acting_for_user_id,user_id))`; delegation target ! same|higher role; delegated user may consume assigned approver slot.
 V14: rejected ECO retains lineage via `parent_eco_id`; retry UI may preload rejected field/spec/distributor/alt/CAD deltas + status proposal under same ECO number chain.
-V15: Library edit policy: `CONFIG_ECO` on -> admin may direct-edit existing part; other write roles stage ECO. ECO mode blocks live CAD overwrite & stages category/status/field/spec/distributor/alt/CAD changes + notes.
+V15: Library edit policy: `CONFIG_ECO` on -> admin may direct-edit any part incl direct status reset; non-admin write roles may direct-edit only `approval_status=new` parts while keeping status `new`; controlled parts `reviewing|prototype|production|archived` require ECO for direct field/spec/distributor/alt/category/CAD-link/delete changes. ECO mode blocks live CAD overwrite & stages category/status/field/spec/distributor/alt/CAD changes + notes.
 V16: notifications optional: SMTP disabled -> send skip; enabled -> welcome/ECO/doc-control emails use `CONFIG_BASE_URL` fallback chain, user prefs from `email_notification_preferences`, delegation from `users.delegation`, send/fail log in `email_log`.
 V17: project/inventory contract: project mutation routes auth+canWrite; inventory mutation routes auth+canWrite; BOM export client-side from project detail + live component/distributor/alternative fetch.
 V18: fresh DB repo schema ! cover every persisted API surface present in `§I`.
 V19: fresh DB default ECO stage config ! include every runtime pipeline tag required by `V12`.
-V20: file-library shared rename policy: actor = `admin` -> direct rename even if file shared; `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 -> warn before submit, stage 1 ECO w/ `shared_file_rename` tag, set ∀ affected part `approval_status=reviewing`, approve -> rename shared CAD files + restore each part original status, reject|delete -> restore each part original status & keep file info unchanged.
-V21: ECO status proposal UI ! allow `production -> prototype` rollback and `archived -> prototype|production` restore paths in addition to existing forward/archive proposals.
+V20: file-library shared rename policy: actor = `admin` -> direct rename even if file shared; `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 & any affected part status != `new` -> shared transparent-gray warning before submit, stage 1 ECO w/ `shared_file_rename` tag, set only affected non-`new` parts `approval_status=reviewing`, approve -> rename shared CAD files, refresh CAD text for staged + skipped `new` parts, restore staged parts original status; reject|delete -> restore staged parts original status & keep file info unchanged.
+V21: ECO status proposal UI/API ! allow `new -> prototype`, `prototype -> production|archived`, `production -> prototype|archived`, `archived -> prototype|production`; ECO path back to `new` ⊥; `new`-part ECO without `prototype` proposal ⊥.
 
 ## §T
 

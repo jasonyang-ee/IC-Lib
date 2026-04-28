@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { canDirectEditLibraryComponents } from '../utils/accessControl';
+import { canAccessFileLibrary, canDirectEditLibraryComponents } from '../utils/accessControl';
 import { getEcoStatusProposalOptions } from '../utils/ecoStatusProposalOptions';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
@@ -91,7 +91,7 @@ const Library = () => {
   const { canWrite, canApprove, user } = useAuth();
   const { ecoEnabled: isECOEnabled } = useFeatureFlags();
   const { showSuccess, showError, showInfo } = useNotification();
-  const canDirectEditLibraryComponent = canDirectEditLibraryComponents(user?.role);
+  const canAccessFileLibraryPage = canAccessFileLibrary(user?.role);
   
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -714,6 +714,8 @@ const Library = () => {
       };
     },
   });
+  const selectedComponentApprovalStatus = componentDetails?.approval_status || selectedComponent?.approval_status;
+  const canDirectEditLibraryComponent = canDirectEditLibraryComponents(user?.role, selectedComponentApprovalStatus);
 
   // Fetch alternatives for the selected component
   const { data: alternativesData } = useQuery({
@@ -1529,6 +1531,11 @@ const Library = () => {
     if (!selectedComponent) return;
 
     try {
+      if (componentDetails?.approval_status === 'new' && ecoStatusProposal?.new_value !== 'prototype') {
+        showError('New parts can be edited directly. Use ECO only when you are ready to propose Prototype status.');
+        return;
+      }
+
       const canContinue = await finalizeEcoCadUploads();
       if (!canContinue) return;
 
@@ -3402,14 +3409,16 @@ const Library = () => {
                   <Package className="w-3.5 h-3.5" />
                   <span>Inventory</span>
                 </button>
-                <button
-                  onClick={() => navigate(`/file-library?view=category&category=all&search=${encodeURIComponent(selectedComponent.part_number)}`)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
-                  title="View associated files in File Library"
-                >
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  <span>Files</span>
-                </button>
+                {canAccessFileLibraryPage && (
+                  <button
+                    onClick={() => navigate(`/file-library?view=category&category=all&search=${encodeURIComponent(selectedComponent.part_number)}`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-s font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                    title="View associated files in File Library"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>Files</span>
+                  </button>
+                )}
                 {canWrite() && (
                   <button
                     onClick={() => setShowAddToProjectModal(true)}
@@ -3491,6 +3500,7 @@ const Library = () => {
                   selectedAlternative={selectedAlternative}
                   setSelectedAlternative={setSelectedAlternative}
                   onCopy={handleCopyToClipboard}
+                  canAccessFileLibrary={canAccessFileLibraryPage}
                   canApprove={canApprove}
                   canWrite={canWrite}
                   updatingApproval={updatingApproval}

@@ -219,6 +219,8 @@ const UserSettings = () => {
                   <span className={`inline-flex px-2 py-1 text-xs rounded-full font-medium ${
                     user?.role === 'admin'
                       ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                      : user?.role === 'lab'
+                      ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200'
                       : user?.role === 'read-write'
                       ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300'

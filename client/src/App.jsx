@@ -15,7 +15,13 @@ import Settings from './pages/Settings'
 import UserSettings from './pages/UserSettings'
 import ECO from './pages/ECO'
 import FileLibrary from './pages/FileLibrary'
-import { ecoAccessRoles, fullNavigationRoles, getDefaultRouteForRole, userSettingsRoles } from './utils/accessControl'
+import {
+  ecoAccessRoles,
+  fileLibraryAccessRoles,
+  fullNavigationRoles,
+  getDefaultRouteForRole,
+  userSettingsRoles,
+} from './utils/accessControl'
 
 const DefaultPage = ({ ecoEnabled }) => {
   const { user } = useAuth();
@@ -52,7 +58,7 @@ function App() {
         >
           <Route index element={<DefaultPage ecoEnabled={ecoEnabled} />} />
           <Route path="library" element={<Library />} />
-          <Route path="file-library" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><FileLibrary /></ProtectedRoute>} />
+          <Route path="file-library" element={<ProtectedRoute allowedRoles={fileLibraryAccessRoles}><FileLibrary /></ProtectedRoute>} />
           <Route path="inventory" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Inventory /></ProtectedRoute>} />
           <Route path="projects" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><Projects /></ProtectedRoute>} />
           <Route path="vendor-search" element={<ProtectedRoute allowedRoles={fullNavigationRoles}><VendorSearch /></ProtectedRoute>} />
@@ -85,4 +91,3 @@ function App() {
 }
 
 export default App
-

@@ -4,6 +4,15 @@ import { Users, User, Plus, Loader2, Download, Upload, AlertTriangle } from 'luc
 import { api } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
 
+const ROLE_OPTIONS = [
+  { value: 'read-only', label: 'Read Only' },
+  { value: 'reviewer', label: 'Reviewer' },
+  { value: 'lab', label: 'Lab' },
+  { value: 'read-write', label: 'Read Write' },
+  { value: 'approver', label: 'Approver' },
+  { value: 'admin', label: 'Admin' },
+];
+
 // User Management Component (Admin Only)
 const UserManagement = () => {
   const queryClient = useQueryClient();
@@ -207,6 +216,8 @@ const UserManagement = () => {
         return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200';
       case 'read-write':
         return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200';
+      case 'lab':
+        return 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200';
       case 'reviewer':
         return 'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200';
       case 'read-only':
@@ -392,11 +403,9 @@ const UserManagement = () => {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 >
-                  <option value="read-only">Read Only</option>
-                  <option value="reviewer">Reviewer</option>
-                  <option value="read-write">Read Write</option>
-                  <option value="approver">Approver</option>
-                  <option value="admin">Admin</option>
+                  {ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -464,11 +473,9 @@ const UserManagement = () => {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                 >
-                  <option value="read-only">Read Only</option>
-                  <option value="reviewer">Reviewer</option>
-                  <option value="read-write">Read Write</option>
-                  <option value="approver">Approver</option>
-                  <option value="admin">Admin</option>
+                  {ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
 

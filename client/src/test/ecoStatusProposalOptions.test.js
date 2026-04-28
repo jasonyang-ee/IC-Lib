@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { getEcoStatusProposalOptions } from '../utils/ecoStatusProposalOptions';
 
 describe('getEcoStatusProposalOptions', () => {
-  it('keeps new parts on the existing prototype-or-archive path', () => {
+  it('only allows new parts to propose prototype through ECO', () => {
     expect(getEcoStatusProposalOptions('new')).toEqual([
       { newValue: 'prototype', label: 'Propose Prototype', tone: 'prototype' },
-      { newValue: 'archived', label: 'Propose Archive', tone: 'archived' },
     ]);
   });
 

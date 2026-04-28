@@ -3,8 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
 vi.stubEnv('NODE_ENV', 'test');
 
-const { generateToken, verifyToken, authenticate, isAdmin, canWrite, canApprove } = await import('../middleware/auth.js');
-const { canDeleteLibraryFiles } = await import('../middleware/auth.js');
+const {
+  canAccessFileLibrary,
+  canDeleteLibraryFiles,
+  canApprove,
+  canWrite,
+  generateToken,
+  verifyToken,
+  authenticate,
+  isAdmin,
+} = await import('../middleware/auth.js');
 
 // Helper to create mock Express req/res/next
 const mockReq = (overrides = {}) => ({
@@ -117,7 +125,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should reject non-admin roles', () => {
-      for (const role of ['read-only', 'read-write', 'approver']) {
+      for (const role of ['read-only', 'reviewer', 'lab', 'read-write', 'approver']) {
         const req = mockReq({ user: { role } });
         const res = mockRes();
         const next = vi.fn();
@@ -140,7 +148,7 @@ describe('Auth Middleware', () => {
 
   describe('canWrite', () => {
     it('should pass for write-capable roles', () => {
-      for (const role of ['read-write', 'approver', 'admin']) {
+      for (const role of ['lab', 'read-write', 'approver', 'admin']) {
         const req = mockReq({ user: { role } });
         const res = mockRes();
         const next = vi.fn();
@@ -163,7 +171,7 @@ describe('Auth Middleware', () => {
 
   describe('canApprove', () => {
     it('should pass for approval workflow roles', () => {
-      for (const role of ['reviewer', 'read-write', 'approver', 'admin']) {
+      for (const role of ['reviewer', 'lab', 'read-write', 'approver', 'admin']) {
         const req = mockReq({ user: { role } });
         const res = mockRes();
         const next = vi.fn();
@@ -197,12 +205,37 @@ describe('Auth Middleware', () => {
     });
 
     it('should reject read-write, reviewer, and read-only roles', () => {
-      for (const role of ['read-write', 'reviewer', 'read-only']) {
+      for (const role of ['lab', 'read-write', 'reviewer', 'read-only']) {
         const req = mockReq({ user: { role } });
         const res = mockRes();
         const next = vi.fn();
 
         canDeleteLibraryFiles(req, res, next);
+        expect(next).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(403);
+      }
+    });
+  });
+
+  describe('canAccessFileLibrary', () => {
+    it('should pass for read-write, approver, and admin roles', () => {
+      for (const role of ['read-write', 'approver', 'admin']) {
+        const req = mockReq({ user: { role } });
+        const res = mockRes();
+        const next = vi.fn();
+
+        canAccessFileLibrary(req, res, next);
+        expect(next).toHaveBeenCalled();
+      }
+    });
+
+    it('should reject lab, reviewer, and read-only roles', () => {
+      for (const role of ['lab', 'reviewer', 'read-only']) {
+        const req = mockReq({ user: { role } });
+        const res = mockRes();
+        const next = vi.fn();
+
+        canAccessFileLibrary(req, res, next);
         expect(next).not.toHaveBeenCalled();
         expect(res.status).toHaveBeenCalledWith(403);
       }

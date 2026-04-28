@@ -36,6 +36,10 @@ import {
   getMassFileRenameContext,
   restoreMassFileRenameStatuses,
 } from '../services/massFileRenameEcoService.js';
+import {
+  getAllowedEcoStatusProposals,
+  isEcoStatusProposalAllowed,
+} from '../services/componentLifecycleService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
@@ -1193,6 +1197,9 @@ export const createECO = async (req, res) => {
     const categoryChange = Array.isArray(changes)
       ? changes.find(change => change.field_name === 'category_id' && change.new_value)
       : null;
+    const statusProposal = Array.isArray(changes)
+      ? changes.find(change => change.field_name === '_status_proposal')
+      : null;
 
     const componentContextResult = await client.query(
       'SELECT category_id, approval_status FROM components WHERE id = $1',
@@ -1206,6 +1213,25 @@ export const createECO = async (req, res) => {
 
     const componentContext = componentContextResult.rows[0];
     const specificationCategoryId = categoryChange?.new_value || componentContext.category_id || null;
+    const proposedApprovalStatus = statusProposal?.new_value || null;
+
+    if (componentContext.approval_status === 'new' && !proposedApprovalStatus) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'New parts can be edited directly. Use ECO only when proposing Prototype status.',
+      });
+    }
+
+    if (proposedApprovalStatus && !isEcoStatusProposalAllowed({
+      currentApprovalStatus: componentContext.approval_status,
+      proposedStatus: proposedApprovalStatus,
+    })) {
+      const allowedTransitions = getAllowedEcoStatusProposals(componentContext.approval_status);
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Status proposal "${proposedApprovalStatus}" is not allowed from "${componentContext.approval_status}". Allowed ECO proposals: ${allowedTransitions.join(', ') || 'none'}.`,
+      });
+    }
 
     const resolvedSpecifications = [];
     if (specifications && specifications.length > 0) {

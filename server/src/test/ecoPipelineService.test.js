@@ -47,11 +47,42 @@ describe('ecoPipelineService', () => {
     })).toEqual([]);
   });
 
+  it('keeps new-part direct edits out of ECO approval tags until prototype is proposed', () => {
+    expect(detectEcoPipelineTypes({
+      changes: [{ field_name: 'description', old_value: 'old', new_value: 'new' }],
+      currentApprovalStatus: 'new',
+    })).toEqual([]);
+  });
+
   it('tags prototype-part changes with the prototype status tag', () => {
     expect(detectEcoPipelineTypes({
       changes: [{ field_name: 'description', old_value: 'old', new_value: 'new' }],
       currentApprovalStatus: 'prototype',
     })).toEqual(['proto_status_change', 'spec']);
+  });
+
+  it('routes new-to-prototype ECOs through the prototype status tag', () => {
+    expect(detectEcoPipelineTypes({
+      changes: [{ field_name: '_status_proposal', old_value: 'new', new_value: 'prototype' }],
+      currentApprovalStatus: 'new',
+    })).toEqual(['proto_status_change']);
+  });
+
+  it('routes prototype-to-production ECOs through the production status tag', () => {
+    expect(detectEcoPipelineTypes({
+      changes: [
+        { field_name: '_status_proposal', old_value: 'prototype', new_value: 'production' },
+        { field_name: 'description', old_value: 'old', new_value: 'new' },
+      ],
+      currentApprovalStatus: 'prototype',
+    })).toEqual(['prod_status_change', 'spec']);
+  });
+
+  it('routes production rollback ECOs through the production status tag', () => {
+    expect(detectEcoPipelineTypes({
+      changes: [{ field_name: '_status_proposal', old_value: 'production', new_value: 'prototype' }],
+      currentApprovalStatus: 'production',
+    })).toEqual(['prod_status_change']);
   });
 
   it('separates alternative-part metadata into the alt-parts tag', () => {

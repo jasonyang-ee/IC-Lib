@@ -115,7 +115,7 @@ END $$;
 DO $$
 BEGIN
   ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-  ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('read-only', 'reviewer', 'read-write', 'approver', 'admin'));
+  ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('read-only', 'reviewer', 'lab', 'read-write', 'approver', 'admin'));
 END $$;
 
 -- Rename approval statuses: approved->production, experimental->prototype, pending review->reviewing

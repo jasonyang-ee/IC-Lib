@@ -6,6 +6,10 @@ import {
   doesStageMatchEcoPipelineTypes,
   getPrimaryEcoPipelineType,
 } from './ecoPipelineService.js';
+import {
+  resolveEcoLifecyclePipelineType,
+  shouldStageSharedRenameForStatus,
+} from './componentLifecycleService.js';
 import { regenerateCadText } from './cadFileService.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
@@ -13,12 +17,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const LIBRARY_BASE = path.resolve(__dirname, '../../..', 'library');
-
-const PRE_PRODUCTION_STATUSES = new Set([
-  'new',
-  'reviewing',
-  'prototype',
-]);
 
 const FILE_TYPE_SUBDIR = Object.freeze({
   footprint: 'footprint',
@@ -35,12 +33,12 @@ export const resolveMassFileRenamePipelineTypes = (originalStatuses = []) => {
   const pipelineTypes = new Set([MASS_FILE_RENAME_PIPELINE_TYPE]);
 
   originalStatuses.forEach((status) => {
-    if (status === 'production') {
-      pipelineTypes.add('prod_status_change');
-    }
+    const lifecyclePipelineType = resolveEcoLifecyclePipelineType({
+      currentApprovalStatus: status,
+    });
 
-    if (PRE_PRODUCTION_STATUSES.has(status)) {
-      pipelineTypes.add('proto_status_change');
+    if (lifecyclePipelineType) {
+      pipelineTypes.add(lifecyclePipelineType);
     }
   });
 
@@ -102,8 +100,16 @@ export const createMassFileRenameEco = async (client, {
     throw new Error('At least one affected component is required');
   }
 
+  const stagedComponents = affectedComponents.filter((component) => (
+    shouldStageSharedRenameForStatus(component.approval_status)
+  ));
+
+  if (stagedComponents.length === 0) {
+    throw new Error('At least one non-new affected component is required for a shared file rename ECO');
+  }
+
   const pipelineTypes = resolveMassFileRenamePipelineTypes(
-    affectedComponents.map((component) => component.approval_status),
+    stagedComponents.map((component) => component.approval_status),
   );
   const pipelineType = getPrimaryEcoPipelineType(pipelineTypes);
 
@@ -124,7 +130,7 @@ export const createMassFileRenameEco = async (client, {
     : null;
 
   const ecoNumber = await consumeNextEcoNumber(client);
-  const summary = buildMassFileRenameSummary(files, affectedComponents.length);
+  const summary = buildMassFileRenameSummary(files, stagedComponents.length);
   const ecoNotes = notes || summary;
 
   const ecoResult = await client.query(`
@@ -171,7 +177,7 @@ export const createMassFileRenameEco = async (client, {
     ]);
   }
 
-  for (const component of affectedComponents) {
+  for (const component of stagedComponents) {
     await client.query(`
       INSERT INTO eco_file_rename_components (
         eco_id,
@@ -198,13 +204,14 @@ export const createMassFileRenameEco = async (client, {
     WHERE id = ANY($2::uuid[])
   `, [
     user.id,
-    affectedComponents.map((component) => component.id),
+    stagedComponents.map((component) => component.id),
   ]);
 
   return {
     eco,
     summary,
     pipelineTypes,
+    stagedComponents,
   };
 };
 
@@ -389,16 +396,21 @@ export const applyMassFileRenameEco = async (client, ecoId, actorId = null) => {
         `, [newFileName, `${subdir}/${newFileName}`, currentFile.id]);
       }
 
-      context.components.forEach((component) => {
-        if (!component.component_id) {
+      const linkedComponentsResult = await client.query(
+        'SELECT DISTINCT component_id FROM component_cad_files WHERE cad_file_id = $1',
+        [currentFile.id],
+      );
+
+      linkedComponentsResult.rows.forEach(({ component_id: componentId }) => {
+        if (!componentId) {
           return;
         }
 
-        if (!fileTypesByComponentId.has(component.component_id)) {
-          fileTypesByComponentId.set(component.component_id, new Set());
+        if (!fileTypesByComponentId.has(componentId)) {
+          fileTypesByComponentId.set(componentId, new Set());
         }
 
-        fileTypesByComponentId.get(component.component_id).add(file.file_type);
+        fileTypesByComponentId.get(componentId).add(file.file_type);
       });
     }
 

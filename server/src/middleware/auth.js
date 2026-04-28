@@ -1,4 +1,7 @@
 import jwt from 'jsonwebtoken';
+import pool from '../config/database.js';
+import { canDirectEditComponentInEcoMode } from '../services/componentLifecycleService.js';
+import { isEcoEnabled } from '../utils/featureFlags.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -8,6 +11,7 @@ if (!JWT_SECRET) {
 export const JWT_EXPIRES_IN = '24h';
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'token';
 const AUTH_COOKIE_MAX_AGE = 24 * 60 * 60 * 1000;
+const FILE_LIBRARY_ACCESS_ROLES = new Set(['read-write', 'approver', 'admin']);
 
 export const getAuthCookieOptions = ({ clear = false } = {}) => {
   const options = {
@@ -141,7 +145,7 @@ export const canApprove = (req, res, next) => {
 };
 
 /**
- * Check if user has write access (read-write, approver, or admin)
+ * Check if user has write access (lab, read-write, approver, or admin)
  */
 export const canWrite = (req, res, next) => {
   if (!req.user) {
@@ -179,3 +183,71 @@ export const canDeleteLibraryFiles = (req, res, next) => {
 
   next();
 };
+
+export const canAccessFileLibrary = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+    });
+  }
+
+  if (!FILE_LIBRARY_ACCESS_ROLES.has(req.user.role)) {
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'File Library access required',
+    });
+  }
+
+  next();
+};
+
+const buildDirectComponentEditGuard = (getComponentId) => async (req, res, next) => {
+  if (!isEcoEnabled() || req.user?.role === 'admin') {
+    next();
+    return;
+  }
+
+  const componentId = getComponentId(req);
+  if (!componentId) {
+    return res.status(400).json({
+      error: 'Component ID is required',
+    });
+  }
+
+  try {
+    const componentResult = await pool.query(
+      'SELECT approval_status FROM components WHERE id = $1',
+      [componentId],
+    );
+
+    if (componentResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Component not found',
+      });
+    }
+
+    const currentApprovalStatus = componentResult.rows[0].approval_status;
+    const requestedApprovalStatus = req.body?.approval_status;
+
+    if (!canDirectEditComponentInEcoMode({
+      role: req.user?.role,
+      currentApprovalStatus,
+      requestedApprovalStatus,
+    })) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: 'Direct edits require ECO approval unless the part is still in new status',
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Direct component edit policy error:', error);
+    res.status(500).json({
+      error: 'Failed to verify direct edit policy',
+    });
+  }
+};
+
+export const canDirectEditComponent = buildDirectComponentEditGuard((req) => req.params.id);
+export const canDirectEditComponentByBody = buildDirectComponentEditGuard((req) => req.body?.componentId);

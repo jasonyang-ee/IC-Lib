@@ -1,6 +1,7 @@
 export const ROLE_HIERARCHY = {
   'read-only': 0,
   reviewer: 1,
+  lab: 2,
   'read-write': 2,
   approver: 3,
   admin: 4,

@@ -670,11 +670,15 @@ const FileLibrary = () => {
         const affectedComponents = Array.isArray(response.data?.components)
           ? response.data.components
           : [];
+        const controlledComponents = affectedComponents.filter((component) => component?.approval_status !== 'new');
+        const skippedNewComponentCount = affectedComponents.length - controlledComponents.length;
 
-        if (affectedComponents.length > 1) {
+        if (affectedComponents.length > 1 && controlledComponents.length > 0) {
           setPendingRenameConfirmation({
             ...renameRequest,
             affectedComponentCount: affectedComponents.length,
+            controlledComponentCount: controlledComponents.length,
+            skippedNewComponentCount,
           });
           setShowRenameModal(false);
           return;
@@ -926,7 +930,7 @@ const FileLibrary = () => {
         onClose={handleCloseRenameConfirmation}
         onConfirm={handleConfirmRenameConfirmation}
         title="Create Shared Rename ECO"
-        message={`This shared rename affects ${pendingRenameConfirmation?.affectedComponentCount || 0} parts. Continuing will create one ECO, move those parts to reviewing, and wait for approval before any file names change.`}
+        message={`This shared rename affects ${pendingRenameConfirmation?.affectedComponentCount || 0} parts. Continuing will create one ECO, move ${pendingRenameConfirmation?.controlledComponentCount || 0} controlled part${(pendingRenameConfirmation?.controlledComponentCount || 0) !== 1 ? 's' : ''} to reviewing, and wait for approval before any file names change.${(pendingRenameConfirmation?.skippedNewComponentCount || 0) > 0 ? ` ${(pendingRenameConfirmation?.skippedNewComponentCount || 0)} new part${(pendingRenameConfirmation?.skippedNewComponentCount || 0) !== 1 ? 's' : ''} will stay editable and skip the review status change.` : ''}`}
         confirmText="Create ECO"
         confirmStyle="warning"
         isLoading={physicalRenameMutation.isPending}

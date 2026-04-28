@@ -1,6 +1,11 @@
 import express from 'express';
 import * as componentController from '../controllers/componentController.js';
-import { authenticate, canWrite, isAdmin } from '../middleware/auth.js';
+import {
+  authenticate,
+  canDirectEditComponent,
+  canWrite,
+  isAdmin,
+} from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -29,37 +34,37 @@ router.get('/:id', componentController.getComponentById);
 router.post('/', authenticate, canWrite, componentController.createComponent);
 
 // Update component
-router.put('/:id', authenticate, canWrite, componentController.updateComponent);
+router.put('/:id', authenticate, canWrite, canDirectEditComponent, componentController.updateComponent);
 
 // Delete component
-router.delete('/:id', authenticate, canWrite, componentController.deleteComponent);
+router.delete('/:id', authenticate, canWrite, canDirectEditComponent, componentController.deleteComponent);
 
 // Get component specifications
 router.get('/:id/specifications', componentController.getComponentSpecifications);
 
 // Update component specifications
-router.put('/:id/specifications', authenticate, canWrite, componentController.updateComponentSpecifications);
+router.put('/:id/specifications', authenticate, canWrite, canDirectEditComponent, componentController.updateComponentSpecifications);
 
 // Get distributor info for component
 router.get('/:id/distributors', componentController.getDistributorInfo);
 
 // Update distributor info for component
-router.put('/:id/distributors', authenticate, canWrite, componentController.updateDistributorInfo);
+router.put('/:id/distributors', authenticate, canWrite, canDirectEditComponent, componentController.updateDistributorInfo);
 
 // Get alternative parts for a component
 router.get('/:id/alternatives', componentController.getAlternatives);
 
 // Create alternative part
-router.post('/:id/alternatives', authenticate, canWrite, componentController.createAlternative);
+router.post('/:id/alternatives', authenticate, canWrite, canDirectEditComponent, componentController.createAlternative);
 
 // Update alternative part
-router.put('/:id/alternatives/:altId', authenticate, canWrite, componentController.updateAlternative);
+router.put('/:id/alternatives/:altId', authenticate, canWrite, canDirectEditComponent, componentController.updateAlternative);
 
 // Delete alternative part
-router.delete('/:id/alternatives/:altId', authenticate, canWrite, componentController.deleteAlternative);
+router.delete('/:id/alternatives/:altId', authenticate, canWrite, canDirectEditComponent, componentController.deleteAlternative);
 
 // Promote alternative part to primary (atomic swap)
-router.post('/:id/alternatives/:altId/promote', authenticate, canWrite, componentController.promoteAlternative);
+router.post('/:id/alternatives/:altId/promote', authenticate, canWrite, canDirectEditComponent, componentController.promoteAlternative);
 
 // Update approval status for component (admin-only backdoor; normal flow uses ECO)
 router.post('/:id/approval', authenticate, isAdmin, componentController.updateComponentApproval);
@@ -68,6 +73,6 @@ router.post('/:id/approval', authenticate, isAdmin, componentController.updateCo
 router.post('/:id/update-stock', componentController.updateComponentStock);
 
 // Change component category (admin only - regenerates part number)
-router.put('/:id/change-category', authenticate, canWrite, componentController.changeComponentCategory);
+router.put('/:id/change-category', authenticate, canWrite, canDirectEditComponent, componentController.changeComponentCategory);
 
 export default router;

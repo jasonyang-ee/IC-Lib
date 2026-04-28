@@ -78,4 +78,12 @@ describe('UserManagement', () => {
       expect(screen.queryByRole('heading', { name: 'Delete User' })).not.toBeInTheDocument();
     });
   });
+
+  it('offers the lab role in the create-user form', async () => {
+    renderComponent();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create User' }));
+
+    expect(screen.getByRole('option', { name: 'Lab' })).toBeInTheDocument();
+  });
 });

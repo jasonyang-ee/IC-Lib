@@ -2,16 +2,17 @@
 
 ## Roles and Navigation
 
-- Roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`.
+- Roles: `read-only`, `reviewer`, `lab`, `read-write`, `approver`, `admin`.
 - `/login` support normal sign-in + guest read-only sign-in.
 - Landing:
   - `read-only|reviewer` -> `/eco` if ECO on, else `/library`
-  - `read-write|approver|admin` -> `/`
+  - `lab|read-write|approver|admin` -> `/`
 - Sidebar: collapse + dark mode persist in local storage. Show version, user card, logout.
 - Nav:
   - `read-only`: Library, ECO
   - `reviewer`: Library, ECO, User Settings
-  - `read-write|approver|admin`: Dashboard, Library, File Library, Inventory, Vendor Search, Projects, Reports, Audit, User Settings
+  - `lab|read-write|approver|admin`: Dashboard, Library, Inventory, Vendor Search, Projects, Reports, Audit, User Settings
+  - `read-write|approver|admin`: all above + File Library
   - `admin`: all above + Admin Settings
 - ECO route/nav only when feature flag on.
 
@@ -19,7 +20,7 @@
 
 - Most screens: left filter/nav pane + right detail/result pane.
 - Common pivots:
-  - Library -> Inventory, File Library, Projects, Vendor Search
+  - Library -> Inventory, Projects, Vendor Search, and File Library when role allows
   - Inventory -> Library, Vendor Search
   - File Library -> Library
   - Vendor Search -> Library
@@ -56,9 +57,9 @@
   - copyable fields
   - alternative selector
   - datasheet link
-  - CAD links -> File Library deep links
+  - CAD links -> File Library deep links only for roles that can open File Library; `lab` sees plain filenames
   - approval status/history
-  - pivots -> Inventory, File Library, Add to Project
+  - pivots -> Inventory, Add to Project, and File Library only for File Library-capable roles
   - distributor panel -> Vendor Search
   - read-only specs
 - Add/edit:
@@ -81,11 +82,12 @@
   - mapping modal bind vendor fields to specs or new custom spec
 - Direct edit:
   - ECO off -> write roles edit live records + bulk-delete parts
-  - ECO on -> admin only
+  - ECO on -> admin may direct-edit any part; non-admin write roles may direct-edit `new` parts only
 - ECO path:
-  - write roles open `Initiate ECO`
+  - write roles open `Initiate ECO`; `new` parts use ECO only when ready to propose `prototype`
   - stage field/spec/distributor/alternative/CAD/status/delete + notes
-  - status proposals include `production -> prototype` and `archived -> prototype|production`
+  - status proposals include `new -> prototype`, `production -> prototype`, `prototype|production -> archived`, and `archived -> prototype|production`
+  - ECO does not offer any path back to `new`
   - retry panel reload rejected ECO change-set under same ECO number chain
   - ECO mode blocks overwrite of existing library files
 
@@ -120,6 +122,7 @@
 ### `/file-library`
 
 - Goal: browse shared CAD, inspect reuse, rename files, copy paths, clean orphans, download CIS support files.
+- Access: `read-write|approver|admin`; `lab` keeps part-scoped CAD picker/linking from Library edit but cannot open this page.
 - View modes:
   - `File Types`: schematic, footprint, pad, 3D model, PSpice
   - `Category`: categories -> components -> files for selected component
@@ -131,7 +134,7 @@
   - selected file shows linked components + links back to Library
   - footprint pairs grouped
   - rename/delete permission-gated
-  - ECO on + non-admin + shared rename affecting >1 part -> show shared transparent-gray warning modal, create 1 mass ECO with `Shared Rename` tag, push affected parts to `reviewing`, apply rename only after approval
+  - ECO on + non-admin + shared rename affecting >1 part + at least 1 non-`new` part -> show shared transparent-gray warning modal, create 1 mass ECO with `Shared Rename` tag, push only non-`new` affected parts to `reviewing`, keep `new` parts editable, apply rename only after approval
   - admin shared renames stay direct even when ECO mode is on
   - orphan-only multi-select delete for delete-capable roles
   - CIS template/config downloads in sidebar
@@ -141,7 +144,7 @@
   - selected-part CAD files
   - sharing info for reused files
   - rename + copy-path per file
-  - shared rename warning/direct-rename rules match File Types mode
+  - shared rename warning/direct-rename rules match File Types mode, including skipping `new` parts from review-status staging
   - links back to Library for selected part + sharing parts
 
 ### `/inventory`
@@ -207,7 +210,7 @@
 
 `User`
 - create/edit/activate/deactivate/delete users
-- change roles + optional password
+- change roles including `lab` + optional password
 - export/import user JSON backups
 
 `BOM`
