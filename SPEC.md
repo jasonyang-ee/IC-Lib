@@ -56,6 +56,7 @@ V17: project/inventory contract: project mutation routes auth+canWrite; inventor
 V18: fresh DB repo schema ! cover every persisted API surface present in `§I`.
 V19: fresh DB default ECO stage config ! include every runtime pipeline tag required by `V12`.
 V20: file-library shared rename policy: `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 -> stage 1 ECO w/ filename tag, set ∀ affected part `approval_status=reviewing`, approve -> rename shared CAD files + restore each part original status, reject|delete -> restore each part original status & keep file info unchanged.
+V21: ECO status proposal UI ! allow `production -> prototype` rollback and `archived -> prototype|production` restore paths in addition to existing forward/archive proposals.
 
 ## §T
 

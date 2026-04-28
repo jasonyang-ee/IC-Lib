@@ -85,6 +85,7 @@
 - ECO path:
   - write roles open `Initiate ECO`
   - stage field/spec/distributor/alternative/CAD/status/delete + notes
+  - status proposals include `production -> prototype` and `archived -> prototype|production`
   - retry panel reload rejected ECO change-set under same ECO number chain
   - ECO mode blocks overwrite of existing library files
 

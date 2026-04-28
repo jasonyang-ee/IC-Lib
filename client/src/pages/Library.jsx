@@ -17,6 +17,7 @@ import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { canDirectEditLibraryComponents } from '../utils/accessControl';
+import { getEcoStatusProposalOptions } from '../utils/ecoStatusProposalOptions';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
 const LIBRARY_STATUS_FILTERS = [
@@ -2976,6 +2977,7 @@ const Library = () => {
     estimateSize: () => 45,
     overscan: 20,
   });
+  const ecoStatusOptions = getEcoStatusProposalOptions(componentDetails?.approval_status);
 
   return (
     <div className="h-full flex flex-col library-background" onClick={handlePageClick}>
@@ -3551,54 +3553,32 @@ const Library = () => {
                     Current status: <span className="font-semibold">{componentDetails.approval_status}</span>
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {componentDetails.approval_status === 'new' && (
-                      <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'new', new_value: 'prototype' })}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'prototype'
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                        }`}
-                      >
-                        Propose Prototype
-                      </button>
-                    )}
-                    {componentDetails.approval_status === 'prototype' && (
-                      <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'prototype', new_value: 'production' })}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'production'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                        }`}
-                      >
-                        Propose Production
-                      </button>
-                    )}
-                    {componentDetails.approval_status !== 'archived' && (
-                      <button
-                        onClick={() => setEcoStatusProposal({ old_value: componentDetails.approval_status, new_value: 'archived' })}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'archived'
-                            ? 'bg-red-600 text-white'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
-                        }`}
-                      >
-                        Propose Archive
-                      </button>
-                    )}
-                    {componentDetails.approval_status === 'archived' && (
-                      <button
-                        onClick={() => setEcoStatusProposal({ old_value: 'archived', new_value: 'production' })}
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          ecoStatusProposal?.new_value === 'production'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                        }`}
-                      >
-                        Propose Re-Production
-                      </button>
-                    )}
+                    {ecoStatusOptions.map((option) => {
+                      const toneClasses = {
+                        production: ecoStatusProposal?.new_value === option.newValue
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50',
+                        prototype: ecoStatusProposal?.new_value === option.newValue
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50',
+                        archived: ecoStatusProposal?.new_value === option.newValue
+                          ? 'bg-red-600 text-white'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50',
+                      };
+
+                      return (
+                        <button
+                          key={option.newValue}
+                          onClick={() => setEcoStatusProposal({
+                            old_value: componentDetails.approval_status,
+                            new_value: option.newValue,
+                          })}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${toneClasses[option.tone]}`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
                     {ecoStatusProposal && (
                       <button
                         onClick={() => setEcoStatusProposal(null)}

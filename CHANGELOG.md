@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split `AGENTS.md` and `SPEC.md` responsibilities more cleanly so repo-working guidance stays in `AGENTS.md` while durable system behavior, data-model facts, auth semantics, and feature scope stay in `SPEC.md`
 - Rebuilt `UX.md` from the live frontend route surface, added `UX.original.md` as a readable workflow map, and compressed the checked-in UX guide to cover role-based navigation plus Library, Vendor Search, ECO, File Library, Inventory, Projects, Reports, Audit, User Settings, and Admin Settings flows
 - File Library shared renames now bypass direct file changes for non-admin users when server ECO mode is on and the rename touches multiple parts; the system sends those parts to `reviewing`, opens one approval flow, and only applies the rename on approval
+- ECO status proposal UX now lets users roll `production` parts back to `prototype` and restore `archived` parts to either `prototype` or `production`
 
 ### Fixed
 
