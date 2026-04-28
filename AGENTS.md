@@ -1,4 +1,3 @@
-
 ## Commands
 
 - `./start.sh` — start dev server (client + server).
@@ -6,6 +5,12 @@
 - `/caveman-commit` — single commit summary.
 - `/caveman-compress` — compress this `AGENTS.md`.
 - `/spec` — sync `SPEC.md` with code + future SDD.
+
+## AI File Purpose
+
+- `AGENTS.md` = repo work rules.
+- `SPEC.md` = system truth.
+- `UX.md` = user path map.
 
 ## Project Structure
 
@@ -28,28 +33,29 @@ IC-Lib/
 
 ## Database
 
-- PostgreSQL + UUIDv7 PK (`uuidv7()`); `created_at(id)` derive create time
-- JSONB for flexible data: `activity_log`, ECO changes, notification prefs
-- Key views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`, `eco_orders_full`
+- DB edits: incremental change in `database/migrations/<int>_<desc>.sql`; no leading zeros
 - **`database/init-*.sql`**: fresh init/full rebuild only. No `ALTER`, backfill, constraint rewrite, legacy cleanup.
-- **`database/migrations/`**: incremental change use plain integer names, no leading zeros, e.g. `5_eco_stage_delegation_support.sql`
-- Migrations idempotent when possible: `IF NOT EXISTS`, guarded `DO $$`; startup auto-apply pending files
-- Migration-owned cols/views/tables: update server schema inspection expectations, not `init-schema.sql`
+- New tables follow repo PK pattern: `UUID PRIMARY KEY DEFAULT uuidv7()`
+- Use `created_at(id)` when code needs create timestamp from UUIDv7 IDs
+- Migrations idempotent when practical: `IF NOT EXISTS`, guarded `DO $$`; startup auto-apply pending files
+- If migration adds startup-required cols/views/tables, update server schema inspection expectations too
 - Release traceability: version in migration header + `CHANGELOG.md`, not filename
 
 ## Auth
 
-- JWT via `authenticate`; roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
-- Middleware: `canWrite`, `canApprove`, `isAdmin`
-- Inventory, project, dashboard routes: NO auth. Use `req.user?.id || null`.
+- Roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
+- Server guards: `authenticate`, `canWrite`, `canApprove`, `isAdmin`
+- Optional-actor read flows use `req.user?.id || null`
+- Do not add auth to inventory/project/dashboard read paths unless feature explicitly changes access model
 
 ## Key Features
 
-- **Component Library**: CRUD, categories, manufacturers, specs, alt parts, DigiKey/Mouser, approval flow `new -> reviewing -> prototype -> production -> archived`
-- **CAD Files**: flat storage `library/[category]/[filename]`, `component_cad_files` junction, TEXT cols auto-regen from junction, ZIP upload/export
-- **ECO**: multi-stage approval, configurable stages, role-gated approvals, email notices
-- **Projects**: BOM with primary + alt parts, bulk inventory consume
-- **Audit**: `activity_log`, 30+ activity types, JSONB details, user tracking
+- Repo map only. Product behavior, invariants, statuses live in `SPEC.md`.
+- **Component Library**: component CRUD, vendor-assisted intake, specs, distributors, alt parts
+- **CAD Files**: temp upload/finalize, shared file library, junction-backed links, ZIP flows
+- **ECO**: staged change-control, approvals, PDF/email outputs
+- **Inventory + Projects**: stock/location flows, barcode lookup, BOM/project consume/export
+- **Audit + Ops**: activity log, reports, SMTP/admin settings, DB maintenance/import scripts
 
 ## Release Checklist
 

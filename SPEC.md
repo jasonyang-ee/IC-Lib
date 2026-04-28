@@ -4,18 +4,20 @@
 
 G1: manage PCB/OrCAD component lib end-to-end: vendor intake -> CAD asset control -> approval/status control -> inventory/project/BOM reuse.
 G2: keep app operable on fresh or drifted DB via startup init, numeric migrations, auth bootstrap, file scan/repair, email/runtime config.
+G3: provide audit/reporting/admin surfaces for governed library ops.
 
 ## §C
 
 C1: stack React 19 + Vite + TailwindCSS v4 + React Query 5 | Express 4 | PostgreSQL 18 | JWT cookie auth.
 C2: DB primary keys ! `UUID DEFAULT uuidv7()`; create time derive via `created_at(id)`.
 C3: app owns flat CAD tree `library/footprint|symbol|model|pspice|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`.
-C4: OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file` + views `production_parts|prototype_parts|archived_parts|alternative_parts`.
+C4: query/report/runtime surfaces rely on views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file`.
 C5: roles `read-only|reviewer|read-write|approver|admin`; UI nav + server mutations gate by role; some server read APIs intentionally public.
 C6: runtime flags/env ! support `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, DB creds, vendor API creds, `SMTP_ENCRYPTION_KEY`.
 C7: startup may repair missing base schema from `database/init-*.sql`; incremental change ! live in `database/migrations/<int>_<desc>.sql`.
 C8: file ops & import/repair flows must work on shared repo filesystem; path escape ⊥.
 C9: spec target code-as-built first; known drift/bugs record in `§B`, not hidden.
+C10: flexible workflow/audit payloads may persist in JSONB: `activity_log.details`, distributor `price_breaks`, ECO alt `distributors`, similar variable-shape data.
 
 ## §I
 
@@ -43,7 +45,7 @@ V6: component status ∈ `{new,reviewing,prototype,production,archived}`; ECO st
 V7: component create ! inventory row ∃, `activity_log` row ∃, joined API payload include category/manufacturer/part_type/created_at.
 V8: CAD source-of-truth -> `cad_files` + `component_cad_files`; TEXT CAD cols derived by regen, strip ext, skip `.dra`; startup scan registers untracked files & toggles `cad_files.missing` from disk state.
 V9: fs ops ! safe leaf names + resolved path ∈ library base; traversal/nested path reject.
-V10: catalog/dashboard/report/settings-read/project/inventory GET routes may be unauthenticated; mutation routes remain guarded.
+V10: catalog/dashboard/report/settings-read/project/inventory GET routes may be unauthenticated; handlers that attribute actor use `req.user?.id || null`; mutation routes remain guarded.
 V11: ECO routes auth ! always; any auth user may view; create -> `canWrite`; approve/reject -> `canApprove`; current-stage actability computed per user + stage.
 V12: ECO pipeline tags ∈ `{proto_status_change,prod_status_change,spec,filename,distributor,alt_parts}`; legacy `general|spec_cad|status_change` normalize; stage match needs status-tag match & detail-tag match.
 V13: ECO vote uniqueness ! one effective vote per `(eco_id, stage_id, COALESCE(acting_for_user_id,user_id))`; delegation target ! same|higher role; delegated user may consume assigned approver slot.

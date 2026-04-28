@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replaced the narrative `SPEC.md` workflow doc with a caveman-style SDD backfill that captures live interfaces, constraints, invariants, known drift bugs, and next alignment tasks across auth, admin/runtime ops, CAD governance, ECO, inventory, projects, and reporting
 - Compressed `AGENTS.md` into caveman format and added `AGENTS.original.md` as a human-readable backup while preserving the repo command, database, auth, feature, and release rules
+- Split `AGENTS.md` and `SPEC.md` responsibilities more cleanly so repo-working guidance stays in `AGENTS.md` while durable system behavior, data-model facts, auth semantics, and feature scope stay in `SPEC.md`
+- Rebuilt `UX.md` from the live frontend route surface, added `UX.original.md` as a readable workflow map, and compressed the checked-in UX guide to cover role-based navigation plus Library, Vendor Search, ECO, File Library, Inventory, Projects, Reports, Audit, User Settings, and Admin Settings flows
 
 ### Fixed
 

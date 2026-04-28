@@ -15,16 +15,6 @@ build/
 # CAD file library
 /library/*
 !/library/template
-/import
-/example
-/image
 
-# AI notes
-*.md
-!LICENSE.md
-!README.md
-!CONTRIBUTING.md
-!CHANGELOG.md
-!AGENTS.md
-!SPEC.md
-!UX.md
+# helper files
+/import
