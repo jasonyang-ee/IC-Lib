@@ -43,10 +43,11 @@ describe('ecoPipelineTypes', () => {
       {
         id: 'change',
         label: 'Change Tags',
-        values: ['spec', 'filename', 'distributor', 'alt_parts'],
+        values: ['spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts'],
         options: [
           expect.objectContaining({ value: 'spec', label: 'Spec' }),
           expect.objectContaining({ value: 'filename', label: 'Filename' }),
+          expect.objectContaining({ value: 'shared_file_rename', label: 'Shared Rename' }),
           expect.objectContaining({ value: 'distributor', label: 'Distributor' }),
           expect.objectContaining({ value: 'alt_parts', label: 'Alt Parts' }),
         ],

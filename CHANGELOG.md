@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Server container now includes a CLI-only `repair admin-reset` command that resets the default `admin` user password to a new random six-character string and prints it to the server console
 - Shared File Library renames can now stage one mass ECO that tracks every affected part's original lifecycle status before approval
+- Admin Settings ECO approval stages now include a dedicated `Shared Rename` tag so staged shared file renames can be routed separately from ordinary filename ECOs
 
 ### Changed
 
@@ -19,11 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split `AGENTS.md` and `SPEC.md` responsibilities more cleanly so repo-working guidance stays in `AGENTS.md` while durable system behavior, data-model facts, auth semantics, and feature scope stay in `SPEC.md`
 - Rebuilt `UX.md` from the live frontend route surface, added `UX.original.md` as a readable workflow map, and compressed the checked-in UX guide to cover role-based navigation plus Library, Vendor Search, ECO, File Library, Inventory, Projects, Reports, Audit, User Settings, and Admin Settings flows
 - File Library shared renames now bypass direct file changes for non-admin users when server ECO mode is on and the rename touches multiple parts; the system sends those parts to `reviewing`, opens one approval flow, and only applies the rename on approval
+- Default ECO approval-stage seeds and repair paths now include both `Alt Parts` and `Shared Rename`, and staged shared file-renames now use the dedicated shared tag instead of the generic filename tag
 - ECO status proposal UX now lets users roll `production` parts back to `prototype` and restore `archived` parts to either `prototype` or `production`
 
 ### Fixed
 
 - Rejecting or deleting a staged shared file-rename ECO now restores every affected part's pre-review lifecycle status and leaves the shared CAD filenames unchanged
+- Non-admin shared file-library renames now show a warning confirmation before staging the ECO, while admin shared renames continue to apply directly without generating a mass ECO
 
 ## [1.9.8] - 2026-04-25
 

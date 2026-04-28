@@ -131,7 +131,8 @@
   - selected file shows linked components + links back to Library
   - footprint pairs grouped
   - rename/delete permission-gated
-  - ECO on + non-admin + shared rename affecting >1 part -> create 1 mass ECO, push affected parts to `reviewing`, apply rename only after approval
+  - ECO on + non-admin + shared rename affecting >1 part -> show shared transparent-gray warning modal, create 1 mass ECO with `Shared Rename` tag, push affected parts to `reviewing`, apply rename only after approval
+  - admin shared renames stay direct even when ECO mode is on
   - orphan-only multi-select delete for delete-capable roles
   - CIS template/config downloads in sidebar
 - Category mode:
@@ -140,6 +141,7 @@
   - selected-part CAD files
   - sharing info for reused files
   - rename + copy-path per file
+  - shared rename warning/direct-rename rules match File Types mode
   - links back to Library for selected part + sharing parts
 
 ### `/inventory`
@@ -221,7 +223,7 @@
 
 `ECO`
 - configure ECO number prefix + next sequence
-- manage approval stages, stage order, parallel groups, required roles, required approvals, stage tags, assigned approvers
+- manage approval stages, stage order, parallel groups, required roles, required approvals, stage tags including `Shared Rename`, assigned approvers
 - export/import approval stages as JSON
 - configure ECO PDF branding + document-control notification email
 
@@ -306,7 +308,8 @@
 - Footprint pairs are grouped across upload, rename, file-library views.
 - Standard add/edit conflict modal can reuse existing files or overwrite with new uploads.
 - ECO mode intentionally blocks overwrite of existing library files.
-- ECO mode shared file-library renames for non-admin users stage approval before any shared filename changes land.
+- ECO mode shared file-library renames for non-admin users show the shared transparent-gray warning modal, then stage approval before any shared filename changes land.
+- Admin users still apply shared file-library renames directly without generating a mass ECO.
 - File-path copy depends on per-user storage base path.
 - BOM export defaults come from admin settings but remain user-selectable each export.
 - Approval-stage assignees can narrow action to named users; delegations allow approved backup action.

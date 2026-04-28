@@ -11,6 +11,7 @@ import {
 } from '../utils/footprintFiles';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import {
   FileBox,
   Search,
@@ -124,6 +125,7 @@ const FileLibrary = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showSuccess, showError } = useNotification();
   const { canWrite, user } = useAuth();
+  const { ecoEnabled } = useFeatureFlags();
   const canDeleteFiles = () => canDeleteLibraryFilesForRole(user?.role);
 
   // --- State ---
@@ -153,6 +155,8 @@ const FileLibrary = () => {
     fileNames: [],
     files: [],
   });
+  const [pendingRenameConfirmation, setPendingRenameConfirmation] = useState(null);
+  const [isPreparingRenameConfirmation, setIsPreparingRenameConfirmation] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -382,6 +386,7 @@ const FileLibrary = () => {
       }
     },
     onError: (error) => {
+      setShowRenameModal(true);
       showError('Failed to rename file: ' + (error.response?.data?.error || error.message));
     },
   });
@@ -641,12 +646,69 @@ const FileLibrary = () => {
     }
 
     const type = renameData.type || selectedType;
-    physicalRenameMutation.mutate({
+    const renameRequest = {
       type,
       files: renameData.files,
       newName: renameData.newName.trim(),
       mode: renameData.mode,
-    });
+    };
+
+    const shouldWarnAboutSharedRenameEco = ecoEnabled && user?.role !== 'admin';
+    if (!shouldWarnAboutSharedRenameEco) {
+      physicalRenameMutation.mutate(renameRequest);
+      return;
+    }
+
+    setIsPreparingRenameConfirmation(true);
+
+    api.getComponentsByFile(
+      renameRequest.type,
+      renameRequest.files[0]?.file_name,
+      renameRequest.files.length > 1 ? renameRequest.files.map((file) => file.file_name) : undefined,
+    )
+      .then((response) => {
+        const affectedComponents = Array.isArray(response.data?.components)
+          ? response.data.components
+          : [];
+
+        if (affectedComponents.length > 1) {
+          setPendingRenameConfirmation({
+            ...renameRequest,
+            affectedComponentCount: affectedComponents.length,
+          });
+          setShowRenameModal(false);
+          return;
+        }
+
+        physicalRenameMutation.mutate(renameRequest);
+      })
+      .catch((error) => {
+        showError('Failed to check shared rename impact: ' + (error.response?.data?.error || error.message));
+      })
+      .finally(() => {
+        setIsPreparingRenameConfirmation(false);
+      });
+  };
+
+  const handleCloseRenameConfirmation = () => {
+    setPendingRenameConfirmation(null);
+    setShowRenameModal(true);
+  };
+
+  const handleConfirmRenameConfirmation = () => {
+    if (!pendingRenameConfirmation) {
+      return;
+    }
+
+    const renameRequest = {
+      type: pendingRenameConfirmation.type,
+      files: pendingRenameConfirmation.files,
+      newName: pendingRenameConfirmation.newName,
+      mode: pendingRenameConfirmation.mode,
+    };
+
+    setPendingRenameConfirmation(null);
+    physicalRenameMutation.mutate(renameRequest);
   };
 
   const handleUseMPN = () => {
@@ -854,10 +916,21 @@ const FileLibrary = () => {
           onSubmit={handleRenameSubmit}
           onUseMPN={handleUseMPN}
           onUsePackage={handleUsePackage}
-          isPending={physicalRenameMutation.isPending}
+          isPending={physicalRenameMutation.isPending || isPreparingRenameConfirmation}
           isUnchanged={isRenameUnchanged}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={Boolean(pendingRenameConfirmation)}
+        onClose={handleCloseRenameConfirmation}
+        onConfirm={handleConfirmRenameConfirmation}
+        title="Create Shared Rename ECO"
+        message={`This shared rename affects ${pendingRenameConfirmation?.affectedComponentCount || 0} parts. Continuing will create one ECO, move those parts to reviewing, and wait for approval before any file names change.`}
+        confirmText="Create ECO"
+        confirmStyle="warning"
+        isLoading={physicalRenameMutation.isPending}
+      />
 
       {/* ===== DELETE MODAL ===== */}
       {showDeleteModal && deleteTarget && (

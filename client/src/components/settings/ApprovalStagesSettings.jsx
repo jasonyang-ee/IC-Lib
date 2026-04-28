@@ -416,7 +416,7 @@ const ApprovalStagesSettings = () => {
           <div className="mt-3">
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Stage Tags</label>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
-              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
+              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Shared Rename OR Distributor OR Alt Parts. A stage runs when both groups match.
             </p>
             {renderStageTagEditor(newStage.pipeline_types, toggleNewStagePipelineType)}
           </div>
@@ -559,7 +559,7 @@ const ApprovalStagesSettings = () => {
                           <div>
                             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stage Tags</label>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
-                              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Distributor OR Alt Parts. A stage runs when both groups match.
+                              Status tags match as Proto OR Prod. Change-detail tags match as Spec OR Filename OR Shared Rename OR Distributor OR Alt Parts. A stage runs when both groups match.
                             </p>
                             {renderStageTagEditor(editingStage.pipeline_types, toggleEditStagePipelineType)}
                           </div>
@@ -694,7 +694,7 @@ const ApprovalStagesSettings = () => {
         <p className="text-xs text-blue-700 dark:text-blue-300">
           ECOs progress through stages in order. Each stage must receive its required number of approvals before advancing.
           Stages with the same order number run in parallel -- all must be completed before proceeding.
-          Stage tags evaluate as (Proto Status OR Prod Status) AND (Spec OR Filename OR Distributor OR Alt Parts).
+          Stage tags evaluate as (Proto Status OR Prod Status) AND (Spec OR Filename OR Shared Rename OR Distributor OR Alt Parts).
           You can assign specific users to each stage -- if approvers are assigned, only those users or their delegated backups can approve at that stage.
           If no approvers are assigned, any user with the minimum role can approve.
           Stage tags control which ECO changes a stage applies to.

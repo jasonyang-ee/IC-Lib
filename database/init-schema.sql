@@ -586,7 +586,7 @@ CREATE TABLE IF NOT EXISTS eco_approval_stages (
     required_approvals INTEGER NOT NULL DEFAULT 1,
     required_role VARCHAR(50) NOT NULL DEFAULT 'approver',
     is_active BOOLEAN NOT NULL DEFAULT true,
-    pipeline_types TEXT[] NOT NULL DEFAULT '{proto_status_change,prod_status_change,spec,filename,distributor}',
+    pipeline_types TEXT[] NOT NULL DEFAULT '{proto_status_change,prod_status_change,spec,filename,shared_file_rename,distributor,alt_parts}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -627,7 +627,7 @@ CREATE TABLE IF NOT EXISTS eco_orders (
     parent_eco_id UUID REFERENCES eco_orders(id) ON DELETE SET NULL, -- Links to rejected predecessor ECO for retry chain
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_eco_status CHECK (status IN ('pending', 'in_review', 'approved', 'rejected')),
-    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor'))
+    CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts'))
 );
 
 -- Table: eco_stage_approvers

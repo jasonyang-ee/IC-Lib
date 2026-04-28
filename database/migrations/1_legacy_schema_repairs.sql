@@ -58,8 +58,8 @@ SET pipeline_types = (
         FROM (
             SELECT unnest(
                 CASE
-                    WHEN eco_approval_stages.pipeline_types IS NULL OR array_length(eco_approval_stages.pipeline_types, 1) IS NULL THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor']::text[]
-                    WHEN array_length(eco_approval_stages.pipeline_types, 1) = 1 AND eco_approval_stages.pipeline_types[1] = 'general' THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor']::text[]
+                    WHEN eco_approval_stages.pipeline_types IS NULL OR array_length(eco_approval_stages.pipeline_types, 1) IS NULL THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts']::text[]
+                    WHEN array_length(eco_approval_stages.pipeline_types, 1) = 1 AND eco_approval_stages.pipeline_types[1] = 'general' THEN ARRAY['proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts']::text[]
                     ELSE eco_approval_stages.pipeline_types
                 END
             ) AS original_type
@@ -78,9 +78,9 @@ WHERE eco_approval_stages.pipeline_types IS NULL
      OR array_length(eco_approval_stages.pipeline_types, 1) IS NULL
      OR eco_approval_stages.pipeline_types && ARRAY['general', 'spec_cad', 'status_change']::text[];
 UPDATE eco_approval_stages
-SET pipeline_types = '{proto_status_change,prod_status_change,spec,filename,distributor}'::text[]
+SET pipeline_types = '{proto_status_change,prod_status_change,spec,filename,shared_file_rename,distributor,alt_parts}'::text[]
 WHERE pipeline_types IS NULL OR array_length(pipeline_types, 1) IS NULL;
-ALTER TABLE eco_approval_stages ALTER COLUMN pipeline_types SET DEFAULT '{proto_status_change,prod_status_change,spec,filename,distributor}';
+ALTER TABLE eco_approval_stages ALTER COLUMN pipeline_types SET DEFAULT '{proto_status_change,prod_status_change,spec,filename,shared_file_rename,distributor,alt_parts}';
 ALTER TABLE eco_approval_stages ALTER COLUMN pipeline_types SET NOT NULL;
 
 -- Migrate eco_orders from current_stage_id to current_stage_order
@@ -92,7 +92,7 @@ SET pipeline_types = CASE
     WHEN pipeline_type = 'spec_cad' THEN ARRAY['spec', 'filename']::text[]
     WHEN pipeline_type = 'general' THEN ARRAY['spec']::text[]
     WHEN pipeline_type = 'status_change' THEN ARRAY['proto_status_change', 'prod_status_change']::text[]
-    WHEN pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor') THEN ARRAY[pipeline_type]::text[]
+    WHEN pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts') THEN ARRAY[pipeline_type]::text[]
     ELSE ARRAY['spec']::text[]
 END
 WHERE pipeline_types IS NULL OR array_length(pipeline_types, 1) IS NULL;
@@ -134,7 +134,7 @@ BEGIN
   ALTER TABLE eco_orders DROP CONSTRAINT IF EXISTS check_pipeline_type;
   UPDATE eco_orders SET pipeline_type = 'proto_status_change' WHERE pipeline_type = 'status_change';
   UPDATE eco_orders SET pipeline_type = 'spec' WHERE pipeline_type IN ('general', 'spec_cad');
-  ALTER TABLE eco_orders ADD CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor'));
+  ALTER TABLE eco_orders ADD CONSTRAINT check_pipeline_type CHECK (pipeline_type IN ('proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts'));
 END $$;
 
 -- Add parent_eco_id for ECO retry/rejection chain tracking

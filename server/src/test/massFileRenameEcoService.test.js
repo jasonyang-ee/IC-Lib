@@ -3,17 +3,18 @@ import {
   buildMassFileRenameCadRows,
   buildMassFileRenameSummary,
   MASS_FILE_RENAME_LABEL,
+  MASS_FILE_RENAME_PIPELINE_TYPE,
   resolveMassFileRenamePipelineTypes,
 } from '../services/massFileRenameEcoService.js';
 
 describe('massFileRenameEcoService', () => {
-  it('always includes the filename pipeline tag for shared file rename ECOs', () => {
-    expect(resolveMassFileRenamePipelineTypes([])).toEqual(['filename']);
+  it('always includes the dedicated shared-rename pipeline tag for shared file rename ECOs', () => {
+    expect(resolveMassFileRenamePipelineTypes([])).toEqual([MASS_FILE_RENAME_PIPELINE_TYPE]);
   });
 
   it('adds both lifecycle pipeline tags when affected parts span prototype and production states', () => {
     expect(resolveMassFileRenamePipelineTypes(['new', 'production', 'archived'])).toEqual([
-      'filename',
+      'shared_file_rename',
       'proto_status_change',
       'prod_status_change',
     ]);

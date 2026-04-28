@@ -3,6 +3,7 @@ export const VALID_ECO_PIPELINE_TYPES = Object.freeze([
   'prod_status_change',
   'spec',
   'filename',
+  'shared_file_rename',
   'distributor',
   'alt_parts',
 ]);
@@ -14,6 +15,7 @@ export const ECO_PIPELINE_TYPE_LABELS = Object.freeze({
   prod_status_change: 'Production Status',
   spec: 'Spec',
   filename: 'Filename',
+  shared_file_rename: 'Shared Rename',
   distributor: 'Distributor',
   alt_parts: 'Alt Parts',
 });
@@ -26,6 +28,7 @@ const STATUS_PIPELINE_TYPES = new Set([
 const CHANGE_DETAIL_PIPELINE_TYPES = new Set([
   'spec',
   'filename',
+  'shared_file_rename',
   'distributor',
   'alt_parts',
 ]);
@@ -45,6 +48,7 @@ const CAD_LINK_FIELD_NAMES = new Set([
 ]);
 
 const PRIMARY_PIPELINE_TYPE_PRIORITY = [
+  'shared_file_rename',
   'prod_status_change',
   'proto_status_change',
   'distributor',

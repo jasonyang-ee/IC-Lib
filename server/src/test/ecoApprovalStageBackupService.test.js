@@ -69,7 +69,7 @@ describe('ecoApprovalStageBackupService', () => {
         required_approvals: 2,
         required_role: 'approver',
         is_active: true,
-        pipeline_types: ['proto_status_change', 'prod_status_change', 'spec', 'filename', 'distributor', 'alt_parts'],
+        pipeline_types: ['proto_status_change', 'prod_status_change', 'spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts'],
         assigned_approvers: [{ username: 'alice', role: 'approver' }],
       }],
     });

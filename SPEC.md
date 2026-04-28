@@ -47,7 +47,7 @@ V8: CAD source-of-truth -> `cad_files` + `component_cad_files`; TEXT CAD cols de
 V9: fs ops ! safe leaf names + resolved path ∈ library base; traversal/nested path reject.
 V10: catalog/dashboard/report/settings-read/project/inventory GET routes may be unauthenticated; handlers that attribute actor use `req.user?.id || null`; mutation routes remain guarded.
 V11: ECO routes auth ! always; any auth user may view; create -> `canWrite`; approve/reject -> `canApprove`; current-stage actability computed per user + stage.
-V12: ECO pipeline tags ∈ `{proto_status_change,prod_status_change,spec,filename,distributor,alt_parts}`; legacy `general|spec_cad|status_change` normalize; stage match needs status-tag match & detail-tag match.
+V12: ECO pipeline tags ∈ `{proto_status_change,prod_status_change,spec,filename,shared_file_rename,distributor,alt_parts}`; legacy `general|spec_cad|status_change` normalize; stage match needs status-tag match & detail-tag match.
 V13: ECO vote uniqueness ! one effective vote per `(eco_id, stage_id, COALESCE(acting_for_user_id,user_id))`; delegation target ! same|higher role; delegated user may consume assigned approver slot.
 V14: rejected ECO retains lineage via `parent_eco_id`; retry UI may preload rejected field/spec/distributor/alt/CAD deltas + status proposal under same ECO number chain.
 V15: Library edit policy: `CONFIG_ECO` on -> admin may direct-edit existing part; other write roles stage ECO. ECO mode blocks live CAD overwrite & stages category/status/field/spec/distributor/alt/CAD changes + notes.
@@ -55,14 +55,14 @@ V16: notifications optional: SMTP disabled -> send skip; enabled -> welcome/ECO/
 V17: project/inventory contract: project mutation routes auth+canWrite; inventory mutation routes auth+canWrite; BOM export client-side from project detail + live component/distributor/alternative fetch.
 V18: fresh DB repo schema ! cover every persisted API surface present in `§I`.
 V19: fresh DB default ECO stage config ! include every runtime pipeline tag required by `V12`.
-V20: file-library shared rename policy: `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 -> stage 1 ECO w/ filename tag, set ∀ affected part `approval_status=reviewing`, approve -> rename shared CAD files + restore each part original status, reject|delete -> restore each part original status & keep file info unchanged.
+V20: file-library shared rename policy: actor = `admin` -> direct rename even if file shared; `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 -> warn before submit, stage 1 ECO w/ `shared_file_rename` tag, set ∀ affected part `approval_status=reviewing`, approve -> rename shared CAD files + restore each part original status, reject|delete -> restore each part original status & keep file info unchanged.
 V21: ECO status proposal UI ! allow `production -> prototype` rollback and `archived -> prototype|production` restore paths in addition to existing forward/archive proposals.
 
 ## §T
 
 id|status|task|cites
 T1|x|distill repo code -> caveman SDD spec backfill|G1,C9,I.web,V1
-T2|.|seed `alt_parts` into default ECO stage SQL + legacy repair paths|V12,V19,I.eco
+T2|x|seed `alt_parts|shared_file_rename` into default ECO stage SQL + legacy repair paths|V12,V19,I.eco
 T3|.|add `specification_templates` table/migration or delete `/api/specification-templates/*` surface|V18,I.spec_tpl
 T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7,V8,V14,V15,I.lib,I.file,I.eco
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
@@ -72,3 +72,4 @@ T5|.|decide final public-read auth policy, document boundary, add route tests be
 id|date|cause|fix
 B1|2026-04-27|default `eco_approval_stages.pipeline_types` seed/repair omits `alt_parts`; fresh DB default stage may miss alt-part ECO flow|V19,T2
 B2|2026-04-27|`/api/specification-templates/*` persists to `specification_templates`; repo schema/migrations no owner table|V18,T3
+B3|2026-04-27|shared file-rename ECOs reused generic `filename` tag so approval stages could not route staged shared renames separately|V12,V20

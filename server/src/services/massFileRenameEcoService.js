@@ -29,9 +29,10 @@ const FILE_TYPE_SUBDIR = Object.freeze({
 });
 
 export const MASS_FILE_RENAME_LABEL = 'Shared File Rename';
+export const MASS_FILE_RENAME_PIPELINE_TYPE = 'shared_file_rename';
 
 export const resolveMassFileRenamePipelineTypes = (originalStatuses = []) => {
-  const pipelineTypes = new Set(['filename']);
+  const pipelineTypes = new Set([MASS_FILE_RENAME_PIPELINE_TYPE]);
 
   originalStatuses.forEach((status) => {
     if (status === 'production') {

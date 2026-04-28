@@ -5,6 +5,7 @@ import {
   detectEcoPipelineTypes,
   doesStageMatchEcoPipelineTypes,
   getEcoPipelineTypes,
+  getPrimaryEcoPipelineType,
   normalizeStagePipelineTypes,
 } from '../services/ecoPipelineService.js';
 
@@ -58,6 +59,10 @@ describe('ecoPipelineService', () => {
       alternatives: [{ action: 'add', manufacturer_pn: 'ALT-001' }],
       currentApprovalStatus: 'production',
     })).toEqual(['prod_status_change', 'alt_parts']);
+  });
+
+  it('prefers the dedicated shared-rename tag as the ECO primary type', () => {
+    expect(getPrimaryEcoPipelineType(['shared_file_rename', 'prod_status_change'])).toBe('shared_file_rename');
   });
 
   it('matches status and detail tag buckets independently', () => {

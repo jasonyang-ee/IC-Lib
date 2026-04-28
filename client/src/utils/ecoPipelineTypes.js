@@ -3,6 +3,7 @@ export const PIPELINE_TYPE_OPTIONS = Object.freeze([
   { value: 'prod_status_change', label: 'Prod Status', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' },
   { value: 'spec', label: 'Spec', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' },
   { value: 'filename', label: 'Filename', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' },
+  { value: 'shared_file_rename', label: 'Shared Rename', color: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
   { value: 'distributor', label: 'Distributor', color: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' },
   { value: 'alt_parts', label: 'Alt Parts', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' },
 ]);
@@ -41,7 +42,7 @@ export const PIPELINE_TYPE_OPTION_GROUPS = Object.freeze([
   {
     id: 'change',
     label: 'Change Tags',
-    values: ['spec', 'filename', 'distributor', 'alt_parts'],
+    values: ['spec', 'filename', 'shared_file_rename', 'distributor', 'alt_parts'],
   },
 ]);
 
