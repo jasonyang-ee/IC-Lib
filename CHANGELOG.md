@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replaced the narrative `SPEC.md` workflow doc with a caveman-style SDD backfill that captures live interfaces, constraints, invariants, known drift bugs, and next alignment tasks across auth, admin/runtime ops, CAD governance, ECO, inventory, projects, and reporting
+- Compressed `AGENTS.md` into caveman format and added `AGENTS.original.md` as a human-readable backup while preserving the repo command, database, auth, feature, and release rules
 
 ### Fixed
 

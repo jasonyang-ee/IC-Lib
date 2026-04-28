@@ -1,9 +1,11 @@
 
-## Commands and Skills
+## Commands
 
 - `./start.sh` — start dev server (client + server).
-- `./test.sh` — always run this bash script for lint and tests before ending the conversation.
-- `/caveman-commit` — summarize all changes into a single commit message with bullet points before ending the conversation.
+- `./test.sh` — run lint + tests before end.
+- `/caveman-commit` — single commit summary.
+- `/caveman-compress` — compress this `AGENTS.md`.
+- `/spec` — sync `SPEC.md` with code + future SDD.
 
 ## Project Structure
 
@@ -11,50 +13,45 @@
 IC-Lib/
   client/          # React 19 + Vite + TailwindCSS v4 + React Query 5
   server/          # Express.js + PostgreSQL + JWT auth
-  database/        # SQL schema (init-{type}.sql) and migrations ({number}_{description}.sql)
-  docker/          # nginx.conf for production reverse proxy
-  scripts/         # Utility scripts (CSV import)
+  database/        # SQL schema + migrations
+  docker/          # nginx reverse proxy
+  scripts/         # CSV import utilities
 ```
 
 ## Code Style
 
-- Naming: camelCase (vars/functions), PascalCase (components), snake_case (DB columns/tables)
-- Server files: `{entity}Controller.js`, `{name}Service.js`, `{entity}.js` (routes)
-- Client files: `{PageName}.jsx` (pages), `{ComponentName}.jsx` (components)
-- Server logs: ASCII only, format `[LEVEL] [ServiceName] Message`
-- UI: minimal icon usage
+- **Naming**: camelCase vars/fns, PascalCase components, snake_case DB cols/tables
+- **Server files**: `{entity}Controller.js`, `{name}Service.js`, `{entity}.js` routes
+- **Client files**: `{PageName}.jsx` pages, `{ComponentName}.jsx` components
+- **Logs**: ASCII only, `[LEVEL] [ServiceName] Message`
+- **UI**: minimal icon use
 
 ## Database
 
-- PostgreSQL with UUIDv7: `UUID PRIMARY KEY DEFAULT uuidv7()`
-- Extract timestamps: `created_at(id)` function
-- JSONB for flexible data (activity_log, ECO changes, notification preferences)
+- PostgreSQL + UUIDv7 PK (`uuidv7()`); `created_at(id)` derive create time
+- JSONB for flexible data: `activity_log`, ECO changes, notification prefs
 - Key views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`, `eco_orders_full`
-- DB runs on separate hardware; use PostgreSQL extension (Home-Servers/iclib) to inspect
-- Base schema and seed entrypoints live in `database/init-*.sql` and are for fresh initialization or full rebuilds only
-- Incremental schema/data changes for existing databases must go in `database/migrations/{sequence}_{description}.sql` (example: `2_schema_version_tracking_update.sql`)
-- Use plain integer sequence numbers without leading zeros and rely on the migration runner's numeric sort instead of lexicographic filename padding
-- If you want release traceability, keep the app version in the migration header comment and `CHANGELOG.md`, not in the filename
-- Do not place compatibility `ALTER`, backfill `UPDATE`, constraint rewrites, or legacy cleanup blocks in `database/init-*.sql`
-- Keep migration SQL idempotent when practical (`IF NOT EXISTS`, safe backfills, guarded `DO $$` blocks) because startup applies pending files from `database/migrations`
-- When adding a migration-owned column/view/table that startup should verify, update the server schema inspection expectations instead of putting the repair into `init-schema.sql`
+- **`database/init-*.sql`**: fresh init/full rebuild only. No `ALTER`, backfill, constraint rewrite, legacy cleanup.
+- **`database/migrations/`**: incremental change use plain integer names, no leading zeros, e.g. `5_eco_stage_delegation_support.sql`
+- Migrations idempotent when possible: `IF NOT EXISTS`, guarded `DO $$`; startup auto-apply pending files
+- Migration-owned cols/views/tables: update server schema inspection expectations, not `init-schema.sql`
+- Release traceability: version in migration header + `CHANGELOG.md`, not filename
 
 ## Auth
 
-- JWT via `authenticate` middleware
-- Roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
+- JWT via `authenticate`; roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
 - Middleware: `canWrite`, `canApprove`, `isAdmin`
-- Inventory, project, dashboard routes have NO auth; use `req.user?.id || null`
+- Inventory, project, dashboard routes: NO auth. Use `req.user?.id || null`.
 
 ## Key Features
 
-- **Component Library**: CRUD with categories, manufacturers, specs, alternative parts, vendor APIs (DigiKey, Mouser), approval workflow (new → reviewing → prototype → production → archived)
-- **CAD Files**: flat storage `library/[category]/[filename]`, `cad_files` + `component_cad_files` junction table, TEXT columns (pcb_footprint, schematic, step_model, pspice, pad_file) store comma-separated filenames for OrCAD CIS/ODBC — auto-regenerated from junction table, ZIP upload/export
-- **ECO**: multi-stage approval workflow with configurable stages, role-based approvals, email notifications
-- **Projects**: BOM management with primary + alternative parts, bulk inventory consumption
-- **Audit**: `activity_log` table with 30+ activity types, JSONB details, user tracking
+- **Component Library**: CRUD, categories, manufacturers, specs, alt parts, DigiKey/Mouser, approval flow `new -> reviewing -> prototype -> production -> archived`
+- **CAD Files**: flat storage `library/[category]/[filename]`, `component_cad_files` junction, TEXT cols auto-regen from junction, ZIP upload/export
+- **ECO**: multi-stage approval, configurable stages, role-gated approvals, email notices
+- **Projects**: BOM with primary + alt parts, bulk inventory consume
+- **Audit**: `activity_log`, 30+ activity types, JSONB details, user tracking
 
-## Versioning
+## Release Checklist
 
-- Always Update CHANGELOG.md `## [Unreleased]` section for every feature or fix at the end of chat session.
-- Use /caveman-commit to summarize all changes into a single commit message with bullet points before ending the conversation.
+- Update `CHANGELOG.md` `## [Unreleased]` for every feature/fix
+- Run `/caveman-commit` for single summary commit
