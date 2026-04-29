@@ -444,75 +444,65 @@ export async function initializeAuthentication() {
     
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Authentication setup verified');
     
-    // Check the base application schema before migrations.
-    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Checking application database schema...');
-    const schemaState = await inspectDatabaseSchema({
-      expectedTables: STARTUP_REQUIRED_TABLES,
-      expectedViews: EXPECTED_SCHEMA_VIEWS,
-      requiredColumns: [],
-    });
-
-    if (!schemaState.valid) {
-      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Database schema incomplete - applying init-schema.sql repairs');
-
-      if (schemaState.missingTables.length > 0) {
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing tables: ${schemaState.missingTables.join(', ')}`);
-      }
-
-      if (schemaState.missingViews.length > 0) {
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Missing views: ${schemaState.missingViews.join(', ')}`);
-      }
-
-      const initialized = await initializePartsDatabase();
-
-      if (!initialized) {
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize parts database');
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Core functionality will not work until this is resolved');
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Please check database/init-schema.sql file exists');
-        return false;
-      }
-
-      const settingsInitialized = await initializeDefaultSettings();
-
-      if (!settingsInitialized) {
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize default settings data');
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Please check database/init-settings.sql file exists and is valid');
-        return false;
-      }
-
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Database schema repair complete');
-    } else {
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Application database schema verified');
-    }
+    // --- Phase 1: Determine if this is a blank database. ---
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Detecting database state...');
+    const isBlankDB = await checkIsBlankDatabase();
     
-    // Run any pending migrations
+    // --- Phase 2: Run migrations. ---
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');
     const migrationsApplied = await runMigrations();
 
     if (!migrationsApplied) {
+      console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[InitService]\x1b[0m Migrations failed - aborting initialization');
       return false;
     }
 
-    // Verify migration-owned columns after the migration runner completes.
-    const migratedSchemaState = await inspectDatabaseSchema({
+    // --- Phase 3: Apply init-schema.sql only if still incomplete (blank DB fallback). ---
+    if (isBlankDB) {
+      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected - applying init-schema.sql for base tables and views');
+
+      const initialized = await initializePartsDatabase();
+
+      if (!initialized) {
+        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize parts database from init-schema.sql');
+        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Core functionality will not work until this is resolved');
+        return false;
+      }
+    }
+
+    // Run default settings data after init-schema (blank DB) or after migrations (upgraded DB)
+    const settingsInitialized = await initializeDefaultSettings();
+
+    if (!settingsInitialized) {
+      console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize default settings data');
+      return false;
+    }
+
+    // --- Phase 4: Final schema verification. ---
+    const finalSchemaState = await inspectDatabaseSchema({
       expectedTables: STARTUP_REQUIRED_TABLES,
       expectedViews: EXPECTED_SCHEMA_VIEWS,
       requiredColumns: REPAIRABLE_SCHEMA_COLUMNS,
     });
 
-    if (!migratedSchemaState.valid) {
-      if (migratedSchemaState.missingColumns.length > 0) {
-        const missingColumns = migratedSchemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
-        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Missing migration-managed columns after migrations: ${missingColumns.join(', ')}`);
+    if (!finalSchemaState.valid) {
+      if (finalSchemaState.missingTables.length > 0) {
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Missing tables: ${finalSchemaState.missingTables.join(', ')}`);
       }
-
-      if (migratedSchemaState.missingTables.length > 0 || migratedSchemaState.missingViews.length > 0) {
-        console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Base schema objects are still missing after initialization');
+      if (finalSchemaState.missingViews.length > 0) {
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Missing views: ${finalSchemaState.missingViews.join(', ')}`);
       }
-
+      if (finalSchemaState.missingColumns.length > 0) {
+        const missingColumns = finalSchemaState.missingColumns.map(({ table, column }) => `${table}.${column}`);
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Missing columns: ${missingColumns.join(', ')}`);
+      }
+      console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Database schema validation failed after all initialization steps');
       return false;
     }
+
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Application database schema verified');
     
+    // Final confirmation
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[InitService]\x1b[0m Database initialization complete');
     
     return true;
@@ -521,6 +511,54 @@ export async function initializeAuthentication() {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[InitService]\x1b[0m Server will start but functionality may be limited');
     return false;
   }
+}
+
+/**
+ * Check if the database is blank by looking for critical base tables.
+ * Returns true if none of the core app tables exist yet (blank DB).
+ */
+async function checkIsBlankDatabase() {
+  const criticalTables = [
+    'component_categories',
+    'manufacturers',
+    'distributors',
+    'components',
+  ];
+  
+  const result = await pool.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+      AND table_name = ANY($1::text[])
+  `, [criticalTables]);
+  
+  const existingCriticalTables = new Set(result.rows.map(row => row.table_name));
+  
+  const foundCount = criticalTables.filter(t => existingCriticalTables.has(t)).length;
+  
+  if (foundCount === 0) {
+    // Check if this is a truly blank DB or a DB with just migration tracking
+    const migrationResult = await pool.query(`
+      SELECT COUNT(*) AS count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'schema_migrations'
+    `);
+    
+    const hasMigrationTable = parseInt(migrationResult.rows[0].count) > 0;
+    
+    if (hasMigrationTable) {
+      // Migration table exists but no critical tables = fresh DB before migrations ran
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected (migration table present, no application tables)');
+    } else {
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected (no tables found)');
+    }
+    return true;
+  }
+  
+  console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Existing database detected');
+  return false;
 }
 
 /**
