@@ -513,7 +513,7 @@ const Inventory = () => {
         finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
       }
       if (changes.receiveQty && changes.receiveQty > 0) {
-        finalQuantity = changes.quantity + parseInt(changes.receiveQty);
+        finalQuantity += parseInt(changes.receiveQty);
       }
       
       if (finalQuantity !== originalItem.quantity) {
@@ -557,7 +557,7 @@ const Inventory = () => {
           finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
         }
         if (changes.receiveQty && changes.receiveQty > 0) {
-          finalQuantity = changes.quantity + parseInt(changes.receiveQty);
+          finalQuantity += parseInt(changes.receiveQty);
         }
         
         if (finalQuantity !== originalAlt.quantity) {
