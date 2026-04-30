@@ -39,7 +39,7 @@ I.env: env `JWT_SECRET` ! set; `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIREC
 V1: `JWT_SECRET` ! set; auth token via HttpOnly cookie `AUTH_COOKIE_NAME` 24h or Bearer fallback; missing|invalid|expired -> 401.
 V2: role gates hold: `read-only` ⊥ write; `reviewer` ⊥ write & ∈ ECO approval; `lab|read-write|approver|admin` ∈ lib/project/inventory mutate; `lab` ⊥ File Library page/browse/manage routes but may use component-scoped CAD helper APIs during Parts Library edit; `approver|admin` ∈ hard CAD delete; `admin` ∈ admin/user/settings mutate.
 V3: default client route: limited role -> `/eco` if eco flag on else `/library`; full role -> `/`.
-V4: startup ! verify users schema + base tables/views + repairable columns; missing base objects -> run `database/init-users.sql`, `database/init-schema.sql`, `database/init-settings.sql`; pending migrations run numeric order; post-migration missing required cols -> boot fail.
+V4: startup ! verify users schema + base tables/views + repairable columns; blank|missing base objects -> run `database/init-users.sql`, `database/init-schema.sql`, `database/init-settings.sql` before legacy repair migrations; pending migrations run numeric order; post-migration missing required cols -> boot fail.
 V5: migration filename contract: new files `database/migrations/<int>_<desc>.sql`; sort by int, not lexicographic; legacy zero-pad still parse numeric.
 V6: component status ∈ `{new,reviewing,prototype,production,archived}`; ECO status ∈ `{pending,in_review,approved,rejected}`; create time read from `created_at(uuid)`.
 V7: component create ! inventory row ∃, `activity_log` row ∃, joined API payload include category/manufacturer/part_type/created_at.
@@ -73,3 +73,4 @@ id|date|cause|fix
 B1|2026-04-27|default `eco_approval_stages.pipeline_types` seed/repair omits `alt_parts`; fresh DB default stage may miss alt-part ECO flow|V19,T2
 B2|2026-04-27|`/api/specification-templates/*` persists to `specification_templates`; repo schema/migrations no owner table|V18,T3
 B3|2026-04-27|shared file-rename ECOs reused generic `filename` tag so approval stages could not route staged shared renames separately|V12,V20
+B4|2026-04-29|blank DB boot ran legacy repair migrations before `init-schema.sql`; fresh startup could fail on missing base tables|V4

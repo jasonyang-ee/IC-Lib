@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename);
  */
 async function runMigrations() {
   const client = await pool.connect();
-  
+
   try {
     // Create or upgrade the migrations tracking table.
     await client.query(`
@@ -67,47 +67,40 @@ async function runMigrations() {
       WHERE sm.id = parsed_migrations.id
         AND (sm.sequence_number IS NULL OR sm.description IS NULL)
     `);
-    
+
     // Get list of already executed migrations
     const executedResult = await client.query('SELECT filename FROM schema_migrations');
     const executedMigrations = new Set(executedResult.rows.map(r => r.filename));
-    
+
     // Get all migration files
     const migrationsPath = path.resolve(__dirname, '../../../database/migrations');
-    
+
     if (!fs.existsSync(migrationsPath)) {
       console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Migration]\x1b[0m No migrations folder found');
       return true;
     }
-    
+
     const migrationFiles = fs.readdirSync(migrationsPath)
       .filter(f => f.endsWith('.sql'))
       .sort(compareMigrationFilenames);
-    
+
     if (migrationFiles.length === 0) {
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m No migration files found');
       return true;
     }
-    
+
     // Run pending migrations
+    const pendingMigrations = migrationFiles.filter(filename => !executedMigrations.has(filename));
     let migrationsRun = 0;
-    let totalPending = 0;
-    
-    for (const filename of migrationFiles) {
-      if (executedMigrations.has(filename)) {
-        continue;
-      }
-      
-      totalPending++;
-      console.log();
-      console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
-      console.log('\x1b[30;1;46m  ▶ \x1b[1;33mAPPLYING MIGRATION\x1b[0m          \x1b[37;1;46m' + filename + '\x1b[0m');
-      console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
-      
+    const totalPending = pendingMigrations.length;
+
+    for (const filename of pendingMigrations) {
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Applying ${filename} (${migrationsRun + 1}/${totalPending})`);
+
       const filePath = path.join(migrationsPath, filename);
       const sql = fs.readFileSync(filePath, 'utf8');
       const migrationMetadata = parseMigrationFilename(filename);
-      
+
       try {
         await client.query('BEGIN');
         await client.query(sql);
@@ -120,30 +113,22 @@ async function runMigrations() {
           ],
         );
         await client.query('COMMIT');
-        
+
         migrationsRun++;
-        console.log('\x1b[32m  ✓ \x1b[0m\x1b[32mCompleted\x1b[0m        \x1b[90m(\x1b[39m' + migrationsRun + '/' + totalPending + '\x1b[90m)\x1b[0m');
-        console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);
       } catch (migrationError) {
         await client.query('ROLLBACK');
-        console.error('\x1b[90;41m⚠ \x1b[31;1mMIGRATION FAILED\x1b[0m');
-        console.error('\x1b[90;41m' + '━'.repeat(60) + '\x1b[0m');
-        console.error('\x1b[31m  ✗  \x1b[0m\x1b[31m' + filename + '\x1b[0m');
-        console.error('\x1b[31m' + '━'.repeat(60) + '\x1b[0m');
-        console.error(`  \x1b[31mError:\x1b[0m ${migrationError.message}`);
-        console.log();
+        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} failed: ${migrationError.message}`);
         return false;
       }
     }
-    
+
     if (migrationsRun > 0) {
-      console.log();
-      console.log('\x1b[33;1m════════════════════════════════════════════════════════════\x1b[0m');
-      console.log('\x1b[33;1m  ✓  \x1b[0m\x1b[33mMigrations Complete: \x1b[0m\x1b[97m' + migrationsRun + ' new migration(s) applied\x1b[0m');
-      console.log('\x1b[33;1m════════════════════════════════════════════════════════════\x1b[0m');
-      console.log();
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m ${migrationsRun} migration(s) executed`);
+    } else {
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m All migrations already applied');
     }
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Error running migrations: ${error.message}`);
@@ -158,20 +143,20 @@ async function runMigrations() {
  */
 async function initializePartsDatabase() {
   const client = await pool.connect();
-  
+
   try {
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Initializing parts database schema...');
-    
+
     // Read the init-schema.sql file
     const sqlFilePath = path.resolve(__dirname, '../../../database/init-schema.sql');
-    
+
     if (!fs.existsSync(sqlFilePath)) {
       console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m init-schema.sql file not found at: ${sqlFilePath}`);
       return false;
     }
-    
+
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
-    
+
     // Execute the SQL - wrap in try-catch to handle duplicate trigger/constraint errors
     try {
       await client.query(sql);
@@ -186,7 +171,7 @@ async function initializePartsDatabase() {
         throw initError;
       }
     }
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Failed to initialize parts database: ${error.message}`);
@@ -232,8 +217,8 @@ async function checkUsersTableExists() {
   try {
     const result = await pool.query(`
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = 'users'
       );
     `);
@@ -251,8 +236,8 @@ async function checkActivityTypesTableExists() {
   try {
     const result = await pool.query(`
       SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
         AND table_name = 'activity_types'
       );
     `);
@@ -269,27 +254,27 @@ async function checkActivityTypesTableExists() {
 async function validateUsersTableSchema() {
   try {
     const result = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'users' 
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'users'
       ORDER BY ordinal_position;
     `);
-    
+
     const requiredColumns = [
       'id', 'username', 'password_hash', 'role',
       'created_by', 'last_login', 'is_active',
     ];
-    
+
     const existingColumns = result.rows.map(row => row.column_name);
     const hasAllColumns = requiredColumns.every(col => existingColumns.includes(col));
-    
+
     if (!hasAllColumns) {
       console.warn('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table exists but schema is incomplete');
       const missingColumns = requiredColumns.filter(col => !existingColumns.includes(col));
       console.warn(`\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m Missing columns: ${missingColumns.join(', ')}`);
       return false;
     }
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Error validating users table schema: ${error.message}`);
@@ -302,27 +287,27 @@ async function validateUsersTableSchema() {
  */
 async function initializeUsersTable() {
   const client = await pool.connect();
-  
+
   try {
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Initializing users table...');
-    
+
     // Read the init-users.sql file
     const sqlFilePath = path.resolve(__dirname, '../../../database/init-users.sql');
-    
+
     if (!fs.existsSync(sqlFilePath)) {
       console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m init-users.sql file not found at: ${sqlFilePath}`);
       return false;
     }
-    
+
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
-    
+
     // Execute the SQL
     await client.query(sql);
-    
+
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table initialized successfully');
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Default admin user created: admin / admin123');
     console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m IMPORTANT: Change the default password after first login!');
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Failed to initialize users table: ${error.message}`);
@@ -355,19 +340,19 @@ async function checkDefaultAdminExists() {
 async function createDefaultAdmin() {
   try {
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Creating default admin user...');
-    
+
     const password = 'admin123';
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     await pool.query(`
-      INSERT INTO users (username, password_hash, role, is_active) 
+      INSERT INTO users (username, password_hash, role, is_active)
       VALUES ($1, $2, 'admin', true)
       ON CONFLICT (username) DO NOTHING;
     `, ['admin', hashedPassword]);
-    
+
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Default admin user created: admin / admin123');
     console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m Change this password immediately!');
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Failed to create default admin: ${error.message}`);
@@ -381,15 +366,15 @@ async function createDefaultAdmin() {
 async function ensureUserActivityTypes() {
   try {
     const hasActivityTypes = await checkActivityTypesTableExists();
-    
+
     if (!hasActivityTypes) {
       console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m activity_types table not found, skipping user activity types');
       return true;
     }
-    
+
     await pool.query(`
-      INSERT INTO activity_types (type_name, description) 
-      VALUES 
+      INSERT INTO activity_types (type_name, description)
+      VALUES
         ('user_created', 'New user account created'),
         ('user_updated', 'User account updated'),
         ('user_deleted', 'User account deleted'),
@@ -397,7 +382,7 @@ async function ensureUserActivityTypes() {
         ('user_logout', 'User logged out')
       ON CONFLICT (type_name) DO NOTHING;
     `);
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Error ensuring user activity types: ${error.message}`);
@@ -411,70 +396,60 @@ async function ensureUserActivityTypes() {
  */
 export async function initializeAuthentication() {
   console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[InitService]\x1b[0m Starting database initialization...');
-  
+
   try {
     // First, check and initialize users table (REQUIRED by parts schema)
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Checking authentication setup...');
-    
+
     const usersTableExists = await checkUsersTableExists();
-    
+
     if (!usersTableExists) {
       console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table not found - initializing from init-users.sql');
       const initialized = await initializeUsersTable();
-      
+
       if (!initialized) {
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Failed to initialize users table');
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Authentication will not work until this is resolved');
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Please check database/init-users.sql file exists');
         return false;
       }
-      
+
       // Ensure activity types exist
       await ensureUserActivityTypes();
-      
+
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table initialized successfully');
     } else {
       // Table exists - validate schema
       const schemaValid = await validateUsersTableSchema();
-      
+
       if (!schemaValid) {
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table schema is invalid');
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[AuthService]\x1b[0m Please run database/init-users.sql manually or drop the table to auto-recreate');
         return false;
       }
-      
+
       // Check if default admin exists
       const adminExists = await checkDefaultAdminExists();
-      
+
       if (!adminExists) {
         console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthService]\x1b[0m Default admin user not found - creating...');
         await createDefaultAdmin();
       } else {
         console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Users table found with valid schema');
       }
-      
+
       // Ensure activity types exist
       await ensureUserActivityTypes();
     }
-    
+
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthService]\x1b[0m Authentication setup verified');
-    
-    // --- Phase 1: Determine if this is a blank database. ---
+
+    // Blank databases need base schema before legacy repair migrations.
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Detecting database state...');
     const isBlankDB = await checkIsBlankDatabase();
-    
-    // --- Phase 2: Run migrations. ---
-    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');
-    const migrationsApplied = await runMigrations();
 
-    if (!migrationsApplied) {
-      console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[InitService]\x1b[0m Migrations failed - aborting initialization');
-      return false;
-    }
-
-    // --- Phase 3: Apply init-schema.sql only if still incomplete (blank DB fallback). ---
     if (isBlankDB) {
-      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected - applying init-schema.sql for base tables and views');
+      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected - applying init-schema.sql before migrations');
 
       const initialized = await initializePartsDatabase();
 
@@ -485,7 +460,15 @@ export async function initializeAuthentication() {
       }
     }
 
-    // Run default settings data after init-schema (blank DB) or after migrations (upgraded DB)
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');
+    const migrationsApplied = await runMigrations();
+
+    if (!migrationsApplied) {
+      console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[InitService]\x1b[0m Migrations failed - aborting initialization');
+      return false;
+    }
+
+    // Run default settings after schema init and migrations to seed missing defaults safely.
     const settingsInitialized = await initializeDefaultSettings();
 
     if (!settingsInitialized) {
@@ -493,7 +476,6 @@ export async function initializeAuthentication() {
       return false;
     }
 
-    // --- Phase 4: Final schema verification. ---
     const finalSchemaState = await inspectDatabaseSchema({
       expectedTables: STARTUP_REQUIRED_TABLES,
       expectedViews: EXPECTED_SCHEMA_VIEWS,
@@ -516,10 +498,9 @@ export async function initializeAuthentication() {
     }
 
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Application database schema verified');
-    
-    // Final confirmation
+
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[InitService]\x1b[0m Database initialization complete');
-    
+
     return true;
   } catch (error) {
     console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[InitService]\x1b[0m Database initialization failed: ${error.message}`);
@@ -539,7 +520,7 @@ async function checkIsBlankDatabase() {
     'distributors',
     'components',
   ];
-  
+
   const result = await pool.query(`
     SELECT table_name
     FROM information_schema.tables
@@ -547,11 +528,11 @@ async function checkIsBlankDatabase() {
       AND table_type = 'BASE TABLE'
       AND table_name = ANY($1::text[])
   `, [criticalTables]);
-  
+
   const existingCriticalTables = new Set(result.rows.map(row => row.table_name));
-  
+
   const foundCount = criticalTables.filter(t => existingCriticalTables.has(t)).length;
-  
+
   if (foundCount === 0) {
     // Check if this is a truly blank DB or a DB with just migration tracking
     const migrationResult = await pool.query(`
@@ -560,9 +541,9 @@ async function checkIsBlankDatabase() {
       WHERE table_schema = 'public'
         AND table_name = 'schema_migrations'
     `);
-    
+
     const hasMigrationTable = parseInt(migrationResult.rows[0].count) > 0;
-    
+
     if (hasMigrationTable) {
       // Migration table exists but no critical tables = fresh DB before migrations ran
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected (migration table present, no application tables)');
@@ -571,7 +552,7 @@ async function checkIsBlankDatabase() {
     }
     return true;
   }
-  
+
   console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Existing database detected');
   return false;
 }
@@ -584,7 +565,7 @@ export async function getAuthenticationStatus() {
     const usersTableExists = await checkUsersTableExists();
     const schemaValid = usersTableExists ? await validateUsersTableSchema() : false;
     const adminExists = usersTableExists ? await checkDefaultAdminExists() : false;
-    
+
     return {
       usersTableExists,
       schemaValid,
