@@ -15,6 +15,7 @@ build/
 # CAD file library
 /library/*
 !/library/template
+/image
 
 # helper files
 /import
