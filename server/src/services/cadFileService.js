@@ -2,7 +2,7 @@ import pool from '../config/database.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { MODEL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
+import { MODEL_FILE_EXTENSIONS, PSPICE_FILE_EXTENSIONS } from '../constants/cadFiles.js';
 import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../utils/footprintFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
@@ -701,7 +701,7 @@ const SCAN_CATEGORIES = {
     fileType: 'model',
   },
   pspice: {
-    extensions: ['.cir', '.sub', '.inc'],
+    extensions: PSPICE_FILE_EXTENSIONS,
     subdir: 'pspice',
     fileType: 'pspice',
   },

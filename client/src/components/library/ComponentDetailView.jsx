@@ -78,7 +78,7 @@ const ComponentDetailView = ({
     pcb_footprint: { label: 'Footprint', routeType: 'footprint' },
     pad_file: { label: 'Pad', routeType: 'pad' },
     step_model: { label: '3D Model', routeType: 'step' },
-    pspice: { label: 'Pspice Model', routeType: 'pspice' },
+    pspice: { label: 'PSpice', routeType: 'pspice' },
   };
 
   const hasCadValue = (val) => {

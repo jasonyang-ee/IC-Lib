@@ -13,7 +13,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
 import StatusBadge from './StatusBadge';
 import { FilterSelect, SidebarCard } from '../common';
-import { fileTypeLabels } from './constants';
+import { getCadFileTypeLabel } from './constants';
 
 const buildRelatedFileEntries = (fileType, relatedFiles) => {
   if (!Array.isArray(relatedFiles) || relatedFiles.length === 0) {
@@ -327,7 +327,7 @@ const FileTypesView = ({
                             </div>
                           ) : (
                             showOrphans && entry.file_type && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{fileTypeLabels[entry.file_type] || entry.file_type}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{getCadFileTypeLabel(entry.file_type, entry.displayName)}</p>
                             )
                           )}
                         </div>

@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default ECO approval-stage seeds and repair paths now include both `Alt Parts` and `Shared Rename`, and staged shared file-renames now use the dedicated shared tag instead of the generic filename tag
 - ECO lifecycle rules now let non-admin write roles edit `new` parts directly, require ECO only when a `new` part is being proposed to `prototype`, and block ECO transitions back to `new`
 - File Library detail headers now show linked footprint, pad, and 3D model counterparts, and admin users now manage footprint-driven pad/model history through dedicated `Edit Pad Link` and `Edit 3D Model Link` popup editors
+- PSpice CAD flows now keep `.lib` files and PSpice `.olb` symbols in the same `pspice` library/category, default the first staged `.olb` upload to schematic symbol, and let users move staged `.olb` files into the PSpice section before save
 
 ### Fixed
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rejecting or deleting a staged shared file-rename ECO now restores every affected part's pre-review lifecycle status and leaves the shared CAD filenames unchanged
 - Non-admin shared file-library renames now show a warning confirmation before staging the ECO, while admin shared renames continue to apply directly without generating a mass ECO
 - Shared file-rename ECOs now skip `new` parts when moving affected components to `reviewing`, while still refreshing those `new` parts' CAD text after approval applies the renamed shared files
+- PSpice tracking now recognizes both `.lib` and `.olb` files under the `pspice` library, so File Library, CAD pickers, and component file lists no longer drop valid PSpice assets because of mismatched extension whitelists
 
 ## [1.9.8] - 2026-04-25
 

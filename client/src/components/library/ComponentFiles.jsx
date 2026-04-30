@@ -2,19 +2,27 @@ import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
 import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils/cadFileNaming';
-import { CAD_FILE_UPLOAD_ACCEPT, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
+import {
+  buildOlbCategoryAssignments,
+  CAD_FILE_UPLOAD_ACCEPT,
+  isAmbiguousCadUploadFile,
+  PSPICE_LABEL,
+  SCHEMATIC_SYMBOL_LABEL,
+  THREE_D_MODEL_LABEL,
+} from '../../utils/cadFileTypes';
 import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus, X } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
 import CadFilePickerModal from './CadFilePickerModal';
+import OlbAssignmentModal from './OlbAssignmentModal';
 
 const CATEGORY_LABELS = {
-  symbol: 'Schematic',
+  symbol: SCHEMATIC_SYMBOL_LABEL,
   footprint: 'Footprint',
   pad: 'Pad',
   model: THREE_D_MODEL_LABEL,
-  pspice: 'PSpice',
+  pspice: PSPICE_LABEL,
   libraries: 'Library Archive',
 };
 
@@ -26,7 +34,7 @@ const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'model', 'pspice'];
 
 // Categories restricted to a single file per component
 const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
-const SINGLE_FILE_LABELS = { symbol: 'Schematic Symbol', model: THREE_D_MODEL_LABEL };
+const SINGLE_FILE_LABELS = { symbol: SCHEMATIC_SYMBOL_LABEL, model: THREE_D_MODEL_LABEL };
 const MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024;
 
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
@@ -47,6 +55,68 @@ function mergeSelectedCadFiles(selectedFiles, autoFiles = []) {
   });
 
   return [...mergedFiles.values()];
+}
+
+function collectUploadResultEntries(results) {
+  const entries = [];
+  forEachUploadResult(results, (entry) => {
+    entries.push(entry);
+  });
+  return entries;
+}
+
+function detectSingleFileConflicts(entries, priorFiles) {
+  const conflictingKeys = new Set();
+  let firstConflict = null;
+  const nextCounts = new Map(
+    SINGLE_FILE_CATEGORIES.map((category) => [category, priorFiles[category]?.length || 0]),
+  );
+
+  for (const entry of entries) {
+    const { category, filename, tempFilename } = entry;
+    if (!SINGLE_FILE_CATEGORIES.includes(category)) {
+      continue;
+    }
+
+    const currentCount = nextCounts.get(category) || 0;
+    if (currentCount > 0) {
+      const key = `${category}:${filename}`;
+      conflictingKeys.add(key);
+      if (!firstConflict) {
+        firstConflict = {
+          category,
+          categoryLabel: SINGLE_FILE_LABELS[category] || CATEGORY_LABELS[category] || category,
+          existingFile: priorFiles[category]?.[0]?.name || filename,
+          newFile: filename,
+          newTempFilename: tempFilename,
+          isLink: false,
+        };
+      }
+    }
+
+    nextCounts.set(category, currentCount + 1);
+  }
+
+  return { conflictingKeys, firstConflict };
+}
+
+function buildLocalUploadMap(entries) {
+  const nextLocalUploads = {};
+
+  for (const { category, filename, tempFilename } of entries) {
+    if (!nextLocalUploads[category]) {
+      nextLocalUploads[category] = [];
+    }
+
+    nextLocalUploads[category].push({
+      name: filename,
+      size: 0,
+      storage: 'temp',
+      tempFilename,
+    });
+  }
+
+  return nextLocalUploads;
 }
 
 /**
@@ -186,6 +256,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [fileConflict, setFileConflict] = useState(null);
   const [conflictPending, setConflictPending] = useState(false);
   const [stagedRemovals, setStagedRemovals] = useState({});
+  const [olbAssignment, setOlbAssignment] = useState({ show: false, files: [] });
+  const [olbAssignmentPending, setOlbAssignmentPending] = useState(false);
 
   const removeLocalUpload = (category, filename) => {
     setLocalUploads(prev => {
@@ -208,7 +280,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     });
   };
 
-  const clearStagedRemoval = (category, filename) => {
+  const clearStagedRemoval = useCallback((category, filename) => {
     setStagedRemovals(prev => {
       if (!prev[category]?.includes(filename)) return prev;
 
@@ -217,18 +289,69 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (next[category].length === 0) delete next[category];
       return next;
     });
-  };
+  }, []);
 
-  const notifyCadFileAdded = (category, filename, { restoreStagedRemoval = true } = {}) => {
+  const notifyCadFileAdded = useCallback((category, filename, { restoreStagedRemoval = true } = {}) => {
     if (restoreStagedRemoval) {
       clearStagedRemoval(category, filename);
     }
     onCadFileAdded?.({ category, filename });
-  };
+  }, [clearStagedRemoval, onCadFileAdded]);
 
-  const notifyCadFileRemoved = (category, filename) => {
+  const notifyCadFileRemoved = useCallback((category, filename) => {
     onCadFileRemoved?.({ category, filename });
-  };
+  }, [onCadFileRemoved]);
+
+  const mergeLocalUploads = useCallback((entries) => {
+    const newLocal = buildLocalUploadMap(entries);
+    if (Object.keys(newLocal).length === 0) {
+      return;
+    }
+
+    setLocalUploads((prev) => {
+      const merged = { ...prev };
+      for (const [category, categoryFiles] of Object.entries(newLocal)) {
+        if (!merged[category]) {
+          merged[category] = [];
+        }
+
+        for (const file of categoryFiles) {
+          if (!merged[category].find((existingFile) => existingFile.name === file.name)) {
+            merged[category].push(file);
+          }
+        }
+      }
+
+      return merged;
+    });
+  }, []);
+
+  const applyUploadedEntries = useCallback((entries, priorFiles = filesRef.current) => {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return;
+    }
+
+    const { conflictingKeys, firstConflict } = detectSingleFileConflicts(entries, priorFiles);
+
+    entries.forEach(({ category, filename, tempFilename }) => {
+      const key = `${category}:${filename}`;
+      if (conflictingKeys.has(key)) {
+        return;
+      }
+
+      onFileUploaded?.(category, filename);
+      notifyCadFileAdded(category, filename, { restoreStagedRemoval: false });
+      if (onTempFileStaged && tempFilename) {
+        onTempFileStaged({ tempFilename, category, filename });
+      }
+    });
+
+    mergeLocalUploads(entries);
+
+    if (firstConflict) {
+      setFileConflict(firstConflict);
+    }
+  }, [mergeLocalUploads, notifyCadFileAdded, onFileUploaded, onTempFileStaged]);
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
@@ -268,37 +391,19 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       const regular = results.filter(r => r.type !== 'archive' && !r.error);
       const errors = results.filter(r => r.error);
 
-      // Identify files that conflict with single-file category limits
-      const priorFiles = filesRef.current;
-      const conflictingKeys = new Set();
-      let firstConflict = null;
+      const uploadEntries = collectUploadResultEntries(results);
+      const ambiguousOlbEntries = uploadEntries.filter(({ filename }) => isAmbiguousCadUploadFile(filename));
+      const regularEntries = uploadEntries.filter(({ filename }) => !isAmbiguousCadUploadFile(filename));
 
-      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
-        if (SINGLE_FILE_CATEGORIES.includes(category) && priorFiles[category]?.length > 0) {
-          conflictingKeys.add(`${category}:${filename}`);
-          if (!firstConflict) {
-            firstConflict = {
-              category,
-              categoryLabel: SINGLE_FILE_LABELS[category] || CATEGORY_LABELS[category] || category,
-              existingFile: priorFiles[category][0].name,
-              newFile: filename,
-              newTempFilename: tempFilename,
-              isLink: false,
-            };
-          }
-        }
-      });
+      applyUploadedEntries(regularEntries, filesRef.current);
 
-      // Notify parent of uploaded files — SKIP conflicting ones (deferred to conflict modal)
-      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
-        const key = `${category}:${filename}`;
-        if (conflictingKeys.has(key)) return;
-        if (onFileUploaded) onFileUploaded(category, filename);
-        notifyCadFileAdded(category, filename, { restoreStagedRemoval: false });
-        if (onTempFileStaged && tempFilename) {
-          onTempFileStaged({ tempFilename, category, filename });
-        }
-      });
+      if (ambiguousOlbEntries.length > 0) {
+        const hasExistingSymbol = (filesRef.current.symbol?.length || 0) + regularEntries.filter((entry) => entry.category === 'symbol').length > 0;
+        setOlbAssignment({
+          show: true,
+          files: buildOlbCategoryAssignments(ambiguousOlbEntries, { hasExistingSymbol }),
+        });
+      }
 
       let message = '';
       if (regular.length > 0) message += `${regular.length} file(s) uploaded. `;
@@ -309,32 +414,6 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (errors.length > 0) message += `${errors.length} file(s) failed.`;
 
       if (message) showSuccess(message.trim());
-
-      // Track uploaded files locally (for display when server junction table may be empty)
-      const newLocal = {};
-      forEachUploadResult(results, ({ category, filename, tempFilename }) => {
-        if (!newLocal[category]) newLocal[category] = [];
-        newLocal[category].push({ name: filename, size: 0, storage: 'temp', tempFilename });
-      });
-      if (Object.keys(newLocal).length > 0) {
-        setLocalUploads(prev => {
-          const merged = { ...prev };
-          for (const [cat, catFiles] of Object.entries(newLocal)) {
-            if (!merged[cat]) merged[cat] = [];
-            for (const f of catFiles) {
-              if (!merged[cat].find(e => e.name === f.name)) {
-                merged[cat].push(f);
-              }
-            }
-          }
-          return merged;
-        });
-      }
-
-      // Show conflict modal if a single-file category already had files
-      if (firstConflict) {
-        setFileConflict(firstConflict);
-      }
     },
     onError: (error) => {
       showError('Upload failed: ' + (error.response?.data?.error || error.message));
@@ -785,7 +864,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
         notifyCadFileAdded(fileConflict.category, fileConflict.newFile, { restoreStagedRemoval: false });
         if (onTempFileStaged && fileConflict.newTempFilename) {
-          onTempFileStaged({ tempFilename: fileConflict.newTempFilename, category: fileConflict.category, filename: fileConflict.newFile });
+          onTempFileStaged({
+            tempFilename: fileConflict.newTempFilename,
+            category: fileConflict.category,
+            filename: fileConflict.newFile,
+          });
         }
       }
 
@@ -827,6 +910,46 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   // Ref to track current files for conflict detection inside mutation callbacks
   const filesRef = useRef({});
   filesRef.current = files;
+
+  const handleMoveAssignedOlb = (tempFilename, assignedCategory) => {
+    setOlbAssignment((prev) => ({
+      ...prev,
+      files: prev.files.map((file) => file.tempFilename === tempFilename ? { ...file, assignedCategory } : file),
+    }));
+  };
+
+  const handleDiscardAssignedOlbs = async () => {
+    setOlbAssignmentPending(true);
+    try {
+      const tempFilenames = olbAssignment.files.map((file) => file.tempFilename).filter(Boolean);
+      if (tempFilenames.length > 0) {
+        await api.cleanupTempFiles({ tempFilenames });
+      }
+
+      setOlbAssignment({ show: false, files: [] });
+      showSuccess('Discarded uploaded .olb file selection');
+    } catch (error) {
+      showError('Failed to discard uploaded .olb files: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setOlbAssignmentPending(false);
+    }
+  };
+
+  const handleConfirmAssignedOlbs = async () => {
+    setOlbAssignmentPending(true);
+    try {
+      const assignedEntries = olbAssignment.files.map(({ assignedCategory, filename, tempFilename }) => ({
+        category: assignedCategory,
+        filename,
+        tempFilename,
+      }));
+
+      applyUploadedEntries(assignedEntries, filesRef.current);
+      setOlbAssignment({ show: false, files: [] });
+    } finally {
+      setOlbAssignmentPending(false);
+    }
+  };
 
   return (
     <div className="col-span-2 pt-4 mt-2">
@@ -1320,6 +1443,15 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           </div>
         </div>
       )}
+
+      <OlbAssignmentModal
+        isOpen={olbAssignment.show}
+        assignments={olbAssignment.files}
+        isPending={olbAssignmentPending}
+        onMove={handleMoveAssignedOlb}
+        onConfirm={handleConfirmAssignedOlbs}
+        onDiscard={handleDiscardAssignedOlbs}
+      />
     </div>
   );
 };

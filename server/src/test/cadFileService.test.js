@@ -175,4 +175,12 @@ describe('cadFileService', () => {
     expect(isTrackableCadFile('model.log', 'model')).toBe(false);
     expect(isTrackableCadFile('pad.tag', 'pad')).toBe(false);
   });
+
+  it('tracks both PSpice libraries and PSpice symbol files', () => {
+    expect(isTrackableCadFile('amp.lib', 'pspice')).toBe(true);
+    expect(isTrackableCadFile('amp.olb', 'pspice')).toBe(true);
+    expect(isTrackableCadFile('amp.cir', 'pspice')).toBe(true);
+    expect(isTrackableCadFile('amp.mod', 'pspice')).toBe(true);
+    expect(isTrackableCadFile('amp.txt', 'pspice')).toBe(false);
+  });
 });

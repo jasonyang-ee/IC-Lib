@@ -1,4 +1,5 @@
 import { FileText } from 'lucide-react';
+import { PSPICE_LABEL } from '../../utils/cadFileTypes';
 import { isFootprintSecondaryFile } from '../../utils/footprintFiles';
 
 const FILE_TYPE_LABELS = {
@@ -6,7 +7,7 @@ const FILE_TYPE_LABELS = {
   pcb_footprint: 'Footprint',
   pad_file: 'Pad',
   step_model: '3D Model',
-  pspice: 'PSpice Model',
+  pspice: PSPICE_LABEL,
 };
 
 /**

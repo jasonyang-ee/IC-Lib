@@ -2,14 +2,15 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, X, FileText, Link } from 'lucide-react';
 import { api } from '../../utils/api';
+import { PSPICE_LABEL, SCHEMATIC_SYMBOL_LABEL, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
 import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
 
 const FILE_TYPE_LABELS = {
-  symbol: 'Symbol',
+  symbol: SCHEMATIC_SYMBOL_LABEL,
   footprint: 'Footprint',
   pad: 'Pad',
-  model: '3D Model',
-  pspice: 'PSpice',
+  model: THREE_D_MODEL_LABEL,
+  pspice: PSPICE_LABEL,
 };
 
 const ROUTE_TYPE_MAP = {

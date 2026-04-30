@@ -7,7 +7,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { fileTypeLabels, routeTypeToFileType } from './constants';
+import { getCadFileTypeLabel, routeTypeToFileType } from './constants';
 
 const CategoryView = ({
   categories,
@@ -238,7 +238,7 @@ const CategoryView = ({
                         return (
                           <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-[#333]">
                             <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
-                              {fileTypeLabels[file.file_type] || file.file_type}
+                              {getCadFileTypeLabel(file.file_type, file.file_name)}
                             </td>
                             <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-gray-100 truncate max-w-xs" title={file.file_name}>
                               {file.file_name}
@@ -285,7 +285,7 @@ const CategoryView = ({
                   {Object.values(sharingByFile).map((group) => (
                     <div key={`${group.file_type}:${group.file_name}`} className="mb-2">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        <span className="font-medium">{fileTypeLabels[group.file_type] || group.file_type}:</span>{' '}
+                        <span className="font-medium">{getCadFileTypeLabel(group.file_type, group.file_name)}:</span>{' '}
                         <span className="font-mono">{group.file_name}</span>
                       </p>
                       <div className="flex flex-wrap gap-1.5 ml-2">

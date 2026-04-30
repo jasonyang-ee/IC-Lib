@@ -4,7 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import pool from '../config/database.js';
-import { MODEL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
+import { MODEL_FILE_EXTENSIONS, PSPICE_MODEL_FILE_EXTENSIONS, PSPICE_SYMBOL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
 import { normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
 
@@ -26,7 +26,7 @@ const FILE_CATEGORIES = {
     subdir: 'pad',
   },
   symbol: {
-    extensions: ['.olb'],
+    extensions: PSPICE_SYMBOL_FILE_EXTENSIONS,
     subdir: 'symbol',
   },
   model: {
@@ -34,7 +34,7 @@ const FILE_CATEGORIES = {
     subdir: 'model',
   },
   pspice: {
-    extensions: ['.lib'],
+    extensions: [...PSPICE_MODEL_FILE_EXTENSIONS, ...PSPICE_SYMBOL_FILE_EXTENSIONS],
     subdir: 'pspice',
   },
   libraries: {

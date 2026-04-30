@@ -71,6 +71,7 @@
   - alternative editor + promote/delete + distributor rows
   - CAD manager for schematic, footprint, pad, 3D model, PSpice
   - upload direct files or ZIP
+  - staged `.olb` uploads open a two-panel assignment popup; the first `.olb` defaults to schematic symbol and can be moved into PSpice symbol before save
   - link existing library files
   - linking a footprint auto-adds known pad and 3D model files from prior footprint-related history
   - rename shortcuts: freeform, MFG P/N, package
@@ -132,6 +133,7 @@
   - global search
   - filter: all files vs orphans
   - copy-path uses per-user file storage path from User Settings
+  - PSpice type includes both `.lib` libraries and PSpice `.olb` symbols in one section, with per-file labels distinguishing library vs symbol rows where the UI shows file types
   - selected file shows linked components + links back to Library
   - selected footprint/pad/3D-model header shows linked counterpart rows driven by footprint history
   - footprint pairs grouped
