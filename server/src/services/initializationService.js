@@ -91,12 +91,18 @@ async function runMigrations() {
     
     // Run pending migrations
     let migrationsRun = 0;
+    let totalPending = 0;
+    
     for (const filename of migrationFiles) {
       if (executedMigrations.has(filename)) {
         continue;
       }
       
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Running migration: ${filename}`);
+      totalPending++;
+      console.log();
+      console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
+      console.log('\x1b[30;1;46m  ▶ \x1b[1;33mAPPLYING MIGRATION\x1b[0m          \x1b[37;1;46m' + filename + '\x1b[0m');
+      console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
       
       const filePath = path.join(migrationsPath, filename);
       const sql = fs.readFileSync(filePath, 'utf8');
@@ -114,19 +120,28 @@ async function runMigrations() {
           ],
         );
         await client.query('COMMIT');
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);
+        
         migrationsRun++;
+        console.log('\x1b[32m  ✓ \x1b[0m\x1b[32mCompleted\x1b[0m        \x1b[90m(\x1b[39m' + migrationsRun + '/' + totalPending + '\x1b[90m)\x1b[0m');
+        console.log('\x1b[46m\x1b[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m');
       } catch (migrationError) {
         await client.query('ROLLBACK');
-        console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} failed: ${migrationError.message}`);
+        console.error('\x1b[90;41m⚠ \x1b[31;1mMIGRATION FAILED\x1b[0m');
+        console.error('\x1b[90;41m' + '━'.repeat(60) + '\x1b[0m');
+        console.error('\x1b[31m  ✗  \x1b[0m\x1b[31m' + filename + '\x1b[0m');
+        console.error('\x1b[31m' + '━'.repeat(60) + '\x1b[0m');
+        console.error(`  \x1b[31mError:\x1b[0m ${migrationError.message}`);
+        console.log();
         return false;
       }
     }
     
     if (migrationsRun > 0) {
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m ${migrationsRun} migration(s) executed`);
-    } else {
-      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m All migrations already applied');
+      console.log();
+      console.log('\x1b[33;1m════════════════════════════════════════════════════════════\x1b[0m');
+      console.log('\x1b[33;1m  ✓  \x1b[0m\x1b[33mMigrations Complete: \x1b[0m\x1b[97m' + migrationsRun + ' new migration(s) applied\x1b[0m');
+      console.log('\x1b[33;1m════════════════════════════════════════════════════════════\x1b[0m');
+      console.log();
     }
     
     return true;
