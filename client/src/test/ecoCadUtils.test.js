@@ -75,6 +75,43 @@ describe('ecoCadUtils', () => {
     expect(changes).toEqual([]);
   });
 
+  it('keeps schematic and PSpice .olb ECO changes isolated by category', () => {
+    const changes = buildEcoCadFileChanges({
+      currentCadFiles: {
+        symbol: [{ file_name: 'LMV321.olb' }],
+        pspice: [{ file_name: 'LMV321.olb' }],
+      },
+      desiredCadFields: {
+        schematic: ['LMV321'],
+        pspice: [],
+      },
+      stagedCadFiles: [],
+    });
+
+    expect(changes).toEqual([
+      { action: 'unlink', file_type: 'pspice', file_name: 'LMV321.olb' },
+    ]);
+  });
+
+  it('links a staged PSpice .olb without disturbing an existing schematic .olb', () => {
+    const changes = buildEcoCadFileChanges({
+      currentCadFiles: {
+        symbol: [{ file_name: 'LMV321.olb' }],
+      },
+      desiredCadFields: {
+        schematic: ['LMV321'],
+        pspice: ['LMV321_SIM'],
+      },
+      stagedCadFiles: [
+        { category: 'pspice', filename: 'LMV321_SIM.olb' },
+      ],
+    });
+
+    expect(changes).toEqual([
+      { action: 'link', file_type: 'pspice', file_name: 'LMV321_SIM.olb' },
+    ]);
+  });
+
   it('still supports legacy current CAD entries keyed as name', () => {
     const changes = buildEcoCadFileChanges({
       currentCadFiles: {
