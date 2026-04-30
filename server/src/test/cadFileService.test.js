@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import cadFileService from '../services/cadFileService.js';
 import {
   autoLinkRelatedCadFilesForComponent,
   isTrackableCadFile,
@@ -182,5 +183,10 @@ describe('cadFileService', () => {
     expect(isTrackableCadFile('amp.cir', 'pspice')).toBe(true);
     expect(isTrackableCadFile('amp.mod', 'pspice')).toBe(true);
     expect(isTrackableCadFile('amp.txt', 'pspice')).toBe(false);
+  });
+
+  it('exposes trackable-file filtering on the default service export', () => {
+    expect(cadFileService.isTrackableCadFile).toBe(isTrackableCadFile);
+    expect(cadFileService.isTrackableCadFile('CAP.olb', 'symbol')).toBe(true);
   });
 });

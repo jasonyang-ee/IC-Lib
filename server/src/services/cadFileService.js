@@ -971,6 +971,7 @@ export default {
   autoLinkRelatedCadFilesForComponent,
   syncFootprintRelatedCadFilesForComponent,
   findCadFile,
+  isTrackableCadFile,
   scanAndRegisterFiles,
   detectMissingFiles,
   syncComponentCadFiles,
