@@ -93,6 +93,11 @@ async function runMigrations() {
     const pendingMigrations = migrationFiles.filter(filename => !executedMigrations.has(filename));
     let migrationsRun = 0;
     const totalPending = pendingMigrations.length;
+    const executedMigrationNames = [];
+
+    if (totalPending > 0) {
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Pending migrations: ${pendingMigrations.join(', ')}`);
+    }
 
     for (const filename of pendingMigrations) {
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Applying ${filename} (${migrationsRun + 1}/${totalPending})`);
@@ -115,7 +120,8 @@ async function runMigrations() {
         await client.query('COMMIT');
 
         migrationsRun++;
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed`);
+        executedMigrationNames.push(filename);
+        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} completed (${migrationsRun}/${totalPending})`);
       } catch (migrationError) {
         await client.query('ROLLBACK');
         console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Migration]\x1b[0m Migration ${filename} failed: ${migrationError.message}`);
@@ -124,6 +130,7 @@ async function runMigrations() {
     }
 
     if (migrationsRun > 0) {
+      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Executed migrations: ${executedMigrationNames.join(', ')}`);
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m ${migrationsRun} migration(s) executed`);
     } else {
       console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m All migrations already applied');

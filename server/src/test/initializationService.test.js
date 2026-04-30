@@ -87,8 +87,11 @@ function createClient(executedSql) {
 }
 
 describe('initializeAuthentication', () => {
+  let consoleLogSpy;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     mocks.bcrypt.hash.mockResolvedValue('hashed-password');
     mocks.inspectDatabaseSchema.mockResolvedValue({
       valid: true,
@@ -97,6 +100,10 @@ describe('initializeAuthentication', () => {
       missingViews: [],
     });
     mocks.fs.existsSync.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    consoleLogSpy?.mockRestore();
   });
 
   it('bootstraps blank databases with init-schema before legacy repair migrations', async () => {
@@ -152,6 +159,9 @@ describe('initializeAuthentication', () => {
     expect(executedSql).toContain('INIT_SETTINGS_SQL');
     expect(executedSql.indexOf('INIT_SCHEMA_SQL')).toBeLessThan(executedSql.indexOf('MIGRATION_ONE_SQL'));
     expect(mocks.inspectDatabaseSchema).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Pending migrations: 1_legacy_schema_repairs.sql'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Migration 1_legacy_schema_repairs.sql completed (1/1)'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Executed migrations: 1_legacy_schema_repairs.sql'));
   });
 
   it('reseeds default settings on existing databases without rerunning init-schema', async () => {

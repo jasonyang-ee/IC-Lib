@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a cleanup migration that removes already-stored orphan junk CAD rows for OrCAD sidecar files like `.OBK`, `.opj`, `.jrl`, `.log`, and `.tag`
 - CAD tracking, file-library pickers, and component file scans now ignore OrCAD junk sidecar files like `.OBK`, `.opj`, `.jrl`, `.log`, and `.tag`
+- Startup migration logs now print the full pending migration list plus per-file completion progress so container logs clearly show every applied migration during boot
 - Rejecting or deleting a staged shared file-rename ECO now restores every affected part's pre-review lifecycle status and leaves the shared CAD filenames unchanged
 - Non-admin shared file-library renames now show a warning confirmation before staging the ECO, while admin shared renames continue to apply directly without generating a mass ECO
 - Shared file-rename ECOs now skip `new` parts when moving affected components to `reviewing`, while still refreshing those `new` parts' CAD text after approval applies the renamed shared files
