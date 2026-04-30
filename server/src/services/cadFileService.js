@@ -35,6 +35,10 @@ function uniqueValues(values) {
   return [...new Set((Array.isArray(values) ? values : [values]).filter(Boolean))];
 }
 
+function filterTrackableCadRows(rows, fileType = null) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => isTrackableCadFile(row?.file_name, fileType || row?.file_type));
+}
+
 async function getComponentFootprintRelatedFiles(componentId, db = pool) {
   const result = await db.query(`
     SELECT
@@ -193,7 +197,7 @@ export async function getCadFilesByType(fileType) {
     GROUP BY cf.id
     ORDER BY cf.file_name ASC
   `, [fileType]);
-  return result.rows;
+  return filterTrackableCadRows(result.rows, fileType);
 }
 
 /**
@@ -361,7 +365,7 @@ export async function getOrphanCadFiles(fileType = null) {
   query += ' ORDER BY cf.file_type, cf.file_name';
 
   const result = await pool.query(query, params);
-  return result.rows;
+  return filterTrackableCadRows(result.rows, fileType);
 }
 
 /**
@@ -391,7 +395,7 @@ export async function searchCadFiles(searchQuery, fileType = null) {
   query += ' GROUP BY cf.id ORDER BY cf.file_type, cf.file_name LIMIT 100';
 
   const result = await pool.query(query, params);
-  return result.rows;
+  return filterTrackableCadRows(result.rows, fileType);
 }
 
 /**
@@ -414,7 +418,7 @@ export async function getCadFilesForComponentGrouped(componentId) {
 
   // Group by file type
   const grouped = {};
-  for (const row of result.rows) {
+  for (const row of filterTrackableCadRows(result.rows)) {
     if (!grouped[row.file_type]) grouped[row.file_type] = [];
     grouped[row.file_type].push(row);
   }
@@ -708,6 +712,15 @@ const SCAN_CATEGORIES = {
   },
 };
 
+export function isTrackableCadFile(fileName, fileType) {
+  if (!fileName || !fileType) {
+    return false;
+  }
+
+  const extension = path.extname(String(fileName)).toLowerCase();
+  return SCAN_CATEGORIES[fileType]?.extensions.includes(extension) || false;
+}
+
 /**
  * Scan library directories for untracked CAD files and register them in the database.
  * Returns the number of newly registered files.
@@ -718,11 +731,10 @@ export async function scanAndRegisterFiles() {
     const dirPath = path.join(LIBRARY_BASE, config.subdir);
     if (!fs.existsSync(dirPath)) continue;
 
-    const files = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
+    const files = fs.readdirSync(dirPath).filter((fileName) => (
+      !fileName.startsWith('.') && isTrackableCadFile(fileName, config.fileType)
+    ));
     for (const filename of files) {
-      const ext = path.extname(filename).toLowerCase();
-      if (!config.extensions.includes(ext)) continue;
-
       const existing = await findCadFile(filename, config.fileType);
       if (!existing) {
         try {

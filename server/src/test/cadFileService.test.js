@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   autoLinkRelatedCadFilesForComponent,
+  isTrackableCadFile,
   regenerateCadText,
   syncFootprintRelatedCadFilesForComponent,
 } from '../services/cadFileService.js';
@@ -161,5 +162,17 @@ describe('cadFileService', () => {
       expect.stringContaining('INSERT INTO footprint_related_cad_files'),
       ['footprint-2', 'model-1', 'model'],
     );
+  });
+
+  it('filters junk OrCAD sidecar files from CAD tracking', () => {
+    expect(isTrackableCadFile('CAP.olb', 'symbol')).toBe(true);
+    expect(isTrackableCadFile('CAP_P_0.OBK', 'symbol')).toBe(false);
+    expect(isTrackableCadFile('capacitor.opj', 'symbol')).toBe(false);
+    expect(isTrackableCadFile('vssop-8_n.psm', 'footprint')).toBe(true);
+    expect(isTrackableCadFile('allegro.jrl', 'footprint')).toBe(false);
+    expect(isTrackableCadFile('downrev.log', 'footprint')).toBe(false);
+    expect(isTrackableCadFile('master.tag', 'footprint')).toBe(false);
+    expect(isTrackableCadFile('model.log', 'model')).toBe(false);
+    expect(isTrackableCadFile('pad.tag', 'pad')).toBe(false);
   });
 });

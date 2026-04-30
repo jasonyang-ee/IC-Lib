@@ -938,10 +938,11 @@ export const getAvailableFiles = async (req, res) => {
 
     // Filter DB files to only those that physically exist on disk
     const FILE_TYPE_SUBDIR = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
-    dbFiles = dbFiles.filter(f => {
+    dbFiles = dbFiles.filter((f) => {
       const subdir = FILE_TYPE_SUBDIR[f.file_type];
       if (!subdir) return false;
-      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
+      return cadFileService.isTrackableCadFile(f.file_name, f.file_type)
+        && fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
     });
 
     // Augment with filesystem scan for files not in DB
@@ -964,6 +965,10 @@ export const getAvailableFiles = async (req, res) => {
         });
 
         for (const fileName of entries) {
+          if (!cadFileService.isTrackableCadFile(fileName, ft)) {
+            continue;
+          }
+
           const key = `${ft}:${fileName}`;
           if (dbFileNames.has(key)) continue;
           if (search && !fileName.toLowerCase().includes(search.toLowerCase())) continue;

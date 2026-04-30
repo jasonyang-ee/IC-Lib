@@ -570,6 +570,10 @@ export async function listFiles(req, res) {
 
           for (const row of result.rows) {
             const fname = row.file_name;
+            if (!cadFileService.isTrackableCadFile(fname, category)) {
+              continue;
+            }
+
             const flatPath = path.join(flatDir, fname);
             const existsOnDisk = fs.existsSync(flatPath);
 
@@ -603,7 +607,9 @@ export async function listFiles(req, res) {
       // Also check legacy nested directory
       const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
       if (fs.existsSync(nestedDir)) {
-        const dirFiles = fs.readdirSync(nestedDir).filter(f => !f.startsWith('.'));
+        const dirFiles = fs.readdirSync(nestedDir).filter((fileName) => (
+          !fileName.startsWith('.') && cadFileService.isTrackableCadFile(fileName, category)
+        ));
         for (const f of dirFiles) {
           if (!seenFiles.has(`${category}:${f}`)) {
             seenFiles.add(`${category}:${f}`);
@@ -932,6 +938,10 @@ export async function exportFiles(req, res) {
 
           for (const row of result.rows) {
             const fname = row.file_name;
+            if (!cadFileService.isTrackableCadFile(fname, category)) {
+              continue;
+            }
+
             const flatPath = path.join(LIBRARY_BASE, config.subdir, fname);
             if (fs.existsSync(flatPath) && !seenFiles.has(`${category}:${fname}`)) {
               seenFiles.add(`${category}:${fname}`);
@@ -949,7 +959,9 @@ export async function exportFiles(req, res) {
       // Check legacy nested directory
       const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
       if (fs.existsSync(nestedDir)) {
-        const dirFiles = fs.readdirSync(nestedDir).filter(f => !f.startsWith('.'));
+        const dirFiles = fs.readdirSync(nestedDir).filter((fileName) => (
+          !fileName.startsWith('.') && cadFileService.isTrackableCadFile(fileName, category)
+        ));
         for (const filename of dirFiles) {
           if (!seenFiles.has(`${category}:${filename}`)) {
             seenFiles.add(`${category}:${filename}`);
