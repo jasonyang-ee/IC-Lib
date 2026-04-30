@@ -6,12 +6,49 @@ import {
   Download,
   FileBox,
   FileText,
+  Link2,
+  Plus,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
 import StatusBadge from './StatusBadge';
 import { FilterSelect, SidebarCard } from '../common';
 import { fileTypeLabels } from './constants';
+
+const buildRelatedFileEntries = (selectedType, relatedFiles) => {
+  if (!Array.isArray(relatedFiles) || relatedFiles.length === 0) {
+    return [];
+  }
+
+  if (selectedType === 'pad') {
+    return groupFootprintFiles(relatedFiles, (file) => file.file_name).map((group) => {
+      if (group.type !== 'pair') {
+        return {
+          key: group.file.id || group.file.file_name,
+          label: group.file.file_name,
+          tooltip: group.file.file_name,
+          files: [group.file],
+        };
+      }
+
+      return {
+        key: `pair:${group.primary.id || group.primary.file_name}`,
+        label: getCadFileBaseName(group.primary.file_name),
+        tooltip: group.files.map((file) => file.file_name).join('\n'),
+        files: group.files,
+      };
+    });
+  }
+
+  return relatedFiles.map((file) => ({
+    key: file.id || file.file_name,
+    label: file.file_name,
+    tooltip: file.file_name,
+    files: [file],
+  }));
+};
 
 const FileTypesView = ({
   fileTypes,
@@ -44,9 +81,17 @@ const FileTypesView = ({
   cisFiles,
   selectedCISFile,
   onCISFileChange,
+  relatedFiles,
+  canManagePadFootprintLinks,
+  onOpenPadFootprintLinkPicker,
+  onUnlinkPadFootprintLink,
+  isManagingPadFootprintLinks,
 }) => {
   const fileListRef = useRef(null);
   const isOrphanSelectionEnabled = showOrphans && bulkSelectMode;
+  const relatedFileEntries = buildRelatedFileEntries(selectedType, relatedFiles);
+  const relatedFileLabel = selectedType === 'footprint' ? 'Linked Pad Files' : 'Linked Footprints';
+  const relatedLinkActionLabel = selectedType === 'footprint' ? 'Link Pad' : 'Link Footprint';
 
   const fileVirtualizer = useVirtualizer({
     count: displayedEntries.length,
@@ -335,6 +380,53 @@ const FileTypesView = ({
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {componentsData?.components?.length || 0} component{(componentsData?.components?.length || 0) !== 1 ? 's' : ''} using this file
                 </p>
+                {(selectedType === 'footprint' || selectedType === 'pad') && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                        <Link2 className="w-3 h-3" />
+                        {relatedFileLabel}
+                      </p>
+                      {canManagePadFootprintLinks && (
+                        <button
+                          onClick={onOpenPadFootprintLinkPicker}
+                          disabled={isManagingPadFootprintLinks}
+                          className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          {relatedLinkActionLabel}
+                        </button>
+                      )}
+                    </div>
+                    {relatedFileEntries.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {relatedFileEntries.map((entry) => (
+                          <div
+                            key={entry.key}
+                            className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200"
+                            title={entry.tooltip}
+                          >
+                            <span>{entry.label}</span>
+                            {canManagePadFootprintLinks && (
+                              <button
+                                onClick={() => onUnlinkPadFootprintLink(entry.files)}
+                                disabled={isManagingPadFootprintLinks}
+                                className="text-gray-400 hover:text-red-500 dark:hover:text-red-300 disabled:opacity-50"
+                                title="Remove link"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        No linked corresponding files
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               {canWrite() && (
                 <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">

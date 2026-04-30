@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared File Library renames can now stage one mass ECO that tracks every affected part's original lifecycle status before approval
 - Admin Settings ECO approval stages now include a dedicated `Shared Rename` tag so staged shared file renames can be routed separately from ordinary filename ECOs
 - Admin user management now includes a `lab` role that keeps read-write access everywhere except the File Library page
+- CAD management now persists reusable `footprint_pad_links` history so OrCAD footprint files can auto-pull their expected pad files during part save, ECO apply, and direct file linking
 
 ### Changed
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - File Library shared renames now bypass direct file changes for non-admin users when server ECO mode is on and the rename touches multiple parts; the system sends those parts to `reviewing`, opens one approval flow, and only applies the rename on approval
 - Default ECO approval-stage seeds and repair paths now include both `Alt Parts` and `Shared Rename`, and staged shared file-renames now use the dedicated shared tag instead of the generic filename tag
 - ECO lifecycle rules now let non-admin write roles edit `new` parts directly, require ECO only when a `new` part is being proposed to `prototype`, and block ECO transitions back to `new`
+- File Library detail headers now show linked footprint/pad counterparts, and admin users can directly add or remove those footprint-pad history links from the page
 
 ### Fixed
 

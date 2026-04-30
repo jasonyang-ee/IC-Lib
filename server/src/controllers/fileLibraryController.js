@@ -22,6 +22,26 @@ const TYPE_MAP = {
   'pad':       { column: 'pad_file', subdir: 'pad', fileType: 'pad' },
 };
 
+function normalizeCadFileIds(cadFileIds) {
+  return [...new Set(
+    (Array.isArray(cadFileIds) ? cadFileIds : [cadFileIds])
+      .map((cadFileId) => String(cadFileId || '').trim())
+      .filter(Boolean),
+  )];
+}
+
+function mapCadFileResponse(file) {
+  return {
+    id: file.id,
+    file_name: file.file_name,
+    file_type: file.file_type,
+    file_size: file.file_size,
+    missing: file.missing,
+    component_count: file.component_count,
+    related_files: file.related_files,
+  };
+}
+
 function getTypeInfo(type) {
   return TYPE_MAP[type] || null;
 }
@@ -62,7 +82,7 @@ export const getFilesByType = async (req, res) => {
     res.json({
       type,
       column: info.column,
-      files: existingFiles.map(f => ({ file_name: f.file_name, component_count: f.component_count })),
+      files: existingFiles.map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:', error.message);
@@ -124,12 +144,18 @@ export const getComponentsByFile = async (req, res) => {
       });
     }
 
+    const selectedCadFiles = await cadFileService.getCadFilesByNames(requestedFileNames, info.fileType);
+    const relatedFiles = info.fileType === 'footprint' || info.fileType === 'pad'
+      ? await cadFileService.getLinkedCadFiles(selectedCadFiles.map((file) => file.id))
+      : [];
+
     res.json({
       fileName: requestedFileNames[0],
       fileNames: requestedFileNames,
       type,
       column: info.column,
       components: [...componentMap.values()],
+      relatedFiles: relatedFiles.map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:', error.message);
@@ -173,9 +199,12 @@ export const searchFiles = async (req, res) => {
     res.json({
       searchQuery,
       results: existingResults.map(f => ({
+        id: f.id,
         file_name: f.file_name,
         file_type: f.file_type,
         component_count: f.component_count,
+        file_size: f.file_size,
+        missing: f.missing,
       })),
     });
   } catch (error) {
@@ -684,7 +713,7 @@ export const linkFileToComponent = async (req, res) => {
     }
 
     const cadFile = cfResult.rows[0];
-    await cadFileService.linkCadFileToComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
+    const linkedCadFiles = await cadFileService.linkCadFileToComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
 
     // Clear missing flag when user manually links a file (indicates server-side file management)
     if (cadFile.missing) {
@@ -693,10 +722,90 @@ export const linkFileToComponent = async (req, res) => {
 
     console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Linked "${cadFile.file_name}" to component ${componentId}`);
 
-    res.json({ success: true, cadFile });
+    res.json({
+      success: true,
+      cadFile,
+      linkedCadFiles: linkedCadFiles.map((file) => mapCadFileResponse(file)),
+    });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error linking file to component:', error.message);
     res.status(500).json({ error: 'Failed to link file to component' });
+  }
+};
+
+export const linkPadFootprintFiles = async (req, res) => {
+  try {
+    const sourceCadFileIds = normalizeCadFileIds(req.body?.sourceCadFileIds);
+    const targetCadFileIds = normalizeCadFileIds(req.body?.targetCadFileIds);
+
+    if (sourceCadFileIds.length === 0 || targetCadFileIds.length === 0) {
+      return res.status(400).json({ error: 'sourceCadFileIds and targetCadFileIds are required' });
+    }
+
+    const cadFiles = await cadFileService.getCadFilesByIds([...sourceCadFileIds, ...targetCadFileIds]);
+    const expectedCadFileCount = normalizeCadFileIds([...sourceCadFileIds, ...targetCadFileIds]).length;
+    if (cadFiles.length !== expectedCadFileCount) {
+      return res.status(404).json({ error: 'One or more CAD files were not found' });
+    }
+
+    const footprintCadFileIds = cadFiles
+      .filter((file) => file.file_type === 'footprint')
+      .map((file) => file.id);
+    const padCadFileIds = cadFiles
+      .filter((file) => file.file_type === 'pad')
+      .map((file) => file.id);
+
+    if (footprintCadFileIds.length === 0 || padCadFileIds.length === 0) {
+      return res.status(400).json({ error: 'Linking requires at least one footprint file and one pad file' });
+    }
+
+    const createdLinks = await cadFileService.linkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds });
+    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds);
+
+    res.json({
+      success: true,
+      linkedCount: createdLinks.length,
+      relatedFiles: relatedFiles.map((file) => mapCadFileResponse(file)),
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error linking footprint-pad files:', error.message);
+    const status = /require footprint CAD file ids|require pad CAD file ids/.test(error.message || '') ? 400 : 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to link footprint and pad files' : error.message });
+  }
+};
+
+export const unlinkPadFootprintFiles = async (req, res) => {
+  try {
+    const sourceCadFileIds = normalizeCadFileIds(req.body?.sourceCadFileIds);
+    const targetCadFileIds = normalizeCadFileIds(req.body?.targetCadFileIds);
+
+    if (sourceCadFileIds.length === 0 || targetCadFileIds.length === 0) {
+      return res.status(400).json({ error: 'sourceCadFileIds and targetCadFileIds are required' });
+    }
+
+    const cadFiles = await cadFileService.getCadFilesByIds([...sourceCadFileIds, ...targetCadFileIds]);
+    const footprintCadFileIds = cadFiles
+      .filter((file) => file.file_type === 'footprint')
+      .map((file) => file.id);
+    const padCadFileIds = cadFiles
+      .filter((file) => file.file_type === 'pad')
+      .map((file) => file.id);
+
+    if (footprintCadFileIds.length === 0 || padCadFileIds.length === 0) {
+      return res.status(400).json({ error: 'Unlinking requires at least one footprint file and one pad file' });
+    }
+
+    const removedCount = await cadFileService.unlinkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds });
+    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds);
+
+    res.json({
+      success: true,
+      removedCount,
+      relatedFiles: relatedFiles.map((file) => mapCadFileResponse(file)),
+    });
+  } catch (error) {
+    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error unlinking footprint-pad files:', error.message);
+    res.status(500).json({ error: 'Failed to unlink footprint and pad files' });
   }
 };
 
@@ -852,7 +961,17 @@ export const getAvailableFiles = async (req, res) => {
       } catch { /* ignore directory read errors */ }
     }
 
-    const files = [...dbFiles, ...diskFiles];
+    const relatedFilesByCadFileId = await cadFileService.getLinkedCadFilesMap(
+      dbFiles.map((file) => file.id).filter(Boolean),
+    );
+
+    const files = [
+      ...dbFiles.map((file) => ({
+        ...file,
+        related_files: (relatedFilesByCadFileId.get(file.id) || []).filter((relatedFile) => !relatedFile.missing),
+      })),
+      ...diskFiles.map((file) => ({ ...file, related_files: [] })),
+    ];
     files.sort((a, b) => a.file_name.localeCompare(b.file_name));
 
     res.json({ files });

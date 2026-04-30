@@ -260,11 +260,23 @@ CREATE TABLE IF NOT EXISTS component_cad_files (
     CONSTRAINT uq_component_cad_file UNIQUE (component_id, cad_file_id)
 );
 
+-- Table: footprint_pad_links
+-- Tracks reusable OrCAD pad-file history for each footprint file
+CREATE TABLE IF NOT EXISTS footprint_pad_links (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    footprint_cad_file_id UUID NOT NULL REFERENCES cad_files(id) ON DELETE CASCADE,
+    pad_cad_file_id UUID NOT NULL REFERENCES cad_files(id) ON DELETE CASCADE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_footprint_pad_link UNIQUE (footprint_cad_file_id, pad_cad_file_id)
+);
+
 -- CAD files indexes
 CREATE INDEX IF NOT EXISTS idx_cad_files_file_type ON cad_files(file_type);
 CREATE INDEX IF NOT EXISTS idx_cad_files_file_name ON cad_files(file_name);
 CREATE INDEX IF NOT EXISTS idx_component_cad_files_component ON component_cad_files(component_id);
 CREATE INDEX IF NOT EXISTS idx_component_cad_files_cad_file ON component_cad_files(cad_file_id);
+CREATE INDEX IF NOT EXISTS idx_footprint_pad_links_footprint ON footprint_pad_links(footprint_cad_file_id);
+CREATE INDEX IF NOT EXISTS idx_footprint_pad_links_pad ON footprint_pad_links(pad_cad_file_id);
 
 -- ============================================================================
 -- PART 5: SHARED UPDATE TIMESTAMP TRIGGERS

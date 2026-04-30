@@ -32,6 +32,23 @@ const MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024;
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
 const normalizeExt = (filename) => filename.replace(/\.[^.]+$/, m => m.toLowerCase());
 
+function mergeSelectedCadFiles(selectedFiles, autoFiles = []) {
+  const mergedFiles = new Map();
+
+  [...selectedFiles, ...autoFiles].forEach((file) => {
+    if (!file?.file_name) {
+      return;
+    }
+
+    const key = file.id ? `id:${file.id}` : `${file.file_type || 'unknown'}:${file.file_name}`;
+    if (!mergedFiles.has(key)) {
+      mergedFiles.set(key, file);
+    }
+  });
+
+  return [...mergedFiles.values()];
+}
+
 /**
  * Iterate over all individual upload results (regular + extracted from archives).
  * Calls `fn({ category, filename, tempFilename, type })` for each file.
@@ -593,12 +610,31 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         throw new Error('Selected file is not registered in the CAD library yet');
       }
 
-      await Promise.all(cadFiles.map((file) => api.linkFileToComponent(file.id, componentId)));
-      return { linkedCount: cadFiles.length };
+      const responses = await Promise.all(cadFiles.map((file) => api.linkFileToComponent(file.id, componentId)));
+      const linkedFiles = new Map();
+
+      responses.forEach((response) => {
+        const responseFiles = Array.isArray(response.data?.linkedCadFiles) && response.data.linkedCadFiles.length > 0
+          ? response.data.linkedCadFiles
+          : response.data?.cadFile
+            ? [response.data.cadFile]
+            : [];
+
+        responseFiles.forEach((file) => {
+          if (!file?.file_name) {
+            return;
+          }
+
+          linkedFiles.set(file.id || `${file.file_type}:${file.file_name}`, file);
+        });
+      });
+
+      return { linkedFiles: [...linkedFiles.values()] };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
-      showSuccess(result.linkedCount > 1 ? `${result.linkedCount} files linked successfully` : 'File linked successfully');
+      const linkedCount = result.linkedFiles?.length || 0;
+      showSuccess(linkedCount > 1 ? `${linkedCount} files linked successfully` : 'File linked successfully');
     },
     onError: (error) => {
       showError('Link failed: ' + (error.response?.data?.error || error.message));
@@ -725,7 +761,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       if (fileConflict.isLink) {
         // Link conflict: now perform the deferred link
         if (!ecoMode && fileConflict.cadFileId && componentId) {
-          linkMutation.mutate({ cadFileId: fileConflict.cadFileId });
+          linkMutation.mutate({
+            cadFiles: [{
+              id: fileConflict.cadFileId,
+              file_name: fileConflict.newFile,
+              file_type: fileConflict.category,
+            }],
+          });
         }
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
         notifyCadFileAdded(fileConflict.category, fileConflict.newFile);
@@ -1164,6 +1206,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         onSelect={async (selection) => {
           const cat = linkPicker.category;
           const selectedFiles = Array.isArray(selection?.files) ? selection.files : [selection];
+          const autoFiles = Array.isArray(selection?.autoFiles) ? selection.autoFiles : [];
           if (!cat || selectedFiles.length === 0) {
             return;
           }
@@ -1184,31 +1227,37 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             return;
           }
 
+          let linkedFiles = mergeSelectedCadFiles(selectedFiles, autoFiles);
           if (!ecoMode && componentId) {
             try {
-              await linkMutation.mutateAsync({ cadFiles: selectedFiles });
+              const result = await linkMutation.mutateAsync({ cadFiles: selectedFiles });
+              if (Array.isArray(result?.linkedFiles) && result.linkedFiles.length > 0) {
+                linkedFiles = result.linkedFiles;
+              }
             } catch {
               return;
             }
           }
 
-          for (const file of selectedFiles) {
+          for (const file of linkedFiles) {
+            const fileCategory = file.file_type || cat;
             if (onFileUploaded && file.file_name) {
-              onFileUploaded(cat, file.file_name);
+              onFileUploaded(fileCategory, file.file_name);
             }
             if (file.file_name) {
-              notifyCadFileAdded(cat, file.file_name);
-              clearStagedRemoval(cat, file.file_name);
+              notifyCadFileAdded(fileCategory, file.file_name);
+              clearStagedRemoval(fileCategory, file.file_name);
             }
           }
 
           setLocalUploads(prev => {
             const updated = { ...prev };
-            if (!updated[cat]) updated[cat] = [];
-            for (const file of selectedFiles) {
+            for (const file of linkedFiles) {
               if (!file.file_name) continue;
-              if (!updated[cat].find(existingFile => existingFile.name === file.file_name)) {
-                updated[cat].push({ name: file.file_name, size: 0, storage: 'local' });
+              const fileCategory = file.file_type || cat;
+              if (!updated[fileCategory]) updated[fileCategory] = [];
+              if (!updated[fileCategory].find(existingFile => existingFile.name === file.file_name)) {
+                updated[fileCategory].push({ name: file.file_name, size: 0, storage: 'local' });
               }
             }
             return updated;

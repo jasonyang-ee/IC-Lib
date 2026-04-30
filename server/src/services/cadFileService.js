@@ -29,6 +29,28 @@ const FILE_TYPE_TO_COLUMN = {
   pad: 'pad_file',
 };
 
+function uniqueValues(values) {
+  return [...new Set((Array.isArray(values) ? values : [values]).filter(Boolean))];
+}
+
+async function getComponentFootprintAndPadFiles(componentId, db = pool) {
+  const result = await db.query(`
+    SELECT
+      cf.id,
+      cf.file_name,
+      cf.file_type,
+      cf.file_size,
+      cf.missing
+    FROM component_cad_files ccf
+    JOIN cad_files cf ON ccf.cad_file_id = cf.id
+    WHERE ccf.component_id = $1
+      AND cf.file_type IN ('footprint', 'pad')
+    ORDER BY cf.file_type, cf.file_name
+  `, [componentId]);
+
+  return result.rows;
+}
+
 /**
  * Regenerate the TEXT column for a specific file type on a component.
  * Queries the junction table, strips file extensions, deduplicates base names,
@@ -86,32 +108,44 @@ export async function registerCadFile(fileName, fileType, fileSize = null) {
  * Link a CAD file to a component.
  * Inserts junction record and regenerates the TEXT column.
  */
-export async function linkCadFileToComponent(cadFileId, componentId, fileType, _fileName) {
-  // Insert junction record
-  await pool.query(`
+export async function linkCadFileToComponent(cadFileId, componentId, fileType, fileName, db = pool) {
+  await db.query(`
     INSERT INTO component_cad_files (component_id, cad_file_id)
     VALUES ($1, $2)
     ON CONFLICT (component_id, cad_file_id) DO NOTHING
   `, [componentId, cadFileId]);
 
-  // Regenerate TEXT column from junction table
-  await regenerateCadText(componentId, fileType);
+  const linkedCadFiles = [{ id: cadFileId, file_name: fileName, file_type: fileType }];
+
+  if (fileType === 'footprint') {
+    const autoLinkedPadFiles = await autoLinkRelatedPadFilesForComponent(componentId, db);
+    linkedCadFiles.push(...autoLinkedPadFiles);
+  }
+
+  await regenerateCadText(componentId, fileType, db);
+
+  if (fileType === 'footprint') {
+    await regenerateCadText(componentId, 'pad', db);
+  }
+
+  await syncFootprintPadLinksForComponent(componentId, db);
+
+  return linkedCadFiles;
 }
 
 /**
  * Link a CAD file to a component by manufacturer part number.
  * Used during file upload when we only have the MPN.
  */
-export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, fileType, fileName) {
-  // Find component by MPN
-  const compResult = await pool.query(`
+export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, fileType, fileName, db = pool) {
+  const compResult = await db.query(`
     SELECT id FROM components WHERE manufacturer_pn = $1
   `, [mfgPartNumber]);
 
   if (compResult.rows.length === 0) return null;
 
   const componentId = compResult.rows[0].id;
-  await linkCadFileToComponent(cadFileId, componentId, fileType, fileName);
+  await linkCadFileToComponent(cadFileId, componentId, fileType, fileName, db);
   return componentId;
 }
 
@@ -377,6 +411,221 @@ export async function getCadFilesForComponentGrouped(componentId) {
   return grouped;
 }
 
+export async function getCadFilesByIds(cadFileIds, db = pool) {
+  const normalizedIds = uniqueValues(cadFileIds);
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const result = await db.query(`
+    SELECT id, file_name, file_type, file_size, missing
+    FROM cad_files
+    WHERE id = ANY($1::uuid[])
+    ORDER BY file_type, file_name
+  `, [normalizedIds]);
+
+  return result.rows;
+}
+
+export async function getCadFilesByNames(fileNames, fileType, db = pool) {
+  const normalizedFileNames = uniqueValues(fileNames);
+  if (!fileType || normalizedFileNames.length === 0) {
+    return [];
+  }
+
+  const result = await db.query(`
+    SELECT id, file_name, file_type, file_size, missing
+    FROM cad_files
+    WHERE file_type = $1
+      AND file_name = ANY($2::text[])
+    ORDER BY file_name
+  `, [fileType, normalizedFileNames]);
+
+  return result.rows;
+}
+
+export async function getLinkedCadFilesMap(cadFileIds, db = pool) {
+  const normalizedIds = uniqueValues(cadFileIds);
+  const relatedFilesByCadFileId = new Map();
+
+  if (normalizedIds.length === 0) {
+    return relatedFilesByCadFileId;
+  }
+
+  const result = await db.query(`
+    SELECT
+      selected.id AS selected_cad_file_id,
+      related.id,
+      related.file_name,
+      related.file_type,
+      related.file_size,
+      related.missing
+    FROM cad_files selected
+    JOIN footprint_pad_links fpl
+      ON (
+        (selected.file_type = 'footprint' AND fpl.footprint_cad_file_id = selected.id)
+        OR (selected.file_type = 'pad' AND fpl.pad_cad_file_id = selected.id)
+      )
+    JOIN cad_files related
+      ON (
+        (selected.file_type = 'footprint' AND related.id = fpl.pad_cad_file_id)
+        OR (selected.file_type = 'pad' AND related.id = fpl.footprint_cad_file_id)
+      )
+    WHERE selected.id = ANY($1::uuid[])
+    ORDER BY related.file_type, related.file_name
+  `, [normalizedIds]);
+
+  for (const row of result.rows) {
+    if (!relatedFilesByCadFileId.has(row.selected_cad_file_id)) {
+      relatedFilesByCadFileId.set(row.selected_cad_file_id, []);
+    }
+
+    const relatedFiles = relatedFilesByCadFileId.get(row.selected_cad_file_id);
+    if (!relatedFiles.some((file) => file.id === row.id)) {
+      relatedFiles.push({
+        id: row.id,
+        file_name: row.file_name,
+        file_type: row.file_type,
+        file_size: row.file_size,
+        missing: row.missing,
+      });
+    }
+  }
+
+  return relatedFilesByCadFileId;
+}
+
+export async function getLinkedCadFiles(cadFileIds, db = pool) {
+  const relatedFilesByCadFileId = await getLinkedCadFilesMap(cadFileIds, db);
+  const uniqueFiles = new Map();
+
+  for (const relatedFiles of relatedFilesByCadFileId.values()) {
+    relatedFiles.forEach((file) => {
+      uniqueFiles.set(file.id, file);
+    });
+  }
+
+  return [...uniqueFiles.values()];
+}
+
+export async function linkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db = pool) {
+  const normalizedFootprintIds = uniqueValues(footprintCadFileIds);
+  const normalizedPadIds = uniqueValues(padCadFileIds);
+
+  if (normalizedFootprintIds.length === 0 || normalizedPadIds.length === 0) {
+    return [];
+  }
+
+  const cadFiles = await getCadFilesByIds([...normalizedFootprintIds, ...normalizedPadIds], db);
+  const cadFileById = new Map(cadFiles.map((file) => [file.id, file]));
+
+  for (const footprintCadFileId of normalizedFootprintIds) {
+    const cadFile = cadFileById.get(footprintCadFileId);
+    if (!cadFile || cadFile.file_type !== 'footprint') {
+      throw new Error('Footprint-pad links require footprint CAD file ids');
+    }
+  }
+
+  for (const padCadFileId of normalizedPadIds) {
+    const cadFile = cadFileById.get(padCadFileId);
+    if (!cadFile || cadFile.file_type !== 'pad') {
+      throw new Error('Footprint-pad links require pad CAD file ids');
+    }
+  }
+
+  const createdLinks = [];
+  for (const footprintCadFileId of normalizedFootprintIds) {
+    for (const padCadFileId of normalizedPadIds) {
+      await db.query(`
+        INSERT INTO footprint_pad_links (footprint_cad_file_id, pad_cad_file_id)
+        VALUES ($1, $2)
+        ON CONFLICT (footprint_cad_file_id, pad_cad_file_id) DO NOTHING
+      `, [footprintCadFileId, padCadFileId]);
+
+      createdLinks.push({ footprint_cad_file_id: footprintCadFileId, pad_cad_file_id: padCadFileId });
+    }
+  }
+
+  return createdLinks;
+}
+
+export async function unlinkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db = pool) {
+  const normalizedFootprintIds = uniqueValues(footprintCadFileIds);
+  const normalizedPadIds = uniqueValues(padCadFileIds);
+
+  if (normalizedFootprintIds.length === 0 || normalizedPadIds.length === 0) {
+    return 0;
+  }
+
+  let removedCount = 0;
+  for (const footprintCadFileId of normalizedFootprintIds) {
+    for (const padCadFileId of normalizedPadIds) {
+      const result = await db.query(`
+        DELETE FROM footprint_pad_links
+        WHERE footprint_cad_file_id = $1 AND pad_cad_file_id = $2
+      `, [footprintCadFileId, padCadFileId]);
+
+      removedCount += result.rowCount || 0;
+    }
+  }
+
+  return removedCount;
+}
+
+export async function autoLinkRelatedPadFilesForComponent(componentId, db = pool) {
+  const componentCadFiles = await getComponentFootprintAndPadFiles(componentId, db);
+  const footprintIds = componentCadFiles
+    .filter((file) => file.file_type === 'footprint')
+    .map((file) => file.id);
+  const existingPadIds = new Set(
+    componentCadFiles
+      .filter((file) => file.file_type === 'pad')
+      .map((file) => file.id),
+  );
+
+  if (footprintIds.length === 0) {
+    return [];
+  }
+
+  const relatedFilesByCadFileId = await getLinkedCadFilesMap(footprintIds, db);
+  const addedPadFiles = [];
+  const addedPadIds = new Set();
+
+  for (const relatedFiles of relatedFilesByCadFileId.values()) {
+    for (const relatedFile of relatedFiles) {
+      if (relatedFile.file_type !== 'pad' || relatedFile.missing || existingPadIds.has(relatedFile.id)) {
+        continue;
+      }
+
+      await db.query(`
+        INSERT INTO component_cad_files (component_id, cad_file_id)
+        VALUES ($1, $2)
+        ON CONFLICT (component_id, cad_file_id) DO NOTHING
+      `, [componentId, relatedFile.id]);
+
+      existingPadIds.add(relatedFile.id);
+      if (!addedPadIds.has(relatedFile.id)) {
+        addedPadIds.add(relatedFile.id);
+        addedPadFiles.push(relatedFile);
+      }
+    }
+  }
+
+  return addedPadFiles;
+}
+
+export async function syncFootprintPadLinksForComponent(componentId, db = pool) {
+  const componentCadFiles = await getComponentFootprintAndPadFiles(componentId, db);
+  const footprintCadFileIds = componentCadFiles
+    .filter((file) => file.file_type === 'footprint')
+    .map((file) => file.id);
+  const padCadFileIds = componentCadFiles
+    .filter((file) => file.file_type === 'pad')
+    .map((file) => file.id);
+
+  return linkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db);
+}
+
 /**
  * Find a cad_file record by file name and type.
  */
@@ -488,7 +737,7 @@ export async function detectMissingFiles() {
  * Matches against cad_files records which store full filenames (with extensions).
  * After syncing junction records, regenerates all TEXT columns.
  */
-export async function syncComponentCadFiles(componentId, cadData) {
+export async function syncComponentCadFiles(componentId, cadData, db = pool) {
   // cadData: { pcb_footprint: [], schematic: [], step_model: [], pspice: [], pad_file: [] }
   const columnToFileType = {
     pcb_footprint: 'footprint',
@@ -499,7 +748,7 @@ export async function syncComponentCadFiles(componentId, cadData) {
   };
 
   // Get current junction links (full filenames from cad_files)
-  const currentLinks = await pool.query(`
+  const currentLinks = await db.query(`
     SELECT ccf.id, cf.id as cad_file_id, cf.file_name, cf.file_type
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
@@ -520,7 +769,7 @@ export async function syncComponentCadFiles(componentId, cadData) {
     const baseName = row.file_name.replace(/\.[^.]+$/, '').toLowerCase();
     const desired = desiredBaseNames[row.file_type];
     if (desired && !desired.has(baseName)) {
-      await pool.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
+      await db.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
     }
   }
 
@@ -548,13 +797,13 @@ export async function syncComponentCadFiles(componentId, cadData) {
 
       // Find ALL existing cad_files by base name pattern match (case-insensitive).
       // This keeps footprint pairs linked together for either .psm/.dra or .bsm/.dra.
-      const matches = await pool.query(`
+      const matches = await db.query(`
         SELECT id FROM cad_files
         WHERE file_type = $1 AND LOWER(regexp_replace(file_name, '\\.[^.]+$', '')) = LOWER($2)
       `, [fileType, baseName]);
 
       for (const match of matches.rows) {
-        await pool.query(`
+        await db.query(`
           INSERT INTO component_cad_files (component_id, cad_file_id)
           VALUES ($1, $2)
           ON CONFLICT (component_id, cad_file_id) DO NOTHING
@@ -563,8 +812,9 @@ export async function syncComponentCadFiles(componentId, cadData) {
     }
   }
 
-  // Regenerate all TEXT columns from junction table
-  await regenerateAllCadText(componentId);
+  await autoLinkRelatedPadFilesForComponent(componentId, db);
+  await regenerateAllCadText(componentId, db);
+  await syncFootprintPadLinksForComponent(componentId, db);
 }
 
 /**
@@ -657,6 +907,14 @@ export default {
   getOrphanCadFiles,
   searchCadFiles,
   getCadFilesForComponentGrouped,
+  getCadFilesByIds,
+  getCadFilesByNames,
+  getLinkedCadFilesMap,
+  getLinkedCadFiles,
+  linkFootprintPadCadFiles,
+  unlinkFootprintPadCadFiles,
+  autoLinkRelatedPadFilesForComponent,
+  syncFootprintPadLinksForComponent,
   findCadFile,
   scanAndRegisterFiles,
   detectMissingFiles,

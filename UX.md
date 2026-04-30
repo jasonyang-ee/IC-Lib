@@ -72,6 +72,7 @@
   - CAD manager for schematic, footprint, pad, 3D model, PSpice
   - upload direct files or ZIP
   - link existing library files
+  - linking a footprint auto-adds known pad files from prior footprint-pad history
   - rename shortcuts: freeform, MFG P/N, package
   - footprint pairs move together
   - save-time conflict modal `use_existing|overwrite`
@@ -132,7 +133,9 @@
   - filter: all files vs orphans
   - copy-path uses per-user file storage path from User Settings
   - selected file shows linked components + links back to Library
+  - selected footprint/pad header also shows linked corresponding pad/footprint files
   - footprint pairs grouped
+  - admin may manually add/remove footprint-pad link history with `Link Pad` / `Link Footprint`
   - rename/delete permission-gated
   - ECO on + non-admin + shared rename affecting >1 part + at least 1 non-`new` part -> show shared transparent-gray warning modal, create 1 mass ECO with `Shared Rename` tag, push only non-`new` affected parts to `reviewing`, keep `new` parts editable, apply rename only after approval
   - admin shared renames stay direct even when ECO mode is on

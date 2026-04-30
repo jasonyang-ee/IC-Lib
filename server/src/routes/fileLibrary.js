@@ -5,6 +5,7 @@ import {
   canDeleteLibraryFiles,
   canDirectEditComponentByBody,
   canWrite,
+  isAdmin,
 } from '../middleware/auth.js';
 import {
   getFilesByType,
@@ -20,7 +21,9 @@ import {
   getOrphanFiles,
   getCadFilesForComponent,
   linkFileToComponent,
+  linkPadFootprintFiles,
   unlinkFileFromComponent,
+  unlinkPadFootprintFiles,
   getComponentsByCategory,
   getSharingComponents,
   getAvailableFiles,
@@ -85,5 +88,11 @@ router.post('/link', canWrite, canDirectEditComponentByBody, linkFileToComponent
 
 // Unlink a CAD file from a component (requires write permission)
 router.post('/unlink', canWrite, canDirectEditComponentByBody, unlinkFileFromComponent);
+
+// Link footprint-pad history records (admin only)
+router.post('/pad-footprint-links', canAccessFileLibrary, isAdmin, linkPadFootprintFiles);
+
+// Remove footprint-pad history records (admin only)
+router.delete('/pad-footprint-links', canAccessFileLibrary, isAdmin, unlinkPadFootprintFiles);
 
 export default router;

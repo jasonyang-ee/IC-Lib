@@ -1,6 +1,10 @@
 import pool from '../config/database.js';
 import { sendApprovedECODocumentControlNotification, sendECONotification } from '../services/emailService.js';
-import { regenerateCadText } from '../services/cadFileService.js';
+import {
+  autoLinkRelatedPadFilesForComponent,
+  regenerateCadText,
+  syncFootprintPadLinksForComponent,
+} from '../services/cadFileService.js';
 import { generateECOPdf, generateECOPdfBuffer } from '../services/ecoPdfService.js';
 import {
   DEFAULT_ECO_PDF_HEADER,
@@ -1860,6 +1864,12 @@ const applyECOChanges = async (client, eco, id) => {
       await regenerateCadText(targetComponentId, cf.file_type, client);
     }
   }
+
+  const autoLinkedPadFiles = await autoLinkRelatedPadFilesForComponent(targetComponentId, client);
+  if (autoLinkedPadFiles.length > 0) {
+    await regenerateCadText(targetComponentId, 'pad', client);
+  }
+  await syncFootprintPadLinksForComponent(targetComponentId, client);
 
   return {
     deleted: false,

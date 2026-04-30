@@ -20,6 +20,22 @@ const ROUTE_TYPE_MAP = {
   pspice: 'pspice',
 };
 
+const collectRelatedFiles = (files) => {
+  const uniqueFiles = new Map();
+
+  files.forEach((file) => {
+    const relatedFiles = Array.isArray(file?.related_files) ? file.related_files : [];
+    relatedFiles.forEach((relatedFile) => {
+      const key = relatedFile.id || `${relatedFile.file_type}:${relatedFile.file_name}`;
+      if (!uniqueFiles.has(key)) {
+        uniqueFiles.set(key, relatedFile);
+      }
+    });
+  });
+
+  return [...uniqueFiles.values()];
+};
+
 /**
  * Reusable modal for selecting an existing CAD file from the library.
  * Supports search and type filtering.
@@ -64,6 +80,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
         kind: 'single',
         displayName: file.file_name,
         files: [file],
+        relatedFiles: collectRelatedFiles([file]),
         componentCount: Number(file.component_count || 0),
       }));
     }
@@ -75,6 +92,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
           kind: 'single',
           displayName: group.file.file_name,
           files: [group.file],
+          relatedFiles: collectRelatedFiles([group.file]),
           componentCount: Number(group.file.component_count || 0),
         };
       }
@@ -84,6 +102,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
         kind: 'pair',
         displayName: getCadFileBaseName(group.primary.file_name),
         files: group.files.slice().sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { sensitivity: 'base' })),
+        relatedFiles: collectRelatedFiles(group.files),
         componentCount: Math.max(...group.files.map((file) => Number(file.component_count || 0))),
         pairLabel: group.pairLabel,
       };
@@ -137,8 +156,14 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
                 key={entry.key}
                 onClick={() => {
                   onSelect(entry.kind === 'pair'
-                    ? { kind: 'pair', files: entry.files, file_type: 'footprint', displayName: entry.displayName }
-                    : entry.files[0]);
+                    ? {
+                        kind: 'pair',
+                        files: entry.files,
+                        file_type: 'footprint',
+                        displayName: entry.displayName,
+                        autoFiles: entry.relatedFiles,
+                      }
+                    : { ...entry.files[0], autoFiles: entry.relatedFiles });
                   onClose();
                 }}
                 className="w-full flex items-start gap-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-[#333333] text-left transition-colors"
