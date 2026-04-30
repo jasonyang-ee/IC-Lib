@@ -12,7 +12,6 @@ import {
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
-import { CadFilePickerModal } from '../components/library';
 import {
   FileBox,
   Search,
@@ -23,7 +22,13 @@ import {
   Layers,
   FolderOpen,
 } from 'lucide-react';
-import { FileTypesView, CategoryView, RenameModal, DeleteModal } from '../components/fileLibrary';
+import {
+  FileTypesView,
+  CategoryView,
+  RenameModal,
+  DeleteModal,
+  FootprintLinkEditorModal,
+} from '../components/fileLibrary';
 import { ConfirmationModal } from '../components/common';
 import { routeTypeToFileType } from '../components/fileLibrary/constants';
 import { canDeleteLibraryFiles as canDeleteLibraryFilesForRole } from '../utils/accessControl';
@@ -160,7 +165,7 @@ const FileLibrary = () => {
   const [isPreparingRenameConfirmation, setIsPreparingRenameConfirmation] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [padFootprintLinkPicker, setPadFootprintLinkPicker] = useState({ show: false, targetType: '' });
+  const [footprintLinkEditor, setFootprintLinkEditor] = useState({ show: false, relatedFileType: '' });
 
   // --- URL parameter handling ---
   useEffect(() => {
@@ -435,33 +440,17 @@ const FileLibrary = () => {
     },
   });
 
-  const padFootprintLinkMutation = useMutation({
+  const linkFootprintRelatedMutation = useMutation({
     mutationFn: async ({ sourceCadFileIds, targetCadFileIds }) => {
-      const response = await api.linkPadFootprintFiles(sourceCadFileIds, targetCadFileIds);
+      const response = await api.linkFootprintRelatedFiles(sourceCadFileIds, targetCadFileIds);
       return response.data;
-    },
-    onSuccess: (data) => {
-      invalidateAll();
-      const linkedCount = data?.linkedCount || 0;
-      showSuccess(linkedCount > 1 ? `${linkedCount} footprint-pad links saved` : 'Footprint-pad link saved');
-    },
-    onError: (error) => {
-      showError('Failed to link footprint and pad files: ' + (error.response?.data?.error || error.message));
     },
   });
 
-  const unlinkPadFootprintLinkMutation = useMutation({
+  const unlinkFootprintRelatedMutation = useMutation({
     mutationFn: async ({ sourceCadFileIds, targetCadFileIds }) => {
-      const response = await api.unlinkPadFootprintFiles(sourceCadFileIds, targetCadFileIds);
+      const response = await api.unlinkFootprintRelatedFiles(sourceCadFileIds, targetCadFileIds);
       return response.data;
-    },
-    onSuccess: (data) => {
-      invalidateAll();
-      const removedCount = data?.removedCount || 0;
-      showSuccess(removedCount > 1 ? `${removedCount} footprint-pad links removed` : 'Footprint-pad link removed');
-    },
-    onError: (error) => {
-      showError('Failed to unlink footprint and pad files: ' + (error.response?.data?.error || error.message));
     },
   });
 
@@ -831,36 +820,61 @@ const FileLibrary = () => {
     });
   };
 
-  const canManagePadFootprintLinks = Boolean(
+  const canManageFootprintRelatedLinks = Boolean(
     selectedEntry
     && !showOrphans
     && user?.role === 'admin'
-    && (selectedType === 'footprint' || selectedType === 'pad'),
+    && selectedType === 'footprint',
   );
 
-  const handleOpenPadFootprintLinkPicker = () => {
-    if (!canManagePadFootprintLinks) {
+  const handleOpenFootprintLinkEditor = (relatedFileType) => {
+    if (!canManageFootprintRelatedLinks) {
       return;
     }
 
-    setPadFootprintLinkPicker({
+    setFootprintLinkEditor({
       show: true,
-      targetType: selectedType === 'footprint' ? 'pad' : 'footprint',
+      relatedFileType,
     });
   };
 
-  const handleUnlinkPadFootprintLink = (linkedFiles) => {
+  const handleSaveFootprintLinkEditor = async ({ relatedFileType, addFileIds, removeFileIds }) => {
     const sourceCadFileIds = selectedEntry?.files?.map((file) => file.id).filter(Boolean) || [];
-    const targetCadFileIds = (Array.isArray(linkedFiles) ? linkedFiles : [linkedFiles])
-      .map((file) => file?.id)
-      .filter(Boolean);
 
-    if (sourceCadFileIds.length === 0 || targetCadFileIds.length === 0) {
-      showError('Missing CAD file ids for unlinking');
+    if (sourceCadFileIds.length === 0) {
+      showError('Missing CAD file ids for linking');
       return;
     }
 
-    unlinkPadFootprintLinkMutation.mutate({ sourceCadFileIds, targetCadFileIds });
+    if (addFileIds.length === 0 && removeFileIds.length === 0) {
+      setFootprintLinkEditor({ show: false, relatedFileType: '' });
+      return;
+    }
+
+    const relatedFileLabel = relatedFileType === 'model' ? THREE_D_MODEL_LABEL : 'pad';
+
+    try {
+      if (removeFileIds.length > 0) {
+        await unlinkFootprintRelatedMutation.mutateAsync({
+          sourceCadFileIds,
+          targetCadFileIds: removeFileIds,
+        });
+      }
+
+      if (addFileIds.length > 0) {
+        await linkFootprintRelatedMutation.mutateAsync({
+          sourceCadFileIds,
+          targetCadFileIds: addFileIds,
+        });
+      }
+
+      setFootprintLinkEditor({ show: false, relatedFileType: '' });
+      showSuccess(`Updated footprint ${relatedFileLabel} links`);
+    } catch (error) {
+      showError(`Failed to update footprint ${relatedFileLabel} links: ${error.response?.data?.error || error.message}`);
+    } finally {
+      invalidateAll();
+    }
   };
 
   // ==============================
@@ -952,11 +966,10 @@ const FileLibrary = () => {
           cisFiles={cisFilesData || []}
           selectedCISFile={selectedCISFile}
           onCISFileChange={setSelectedCISFile}
-          relatedFiles={componentsData?.relatedFiles || []}
-          canManagePadFootprintLinks={canManagePadFootprintLinks}
-          onOpenPadFootprintLinkPicker={handleOpenPadFootprintLinkPicker}
-          onUnlinkPadFootprintLink={handleUnlinkPadFootprintLink}
-          isManagingPadFootprintLinks={padFootprintLinkMutation.isPending || unlinkPadFootprintLinkMutation.isPending}
+          relatedFileGroups={componentsData?.relatedFileGroups || {}}
+          canManageFootprintRelatedLinks={canManageFootprintRelatedLinks}
+          onOpenFootprintLinkEditor={handleOpenFootprintLinkEditor}
+          isManagingFootprintRelatedLinks={linkFootprintRelatedMutation.isPending || unlinkFootprintRelatedMutation.isPending}
         />
       ) : (
         <CategoryView
@@ -1026,23 +1039,14 @@ const FileLibrary = () => {
         isLoading={bulkDeleteOrphansMutation.isPending}
       />
 
-      <CadFilePickerModal
-        isOpen={padFootprintLinkPicker.show}
-        onClose={() => setPadFootprintLinkPicker({ show: false, targetType: '' })}
-        onSelect={(selection) => {
-          const sourceCadFileIds = selectedEntry?.files?.map((file) => file.id).filter(Boolean) || [];
-          const targetFiles = Array.isArray(selection?.files) ? selection.files : [selection];
-          const targetCadFileIds = targetFiles.map((file) => file?.id).filter(Boolean);
-
-          if (sourceCadFileIds.length === 0 || targetCadFileIds.length === 0) {
-            showError('Missing CAD file ids for linking');
-            return;
-          }
-
-          padFootprintLinkMutation.mutate({ sourceCadFileIds, targetCadFileIds });
-        }}
-        fileType={padFootprintLinkPicker.targetType || undefined}
-        excludeFileIds={(componentsData?.relatedFiles || []).map((file) => file.id).filter(Boolean)}
+      <FootprintLinkEditorModal
+        isOpen={footprintLinkEditor.show}
+        onClose={() => setFootprintLinkEditor({ show: false, relatedFileType: '' })}
+        onSave={handleSaveFootprintLinkEditor}
+        selectedEntry={selectedEntry}
+        relatedFileType={footprintLinkEditor.relatedFileType}
+        initialFiles={componentsData?.relatedFileGroups?.[footprintLinkEditor.relatedFileType] || []}
+        isSaving={linkFootprintRelatedMutation.isPending || unlinkFootprintRelatedMutation.isPending}
       />
     </div>
   );

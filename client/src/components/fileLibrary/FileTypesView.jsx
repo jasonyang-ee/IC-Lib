@@ -7,9 +7,7 @@ import {
   FileBox,
   FileText,
   Link2,
-  Plus,
   Trash2,
-  X,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
@@ -17,12 +15,12 @@ import StatusBadge from './StatusBadge';
 import { FilterSelect, SidebarCard } from '../common';
 import { fileTypeLabels } from './constants';
 
-const buildRelatedFileEntries = (selectedType, relatedFiles) => {
+const buildRelatedFileEntries = (fileType, relatedFiles) => {
   if (!Array.isArray(relatedFiles) || relatedFiles.length === 0) {
     return [];
   }
 
-  if (selectedType === 'pad') {
+  if (fileType === 'footprint') {
     return groupFootprintFiles(relatedFiles, (file) => file.file_name).map((group) => {
       if (group.type !== 'pair') {
         return {
@@ -48,6 +46,38 @@ const buildRelatedFileEntries = (selectedType, relatedFiles) => {
     tooltip: file.file_name,
     files: [file],
   }));
+};
+
+const buildRelatedSections = (selectedType, relatedFileGroups) => {
+  const groups = relatedFileGroups || {};
+
+  if (selectedType === 'footprint') {
+    return [
+      {
+        key: 'pad',
+        label: 'Linked Pad Files',
+        emptyLabel: 'No linked pad files',
+        entries: buildRelatedFileEntries('pad', groups.pad || []),
+      },
+      {
+        key: 'model',
+        label: 'Linked 3D Model Files',
+        emptyLabel: 'No linked 3D model files',
+        entries: buildRelatedFileEntries('model', groups.model || []),
+      },
+    ];
+  }
+
+  if (selectedType === 'pad' || selectedType === 'step') {
+    return [{
+      key: 'footprint',
+      label: 'Linked Footprints',
+      emptyLabel: 'No linked footprints',
+      entries: buildRelatedFileEntries('footprint', groups.footprint || []),
+    }];
+  }
+
+  return [];
 };
 
 const FileTypesView = ({
@@ -81,17 +111,14 @@ const FileTypesView = ({
   cisFiles,
   selectedCISFile,
   onCISFileChange,
-  relatedFiles,
-  canManagePadFootprintLinks,
-  onOpenPadFootprintLinkPicker,
-  onUnlinkPadFootprintLink,
-  isManagingPadFootprintLinks,
+  relatedFileGroups,
+  canManageFootprintRelatedLinks,
+  onOpenFootprintLinkEditor,
+  isManagingFootprintRelatedLinks,
 }) => {
   const fileListRef = useRef(null);
   const isOrphanSelectionEnabled = showOrphans && bulkSelectMode;
-  const relatedFileEntries = buildRelatedFileEntries(selectedType, relatedFiles);
-  const relatedFileLabel = selectedType === 'footprint' ? 'Linked Pad Files' : 'Linked Footprints';
-  const relatedLinkActionLabel = selectedType === 'footprint' ? 'Link Pad' : 'Link Footprint';
+  const relatedSections = buildRelatedSections(selectedType, relatedFileGroups);
 
   const fileVirtualizer = useVirtualizer({
     count: displayedEntries.length,
@@ -380,51 +407,33 @@ const FileTypesView = ({
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {componentsData?.components?.length || 0} component{(componentsData?.components?.length || 0) !== 1 ? 's' : ''} using this file
                 </p>
-                {(selectedType === 'footprint' || selectedType === 'pad') && (
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
-                        <Link2 className="w-3 h-3" />
-                        {relatedFileLabel}
-                      </p>
-                      {canManagePadFootprintLinks && (
-                        <button
-                          onClick={onOpenPadFootprintLinkPicker}
-                          disabled={isManagingPadFootprintLinks}
-                          className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <Plus className="w-3 h-3" />
-                          {relatedLinkActionLabel}
-                        </button>
-                      )}
-                    </div>
-                    {relatedFileEntries.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {relatedFileEntries.map((entry) => (
-                          <div
-                            key={entry.key}
-                            className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200"
-                            title={entry.tooltip}
-                          >
-                            <span>{entry.label}</span>
-                            {canManagePadFootprintLinks && (
-                              <button
-                                onClick={() => onUnlinkPadFootprintLink(entry.files)}
-                                disabled={isManagingPadFootprintLinks}
-                                className="text-gray-400 hover:text-red-500 dark:hover:text-red-300 disabled:opacity-50"
-                                title="Remove link"
+                {relatedSections.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {relatedSections.map((section) => (
+                      <div key={section.key}>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                          <Link2 className="w-3 h-3" />
+                          {section.label}
+                        </p>
+                        {section.entries.length > 0 ? (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {section.entries.map((entry) => (
+                              <div
+                                key={entry.key}
+                                className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200"
+                                title={entry.tooltip}
                               >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
+                                <span>{entry.label}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {section.emptyLabel}
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        No linked corresponding files
-                      </p>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
@@ -436,6 +445,24 @@ const FileTypesView = ({
                   >
                     Rename
                   </button>
+                  {canManageFootprintRelatedLinks && (
+                    <>
+                      <button
+                        onClick={() => onOpenFootprintLinkEditor('pad')}
+                        disabled={isManagingFootprintRelatedLinks}
+                        className="btn-action-secondary text-sm disabled:opacity-50"
+                      >
+                        Edit Pad Link
+                      </button>
+                      <button
+                        onClick={() => onOpenFootprintLinkEditor('model')}
+                        disabled={isManagingFootprintRelatedLinks}
+                        className="btn-action-secondary text-sm disabled:opacity-50"
+                      >
+                        Edit 3D Model Link
+                      </button>
+                    </>
+                  )}
                   {canDeleteFiles() && selectedEntry.canDelete && selectedEntry.componentCount === 0 && (
                     <button
                       onClick={() => onOpenDelete(selectedEntry)}

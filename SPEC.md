@@ -10,7 +10,7 @@ G3: provide audit/reporting/admin surfaces for governed library ops.
 
 C1: stack React 19 + Vite + TailwindCSS v4 + React Query 5 | Express 4 | PostgreSQL 18 | JWT cookie auth.
 C2: DB primary keys ! `UUID DEFAULT uuidv7()`; create time derive via `created_at(id)`.
-C3: app owns flat CAD tree `library/footprint|symbol|model|pspice|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`, plus `footprint_pad_links` for reusable OrCAD footprint-to-pad history.
+C3: app owns flat CAD tree `library/footprint|symbol|model|pspice|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`, plus `footprint_related_cad_files` for reusable footprint-driven pad and 3D-model history.
 C4: query/report/runtime surfaces rely on views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file`.
 C5: roles `read-only|reviewer|lab|read-write|approver|admin`; `lab` = `read-write` except File Library page/browse/manage access ⊥; some component-scoped CAD helper APIs still usable from Parts Library edit flow.
 C6: runtime flags/env ! support `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, DB creds, vendor API creds, `SMTP_ENCRYPTION_KEY`.
@@ -43,7 +43,7 @@ V4: startup ! verify users schema + base tables/views + repairable columns; blan
 V5: migration filename contract: new files `database/migrations/<int>_<desc>.sql`; sort by int, not lexicographic; legacy zero-pad still parse numeric.
 V6: component status ∈ `{new,reviewing,prototype,production,archived}`; ECO status ∈ `{pending,in_review,approved,rejected}`; create time read from `created_at(uuid)`.
 V7: component create ! inventory row ∃, `activity_log` row ∃, joined API payload include category/manufacturer/part_type/created_at.
-V8: CAD source-of-truth -> `cad_files` + `component_cad_files`; TEXT CAD cols derived by regen, strip ext, skip `.dra`; startup scan registers untracked files & toggles `cad_files.missing` from disk state; footprint/pad reuse history persists in `footprint_pad_links`, auto-links known pad files when a footprint is linked, and learns new footprint-pad co-usage from component saves/ECO applies.
+V8: CAD source-of-truth -> `cad_files` + `component_cad_files`; TEXT CAD cols derived by regen, strip ext, skip `.dra`; startup scan registers untracked files & toggles `cad_files.missing` from disk state; footprint-driven reuse history persists in `footprint_related_cad_files`, auto-links known pad and 3D model files when a footprint is linked, and learns new footprint/pad/model co-usage from component saves, ECO applies, and direct file linking.
 V9: fs ops ! safe leaf names + resolved path ∈ library base; traversal/nested path reject.
 V10: catalog/dashboard/report/settings-read/project/inventory GET routes may be unauthenticated; handlers that attribute actor use `req.user?.id || null`; mutation routes remain guarded.
 V11: ECO routes auth ! always; any auth user may view; create -> `canWrite`; approve/reject -> `canApprove`; current-stage actability computed per user + stage.

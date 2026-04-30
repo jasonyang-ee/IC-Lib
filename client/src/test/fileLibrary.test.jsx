@@ -16,6 +16,8 @@ const getCadFilesForComponentMock = vi.fn();
 const getSharingComponentsMock = vi.fn();
 const renamePhysicalFileMock = vi.fn();
 const renameFootprintGroupMock = vi.fn();
+const linkFootprintRelatedFilesMock = vi.fn();
+const unlinkFootprintRelatedFilesMock = vi.fn();
 const showSuccessMock = vi.fn();
 const showErrorMock = vi.fn();
 
@@ -56,6 +58,8 @@ vi.mock('../utils/api', () => ({
     getSharingComponents: (...args) => getSharingComponentsMock(...args),
     renamePhysicalFile: (...args) => renamePhysicalFileMock(...args),
     renameFootprintGroup: (...args) => renameFootprintGroupMock(...args),
+    linkFootprintRelatedFiles: (...args) => linkFootprintRelatedFilesMock(...args),
+    unlinkFootprintRelatedFiles: (...args) => unlinkFootprintRelatedFilesMock(...args),
   },
 }));
 
@@ -94,6 +98,7 @@ vi.mock('../components/fileLibrary', () => ({
     </div>
   ),
   DeleteModal: () => null,
+  FootprintLinkEditorModal: () => null,
 }));
 
 import FileLibrary from '../pages/FileLibrary';
@@ -134,6 +139,8 @@ describe('FileLibrary shared rename flow', () => {
     getSharingComponentsMock.mockReset();
     renamePhysicalFileMock.mockReset();
     renameFootprintGroupMock.mockReset();
+    linkFootprintRelatedFilesMock.mockReset();
+    unlinkFootprintRelatedFilesMock.mockReset();
     showSuccessMock.mockReset();
     showErrorMock.mockReset();
 
@@ -148,6 +155,8 @@ describe('FileLibrary shared rename flow', () => {
     getCadFilesForComponentMock.mockResolvedValue({ data: { files: {} } });
     getSharingComponentsMock.mockResolvedValue({ data: { components: [] } });
     renameFootprintGroupMock.mockResolvedValue({ data: { success: true } });
+    linkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
+    unlinkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
     renamePhysicalFileMock.mockResolvedValue({
       data: {
         success: true,

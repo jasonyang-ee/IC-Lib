@@ -21,9 +21,9 @@ import {
   getOrphanFiles,
   getCadFilesForComponent,
   linkFileToComponent,
-  linkPadFootprintFiles,
+  linkFootprintRelatedFiles,
   unlinkFileFromComponent,
-  unlinkPadFootprintFiles,
+  unlinkFootprintRelatedFiles,
   getComponentsByCategory,
   getSharingComponents,
   getAvailableFiles,
@@ -89,10 +89,10 @@ router.post('/link', canWrite, canDirectEditComponentByBody, linkFileToComponent
 // Unlink a CAD file from a component (requires write permission)
 router.post('/unlink', canWrite, canDirectEditComponentByBody, unlinkFileFromComponent);
 
-// Link footprint-pad history records (admin only)
-router.post('/pad-footprint-links', canAccessFileLibrary, isAdmin, linkPadFootprintFiles);
+// Link footprint-driven pad or 3D model history records (admin only)
+router.post('/footprint-related-links', canAccessFileLibrary, isAdmin, linkFootprintRelatedFiles);
 
-// Remove footprint-pad history records (admin only)
-router.delete('/pad-footprint-links', canAccessFileLibrary, isAdmin, unlinkPadFootprintFiles);
+// Remove footprint-driven pad or 3D model history records (admin only)
+router.delete('/footprint-related-links', canAccessFileLibrary, isAdmin, unlinkFootprintRelatedFiles);
 
 export default router;

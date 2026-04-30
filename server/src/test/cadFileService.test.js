@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  autoLinkRelatedPadFilesForComponent,
+  autoLinkRelatedCadFilesForComponent,
   regenerateCadText,
-  syncFootprintPadLinksForComponent,
+  syncFootprintRelatedCadFilesForComponent,
 } from '../services/cadFileService.js';
 
 describe('cadFileService', () => {
@@ -29,7 +29,7 @@ describe('cadFileService', () => {
     );
   });
 
-  it('auto-links historical pad files for a component footprint', async () => {
+  it('auto-links historical pad and 3D model files for a component footprint', async () => {
     const db = {
       query: vi.fn()
         .mockResolvedValueOnce({
@@ -47,14 +47,23 @@ describe('cadFileService', () => {
               file_size: 20,
               missing: false,
             },
+            {
+              selected_cad_file_id: 'footprint-1',
+              id: 'model-1',
+              file_name: 'SOIC8.step',
+              file_type: 'model',
+              file_size: 30,
+              missing: false,
+            },
           ],
         })
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] }),
     };
 
-    const relatedPads = await autoLinkRelatedPadFilesForComponent('component-1', db);
+    const relatedFiles = await autoLinkRelatedCadFilesForComponent('component-1', db);
 
-    expect(relatedPads).toEqual([
+    expect(relatedFiles).toEqual([
       {
         id: 'pad-1',
         file_name: 'rx51p5y15d0t.pad',
@@ -62,10 +71,17 @@ describe('cadFileService', () => {
         file_size: 20,
         missing: false,
       },
+      {
+        id: 'model-1',
+        file_name: 'SOIC8.step',
+        file_type: 'model',
+        file_size: 30,
+        missing: false,
+      },
     ]);
     expect(db.query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("WHERE ccf.component_id = $1\n      AND cf.file_type IN ('footprint', 'pad')"),
+      expect.stringContaining("WHERE ccf.component_id = $1\n      AND cf.file_type IN ('footprint', 'pad', 'model')"),
       ['component-1'],
     );
     expect(db.query).toHaveBeenNthCalledWith(
@@ -78,9 +94,14 @@ describe('cadFileService', () => {
       expect.stringContaining('INSERT INTO component_cad_files'),
       ['component-1', 'pad-1'],
     );
+    expect(db.query).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining('INSERT INTO component_cad_files'),
+      ['component-1', 'model-1'],
+    );
   });
 
-  it('learns footprint-pad history from current component links', async () => {
+  it('learns footprint links for current pad and 3D model files', async () => {
     const db = {
       query: vi.fn()
         .mockResolvedValueOnce({
@@ -88,6 +109,7 @@ describe('cadFileService', () => {
             { id: 'footprint-1', file_name: 'SOIC8.psm', file_type: 'footprint', file_size: 10, missing: false },
             { id: 'footprint-2', file_name: 'SOIC8.dra', file_type: 'footprint', file_size: 15, missing: false },
             { id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad', file_size: 20, missing: false },
+            { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model', file_size: 30, missing: false },
           ],
         })
         .mockResolvedValueOnce({
@@ -95,27 +117,49 @@ describe('cadFileService', () => {
             { id: 'footprint-1', file_name: 'SOIC8.psm', file_type: 'footprint', file_size: 10, missing: false },
             { id: 'footprint-2', file_name: 'SOIC8.dra', file_type: 'footprint', file_size: 15, missing: false },
             { id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad', file_size: 20, missing: false },
+            { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model', file_size: 30, missing: false },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 'footprint-1', file_name: 'SOIC8.psm', file_type: 'footprint', file_size: 10, missing: false },
+            { id: 'footprint-2', file_name: 'SOIC8.dra', file_type: 'footprint', file_size: 15, missing: false },
+            { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model', file_size: 30, missing: false },
           ],
         })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] }),
     };
 
-    const links = await syncFootprintPadLinksForComponent('component-1', db);
+    const links = await syncFootprintRelatedCadFilesForComponent('component-1', db);
 
     expect(links).toEqual([
-      { footprint_cad_file_id: 'footprint-1', pad_cad_file_id: 'pad-1' },
-      { footprint_cad_file_id: 'footprint-2', pad_cad_file_id: 'pad-1' },
+      { footprint_cad_file_id: 'footprint-1', related_cad_file_id: 'pad-1', related_file_type: 'pad' },
+      { footprint_cad_file_id: 'footprint-2', related_cad_file_id: 'pad-1', related_file_type: 'pad' },
+      { footprint_cad_file_id: 'footprint-1', related_cad_file_id: 'model-1', related_file_type: 'model' },
+      { footprint_cad_file_id: 'footprint-2', related_cad_file_id: 'model-1', related_file_type: 'model' },
     ]);
     expect(db.query).toHaveBeenNthCalledWith(
       3,
-      expect.stringContaining('INSERT INTO footprint_pad_links'),
-      ['footprint-1', 'pad-1'],
+      expect.stringContaining('INSERT INTO footprint_related_cad_files'),
+      ['footprint-1', 'pad-1', 'pad'],
     );
     expect(db.query).toHaveBeenNthCalledWith(
       4,
-      expect.stringContaining('INSERT INTO footprint_pad_links'),
-      ['footprint-2', 'pad-1'],
+      expect.stringContaining('INSERT INTO footprint_related_cad_files'),
+      ['footprint-2', 'pad-1', 'pad'],
+    );
+    expect(db.query).toHaveBeenNthCalledWith(
+      6,
+      expect.stringContaining('INSERT INTO footprint_related_cad_files'),
+      ['footprint-1', 'model-1', 'model'],
+    );
+    expect(db.query).toHaveBeenNthCalledWith(
+      7,
+      expect.stringContaining('INSERT INTO footprint_related_cad_files'),
+      ['footprint-2', 'model-1', 'model'],
     );
   });
 });

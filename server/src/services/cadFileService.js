@@ -29,11 +29,13 @@ const FILE_TYPE_TO_COLUMN = {
   pad: 'pad_file',
 };
 
+const FOOTPRINT_RELATED_FILE_TYPES = ['pad', 'model'];
+
 function uniqueValues(values) {
   return [...new Set((Array.isArray(values) ? values : [values]).filter(Boolean))];
 }
 
-async function getComponentFootprintAndPadFiles(componentId, db = pool) {
+async function getComponentFootprintRelatedFiles(componentId, db = pool) {
   const result = await db.query(`
     SELECT
       cf.id,
@@ -44,7 +46,7 @@ async function getComponentFootprintAndPadFiles(componentId, db = pool) {
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     WHERE ccf.component_id = $1
-      AND cf.file_type IN ('footprint', 'pad')
+      AND cf.file_type IN ('footprint', 'pad', 'model')
     ORDER BY cf.file_type, cf.file_name
   `, [componentId]);
 
@@ -118,17 +120,25 @@ export async function linkCadFileToComponent(cadFileId, componentId, fileType, f
   const linkedCadFiles = [{ id: cadFileId, file_name: fileName, file_type: fileType }];
 
   if (fileType === 'footprint') {
-    const autoLinkedPadFiles = await autoLinkRelatedPadFilesForComponent(componentId, db);
-    linkedCadFiles.push(...autoLinkedPadFiles);
+    const autoLinkedRelatedFiles = await autoLinkRelatedCadFilesForComponent(componentId, db);
+    linkedCadFiles.push(...autoLinkedRelatedFiles);
   }
 
   await regenerateCadText(componentId, fileType, db);
 
   if (fileType === 'footprint') {
-    await regenerateCadText(componentId, 'pad', db);
+    const autoLinkedFileTypes = uniqueValues(
+      linkedCadFiles
+        .map((file) => file.file_type)
+        .filter((linkedFileType) => linkedFileType !== 'footprint'),
+    );
+
+    for (const linkedFileType of autoLinkedFileTypes) {
+      await regenerateCadText(componentId, linkedFileType, db);
+    }
   }
 
-  await syncFootprintPadLinksForComponent(componentId, db);
+  await syncFootprintRelatedCadFilesForComponent(componentId, db);
 
   return linkedCadFiles;
 }
@@ -461,15 +471,19 @@ export async function getLinkedCadFilesMap(cadFileIds, db = pool) {
       related.file_size,
       related.missing
     FROM cad_files selected
-    JOIN footprint_pad_links fpl
+    JOIN footprint_related_cad_files frcf
       ON (
-        (selected.file_type = 'footprint' AND fpl.footprint_cad_file_id = selected.id)
-        OR (selected.file_type = 'pad' AND fpl.pad_cad_file_id = selected.id)
+        (selected.file_type = 'footprint' AND frcf.footprint_cad_file_id = selected.id)
+        OR (
+          selected.file_type IN ('pad', 'model')
+          AND frcf.related_cad_file_id = selected.id
+          AND frcf.related_file_type = selected.file_type
+        )
       )
     JOIN cad_files related
       ON (
-        (selected.file_type = 'footprint' AND related.id = fpl.pad_cad_file_id)
-        OR (selected.file_type = 'pad' AND related.id = fpl.footprint_cad_file_id)
+        (selected.file_type = 'footprint' AND related.id = frcf.related_cad_file_id)
+        OR (selected.file_type IN ('pad', 'model') AND related.id = frcf.footprint_cad_file_id)
       )
     WHERE selected.id = ANY($1::uuid[])
     ORDER BY related.file_type, related.file_name
@@ -508,62 +522,77 @@ export async function getLinkedCadFiles(cadFileIds, db = pool) {
   return [...uniqueFiles.values()];
 }
 
-export async function linkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db = pool) {
+export async function linkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds }, db = pool) {
   const normalizedFootprintIds = uniqueValues(footprintCadFileIds);
-  const normalizedPadIds = uniqueValues(padCadFileIds);
+  const normalizedRelatedIds = uniqueValues(relatedCadFileIds);
 
-  if (normalizedFootprintIds.length === 0 || normalizedPadIds.length === 0) {
+  if (normalizedFootprintIds.length === 0 || normalizedRelatedIds.length === 0) {
     return [];
   }
 
-  const cadFiles = await getCadFilesByIds([...normalizedFootprintIds, ...normalizedPadIds], db);
+  const cadFiles = await getCadFilesByIds([...normalizedFootprintIds, ...normalizedRelatedIds], db);
   const cadFileById = new Map(cadFiles.map((file) => [file.id, file]));
 
   for (const footprintCadFileId of normalizedFootprintIds) {
     const cadFile = cadFileById.get(footprintCadFileId);
     if (!cadFile || cadFile.file_type !== 'footprint') {
-      throw new Error('Footprint-pad links require footprint CAD file ids');
+      throw new Error('Footprint-related links require footprint CAD file ids');
     }
   }
 
-  for (const padCadFileId of normalizedPadIds) {
-    const cadFile = cadFileById.get(padCadFileId);
-    if (!cadFile || cadFile.file_type !== 'pad') {
-      throw new Error('Footprint-pad links require pad CAD file ids');
+  let relatedFileType = null;
+  for (const relatedCadFileId of normalizedRelatedIds) {
+    const cadFile = cadFileById.get(relatedCadFileId);
+    if (!cadFile || !FOOTPRINT_RELATED_FILE_TYPES.includes(cadFile.file_type)) {
+      throw new Error('Footprint-related links require pad or model CAD file ids');
     }
+
+    if (relatedFileType && relatedFileType !== cadFile.file_type) {
+      throw new Error('Footprint-related links require matching related CAD file types');
+    }
+
+    relatedFileType = cadFile.file_type;
   }
 
   const createdLinks = [];
   for (const footprintCadFileId of normalizedFootprintIds) {
-    for (const padCadFileId of normalizedPadIds) {
+    for (const relatedCadFileId of normalizedRelatedIds) {
       await db.query(`
-        INSERT INTO footprint_pad_links (footprint_cad_file_id, pad_cad_file_id)
-        VALUES ($1, $2)
-        ON CONFLICT (footprint_cad_file_id, pad_cad_file_id) DO NOTHING
-      `, [footprintCadFileId, padCadFileId]);
+        INSERT INTO footprint_related_cad_files (
+          footprint_cad_file_id,
+          related_cad_file_id,
+          related_file_type
+        )
+        VALUES ($1, $2, $3)
+        ON CONFLICT (footprint_cad_file_id, related_cad_file_id) DO NOTHING
+      `, [footprintCadFileId, relatedCadFileId, relatedFileType]);
 
-      createdLinks.push({ footprint_cad_file_id: footprintCadFileId, pad_cad_file_id: padCadFileId });
+      createdLinks.push({
+        footprint_cad_file_id: footprintCadFileId,
+        related_cad_file_id: relatedCadFileId,
+        related_file_type: relatedFileType,
+      });
     }
   }
 
   return createdLinks;
 }
 
-export async function unlinkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db = pool) {
+export async function unlinkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds }, db = pool) {
   const normalizedFootprintIds = uniqueValues(footprintCadFileIds);
-  const normalizedPadIds = uniqueValues(padCadFileIds);
+  const normalizedRelatedIds = uniqueValues(relatedCadFileIds);
 
-  if (normalizedFootprintIds.length === 0 || normalizedPadIds.length === 0) {
+  if (normalizedFootprintIds.length === 0 || normalizedRelatedIds.length === 0) {
     return 0;
   }
 
   let removedCount = 0;
   for (const footprintCadFileId of normalizedFootprintIds) {
-    for (const padCadFileId of normalizedPadIds) {
+    for (const relatedCadFileId of normalizedRelatedIds) {
       const result = await db.query(`
-        DELETE FROM footprint_pad_links
-        WHERE footprint_cad_file_id = $1 AND pad_cad_file_id = $2
-      `, [footprintCadFileId, padCadFileId]);
+        DELETE FROM footprint_related_cad_files
+        WHERE footprint_cad_file_id = $1 AND related_cad_file_id = $2
+      `, [footprintCadFileId, relatedCadFileId]);
 
       removedCount += result.rowCount || 0;
     }
@@ -572,14 +601,14 @@ export async function unlinkFootprintPadCadFiles({ footprintCadFileIds, padCadFi
   return removedCount;
 }
 
-export async function autoLinkRelatedPadFilesForComponent(componentId, db = pool) {
-  const componentCadFiles = await getComponentFootprintAndPadFiles(componentId, db);
+export async function autoLinkRelatedCadFilesForComponent(componentId, db = pool) {
+  const componentCadFiles = await getComponentFootprintRelatedFiles(componentId, db);
   const footprintIds = componentCadFiles
     .filter((file) => file.file_type === 'footprint')
     .map((file) => file.id);
-  const existingPadIds = new Set(
+  const existingRelatedIds = new Set(
     componentCadFiles
-      .filter((file) => file.file_type === 'pad')
+      .filter((file) => FOOTPRINT_RELATED_FILE_TYPES.includes(file.file_type))
       .map((file) => file.id),
   );
 
@@ -588,12 +617,16 @@ export async function autoLinkRelatedPadFilesForComponent(componentId, db = pool
   }
 
   const relatedFilesByCadFileId = await getLinkedCadFilesMap(footprintIds, db);
-  const addedPadFiles = [];
-  const addedPadIds = new Set();
+  const addedRelatedFiles = [];
+  const addedRelatedIds = new Set();
 
   for (const relatedFiles of relatedFilesByCadFileId.values()) {
     for (const relatedFile of relatedFiles) {
-      if (relatedFile.file_type !== 'pad' || relatedFile.missing || existingPadIds.has(relatedFile.id)) {
+      if (
+        !FOOTPRINT_RELATED_FILE_TYPES.includes(relatedFile.file_type)
+        || relatedFile.missing
+        || existingRelatedIds.has(relatedFile.id)
+      ) {
         continue;
       }
 
@@ -603,27 +636,37 @@ export async function autoLinkRelatedPadFilesForComponent(componentId, db = pool
         ON CONFLICT (component_id, cad_file_id) DO NOTHING
       `, [componentId, relatedFile.id]);
 
-      existingPadIds.add(relatedFile.id);
-      if (!addedPadIds.has(relatedFile.id)) {
-        addedPadIds.add(relatedFile.id);
-        addedPadFiles.push(relatedFile);
+      existingRelatedIds.add(relatedFile.id);
+      if (!addedRelatedIds.has(relatedFile.id)) {
+        addedRelatedIds.add(relatedFile.id);
+        addedRelatedFiles.push(relatedFile);
       }
     }
   }
 
-  return addedPadFiles;
+  return addedRelatedFiles;
 }
 
-export async function syncFootprintPadLinksForComponent(componentId, db = pool) {
-  const componentCadFiles = await getComponentFootprintAndPadFiles(componentId, db);
+export async function syncFootprintRelatedCadFilesForComponent(componentId, db = pool) {
+  const componentCadFiles = await getComponentFootprintRelatedFiles(componentId, db);
   const footprintCadFileIds = componentCadFiles
     .filter((file) => file.file_type === 'footprint')
     .map((file) => file.id);
-  const padCadFileIds = componentCadFiles
-    .filter((file) => file.file_type === 'pad')
-    .map((file) => file.id);
+  const createdLinks = [];
 
-  return linkFootprintPadCadFiles({ footprintCadFileIds, padCadFileIds }, db);
+  for (const relatedFileType of FOOTPRINT_RELATED_FILE_TYPES) {
+    const relatedCadFileIds = componentCadFiles
+      .filter((file) => file.file_type === relatedFileType)
+      .map((file) => file.id);
+
+    const relatedLinks = await linkFootprintRelatedCadFiles({
+      footprintCadFileIds,
+      relatedCadFileIds,
+    }, db);
+    createdLinks.push(...relatedLinks);
+  }
+
+  return createdLinks;
 }
 
 /**
@@ -812,9 +855,9 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool) {
     }
   }
 
-  await autoLinkRelatedPadFilesForComponent(componentId, db);
+  await autoLinkRelatedCadFilesForComponent(componentId, db);
   await regenerateAllCadText(componentId, db);
-  await syncFootprintPadLinksForComponent(componentId, db);
+  await syncFootprintRelatedCadFilesForComponent(componentId, db);
 }
 
 /**
@@ -911,10 +954,10 @@ export default {
   getCadFilesByNames,
   getLinkedCadFilesMap,
   getLinkedCadFiles,
-  linkFootprintPadCadFiles,
-  unlinkFootprintPadCadFiles,
-  autoLinkRelatedPadFilesForComponent,
-  syncFootprintPadLinksForComponent,
+  linkFootprintRelatedCadFiles,
+  unlinkFootprintRelatedCadFiles,
+  autoLinkRelatedCadFilesForComponent,
+  syncFootprintRelatedCadFilesForComponent,
   findCadFile,
   scanAndRegisterFiles,
   detectMissingFiles,

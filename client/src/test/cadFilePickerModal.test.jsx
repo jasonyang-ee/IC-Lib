@@ -49,21 +49,27 @@ describe('CadFilePickerModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('returns related pad files when selecting a footprint pair', () => {
+  it('returns related pad and 3D model files when selecting a footprint pair', () => {
     queryState.data = [
       {
         id: 'footprint-1',
         file_name: 'SOIC8.psm',
         file_type: 'footprint',
         component_count: 1,
-        related_files: [{ id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad' }],
+        related_files: [
+          { id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad' },
+          { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model' },
+        ],
       },
       {
         id: 'footprint-2',
         file_name: 'SOIC8.dra',
         file_type: 'footprint',
         component_count: 1,
-        related_files: [{ id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad' }],
+        related_files: [
+          { id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad' },
+          { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model' },
+        ],
       },
     ];
 
@@ -81,7 +87,10 @@ describe('CadFilePickerModal', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'pair',
-      autoFiles: [expect.objectContaining({ file_name: 'rx51p5y15d0t.pad', file_type: 'pad' })],
+      autoFiles: expect.arrayContaining([
+        expect.objectContaining({ file_name: 'rx51p5y15d0t.pad', file_type: 'pad' }),
+        expect.objectContaining({ file_name: 'SOIC8.step', file_type: 'model' }),
+      ]),
     }));
   });
 });

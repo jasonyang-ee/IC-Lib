@@ -1,9 +1,9 @@
 import pool from '../config/database.js';
 import { sendApprovedECODocumentControlNotification, sendECONotification } from '../services/emailService.js';
 import {
-  autoLinkRelatedPadFilesForComponent,
+  autoLinkRelatedCadFilesForComponent,
   regenerateCadText,
-  syncFootprintPadLinksForComponent,
+  syncFootprintRelatedCadFilesForComponent,
 } from '../services/cadFileService.js';
 import { generateECOPdf, generateECOPdfBuffer } from '../services/ecoPdfService.js';
 import {
@@ -1865,11 +1865,12 @@ const applyECOChanges = async (client, eco, id) => {
     }
   }
 
-  const autoLinkedPadFiles = await autoLinkRelatedPadFilesForComponent(targetComponentId, client);
-  if (autoLinkedPadFiles.length > 0) {
-    await regenerateCadText(targetComponentId, 'pad', client);
+  const autoLinkedRelatedFiles = await autoLinkRelatedCadFilesForComponent(targetComponentId, client);
+  const autoLinkedFileTypes = [...new Set(autoLinkedRelatedFiles.map((file) => file.file_type))];
+  for (const fileType of autoLinkedFileTypes) {
+    await regenerateCadText(targetComponentId, fileType, client);
   }
-  await syncFootprintPadLinksForComponent(targetComponentId, client);
+  await syncFootprintRelatedCadFilesForComponent(targetComponentId, client);
 
   return {
     deleted: false,

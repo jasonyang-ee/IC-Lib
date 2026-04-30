@@ -1979,7 +1979,7 @@ const EXPORT_TABLES = [
   'distributor_info',
   'footprint_sources',
   'component_cad_files',
-  'footprint_pad_links',
+  'footprint_related_cad_files',
   'activity_log',
   'user_activity_log',
   'project_components',

@@ -315,8 +315,8 @@ export const api = {
   getSharingComponents: (componentId) => apiClient.get(`/file-library/sharing/${componentId}`),
   linkFileToComponent: (cadFileId, componentId) => apiClient.post('/file-library/link', { cadFileId, componentId }),
   unlinkFileFromComponent: (cadFileId, componentId) => apiClient.post('/file-library/unlink', { cadFileId, componentId }),
-  linkPadFootprintFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.post('/file-library/pad-footprint-links', { sourceCadFileIds, targetCadFileIds }),
-  unlinkPadFootprintFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.delete('/file-library/pad-footprint-links', { data: { sourceCadFileIds, targetCadFileIds } }),
+  linkFootprintRelatedFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.post('/file-library/footprint-related-links', { sourceCadFileIds, targetCadFileIds }),
+  unlinkFootprintRelatedFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.delete('/file-library/footprint-related-links', { data: { sourceCadFileIds, targetCadFileIds } }),
   scanLibraryFiles: () => apiClient.post('/file-library/scan'),
 };
 

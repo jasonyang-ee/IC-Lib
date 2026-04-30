@@ -32,7 +32,7 @@ export const EXPECTED_SCHEMA_TABLES = [
   'email_log',
   'cad_files',
   'component_cad_files',
-  'footprint_pad_links',
+  'footprint_related_cad_files',
   'admin_settings',
   'eco_cad_files',
   'eco_file_rename_files',

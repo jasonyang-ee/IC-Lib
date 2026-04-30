@@ -3,3 +3,4 @@ export { default as FileTypesView } from './FileTypesView';
 export { default as CategoryView } from './CategoryView';
 export { default as RenameModal } from './RenameModal';
 export { default as DeleteModal } from './DeleteModal';
+export { default as FootprintLinkEditorModal } from './FootprintLinkEditorModal';
