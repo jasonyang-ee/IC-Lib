@@ -57,6 +57,7 @@ V18: fresh DB repo schema ! cover every persisted API surface present in `§I`.
 V19: fresh DB default ECO stage config ! include every runtime pipeline tag required by `V12`.
 V20: file-library shared rename policy: actor = `admin` -> direct rename even if file shared; `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 & any affected part status != `new` -> shared transparent-gray warning before submit, stage 1 ECO w/ `shared_file_rename` tag, set only affected non-`new` parts `approval_status=reviewing`, approve -> rename shared CAD files, refresh CAD text for staged + skipped `new` parts, restore staged parts original status; reject|delete -> restore staged parts original status & keep file info unchanged.
 V21: ECO status proposal UI/API ! allow `new -> prototype`, `prototype -> production|archived`, `production -> prototype|archived`, `archived -> prototype|production`; ECO path back to `new` ⊥; `new`-part ECO without `prototype` proposal ⊥.
+V22: ECO CAD diff/apply key on persisted `file_type`; same-ext `.olb` in `symbol` vs `pspice` ! stay isolated through ECO submit/approve, so link/unlink in one role ⊥ mutate the other role by filename/ext coincidence.
 
 ## §T
 
@@ -66,6 +67,7 @@ T2|x|seed `alt_parts|shared_file_rename` into default ECO stage SQL + legacy rep
 T3|.|add `specification_templates` table/migration or delete `/api/specification-templates/*` surface|V18,I.spec_tpl
 T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7,V8,V14,V15,I.lib,I.file,I.eco
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
+T6|.|enforce 1 schematic `.olb` slot + 1 PSpice `.olb` slot across upload/link/ECO flows; add focused server/client regression coverage|V8,V15,V22,I.lib,I.eco
 
 ## §B
 
@@ -74,3 +76,4 @@ B1|2026-04-27|default `eco_approval_stages.pipeline_types` seed/repair omits `al
 B2|2026-04-27|`/api/specification-templates/*` persists to `specification_templates`; repo schema/migrations no owner table|V18,T3
 B3|2026-04-27|shared file-rename ECOs reused generic `filename` tag so approval stages could not route staged shared renames separately|V12,V20
 B4|2026-04-29|blank DB boot ran legacy repair migrations before `init-schema.sql`; fresh startup could fail on missing base tables|V4
+B5|2026-04-30|dual `.olb` ECO path keeps `symbol` vs `pspice` isolated, but upload/link conflict guard still treats only `symbol|model` as single-file slots, so >1 PSpice `.olb` symbol may attach to one part|T6
