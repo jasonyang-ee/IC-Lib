@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-admin shared file-library renames now show a warning confirmation before staging the ECO, while admin shared renames continue to apply directly without generating a mass ECO
 - Shared file-rename ECOs now skip `new` parts when moving affected components to `reviewing`, while still refreshing those `new` parts' CAD text after approval applies the renamed shared files
 - PSpice tracking now recognizes both `.lib` and `.olb` files under the `pspice` library, so File Library, CAD pickers, and component file lists no longer drop valid PSpice assets because of mismatched extension whitelists
+- File Library now imports `PSPICE_LABEL` from shared CAD type constants so frontend production builds no longer fail on a missing `footprintFiles` export
 
 ## [1.9.8] - 2026-04-25
 
