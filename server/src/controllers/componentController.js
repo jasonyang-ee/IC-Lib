@@ -252,6 +252,9 @@ export const createComponent = async (req, res, next) => {
         step_model: parseCadField(component.step_model),
         pspice: parseCadField(component.pspice),
         pad_file: parseCadField(component.pad_file),
+      }, pool, {
+        allowFootprintAutoLink: true,
+        allowFootprintHistoryLearning: true,
       });
     } catch (syncError) {
       console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);

@@ -12,7 +12,7 @@ describe('cadFileService', () => {
   it('regenerates CAD text using the provided database client', async () => {
     const db = {
       query: vi.fn()
-        .mockResolvedValueOnce({ rows: [{ text_value: 'D0008A_L,d0008a_l' }] })
+        .mockResolvedValueOnce({ rows: [{ base_name: 'D0008A_L' }, { base_name: 'd0008a_l' }] })
         .mockResolvedValueOnce({ rows: [] }),
     };
 
@@ -27,7 +27,29 @@ describe('cadFileService', () => {
     expect(db.query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('UPDATE components SET pcb_footprint = $1'),
-      ['D0008A_L,d0008a_l', 'component-1'],
+      ['d0008a_l,D0008A_L', 'component-1'],
+    );
+  });
+
+  it('prioritizes _n footprint variants when regenerating CAD text', async () => {
+    const db = {
+      query: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [
+            { base_name: 'SOIC8_l' },
+            { base_name: 'SOIC8_n' },
+            { base_name: 'SOIC8_m' },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+
+    await regenerateCadText('component-1', 'footprint', db);
+
+    expect(db.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('UPDATE components SET pcb_footprint = $1'),
+      ['SOIC8_n,SOIC8_l,SOIC8_m', 'component-1'],
     );
   });
 
@@ -114,6 +136,7 @@ describe('cadFileService', () => {
             { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model', file_size: 30, missing: false },
           ],
         })
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({
           rows: [
             { id: 'footprint-1', file_name: 'SOIC8.psm', file_type: 'footprint', file_size: 10, missing: false },
@@ -144,25 +167,71 @@ describe('cadFileService', () => {
       { footprint_cad_file_id: 'footprint-2', related_cad_file_id: 'model-1', related_file_type: 'model' },
     ]);
     expect(db.query).toHaveBeenNthCalledWith(
-      3,
+      4,
       expect.stringContaining('INSERT INTO footprint_related_cad_files'),
       ['footprint-1', 'pad-1', 'pad'],
     );
     expect(db.query).toHaveBeenNthCalledWith(
-      4,
+      5,
       expect.stringContaining('INSERT INTO footprint_related_cad_files'),
       ['footprint-2', 'pad-1', 'pad'],
     );
     expect(db.query).toHaveBeenNthCalledWith(
-      6,
+      7,
       expect.stringContaining('INSERT INTO footprint_related_cad_files'),
       ['footprint-1', 'model-1', 'model'],
     );
     expect(db.query).toHaveBeenNthCalledWith(
-      7,
+      8,
       expect.stringContaining('INSERT INTO footprint_related_cad_files'),
       ['footprint-2', 'model-1', 'model'],
     );
+  });
+
+  it('does not auto-link historical related files when the component already has a pad or model', async () => {
+    const db = {
+      query: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 'footprint-1', file_name: 'SOIC8.psm', file_type: 'footprint', file_size: 10, missing: false },
+            { id: 'pad-1', file_name: 'existing.pad', file_type: 'pad', file_size: 20, missing: false },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              selected_cad_file_id: 'footprint-1',
+              id: 'pad-2',
+              file_name: 'historical.pad',
+              file_type: 'pad',
+              file_size: 25,
+              missing: false,
+            },
+          ],
+        }),
+    };
+
+    const relatedFiles = await autoLinkRelatedCadFilesForComponent('component-1', db);
+
+    expect(relatedFiles).toEqual([]);
+    expect(db.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not learn footprint links when multiple footprint base names are present', async () => {
+    const db = {
+      query: vi.fn().mockResolvedValueOnce({
+        rows: [
+          { id: 'footprint-1', file_name: 'SOIC8_n.psm', file_type: 'footprint', file_size: 10, missing: false },
+          { id: 'footprint-2', file_name: 'SOIC8_l.psm', file_type: 'footprint', file_size: 12, missing: false },
+          { id: 'pad-1', file_name: 'rx51p5y15d0t.pad', file_type: 'pad', file_size: 20, missing: false },
+        ],
+      }),
+    };
+
+    const links = await syncFootprintRelatedCadFilesForComponent('component-1', db);
+
+    expect(links).toEqual([]);
+    expect(db.query).toHaveBeenCalledTimes(1);
   });
 
   it('filters junk OrCAD sidecar files from CAD tracking', () => {

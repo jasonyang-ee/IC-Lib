@@ -6,7 +6,7 @@ import AdmZip from 'adm-zip';
 import pool from '../config/database.js';
 import { MODEL_FILE_EXTENSIONS, PSPICE_MODEL_FILE_EXTENSIONS, PSPICE_SYMBOL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
-import { normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
+import { getCadFileBaseName, normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -561,7 +561,7 @@ export async function listFiles(req, res) {
         try {
           // Query cad_files via junction table for this component (include missing flag)
           const result = await pool.query(`
-            SELECT cf.file_name, cf.missing
+            SELECT cf.id, cf.file_name, cf.file_type, cf.missing
             FROM component_cad_files ccf
             JOIN cad_files cf ON ccf.cad_file_id = cf.id
             JOIN components c ON ccf.component_id = c.id
@@ -581,7 +581,9 @@ export async function listFiles(req, res) {
               seenFiles.add(`${category}:${fname}`);
               if (existsOnDisk) {
                 categoryFiles.push({
+                  id: row.id,
                   name: fname,
+                  file_type: row.file_type,
                   path: path.join(config.subdir, fname),
                   size: fs.statSync(flatPath).size,
                   storage: 'flat',
@@ -589,7 +591,9 @@ export async function listFiles(req, res) {
               } else {
                 // File is missing from disk — include with missing flag
                 categoryFiles.push({
+                  id: row.id,
                   name: fname,
+                  file_type: row.file_type,
                   path: path.join(config.subdir, fname),
                   size: 0,
                   storage: 'flat',
@@ -614,7 +618,9 @@ export async function listFiles(req, res) {
           if (!seenFiles.has(`${category}:${f}`)) {
             seenFiles.add(`${category}:${f}`);
             categoryFiles.push({
+              id: null,
               name: f,
+              file_type: category,
               path: path.join(config.subdir, sanitizedPN, f),
               size: fs.statSync(path.join(nestedDir, f)).size,
               storage: 'nested',
@@ -624,7 +630,14 @@ export async function listFiles(req, res) {
       }
 
       if (categoryFiles.length > 0) {
-        files[category] = categoryFiles;
+        const relatedFilesByCadFileId = ['footprint', 'pad', 'model'].includes(category)
+          ? await cadFileService.getLinkedCadFilesMap(categoryFiles.map((file) => file.id).filter(Boolean))
+          : new Map();
+
+        files[category] = categoryFiles.map((file) => ({
+          ...file,
+          related_files: (relatedFilesByCadFileId.get(file.id) || []).filter((relatedFile) => !relatedFile.missing),
+        }));
       }
     }
 
@@ -806,78 +819,96 @@ export async function deleteFile(req, res) {
       return res.status(400).json({ error: 'Invalid category' });
     }
 
-    // Check if this file is shared (linked to multiple components)
-    if (VALID_CAD_CATEGORIES.has(category)) {
-      try {
-        const cadFile = await cadFileService.findCadFile(filename, category);
-        if (cadFile) {
-          const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
-          const linkCount = linkedComponents.length;
+    if (!VALID_CAD_CATEGORIES.has(category)) {
+      return res.status(400).json({ error: 'Only CAD library links can be removed from the part page' });
+    }
 
-          if (linkCount > 1) {
-            // Shared file: only unlink from requesting component, don't delete physical file
-            const compResult = await pool.query(
-              'SELECT id FROM components WHERE manufacturer_pn = $1',
-              [mfgPartNumber],
-            );
-            const componentId = compResult.rows[0]?.id;
+    const cadFile = await cadFileService.findCadFile(filename, category);
+    if (!cadFile) {
+      return res.status(404).json({ error: 'CAD file not found' });
+    }
 
-            if (componentId) {
-              await cadFileService.unlinkCadFileFromComponent(cadFile.id, componentId, category, filename);
+    const compResult = await pool.query(
+      'SELECT id FROM components WHERE manufacturer_pn = $1',
+      [mfgPartNumber],
+    );
+    const componentId = compResult.rows[0]?.id;
+
+    if (!componentId) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+
+    const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const cadFilesToUnlink = new Map([[cadFile.id, cadFile]]);
+      if (category === 'footprint') {
+        const componentCadFilesResult = await client.query(`
+          SELECT cf.id, cf.file_name, cf.file_type
+          FROM component_cad_files ccf
+          JOIN cad_files cf ON cf.id = ccf.cad_file_id
+          WHERE ccf.component_id = $1
+            AND cf.file_type IN ('footprint', 'pad', 'model')
+        `, [componentId]);
+
+        const componentCadFiles = componentCadFilesResult.rows;
+        const footprintBaseName = getCadFileBaseName(filename).toLowerCase();
+        const groupedFootprintCadFiles = componentCadFiles.filter(
+          (file) => file.file_type === 'footprint' && getCadFileBaseName(file.file_name).toLowerCase() === footprintBaseName,
+        );
+        const groupedFootprintCadFileIds = groupedFootprintCadFiles.map((file) => file.id);
+
+        groupedFootprintCadFiles.forEach((file) => {
+          cadFilesToUnlink.set(file.id, file);
+        });
+
+        if (groupedFootprintCadFileIds.length > 0) {
+          const relatedFilesByCadFileId = await cadFileService.getLinkedCadFilesMap(groupedFootprintCadFileIds, client);
+          const componentCadFileById = new Map(componentCadFiles.map((file) => [file.id, file]));
+
+          for (const relatedFiles of relatedFilesByCadFileId.values()) {
+            for (const relatedFile of relatedFiles) {
+              if ((relatedFile.file_type === 'pad' || relatedFile.file_type === 'model') && componentCadFileById.has(relatedFile.id)) {
+                cadFilesToUnlink.set(relatedFile.id, componentCadFileById.get(relatedFile.id));
+              }
             }
-
-            return res.json({
-              unlinked: true,
-              remaining: linkCount - 1,
-              filename,
-            });
           }
         }
-      } catch (dbError) {
-        console.error(`[FileUpload] Shared-file check failed: ${dbError.message}`);
       }
-    }
 
-    // Sole-use or orphan: soft-delete (move to temp)
-    const filePath = findFile(category, filename, mfgPartNumber);
-    if (!filePath) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    // Move to temp directory instead of deleting
-    const tempDir = path.join(LIBRARY_BASE, 'temp');
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-    const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const tempFilename = uniquePrefix + '-' + filename;
-    fs.renameSync(filePath, path.join(tempDir, tempFilename));
-
-    // Clean up empty legacy directories
-    const dirPath = path.dirname(filePath);
-    const flatDir = path.join(LIBRARY_BASE, config.subdir);
-    if (dirPath !== flatDir) {
-      try {
-        const remainingFiles = fs.readdirSync(dirPath).filter(f => !f.startsWith('.'));
-        if (remainingFiles.length === 0) fs.rmdirSync(dirPath);
-      } catch { /* ignore cleanup errors */ }
-    }
-
-    // Remove from cad_files table and regenerate TEXT columns
-    if (VALID_CAD_CATEGORIES.has(category)) {
-      try {
-        const cadFile = await cadFileService.findCadFile(filename, category);
-        if (cadFile) {
-          const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
-          await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFile.id]);
-          for (const comp of affected) {
-            await cadFileService.regenerateCadText(comp.id, category);
-          }
-        }
-      } catch (dbError) {
-        console.error(`[FileUpload] Failed to remove cad_files ref: ${dbError.message}`);
+      const affectedFileTypes = new Set();
+      for (const file of cadFilesToUnlink.values()) {
+        await client.query(`
+          DELETE FROM component_cad_files
+          WHERE component_id = $1 AND cad_file_id = $2
+        `, [componentId, file.id]);
+        affectedFileTypes.add(file.file_type);
       }
-    }
 
-    res.json({ softDeleted: true, tempFilename, filename, category });
+      for (const fileType of affectedFileTypes) {
+        await cadFileService.regenerateCadText(componentId, fileType, client);
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        unlinked: true,
+        remaining: Math.max(linkedComponents.length - 1, 0),
+        filename,
+        removedFiles: [...cadFilesToUnlink.values()].map((file) => ({
+          category: file.file_type,
+          filename: file.file_name,
+        })),
+      });
+    } catch (dbError) {
+      await client.query('ROLLBACK');
+      throw dbError;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file' });

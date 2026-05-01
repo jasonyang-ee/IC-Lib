@@ -3,7 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { MODEL_FILE_EXTENSIONS, PSPICE_FILE_EXTENSIONS } from '../constants/cadFiles.js';
-import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../utils/footprintFiles.js';
+import {
+  FOOTPRINT_PRIMARY_EXTENSIONS,
+  FOOTPRINT_SECONDARY_EXTENSION,
+  getCadFileBaseName,
+} from '../utils/footprintFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,6 +43,57 @@ function filterTrackableCadRows(rows, fileType = null) {
   return (Array.isArray(rows) ? rows : []).filter((row) => isTrackableCadFile(row?.file_name, fileType || row?.file_type));
 }
 
+function summarizeFootprintRelatedCadFiles(componentCadFiles) {
+  const normalizedCadFiles = Array.isArray(componentCadFiles) ? componentCadFiles : [];
+  const footprintCadFiles = normalizedCadFiles.filter((file) => file.file_type === 'footprint');
+  const relatedCadFilesByType = new Map(
+    FOOTPRINT_RELATED_FILE_TYPES.map((fileType) => [
+      fileType,
+      normalizedCadFiles.filter((file) => file.file_type === fileType),
+    ]),
+  );
+
+  return {
+    footprintCadFiles,
+    footprintCadFileIds: footprintCadFiles.map((file) => file.id),
+    footprintBaseNames: new Set(
+      footprintCadFiles
+        .map((file) => getCadFileBaseName(file.file_name).toLowerCase())
+        .filter(Boolean),
+    ),
+    relatedCadFilesByType,
+  };
+}
+
+function isSimpleFootprintAutoLinkCandidate(componentCadFiles) {
+  const summary = summarizeFootprintRelatedCadFiles(componentCadFiles);
+
+  if (summary.footprintBaseNames.size !== 1) {
+    return false;
+  }
+
+  return FOOTPRINT_RELATED_FILE_TYPES.every(
+    (fileType) => (summary.relatedCadFilesByType.get(fileType)?.length || 0) <= 1,
+  );
+}
+
+function compareCadTextBaseNames(fileType, left, right) {
+  const leftName = String(left || '');
+  const rightName = String(right || '');
+
+  if (fileType === 'footprint') {
+    const leftIsNormalVariant = /_n$/i.test(leftName);
+    const rightIsNormalVariant = /_n$/i.test(rightName);
+
+    if (leftIsNormalVariant !== rightIsNormalVariant) {
+      return leftIsNormalVariant ? -1 : 1;
+    }
+  }
+
+  const caseInsensitiveCompare = leftName.localeCompare(rightName, undefined, { sensitivity: 'base' });
+  return caseInsensitiveCompare || leftName.localeCompare(rightName);
+}
+
 async function getComponentFootprintRelatedFiles(componentId, db = pool) {
   const result = await db.query(`
     SELECT
@@ -70,14 +125,20 @@ export async function regenerateCadText(componentId, fileType, db = pool) {
   if (!column) return;
 
   const result = await db.query(`
-    SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',') as text_value
+    SELECT DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', '') as base_name
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     WHERE ccf.component_id = $1 AND cf.file_type = $2
       AND cf.file_name NOT LIKE '%.dra'
   `, [componentId, fileType]);
 
-  const textValue = result.rows[0]?.text_value || '';
+  const textValue = [...new Set(
+    result.rows
+      .map((row) => row.base_name)
+      .filter(Boolean),
+  )]
+    .sort((left, right) => compareCadTextBaseNames(fileType, left, right))
+    .join(',');
   await db.query(
     `UPDATE components SET ${column} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
     [textValue, componentId],
@@ -123,26 +184,7 @@ export async function linkCadFileToComponent(cadFileId, componentId, fileType, f
 
   const linkedCadFiles = [{ id: cadFileId, file_name: fileName, file_type: fileType }];
 
-  if (fileType === 'footprint') {
-    const autoLinkedRelatedFiles = await autoLinkRelatedCadFilesForComponent(componentId, db);
-    linkedCadFiles.push(...autoLinkedRelatedFiles);
-  }
-
   await regenerateCadText(componentId, fileType, db);
-
-  if (fileType === 'footprint') {
-    const autoLinkedFileTypes = uniqueValues(
-      linkedCadFiles
-        .map((file) => file.file_type)
-        .filter((linkedFileType) => linkedFileType !== 'footprint'),
-    );
-
-    for (const linkedFileType of autoLinkedFileTypes) {
-      await regenerateCadText(componentId, linkedFileType, db);
-    }
-  }
-
-  await syncFootprintRelatedCadFilesForComponent(componentId, db);
 
   return linkedCadFiles;
 }
@@ -607,22 +649,27 @@ export async function unlinkFootprintRelatedCadFiles({ footprintCadFileIds, rela
 
 export async function autoLinkRelatedCadFilesForComponent(componentId, db = pool) {
   const componentCadFiles = await getComponentFootprintRelatedFiles(componentId, db);
-  const footprintIds = componentCadFiles
-    .filter((file) => file.file_type === 'footprint')
-    .map((file) => file.id);
+  const summary = summarizeFootprintRelatedCadFiles(componentCadFiles);
+
+  if (summary.footprintCadFileIds.length === 0 || !isSimpleFootprintAutoLinkCandidate(componentCadFiles)) {
+    return [];
+  }
+
   const existingRelatedIds = new Set(
     componentCadFiles
       .filter((file) => FOOTPRINT_RELATED_FILE_TYPES.includes(file.file_type))
       .map((file) => file.id),
   );
+  const existingRelatedTypes = new Set(
+    componentCadFiles
+      .filter((file) => FOOTPRINT_RELATED_FILE_TYPES.includes(file.file_type))
+      .map((file) => file.file_type),
+  );
 
-  if (footprintIds.length === 0) {
-    return [];
-  }
-
-  const relatedFilesByCadFileId = await getLinkedCadFilesMap(footprintIds, db);
-  const addedRelatedFiles = [];
-  const addedRelatedIds = new Set();
+  const relatedFilesByCadFileId = await getLinkedCadFilesMap(summary.footprintCadFileIds, db);
+  const relatedCandidatesByType = new Map(
+    FOOTPRINT_RELATED_FILE_TYPES.map((fileType) => [fileType, new Map()]),
+  );
 
   for (const relatedFiles of relatedFilesByCadFileId.values()) {
     for (const relatedFile of relatedFiles) {
@@ -634,18 +681,30 @@ export async function autoLinkRelatedCadFilesForComponent(componentId, db = pool
         continue;
       }
 
-      await db.query(`
-        INSERT INTO component_cad_files (component_id, cad_file_id)
-        VALUES ($1, $2)
-        ON CONFLICT (component_id, cad_file_id) DO NOTHING
-      `, [componentId, relatedFile.id]);
-
-      existingRelatedIds.add(relatedFile.id);
-      if (!addedRelatedIds.has(relatedFile.id)) {
-        addedRelatedIds.add(relatedFile.id);
-        addedRelatedFiles.push(relatedFile);
-      }
+      relatedCandidatesByType.get(relatedFile.file_type)?.set(relatedFile.id, relatedFile);
     }
+  }
+
+  const addedRelatedFiles = [];
+  for (const relatedFileType of FOOTPRINT_RELATED_FILE_TYPES) {
+    if (existingRelatedTypes.has(relatedFileType)) {
+      continue;
+    }
+
+    const candidates = [...(relatedCandidatesByType.get(relatedFileType)?.values() || [])];
+    if (candidates.length !== 1) {
+      continue;
+    }
+
+    const relatedFile = candidates[0];
+    await db.query(`
+      INSERT INTO component_cad_files (component_id, cad_file_id)
+      VALUES ($1, $2)
+      ON CONFLICT (component_id, cad_file_id) DO NOTHING
+    `, [componentId, relatedFile.id]);
+
+    existingRelatedIds.add(relatedFile.id);
+    addedRelatedFiles.push(relatedFile);
   }
 
   return addedRelatedFiles;
@@ -653,19 +712,37 @@ export async function autoLinkRelatedCadFilesForComponent(componentId, db = pool
 
 export async function syncFootprintRelatedCadFilesForComponent(componentId, db = pool) {
   const componentCadFiles = await getComponentFootprintRelatedFiles(componentId, db);
-  const footprintCadFileIds = componentCadFiles
-    .filter((file) => file.file_type === 'footprint')
-    .map((file) => file.id);
+  const summary = summarizeFootprintRelatedCadFiles(componentCadFiles);
+
+  if (summary.footprintCadFileIds.length === 0 || !isSimpleFootprintAutoLinkCandidate(componentCadFiles)) {
+    return [];
+  }
+
+  const existingRelatedFilesByCadFileId = await getLinkedCadFilesMap(summary.footprintCadFileIds, db);
+  const existingRelatedTypes = new Set();
+  for (const relatedFiles of existingRelatedFilesByCadFileId.values()) {
+    for (const relatedFile of relatedFiles) {
+      if (FOOTPRINT_RELATED_FILE_TYPES.includes(relatedFile.file_type)) {
+        existingRelatedTypes.add(relatedFile.file_type);
+      }
+    }
+  }
+
   const createdLinks = [];
 
   for (const relatedFileType of FOOTPRINT_RELATED_FILE_TYPES) {
-    const relatedCadFileIds = componentCadFiles
-      .filter((file) => file.file_type === relatedFileType)
-      .map((file) => file.id);
+    if (existingRelatedTypes.has(relatedFileType)) {
+      continue;
+    }
+
+    const relatedCadFiles = summary.relatedCadFilesByType.get(relatedFileType) || [];
+    if (relatedCadFiles.length !== 1) {
+      continue;
+    }
 
     const relatedLinks = await linkFootprintRelatedCadFiles({
-      footprintCadFileIds,
-      relatedCadFileIds,
+      footprintCadFileIds: summary.footprintCadFileIds,
+      relatedCadFileIds: [relatedCadFiles[0].id],
     }, db);
     createdLinks.push(...relatedLinks);
   }
@@ -792,7 +869,12 @@ export async function detectMissingFiles() {
  * Matches against cad_files records which store full filenames (with extensions).
  * After syncing junction records, regenerates all TEXT columns.
  */
-export async function syncComponentCadFiles(componentId, cadData, db = pool) {
+export async function syncComponentCadFiles(componentId, cadData, db = pool, options = {}) {
+  const {
+    allowFootprintAutoLink = false,
+    allowFootprintHistoryLearning = false,
+  } = options;
+
   // cadData: { pcb_footprint: [], schematic: [], step_model: [], pspice: [], pad_file: [] }
   const columnToFileType = {
     pcb_footprint: 'footprint',
@@ -867,9 +949,13 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool) {
     }
   }
 
-  await autoLinkRelatedCadFilesForComponent(componentId, db);
+  if (allowFootprintAutoLink) {
+    await autoLinkRelatedCadFilesForComponent(componentId, db);
+  }
   await regenerateAllCadText(componentId, db);
-  await syncFootprintRelatedCadFilesForComponent(componentId, db);
+  if (allowFootprintHistoryLearning) {
+    await syncFootprintRelatedCadFilesForComponent(componentId, db);
+  }
 }
 
 /**

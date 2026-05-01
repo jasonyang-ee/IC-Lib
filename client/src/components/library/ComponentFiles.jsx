@@ -11,6 +11,7 @@ import {
   THREE_D_MODEL_LABEL,
 } from '../../utils/cadFileTypes';
 import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
+import { collectCadDeleteTargets } from '../../utils/componentCadDelete';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus, X } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -430,10 +431,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     },
     onSuccess: (response, variables) => {
       const data = response.data;
+      const removedFiles = Array.isArray(data.removedFiles) && data.removedFiles.length > 0
+        ? data.removedFiles
+        : [{ category: variables.category, filename: variables.filename }];
       queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
 
       if (data.unlinked) {
-        showSuccess(`File unlinked (still used by ${data.remaining} other component${data.remaining !== 1 ? 's' : ''})`);
+        showSuccess(removedFiles.length > 1 ? 'Footprint group removed from part' : 'File removed from part');
       } else if (data.softDeleted) {
         showSuccess('File moved to trash');
         if (onFileSoftDeleted) {
@@ -446,16 +450,20 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       // Remove from local uploads cache
       setLocalUploads(prev => {
         const updated = { ...prev };
-        if (updated[variables.category]) {
-          updated[variables.category] = updated[variables.category].filter(f => f.name !== variables.filename);
-          if (updated[variables.category].length === 0) delete updated[variables.category];
+        for (const removedFile of removedFiles) {
+          if (updated[removedFile.category]) {
+            updated[removedFile.category] = updated[removedFile.category].filter(f => f.name !== removedFile.filename);
+            if (updated[removedFile.category].length === 0) delete updated[removedFile.category];
+          }
         }
         return updated;
       });
-      // Notify parent to update CIS filename list
-      if (onFileDeleted) {
-        onFileDeleted(variables.category, variables.filename);
-      }
+      removedFiles.forEach((removedFile) => {
+        if (onFileDeleted) {
+          onFileDeleted(removedFile.category, removedFile.filename);
+        }
+        notifyCadFileRemoved(removedFile.category, removedFile.filename);
+      });
       setDeleteConfirm({ show: false, category: '', filename: '' });
     },
     onError: (error) => {
@@ -724,42 +732,82 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     setRenaming({ category: '', filename: '', tempFilename: null, newName: '', pairedFilename: null, pairedTempFilename: null });
   };
 
-  // Handle delete — temp files use cleanup endpoint, existing files use regular delete
+  // Handle delete — temp files are removed locally, unsaved links stay local, and persisted links unlink on the server
   const handleConfirmDelete = async () => {
     const { category, filename } = deleteConfirm;
-    const localFile = localUploads[category]?.find(f => f.name === filename);
-    // Check if this file is a temp upload
-    if (localFile && localFile.tempFilename) {
+    const deleteTargets = collectCadDeleteTargets(filesRef.current, category, filename);
+    const normalizedTargets = deleteTargets.length > 0 ? deleteTargets : [{ category, filename }];
+    const targetDetails = normalizedTargets.map((target) => {
+      const localFile = localUploads[target.category]?.find((file) => file.name === target.filename) || null;
+      const persisted = Boolean(filesData?.files?.[target.category]?.some((file) => file.name === target.filename));
+      return { ...target, localFile, persisted };
+    });
+    const tempTargets = targetDetails.filter((target) => Boolean(target.localFile?.tempFilename));
+    const localOnlyTargets = targetDetails.filter((target) => !target.localFile?.tempFilename && (!componentId || !target.persisted));
+    const persistedTargets = targetDetails.filter((target) => !target.localFile?.tempFilename && componentId && target.persisted);
+
+    const applyLocalRemovals = (targets, { stageForEco = false } = {}) => {
+      setLocalUploads((prev) => {
+        const updated = { ...prev };
+        for (const target of targets) {
+          if (updated[target.category]) {
+            updated[target.category] = updated[target.category].filter((file) => file.name !== target.filename);
+            if (updated[target.category].length === 0) {
+              delete updated[target.category];
+            }
+          }
+        }
+        return updated;
+      });
+
+      for (const target of targets) {
+        if (stageForEco) {
+          stageRemoval(target.category, target.filename);
+        }
+
+        if (onFileDeleted) {
+          onFileDeleted(target.category, target.filename);
+        }
+        notifyCadFileRemoved(target.category, target.filename);
+        if (target.localFile?.tempFilename) {
+          onTempFileRemoved?.(target.localFile.tempFilename);
+        }
+      }
+    };
+
+    if (tempTargets.length > 0) {
       try {
-        await api.cleanupTempFiles({ tempFilenames: [localFile.tempFilename] });
-        showSuccess('File removed');
+        await api.cleanupTempFiles({
+          tempFilenames: tempTargets.map((target) => target.localFile.tempFilename),
+        });
       } catch (err) {
         showError('Delete failed: ' + (err.response?.data?.error || err.message));
+        setDeleteConfirm({ show: false, category: '', filename: '' });
+        return;
       }
-      // Remove from local uploads
-      removeLocalUpload(category, filename);
-      if (onFileDeleted) onFileDeleted(category, filename);
-      notifyCadFileRemoved(category, filename);
-      // Notify parent to remove from tempFiles state
-      if (onTempFileRemoved && localFile.tempFilename) {
-        onTempFileRemoved(localFile.tempFilename);
-      }
-      setDeleteConfirm({ show: false, category: '', filename: '' });
-    } else if (ecoMode) {
-      if (localFile) {
-        removeLocalUpload(category, filename);
-      } else {
-        stageRemoval(category, filename);
+    }
+
+    if (tempTargets.length > 0 || localOnlyTargets.length > 0) {
+      applyLocalRemovals([...tempTargets, ...localOnlyTargets]);
+    }
+
+    if (ecoMode) {
+      if (persistedTargets.length > 0) {
+        applyLocalRemovals(persistedTargets, { stageForEco: true });
       }
 
-      if (onFileDeleted) onFileDeleted(category, filename);
-      notifyCadFileRemoved(category, filename);
-      showSuccess('File change staged for ECO');
+      showSuccess(category === 'footprint' ? 'Footprint change staged for ECO' : 'File change staged for ECO');
       setDeleteConfirm({ show: false, category: '', filename: '' });
-    } else {
-      // Existing file — use regular delete mutation
-      deleteMutation.mutate({ category, filename });
+      return;
     }
+
+    if (!componentId || persistedTargets.length === 0) {
+      showSuccess(category === 'footprint' ? 'Footprint group removed' : 'File removed');
+      setDeleteConfirm({ show: false, category: '', filename: '' });
+      return;
+    }
+
+    deleteMutation.mutate({ category, filename });
   };
 
   const isRenaming = (category, filename) => {
@@ -1350,7 +1398,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             return;
           }
 
-          let linkedFiles = mergeSelectedCadFiles(selectedFiles, autoFiles);
+          const shouldIncludeAutoFiles = !componentId;
+          let linkedFiles = mergeSelectedCadFiles(selectedFiles, shouldIncludeAutoFiles ? autoFiles : []);
           if (!ecoMode && componentId) {
             try {
               const result = await linkMutation.mutateAsync({ cadFiles: selectedFiles });
@@ -1380,7 +1429,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
               const fileCategory = file.file_type || cat;
               if (!updated[fileCategory]) updated[fileCategory] = [];
               if (!updated[fileCategory].find(existingFile => existingFile.name === file.file_name)) {
-                updated[fileCategory].push({ name: file.file_name, size: 0, storage: 'local' });
+                updated[fileCategory].push({
+                  id: file.id || null,
+                  name: file.file_name,
+                  size: 0,
+                  storage: 'local',
+                  file_type: file.file_type || fileCategory,
+                  related_files: Array.isArray(file.related_files) ? file.related_files : [],
+                });
               }
             }
             return updated;
