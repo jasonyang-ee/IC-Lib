@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { formatPackageFilenameBase } from '../utils/cadFileNaming';
 import {
-  PSPICE_LABEL,
   getCadFileBaseName,
   groupFootprintFiles,
   isFootprintSecondaryFile,
@@ -33,7 +32,7 @@ import {
 import { ConfirmationModal } from '../components/common';
 import { routeTypeToFileType } from '../components/fileLibrary/constants';
 import { canDeleteLibraryFiles as canDeleteLibraryFilesForRole } from '../utils/accessControl';
-import { THREE_D_MODEL_LABEL } from '../utils/cadFileTypes';
+import { PSPICE_LABEL, THREE_D_MODEL_LABEL } from '../utils/cadFileTypes';
 
 // View modes
 const VIEW_FILE_TYPES = 'fileTypes';
