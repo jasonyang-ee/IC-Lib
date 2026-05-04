@@ -19,6 +19,75 @@ const toTextList = (val) => {
  */
 const parseCadField = (val) => val ? val.split(',').filter(Boolean) : [];
 
+const normalizeUuidInput = (value) => {
+  if (value == null) return null;
+  if (typeof value !== 'string') return value;
+
+  const trimmedValue = value.trim();
+  return trimmedValue || null;
+};
+
+const normalizeTextInput = (value) => {
+  if (typeof value !== 'string') return null;
+
+  const trimmedValue = value.trim();
+  return trimmedValue || null;
+};
+
+const resolveManufacturerId = async (manufacturerId, manufacturerName) => {
+  const normalizedManufacturerId = normalizeUuidInput(manufacturerId);
+  if (normalizedManufacturerId) {
+    return normalizedManufacturerId;
+  }
+
+  const normalizedManufacturerName = normalizeTextInput(manufacturerName);
+  if (!normalizedManufacturerName || normalizedManufacturerName === 'N/A') {
+    return null;
+  }
+
+  const existingManufacturer = await pool.query(
+    'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
+    [normalizedManufacturerName],
+  );
+
+  if (existingManufacturer.rows.length > 0) {
+    return existingManufacturer.rows[0].id;
+  }
+
+  try {
+    const createdManufacturer = await pool.query(
+      'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
+      [normalizedManufacturerName],
+    );
+
+    return createdManufacturer.rows[0].id;
+  } catch (error) {
+    if (error.code !== '23505') {
+      throw error;
+    }
+
+    const duplicateManufacturer = await pool.query(
+      'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
+      [normalizedManufacturerName],
+    );
+
+    return duplicateManufacturer.rows[0]?.id || null;
+  }
+};
+
+const normalizeAlternativeDistributors = (distributors) => {
+  if (!Array.isArray(distributors)) {
+    return [];
+  }
+
+  return distributors
+    .map((dist) => ({
+      ...dist,
+      distributor_id: normalizeUuidInput(dist?.distributor_id),
+    }))
+    .filter((dist) => dist.distributor_id);
+};
+
 /**
  * Transform component row to parse TEXT CAD columns into arrays for frontend.
  */
@@ -1085,9 +1154,12 @@ export const createAlternative = async (req, res, next) => {
     const { id } = req.params;
     const {
       manufacturer_id,
+      manufacturer_name,
       manufacturer_pn,
       distributors = [],
     } = req.body;
+    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name);
+    const normalizedDistributors = normalizeAlternativeDistributors(distributors);
 
     // Verify the component exists and get its part_number for logging
     const componentResult = await pool.query(
@@ -1108,14 +1180,14 @@ export const createAlternative = async (req, res, next) => {
       )
       VALUES ($1, $2, $3)
       RETURNING *
-    `, [id, manufacturer_id, manufacturer_pn]);
+    `, [id, resolvedManufacturerId, manufacturer_pn]);
     
     const alternativeId = result.rows[0].id;
     
     // Add distributor info if provided
     // IMPORTANT: Each alternative can have only ONE entry per distributor
-    if (distributors && distributors.length > 0) {
-      for (const dist of distributors) {
+    if (normalizedDistributors.length > 0) {
+      for (const dist of normalizedDistributors) {
         await pool.query(`
           INSERT INTO distributor_info (
             alternative_id, distributor_id, sku, url, currency,
@@ -1158,7 +1230,7 @@ export const createAlternative = async (req, res, next) => {
         JSON.stringify({
           alternative_id: alternativeId,
           manufacturer_pn: manufacturer_pn,
-          distributor_count: distributors?.length || 0,
+          distributor_count: normalizedDistributors.length,
         }),
       ]);
     } catch (logError) {
@@ -1179,9 +1251,12 @@ export const updateAlternative = async (req, res, next) => {
     const { id, altId } = req.params;
     const {
       manufacturer_id,
+      manufacturer_name,
       manufacturer_pn,
       distributors = [],
     } = req.body;
+    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name);
+    const normalizedDistributors = normalizeAlternativeDistributors(distributors);
 
     // Verify the component exists and get part_number for logging
     const componentResult = await pool.query(
@@ -1203,17 +1278,17 @@ export const updateAlternative = async (req, res, next) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $3 AND component_id = $4
       RETURNING *
-    `, [manufacturer_id, manufacturer_pn, altId, id]);
+    `, [resolvedManufacturerId, manufacturer_pn, altId, id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Alternative not found' });
     }
     
     // Update distributors if provided
-    if (distributors) {
+    if (Array.isArray(distributors)) {
       // Get list of distributor IDs that should be kept
-      const validDistributorIds = distributors
-        .filter(dist => dist.distributor_id && (dist.sku || dist.url))
+      const validDistributorIds = normalizedDistributors
+        .filter(dist => dist.sku || dist.url)
         .map(dist => dist.distributor_id);
 
       // Delete distributor entries that are not in the provided list
@@ -1230,8 +1305,8 @@ export const updateAlternative = async (req, res, next) => {
 
       // UPSERT distributor info
       // Each alternative can have only ONE entry per distributor
-      for (const dist of distributors) {
-        if (dist.distributor_id && (dist.sku || dist.url)) {
+      for (const dist of normalizedDistributors) {
+        if (dist.sku || dist.url) {
           await pool.query(`
             INSERT INTO distributor_info (
               alternative_id, distributor_id, sku, url, currency,
@@ -1275,7 +1350,7 @@ export const updateAlternative = async (req, res, next) => {
         JSON.stringify({
           alternative_id: altId,
           manufacturer_pn: manufacturer_pn || result.rows[0].manufacturer_pn,
-          distributor_count: distributors?.length || 0,
+          distributor_count: normalizedDistributors.length,
         }),
       ]);
     } catch (logError) {

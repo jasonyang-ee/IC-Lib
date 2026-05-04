@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Vendor Search alternative/distributor append flows now normalize missing manufacturer/distributor IDs, create manufacturers by name when needed for alternative adds, and skip blank distributor UUID inserts so vendor append actions no longer 500 on local lookup misses
 - Added a cleanup migration that removes already-stored orphan junk CAD rows for OrCAD sidecar files like `.OBK`, `.opj`, `.jrl`, `.log`, and `.tag`
 - CAD tracking, file-library pickers, and component file scans now ignore OrCAD junk sidecar files like `.OBK`, `.opj`, `.jrl`, `.log`, and `.tag`
 - Startup migration logs now print the full pending migration list plus per-file completion progress so container logs clearly show every applied migration during boot

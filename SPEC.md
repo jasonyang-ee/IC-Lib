@@ -58,6 +58,7 @@ V19: fresh DB default ECO stage config ! include every runtime pipeline tag requ
 V20: file-library shared rename policy: actor = `admin` -> direct rename even if file shared; `CONFIG_ECO` on & actor ∉ `admin` & affected parts > 1 & any affected part status != `new` -> shared transparent-gray warning before submit, stage 1 ECO w/ `shared_file_rename` tag, set only affected non-`new` parts `approval_status=reviewing`, approve -> rename shared CAD files, refresh CAD text for staged + skipped `new` parts, restore staged parts original status; reject|delete -> restore staged parts original status & keep file info unchanged.
 V21: ECO status proposal UI/API ! allow `new -> prototype`, `prototype -> production|archived`, `production -> prototype|archived`, `archived -> prototype|production`; ECO path back to `new` ⊥; `new`-part ECO without `prototype` proposal ⊥.
 V22: ECO CAD diff/apply key on persisted `file_type`; same-ext `.olb` in `symbol` vs `pspice` ! stay isolated through ECO submit/approve, so link/unlink in one role ⊥ mutate the other role by filename/ext coincidence.
+V23: vendor-search append flows ! normalize optional FK lookups before component/alternative distributor writes: blank `manufacturer_id|distributor_id` -> `null`/skip; alternative create may resolve/create manufacturer by `manufacturer_name` when local ID miss.
 
 ## §T
 
@@ -77,3 +78,4 @@ B2|2026-04-27|`/api/specification-templates/*` persists to `specification_templa
 B3|2026-04-27|shared file-rename ECOs reused generic `filename` tag so approval stages could not route staged shared renames separately|V12,V20
 B4|2026-04-29|blank DB boot ran legacy repair migrations before `init-schema.sql`; fresh startup could fail on missing base tables|V4
 B5|2026-04-30|dual `.olb` ECO path keeps `symbol` vs `pspice` isolated, but upload/link conflict guard still treats only `symbol|model` as single-file slots, so >1 PSpice `.olb` symbol may attach to one part|T6
+B6|2026-05-04|Vendor Search append path sent blank UUID strings for unresolved manufacturer/distributor lookups, so alt/distributor writes could 500 on optional FK fields instead of normalizing or resolving by name|V23

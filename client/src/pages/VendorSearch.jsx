@@ -120,6 +120,23 @@ const VendorSearch = () => {
     return selectedParts.some(p => p.partNumber === partNumber);
   };
 
+  const normalizeLookupValue = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  const getDistributorId = (source) => {
+    const normalizedSource = normalizeLookupValue(source);
+    return distributors?.find(d => normalizeLookupValue(d.name).includes(normalizedSource))?.id || null;
+  };
+
+  const getManufacturerRecord = (manufacturerName) => {
+    const normalizedManufacturer = normalizeLookupValue(manufacturerName);
+
+    if (!normalizedManufacturer) {
+      return null;
+    }
+
+    return manufacturers?.find(m => normalizeLookupValue(m.name) === normalizedManufacturer) || null;
+  };
+
   // Digikey barcode decoder
   const decodeVendorBarcode = (barcode) => {
     // Reset result
@@ -458,11 +475,8 @@ const VendorSearch = () => {
         const source = isDigikey ? 'digikey' : 'mouser';
         const distributorName = isDigikey ? 'Digikey' : 'Mouser';
         
-        // Find distributor ID from the list
-        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
-        
         return {
-          distributor_id: distId || '',
+          distributor_id: getDistributorId(source),
           distributor_name: distributorName,
           sku: part.partNumber,
           url: part.productUrl || '',
@@ -525,11 +539,8 @@ const VendorSearch = () => {
         const source = isDigikey ? 'digikey' : 'mouser';
         const distributorName = isDigikey ? 'Digikey' : 'Mouser';
         
-        // Find distributor ID from the list
-        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
-        
         return {
-          distributor_id: distId || '',
+          distributor_id: getDistributorId(source),
           distributor_name: distributorName,
           sku: part.partNumber,
           url: part.productUrl || '',
@@ -579,15 +590,15 @@ const VendorSearch = () => {
   const appendAsAlternative = async (component) => {
     try {
       const primaryPart = selectedParts[0];
+      const manufacturerRecord = getManufacturerRecord(primaryPart.manufacturer);
       
       // Collect distributor data
       const distributorData = selectedParts.map(part => {
         const isDigikey = searchResults?.digikey?.results?.some(dp => dp.partNumber === part.partNumber);
         const source = isDigikey ? 'digikey' : 'mouser';
-        const distId = distributors?.find(d => d.name.toLowerCase() === source)?.id;
         
         return {
-          distributor_id: distId || '',
+          distributor_id: getDistributorId(source),
           sku: part.partNumber,
           url: part.productUrl || '',
           in_stock: (part.stock || 0) > 0,
@@ -597,14 +608,10 @@ const VendorSearch = () => {
         };
       });
 
-      // Find manufacturer ID
-      const mfgId = manufacturers?.find(m => 
-        m.name.toLowerCase() === primaryPart.manufacturer.toLowerCase()
-      )?.id;
-
       // Create alternative part
       const alternativeData = {
-        manufacturer_id: mfgId || '',
+        manufacturer_id: manufacturerRecord?.id || null,
+        manufacturer_name: primaryPart.manufacturer || null,
         manufacturer_pn: primaryPart.manufacturerPartNumber,
         datasheet_url: primaryPart.datasheet || '',
         notes: `Added from vendor search`,
@@ -624,7 +631,7 @@ const VendorSearch = () => {
       navigate('/library', { state: { searchTerm: component.part_number, refreshAlternatives: true } });
     } catch (error) {
       console.error('Error adding alternative:', error);
-      alert('Error adding alternative: ' + error.message);
+      alert('Error adding alternative: ' + (error.response?.data?.error || error.message));
     }
   };
 
