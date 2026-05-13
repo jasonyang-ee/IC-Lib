@@ -829,6 +829,32 @@ export const getDistributorInfo = async (req, res, next) => {
   }
 };
 
+export const getComponentProjects = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.name,
+        p.status,
+        p.description,
+        COUNT(pc.id)::int as assigned_item_count,
+        COALESCE(SUM(pc.quantity), 0)::int as total_quantity
+      FROM project_components pc
+      JOIN projects p ON p.id = pc.project_id
+      LEFT JOIN components_alternative a ON pc.alternative_id = a.id
+      WHERE pc.component_id = $1 OR a.component_id = $1
+      GROUP BY p.id
+      ORDER BY p.updated_at DESC, p.name ASC
+    `, [id]);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateDistributorInfo = async (req, res, next) => {
   try {
     const { id } = req.params;

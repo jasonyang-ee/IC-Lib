@@ -48,6 +48,9 @@ router.put('/:id/specifications', authenticate, canWrite, canDirectEditComponent
 // Get distributor info for component
 router.get('/:id/distributors', componentController.getDistributorInfo);
 
+// Get project assignments for component
+router.get('/:id/projects', componentController.getComponentProjects);
+
 // Update distributor info for component
 router.put('/:id/distributors', authenticate, canWrite, canDirectEditComponent, componentController.updateDistributorInfo);
 

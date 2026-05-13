@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
@@ -24,6 +25,7 @@ const getResponseData = async (request, fallbackValue) => {
 
 const Projects = () => {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { showSuccess, showError } = useNotification();
   const { canWrite } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -51,6 +53,19 @@ const Projects = () => {
       return response.data;
     }
   });
+
+  useEffect(() => {
+    if (!location.state?.projectId || !projects?.length) {
+      return;
+    }
+
+    const incomingProject = projects.find((project) => project.id === location.state.projectId);
+    if (incomingProject) {
+      setSelectedProject(incomingProject);
+    }
+
+    window.history.replaceState({}, document.title);
+  }, [location.state, projects]);
 
   // Fetch project details with components
   const { data: projectDetails } = useQuery({

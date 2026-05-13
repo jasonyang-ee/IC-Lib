@@ -23,7 +23,7 @@ C10: flexible workflow/audit payloads may persist in JSONB: `activity_log.detail
 
 I.web: ui `/login|/|/library|/file-library|/inventory|/vendor-search|/projects|/reports|/audit|/user-settings|/admin-settings|/eco?` -> React SPA; nav gated by role + `ecoEnabled`.
 I.auth: api `/api/auth/*` -> login/logout/verify, password change, profile, file-storage-path, ECO prefs, admin user CRUD.
-I.lib: api `/api/components/*|/api/categories/*|/api/manufacturers/*|/api/distributors/*` -> catalog read, component CRUD, spec/distributor/alt-part CRUD, approval, category change, bulk vendor refresh.
+I.lib: api `/api/components/*|/api/categories/*|/api/manufacturers/*|/api/distributors/*` -> catalog read, component CRUD, spec/distributor/alt-part CRUD, approval, category change, bulk vendor refresh, component project-assignment read for library view.
 I.vendor: api `/api/search/*` -> Digikey/Mouser/all-vendor lookup, add-to-library draft seed, Ultra Librarian/SnapEDA footprint fetch.
 I.inv: api `/api/inventory/*` -> inventory read, low-stock, barcode search, alt inventory read/update, inventory CRUD.
 I.file: api `/api/files/*|/api/file-library/*` -> temp upload/finalize/cleanup/export, collision check, CAD browse/search/orphans/link/unlink/rename/delete/scan.

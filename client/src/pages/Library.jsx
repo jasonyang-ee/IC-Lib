@@ -10,7 +10,7 @@ import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
 import SpecificationsView from '../components/library/SpecificationsView';
 import FileConflictModal from '../components/library/FileConflictModal';
-import { ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
+import { AssignedProjectsView, ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
 import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
@@ -714,6 +714,16 @@ const Library = () => {
       };
     },
   });
+
+  const { data: assignedProjects = [], isLoading: isLoadingAssignedProjects } = useQuery({
+    queryKey: ['componentProjects', selectedComponent?.id],
+    enabled: !!selectedComponent && !isAddMode && !isEditMode,
+    queryFn: async () => {
+      const response = await api.getComponentProjects(selectedComponent.id);
+      return response.data;
+    },
+  });
+
   const selectedComponentApprovalStatus = componentDetails?.approval_status || selectedComponent?.approval_status;
   const canDirectEditLibraryComponent = canDirectEditLibraryComponents(user?.role, selectedComponentApprovalStatus);
 
@@ -3696,7 +3706,13 @@ const Library = () => {
 
           {/* Component Specifications - Only shown in View Mode */}
           {!isEditMode && !isAddMode && (
-            <SpecificationsView componentDetails={componentDetails} />
+            <>
+              <SpecificationsView componentDetails={componentDetails} />
+              <AssignedProjectsView
+                projects={assignedProjects}
+                isLoading={isLoadingAssignedProjects}
+              />
+            </>
           )}
         </div>
       </div>

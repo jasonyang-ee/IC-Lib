@@ -59,6 +59,7 @@
   - datasheet link
   - CAD links -> File Library deep links only for roles that can open File Library; `lab` sees plain filenames
   - approval status/history
+  - assigned-project tile under Specifications in view mode; project click opens Projects and selects that project
   - pivots -> Inventory, Add to Project, and File Library only for File Library-capable roles
   - distributor panel -> Vendor Search
   - read-only specs
@@ -178,6 +179,7 @@
   - status: active, completed, archived
   - select project -> description + component list
   - component rows show lowest-break unit price plus extended line total when distributor pricing exists; header shows rolled-up priced total and flags missing pricing
+  - part number in component list opens Parts Library with that part number pre-filtered and selected
   - add parts by search or bulk pasted MFG P/N list
   - set/change per-project qty
   - remove parts

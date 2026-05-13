@@ -1,4 +1,5 @@
 import { FolderKanban, Plus, Edit, Download, Play } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -38,6 +39,7 @@ const ProjectDetails = ({
   onUpdateQuantity,
   onRemoveComponent,
 }) => {
+  const navigate = useNavigate();
   const projectComponents = projectDetails?.components || [];
   const pricedComponents = projectComponents.filter((component) => getComponentPricing(component));
   const hasProjectPricing = pricedComponents.length > 0;
@@ -46,6 +48,14 @@ const ProjectDetails = ({
     return total + (pricing?.totalPrice || 0);
   }, 0);
   const unpricedComponentCount = projectComponents.length - pricedComponents.length;
+
+  const handleOpenPartInLibrary = (partNumber) => {
+    if (!partNumber) {
+      return;
+    }
+
+    navigate('/library', { state: { searchTerm: partNumber } });
+  };
 
   if (!selectedProject) {
     return (
@@ -132,87 +142,93 @@ const ProjectDetails = ({
             const pricing = getComponentPricing(pc);
 
             return (
-            <div
-              key={pc.id}
-              className="p-3 border border-gray-200 dark:border-[#3a3a3a] rounded-lg"
-            >
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">
-                      {pc.part_number}
-                    </span>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                      {pc.manufacturer_name || pc.alt_manufacturer_name} - {pc.manufacturer_pn || pc.alt_manufacturer_pn}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm px-2 py-0.5 bg-gray-100 dark:bg-[#333333] rounded">
-                      {pc.category_name}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
-                  <span>
-                    Value: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.value || '-'}</span>
-                  </span>
-                  <span>
-                    Part Type: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.part_type || '-'}</span>
-                  </span>
-                  <span>
-                    Package: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.package_size || '-'}</span>
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <span className="text-primary-700 dark:text-primary-300 font-semibold">
-                      Quantity: <span>{pc.quantity}</span>
-                    </span>
-                    {pricing && (
-                      <>
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Unit: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.unitPrice)}</span>
-                        </span>
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Total: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.totalPrice)}</span>
-                        </span>
-                      </>
-                    )}
-                    <span className={`${
-                      pc.available_quantity >= pc.quantity
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      Available: <span className="font-semibold">{pc.available_quantity || 0}</span>
-                    </span>
-                    {pc.location && (
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Location: {pc.location}
+              <div
+                key={pc.id}
+                className="p-3 border border-gray-200 dark:border-[#3a3a3a] rounded-lg"
+              >
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPartInLibrary(pc.part_number)}
+                        className="font-semibold text-primary-700 dark:text-primary-300 hover:underline"
+                        title={`Open ${pc.part_number} in Parts Library`}
+                      >
+                        {pc.part_number}
+                      </button>
+                      <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                        {pc.manufacturer_name || pc.alt_manufacturer_name} - {pc.manufacturer_pn || pc.alt_manufacturer_pn}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm px-2 py-0.5 bg-gray-100 dark:bg-[#333333] rounded">
+                        {pc.category_name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+                    <span>
+                      Value: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.value || '-'}</span>
+                    </span>
+                    <span>
+                      Part Type: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.part_type || '-'}</span>
+                    </span>
+                    <span>
+                      Package: <span className="font-medium text-gray-800 dark:text-gray-200">{pc.package_size || '-'}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="text-primary-700 dark:text-primary-300 font-semibold">
+                        Quantity: <span>{pc.quantity}</span>
+                      </span>
+                      {pricing && (
+                        <>
+                          <span className="text-gray-600 dark:text-gray-400">
+                            Unit: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.unitPrice)}</span>
+                          </span>
+                          <span className="text-gray-600 dark:text-gray-400">
+                            Total: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.totalPrice)}</span>
+                          </span>
+                        </>
+                      )}
+                      <span className={`${
+                        pc.available_quantity >= pc.quantity
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        Available: <span className="font-semibold">{pc.available_quantity || 0}</span>
+                      </span>
+                      {pc.location && (
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Location: {pc.location}
+                        </span>
+                      )}
+                    </div>
+                    {canWrite() && (
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          onClick={() => onUpdateQuantity(pc)}
+                          className="btn-action-secondary"
+                        >
+                          Change Quantity
+                        </button>
+                        <button
+                          onClick={() => onRemoveComponent(pc)}
+                          className="btn-action-danger"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </div>
-                  {canWrite() && (
-                    <div className="ml-auto flex items-center gap-2">
-                      <button
-                        onClick={() => onUpdateQuantity(pc)}
-                        className="btn-action-secondary"
-                      >
-                        Change Quantity
-                      </button>
-                      <button
-                        onClick={() => onRemoveComponent(pc)}
-                        className="btn-action-danger"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
-            </div>
-          );})}
+            );
+          })}
           {projectDetails?.components?.length === 0 && (
             <p className="text-center text-gray-500 dark:text-gray-400 py-8">
               No components added yet. Click "Add Component" to start.

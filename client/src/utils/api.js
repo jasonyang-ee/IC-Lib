@@ -88,6 +88,7 @@ export const api = {
   getComponentSpecifications: (id) => apiClient.get(`/components/${id}/specifications`),
   updateComponentSpecifications: (id, data) => apiClient.put(`/components/${id}/specifications`, data),
   getComponentDistributors: (id) => apiClient.get(`/components/${id}/distributors`),
+  getComponentProjects: (id) => apiClient.get(`/components/${id}/projects`),
   updateComponentDistributors: (id, data) => apiClient.put(`/components/${id}/distributors`, data),
   
   // Component Alternatives
