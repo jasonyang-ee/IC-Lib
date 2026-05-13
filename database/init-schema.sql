@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS components (
     approval_status VARCHAR(50) DEFAULT 'new',
     approval_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     approval_date TIMESTAMP,
+    last_specs_refresh_at TIMESTAMP,
     
     -- Only updated_at is needed (created_at extracted from uuidv7)
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -166,6 +167,7 @@ CREATE TABLE IF NOT EXISTS distributor_info (
     minimum_order_quantity INTEGER DEFAULT 1,
     packaging VARCHAR(100),
     price_breaks JSONB,
+    last_vendor_sync_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_component_or_alternative CHECK (
         (component_id IS NOT NULL AND alternative_id IS NULL) OR

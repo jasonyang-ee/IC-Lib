@@ -59,6 +59,7 @@ V20: file-library shared rename policy: actor = `admin` -> direct rename even if
 V21: ECO status proposal UI/API ! allow `new -> prototype`, `prototype -> production|archived`, `production -> prototype|archived`, `archived -> prototype|production`; ECO path back to `new` ⊥; `new`-part ECO without `prototype` proposal ⊥.
 V22: ECO CAD diff/apply key on persisted `file_type`; same-ext `.olb` in `symbol` vs `pspice` ! stay isolated through ECO submit/approve, so link/unlink in one role ⊥ mutate the other role by filename/ext coincidence.
 V23: vendor-search append flows ! normalize optional FK lookups before component/alternative distributor writes: blank `manufacturer_id|distributor_id` -> `null`/skip; alternative create may resolve/create manufacturer by `manufacturer_name` when local ID miss.
+V24: admin bulk vendor refresh queues oldest sync first: stock -> supported distributor rows by `distributor_info.last_vendor_sync_at`; specs -> DigiKey-backed components by `components.last_specs_refresh_at`; non-rate-limit completion bumps cursor even when vendor data missing; vendor daily-limit reject -> abort batch @ current item.
 
 ## §T
 

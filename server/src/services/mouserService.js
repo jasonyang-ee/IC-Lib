@@ -73,10 +73,16 @@ export async function searchPart(partNumber, retryCount = 0) {
       const isRateLimitError = error.response.status === 403 && 
         error.response.data?.Errors?.some(e => e.Code === 'TooManyRequests');
       
-      if (isRateLimitError && retryCount < MAX_RETRIES) {
-        const waitTime = Math.pow(2, retryCount) * 5000; // 5s, 10s, 20s
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        return searchPart(partNumber, retryCount + 1);
+      if (isRateLimitError) {
+        if (retryCount < MAX_RETRIES) {
+          const waitTime = Math.pow(2, retryCount) * 5000; // 5s, 10s, 20s
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return searchPart(partNumber, retryCount + 1);
+        }
+
+        const rateLimitError = new Error('RATE_LIMIT_EXCEEDED');
+        rateLimitError.vendorMessage = error.response.data?.Errors?.find(e => e.Code === 'TooManyRequests')?.Message || 'Daily rate limit exceeded';
+        throw rateLimitError;
       }
     }
     

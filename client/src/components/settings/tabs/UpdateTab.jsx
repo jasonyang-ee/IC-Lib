@@ -7,11 +7,11 @@ import { api } from '../../../utils/api';
 const UPDATE_CONFIRMATIONS = {
   stock: {
     title: 'Update Stock Info',
-    message: 'This updates stock quantities, pricing, and availability from distributor APIs for all parts with SKUs. This may take several minutes depending on part count.',
+    message: 'This updates stock quantities, pricing, and availability from supported distributor APIs oldest sync first. Safe to rerun repeatedly; the job stops early if a daily vendor limit rejects a request.',
   },
   specs: {
     title: 'Update Parts Specifications',
-    message: 'This auto-fills mapped specifications from distributor data for all parts with SKUs. Existing values stay when vendor data is missing. This may take several minutes.',
+    message: 'This refreshes mapped specifications oldest sync first for eligible parts with distributor SKUs. Safe to rerun repeatedly; the job stops early if a daily vendor limit rejects a request.',
   },
   distributors: {
     title: 'Update Distributors',
@@ -102,7 +102,7 @@ const UpdateTab = () => {
     setPendingAction(null);
     setIsUpdatingStock(true);
     setStockProgress(0);
-    showToast('Starting bulk stock update...', 'info');
+    showToast('Starting bulk stock update... oldest sync first', 'info');
 
     stockProgressIntervalRef.current = window.setInterval(() => {
       setStockProgress((previous) => (previous >= 90 ? 90 : previous + Math.random() * 3));
@@ -140,7 +140,7 @@ const UpdateTab = () => {
   const handleBulkUpdateSpecifications = async () => {
     setPendingAction(null);
     setIsUpdatingSpecs(true);
-    showToast('Starting bulk specification update... (only parts without specs)', 'info');
+    showToast('Starting bulk specification update... oldest sync first', 'info');
 
     try {
       const result = await api.bulkUpdateSpecifications();
@@ -234,7 +234,7 @@ const UpdateTab = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Stock Info</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
-              Update stock quantities, pricing, and availability from distributor APIs for all parts with SKUs.
+              Update stock quantities, pricing, and availability from supported distributor APIs. Oldest sync runs first so repeated runs cycle across whole library.
             </p>
             <button
               onClick={() => setPendingAction('stock')}
@@ -261,7 +261,7 @@ const UpdateTab = () => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Update Specifications</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 grow">
-              Auto-fill component specifications using mapped distributor field names. Only parts without any specifications are updated.
+              Refresh mapped component specifications using distributor data. Oldest sync runs first so repeated runs cycle across whole library.
             </p>
             <button
               onClick={() => setPendingAction('specs')}

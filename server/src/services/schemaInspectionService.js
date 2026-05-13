@@ -55,6 +55,8 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'file_storage_path' },
   { table: 'users', column: 'delegation' },
   { table: 'cad_files', column: 'missing' },
+  { table: 'components', column: 'last_specs_refresh_at' },
+  { table: 'distributor_info', column: 'last_vendor_sync_at' },
   { table: 'project_components', column: 'notes' },
   { table: 'admin_settings', column: 'eco_logo_filename' },
   { table: 'admin_settings', column: 'eco_pdf_header_text' },

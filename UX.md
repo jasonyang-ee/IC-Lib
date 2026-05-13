@@ -246,8 +246,8 @@
 - preview ECO notification templates
 
 `Update`
-- bulk update stock info from vendor APIs
-- bulk fill missing specifications
+- bulk update stock info oldest sync first; skipped supported rows still advance queue; daily limit reject aborts batch
+- bulk refresh mapped specifications oldest sync first; skipped rows still advance queue; daily limit reject aborts batch
 - bulk fill distributor data
 - scan library folder for untracked CAD files
 

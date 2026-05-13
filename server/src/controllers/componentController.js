@@ -101,6 +101,24 @@ const transformCadFields = (row) => {
   return row;
 };
 
+const SUPPORTED_STOCK_SYNC_DISTRIBUTORS = ['digikey', 'mouser'];
+
+const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const touchDistributorVendorSync = async (distributorInfoId) => {
+  await pool.query(
+    'UPDATE distributor_info SET last_vendor_sync_at = CURRENT_TIMESTAMP WHERE id = $1',
+    [distributorInfoId],
+  );
+};
+
+const touchComponentSpecsRefresh = async (componentId) => {
+  await pool.query(
+    'UPDATE components SET last_specs_refresh_at = CURRENT_TIMESTAMP WHERE id = $1',
+    [componentId],
+  );
+};
+
 export const getAllComponents = async (req, res, next) => {
   try {
     const { category, search, approvalStatus } = req.query;
@@ -1687,21 +1705,25 @@ export const bulkUpdateStock = async (req, res, next) => {
         di.sku,
         d.name as distributor_name,
         c.part_number,
-        c.id as component_id
+        c.id as component_id,
+        di.last_vendor_sync_at
       FROM distributor_info di
       JOIN distributors d ON di.distributor_id = d.id
       LEFT JOIN components c ON di.component_id = c.id
       LEFT JOIN components_alternative ca ON di.alternative_id = ca.id
       WHERE di.sku IS NOT NULL
       AND di.sku != ''
-      ORDER BY di.updated_at ASC NULLS FIRST
+      AND LOWER(d.name) = ANY($1::text[])
+      ORDER BY di.last_vendor_sync_at ASC NULLS FIRST, di.updated_at ASC NULLS FIRST, c.part_number ASC
     `;
+    const queryParams = [SUPPORTED_STOCK_SYNC_DISTRIBUTORS];
 
     if (maxLimit) {
-      query += ` LIMIT ${maxLimit}`;
+      query += ' LIMIT $2';
+      queryParams.push(maxLimit);
     }
 
-    const distributorsResult = await pool.query(query);
+    const distributorsResult = await pool.query(query, queryParams);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -1730,6 +1752,7 @@ export const bulkUpdateStock = async (req, res, next) => {
               stock_quantity = $2,
               in_stock = $3,
               url = COALESCE($4, url),
+              last_vendor_sync_at = CURRENT_TIMESTAMP,
               updated_at = CURRENT_TIMESTAMP
             WHERE id = $5
           `, [
@@ -1741,11 +1764,12 @@ export const bulkUpdateStock = async (req, res, next) => {
           ]);
           updatedCount++;
         } else {
+          await touchDistributorVendorSync(dist.id);
           skippedCount++;
         }
 
         // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sleep(2000);
 
       } catch (error) {
         // Check for rate limit error
@@ -1792,15 +1816,15 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
     console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Starting bulk specification update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
 
-    // Get all components that have distributor SKUs but NO specifications yet
-    // Skip components that already have at least one specification value
+    // Oldest spec refresh first so repeated limited runs behave like a circular queue.
     let query = `
       SELECT DISTINCT
         c.id as component_id,
         c.part_number,
         c.category_id,
         di.sku,
-        d.name as distributor_name
+        d.name as distributor_name,
+        c.last_specs_refresh_at
       FROM components c
       JOIN distributor_info di ON c.id = di.component_id
       JOIN distributors d ON di.distributor_id = d.id
@@ -1808,11 +1832,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       AND di.sku != ''
       AND c.category_id IS NOT NULL
       AND LOWER(d.name) = 'digikey'
-      AND NOT EXISTS (
-        SELECT 1 FROM component_specification_values csv
-        WHERE csv.component_id = c.id
-      )
-      ORDER BY c.part_number
+      ORDER BY c.last_specs_refresh_at ASC NULLS FIRST, c.part_number ASC
     `;
 
     if (maxLimit) {
@@ -1821,7 +1841,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
     const componentsResult = await pool.query(query);
     const totalComponents = componentsResult.rows.length;
-    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Found ${totalComponents} components without specifications to process`);
+    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Found ${totalComponents} eligible components to process`);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -1926,8 +1946,10 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   No vendor data found for ${comp.part_number}`);
         }
 
+        await touchComponentSpecsRefresh(comp.component_id);
+
         // Add delay to avoid rate limiting (Digikey: 1000 calls/day = ~40/hour = 1.5s per call safe)
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sleep(2000);
 
       } catch (error) {
         // Check for rate limit error
