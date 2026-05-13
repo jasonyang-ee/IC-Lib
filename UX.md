@@ -177,6 +177,7 @@
   - create/edit/delete projects
   - status: active, completed, archived
   - select project -> description + component list
+  - component rows show lowest-break unit price plus extended line total when distributor pricing exists; header shows rolled-up priced total and flags missing pricing
   - add parts by search or bulk pasted MFG P/N list
   - set/change per-project qty
   - remove parts

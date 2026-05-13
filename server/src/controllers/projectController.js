@@ -38,6 +38,40 @@ export const getProjectById = async (req, res) => {
     
     // Get project components with full details
     const componentsResult = await pool.query(`
+      WITH normalized_price_breaks AS (
+        SELECT
+          di.component_id,
+          di.alternative_id,
+          COALESCE(
+            NULLIF(REGEXP_REPLACE(price_break.value->>'quantity', '[^0-9.\\-]', '', 'g'), '')::numeric,
+            1
+          ) AS break_quantity,
+          NULLIF(REGEXP_REPLACE(price_break.value->>'price', '[^0-9.\\-]', '', 'g'), '')::numeric AS unit_price,
+          ROW_NUMBER() OVER (
+            PARTITION BY di.id
+            ORDER BY COALESCE(
+              NULLIF(REGEXP_REPLACE(price_break.value->>'quantity', '[^0-9.\\-]', '', 'g'), '')::numeric,
+              1
+            ) ASC
+          ) AS break_rank
+        FROM distributor_info di
+        CROSS JOIN LATERAL jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(di.price_breaks) = 'array' THEN di.price_breaks
+            ELSE '[]'::jsonb
+          END
+        ) AS price_break(value)
+        WHERE di.component_id IS NOT NULL OR di.alternative_id IS NOT NULL
+      ),
+      entry_unit_prices AS (
+        SELECT
+          component_id,
+          alternative_id,
+          MIN(unit_price) AS unit_price
+        FROM normalized_price_breaks
+        WHERE break_rank = 1 AND unit_price IS NOT NULL
+        GROUP BY component_id, alternative_id
+      )
       SELECT 
         pc.id,
         pc.quantity,
@@ -74,7 +108,11 @@ export const getProjectById = async (req, res) => {
         CASE 
           WHEN pc.component_id IS NOT NULL THEN i.location
           ELSE ai.location
-        END as location
+        END as location,
+        CASE
+          WHEN pc.component_id IS NOT NULL THEN primary_unit_price.unit_price
+          ELSE alternative_unit_price.unit_price
+        END as unit_price
       FROM project_components pc
       LEFT JOIN components_alternative a ON pc.alternative_id = a.id
       LEFT JOIN components base_component ON COALESCE(pc.component_id, a.component_id) = base_component.id
@@ -83,6 +121,13 @@ export const getProjectById = async (req, res) => {
       LEFT JOIN inventory i ON base_component.id = i.component_id
       LEFT JOIN manufacturers am ON a.manufacturer_id = am.id
       LEFT JOIN inventory_alternative ai ON a.id = ai.alternative_id
+      LEFT JOIN entry_unit_prices primary_unit_price
+        ON pc.component_id IS NOT NULL
+        AND primary_unit_price.component_id = pc.component_id
+        AND primary_unit_price.alternative_id IS NULL
+      LEFT JOIN entry_unit_prices alternative_unit_price
+        ON pc.alternative_id IS NOT NULL
+        AND alternative_unit_price.alternative_id = pc.alternative_id
       WHERE pc.project_id = $1
       ORDER BY base_component.part_number, a.manufacturer_pn
     `, [id]);

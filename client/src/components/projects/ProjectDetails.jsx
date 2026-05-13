@@ -1,5 +1,32 @@
 import { FolderKanban, Plus, Edit, Download, Play } from 'lucide-react';
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const toFiniteNumber = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const getComponentPricing = (component) => {
+  const unitPrice = toFiniteNumber(component?.unit_price);
+  if (unitPrice === null) {
+    return null;
+  }
+
+  const quantity = toFiniteNumber(component?.quantity) ?? 0;
+  return {
+    unitPrice,
+    totalPrice: unitPrice * quantity,
+  };
+};
+
+const formatCurrency = (value) => currencyFormatter.format(value);
+
 const ProjectDetails = ({
   selectedProject,
   projectDetails,
@@ -11,6 +38,15 @@ const ProjectDetails = ({
   onUpdateQuantity,
   onRemoveComponent,
 }) => {
+  const projectComponents = projectDetails?.components || [];
+  const pricedComponents = projectComponents.filter((component) => getComponentPricing(component));
+  const hasProjectPricing = pricedComponents.length > 0;
+  const projectTotalPrice = pricedComponents.reduce((total, component) => {
+    const pricing = getComponentPricing(component);
+    return total + (pricing?.totalPrice || 0);
+  }, 0);
+  const unpricedComponentCount = projectComponents.length - pricedComponents.length;
+
   if (!selectedProject) {
     return (
       <div className="lg:col-span-4 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] p-6 flex flex-col overflow-hidden">
@@ -32,6 +68,16 @@ const ProjectDetails = ({
           <p className="text-gray-600 dark:text-gray-400 mt-2">
             {projectDetails?.description || selectedProject.description || 'No description'}
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 dark:bg-[#333333] dark:text-gray-200">
+              Project total: {hasProjectPricing ? formatCurrency(projectTotalPrice) : 'No pricing data'}
+            </span>
+            {unpricedComponentCount > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">
+                {unpricedComponentCount} item{unpricedComponentCount === 1 ? '' : 's'} missing pricing
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           {canWrite() && (
@@ -82,7 +128,10 @@ const ProjectDetails = ({
         </div>
 
         <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1">
-          {projectDetails?.components?.map((pc) => (
+          {projectDetails?.components?.map((pc) => {
+            const pricing = getComponentPricing(pc);
+
+            return (
             <div
               key={pc.id}
               className="p-3 border border-gray-200 dark:border-[#3a3a3a] rounded-lg"
@@ -121,6 +170,16 @@ const ProjectDetails = ({
                     <span className="text-primary-700 dark:text-primary-300 font-semibold">
                       Quantity: <span>{pc.quantity}</span>
                     </span>
+                    {pricing && (
+                      <>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Unit: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.unitPrice)}</span>
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Total: <span className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(pricing.totalPrice)}</span>
+                        </span>
+                      </>
+                    )}
                     <span className={`${
                       pc.available_quantity >= pc.quantity
                         ? 'text-green-600 dark:text-green-400'
@@ -153,7 +212,7 @@ const ProjectDetails = ({
                 </div>
               </div>
             </div>
-          ))}
+          );})}
           {projectDetails?.components?.length === 0 && (
             <p className="text-center text-gray-500 dark:text-gray-400 py-8">
               No components added yet. Click "Add Component" to start.
