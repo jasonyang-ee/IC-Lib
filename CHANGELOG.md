@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.10.0] - 2026-05-14
+
+### Added
+
 - Server container now includes a CLI-only `repair admin-reset` command that resets the default `admin` user password to a new random six-character string and prints it to the server console
 - Shared File Library renames can now stage one mass ECO that tracks every affected part's original lifecycle status before approval
 - Admin Settings ECO approval stages now include a dedicated `Shared Rename` tag so staged shared file renames can be routed separately from ordinary filename ECOs
