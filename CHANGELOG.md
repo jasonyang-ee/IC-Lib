@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Dead `/file-library/type/:type/rename` (`massUpdateFileName`) endpoint, which had been disabled (always returned 400), along with its unused client `massRenameFile` API helper. Renames go through `rename-file` / `rename-group`.
 - Dead `/api/specification-templates/*` route and its controller. Nothing in the client called it and it persisted to a `specification_templates` table that exists in no schema or migration (so every write 500'd); category specifications are served by `category_specifications`.
 
 ### Fixed

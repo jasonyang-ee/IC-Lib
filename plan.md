@@ -261,16 +261,22 @@ regression (`§U`).
 
 **Tasks:**
 
-- [ ] Consolidate the repeated file-type maps into shared constants
-  (`server/src/constants/cadFiles.js`): `TYPE_SUBDIR` + `FILE_TYPE_TO_COLUMN`
-  (cadFileService), `CATEGORY_TO_COLUMN` (fileUploadController), `TYPE_MAP` +
-  the inline `FILE_TYPE_SUBDIR` repeated several times (fileLibraryController)
-  describe the same footprint/symbol/model/pspice/pad mapping.
-- [ ] Remove or repurpose the disabled `massUpdateFileName` endpoint if no
-  client calls it.
-- [ ] Sweep for log-format consistency (`[LEVEL] [Service] Message`, ASCII) and
-  uniform error-handler patterns in controllers.
-- [ ] Final `SPEC.md` + `CHANGELOG.md` reconciliation; run `/spec` check.
+- [x] Consolidated the duplicated file-type maps into
+  `server/src/constants/cadFiles.js` (`CAD_FILE_TYPES`, `CAD_TYPE_SUBDIR`,
+  `CAD_FILE_TYPE_TO_COLUMN`). Removed the 5 duplicate definitions:
+  `TYPE_SUBDIR`/`FILE_TYPE_TO_COLUMN` (cadFileService), `CATEGORY_TO_COLUMN`
+  (fileUploadController), `FILE_TYPE_SUBDIR` x2 + `FILE_TYPE_SUBDIR_MAP`
+  (fileLibraryController), `FILE_TYPE_SUBDIR` (massFileRenameEcoService). The
+  route-param-keyed `TYPE_MAP` in fileLibraryController stays (distinct keying).
+- [x] Removed the disabled `massUpdateFileName` endpoint end-to-end: controller
+  stub (always 400), route `PUT /type/:type/rename`, and the unused client
+  `api.massRenameFile` definition.
+- [~] Log-format sweep: **scoped out as low-value churn.** ~175 plain
+  `console.*` calls span 17 files; a blanket reformat to `[LEVEL] [Service]`
+  is purely cosmetic, high-noise, and risk-positive. Files touched in this pass
+  already use the convention. Documented as an optional future stylistic task.
+- [x] Final `SPEC.md` + `CHANGELOG.md` reconciliation done (V25, V4, T3, B7,
+  removed `I.spec_tpl`); SPEC kept in sync per-phase rather than in one batch.
 
 **Acceptance:** less duplication, consistent conventions, `./test.sh` green.
 

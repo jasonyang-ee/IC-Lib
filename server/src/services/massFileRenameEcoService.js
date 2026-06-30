@@ -11,20 +11,13 @@ import {
   shouldStageSharedRenameForStatus,
 } from './componentLifecycleService.js';
 import { regenerateCadText } from './cadFileService.js';
+import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const LIBRARY_BASE = path.resolve(__dirname, '../../..', 'library');
-
-const FILE_TYPE_SUBDIR = Object.freeze({
-  footprint: 'footprint',
-  symbol: 'symbol',
-  model: 'model',
-  pspice: 'pspice',
-  pad: 'pad',
-});
 
 export const MASS_FILE_RENAME_LABEL = 'Shared File Rename';
 export const MASS_FILE_RENAME_PIPELINE_TYPE = 'shared_file_rename';

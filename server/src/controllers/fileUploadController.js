@@ -4,7 +4,12 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import pool from '../config/database.js';
-import { MODEL_FILE_EXTENSIONS, PSPICE_MODEL_FILE_EXTENSIONS, PSPICE_SYMBOL_FILE_EXTENSIONS } from '../constants/cadFiles.js';
+import {
+  CAD_FILE_TYPE_TO_COLUMN as CATEGORY_TO_COLUMN,
+  MODEL_FILE_EXTENSIONS,
+  PSPICE_MODEL_FILE_EXTENSIONS,
+  PSPICE_SYMBOL_FILE_EXTENSIONS,
+} from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
 import { getCadFileBaseName, normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
 
@@ -41,15 +46,6 @@ const FILE_CATEGORIES = {
     extensions: ['.zip', '.7z'],
     subdir: 'libraries',
   },
-};
-
-// Map file category to database column name
-const CATEGORY_TO_COLUMN = {
-  footprint: 'pcb_footprint',
-  symbol: 'schematic',
-  model: 'step_model',
-  pspice: 'pspice',
-  pad: 'pad_file',
 };
 
 // Valid CAD file categories (excludes 'libraries' which is for ZIPs)

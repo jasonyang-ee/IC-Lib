@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
+import { CAD_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { buildFootprintRenameTargets } from '../utils/footprintFiles.js';
 import { isEcoEnabled } from '../utils/featureFlags.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
@@ -175,14 +176,6 @@ export const getComponentsByFile = async (req, res) => {
 };
 
 /**
- * Mass update file name via cad_files table and regenerate TEXT columns.
- * Uses cadFileService.renameCadFile for the rename operation.
- */
-export const massUpdateFileName = async (req, res) => {
-  res.status(400).json({ error: 'Database-only rename is no longer supported. Rename updates must apply to both the physical file and CAD links.' });
-};
-
-/**
  * Search files by name pattern.
  * Uses cad_files table via cadFileService.
  */
@@ -200,9 +193,8 @@ export const searchFiles = async (req, res) => {
     const results = await cadFileService.searchCadFiles(searchQuery, fileType);
 
     // Only return files that physically exist on disk
-    const FILE_TYPE_SUBDIR = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
     const existingResults = results.filter(f => {
-      const subdir = FILE_TYPE_SUBDIR[f.file_type];
+      const subdir = CAD_TYPE_SUBDIR[f.file_type];
       if (!subdir) return false;
       return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
     });
@@ -620,9 +612,8 @@ export const getOrphanFiles = async (req, res) => {
     const orphans = await cadFileService.getOrphanCadFiles(fileType);
 
     // Only return orphans that physically exist on disk
-    const FILE_TYPE_SUBDIR_MAP = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
     const existingOrphans = orphans.filter(f => {
-      const subdir = FILE_TYPE_SUBDIR_MAP[f.file_type];
+      const subdir = CAD_TYPE_SUBDIR[f.file_type];
       if (!subdir) return false;
       return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
     });
@@ -937,9 +928,8 @@ export const getAvailableFiles = async (req, res) => {
     }
 
     // Filter DB files to only those that physically exist on disk
-    const FILE_TYPE_SUBDIR = { footprint: 'footprint', symbol: 'symbol', model: 'model', pspice: 'pspice', pad: 'pad' };
     dbFiles = dbFiles.filter((f) => {
-      const subdir = FILE_TYPE_SUBDIR[f.file_type];
+      const subdir = CAD_TYPE_SUBDIR[f.file_type];
       if (!subdir) return false;
       return cadFileService.isTrackableCadFile(f.file_name, f.file_type)
         && fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));

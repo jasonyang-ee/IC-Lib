@@ -2,7 +2,12 @@ import pool from '../config/database.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { MODEL_FILE_EXTENSIONS, PSPICE_FILE_EXTENSIONS } from '../constants/cadFiles.js';
+import {
+  CAD_FILE_TYPE_TO_COLUMN as FILE_TYPE_TO_COLUMN,
+  CAD_TYPE_SUBDIR as TYPE_SUBDIR,
+  MODEL_FILE_EXTENSIONS,
+  PSPICE_FILE_EXTENSIONS,
+} from '../constants/cadFiles.js';
 import {
   FOOTPRINT_PRIMARY_EXTENSIONS,
   FOOTPRINT_SECONDARY_EXTENSION,
@@ -14,24 +19,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const LIBRARY_BASE = path.resolve(__dirname, '../../..', 'library');
-
-// Map file type to filesystem subdirectory
-const TYPE_SUBDIR = {
-  footprint: 'footprint',
-  symbol: 'symbol',
-  model: 'model',
-  pspice: 'pspice',
-  pad: 'pad',
-};
-
-// Map cad_files file_type to TEXT column name in components table
-const FILE_TYPE_TO_COLUMN = {
-  footprint: 'pcb_footprint',
-  symbol: 'schematic',
-  model: 'step_model',
-  pspice: 'pspice',
-  pad: 'pad_file',
-};
 
 const FOOTPRINT_RELATED_FILE_TYPES = ['pad', 'model'];
 

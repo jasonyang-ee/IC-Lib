@@ -11,7 +11,6 @@ import {
   getFilesByType,
   getFileTypeStats,
   getComponentsByFile,
-  massUpdateFileName,
   searchFiles,
   renamePhysicalFile,
   renameFootprintGroup,
@@ -64,9 +63,6 @@ router.get('/type/:type', canAccessFileLibrary, getFilesByType);
 
 // Get components using a specific file
 router.get('/type/:type/components', canAccessFileLibrary, getComponentsByFile);
-
-// Mass update file name in DB (requires write permission)
-router.put('/type/:type/rename', canAccessFileLibrary, canWrite, massUpdateFileName);
 
 // Rename physical file on disk + update DB refs (requires write permission)
 router.put('/type/:type/rename-file', canAccessFileLibrary, canWrite, renamePhysicalFile);

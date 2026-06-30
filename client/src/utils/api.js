@@ -299,7 +299,6 @@ export const api = {
   getComponentsByFile: (type, fileName, fileNames) => apiClient.get(`/file-library/type/${type}/components`, {
     params: fileNames?.length ? { fileNames } : { fileName },
   }),
-  massRenameFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename`, data),
   searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
   renameFootprintGroup: (fileNames, newBaseName) => apiClient.put('/file-library/type/footprint/rename-group', { fileNames, newBaseName }),
