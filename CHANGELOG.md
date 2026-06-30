@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Startup database logging now states the path taken explicitly: blank DB -> "running init-schema.sql, then migrations"; existing DB -> "skipping init-schema, applying migrations only". The migration runner additionally logs discovered/already-applied/pending counts, and the default-settings step is labeled an idempotent seed rather than an init.
+- Removed the online `ALTER TABLE cad_files ADD COLUMN IF NOT EXISTS missing` from `server/src/index.js` (ran on every boot, after `listen`); the column is owned by `init-schema.sql` (fresh DBs) and `1_legacy_schema_repairs.sql` (existing DBs) and enforced by startup schema inspection.
 - Refined `CLAUDE.md` project-structure map and key-features list to match current code; corrected role set (`lab` added) and command list.
 - `SPEC.md` §V21 now includes `reviewing -> archived` status proposal to match `client/src/utils/ecoStatusProposalOptions.js`.
 - Removed `UX.md` (content folded into `SPEC.md` §U).

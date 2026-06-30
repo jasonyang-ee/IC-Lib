@@ -93,7 +93,10 @@ async function runMigrations() {
     const pendingMigrations = migrationFiles.filter(filename => !executedMigrations.has(filename));
     let migrationsRun = 0;
     const totalPending = pendingMigrations.length;
+    const alreadyApplied = migrationFiles.length - totalPending;
     const executedMigrationNames = [];
+
+    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m ${migrationFiles.length} migration file(s) found; ${alreadyApplied} already applied, ${totalPending} pending`);
 
     if (totalPending > 0) {
       console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Pending migrations: ${pendingMigrations.join(', ')}`);
@@ -195,7 +198,7 @@ async function initializeDefaultSettings() {
   const client = await pool.connect();
 
   try {
-    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Initializing default settings data...');
+    console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Seeding default settings (idempotent, ON CONFLICT DO NOTHING)...');
 
     const sqlFilePath = path.resolve(__dirname, '../../../database/init-settings.sql');
 
@@ -456,7 +459,7 @@ export async function initializeAuthentication() {
     const isBlankDB = await checkIsBlankDatabase();
 
     if (isBlankDB) {
-      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database detected - applying init-schema.sql before migrations');
+      console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[Database]\x1b[0m Blank database -> running init-schema.sql, then migrations');
 
       const initialized = await initializePartsDatabase();
 
@@ -465,6 +468,8 @@ export async function initializeAuthentication() {
         console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Core functionality will not work until this is resolved');
         return false;
       }
+    } else {
+      console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Database]\x1b[0m Existing database -> skipping init-schema, applying migrations only');
     }
 
     console.log('\x1b[32m[INFO]\x1b[0m \x1b[36m[Migration]\x1b[0m Checking for pending migrations...');

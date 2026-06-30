@@ -125,23 +125,22 @@ exactly which path it took, in full detail.
 
 **Tasks:**
 
-- [ ] Remove the inline `ALTER` from `index.js`. Confirm `missing` is created by
-  a migration for fresh DBs and present in `init-schema.sql`; if any path can
-  miss it, add a dedicated idempotent migration instead.
-- [ ] Add explicit branch logging in `initializeAuthentication`:
-  `[Database] Existing database detected -> skipping init, applying migrations only`
-  vs `[Database] Blank database -> running init-schema then migrations`.
-- [ ] Enhance `runMigrations` logging: already lists pending + per-file
-  apply/complete + summary; add a one-line "skipping N already-applied
-  migrations" and (where practical) statement/rowcount per migration.
-- [ ] Re-examine `checkIsBlankDatabase` robustness for a **partially**
-  initialized DB (some critical tables present) — today any one of the 4
-  critical tables makes it "existing"; confirm that is the intended contract and
-  that the post-migration schema inspection (`inspectDatabaseSchema`) catches
-  the partial case and fails boot per `§V4`.
-- [ ] Confirm `initializeDefaultSettings()` running on every boot is acceptable
-  (idempotent seed) and is logged as a seed step, not an "init".
-- [ ] Update `SPEC.md §V4`/`§V5` if wording needs to match clarified behavior.
+- [x] Removed the inline `ALTER` from `index.js`. Verified `missing` is created
+  by `init-schema.sql:250` (fresh) and `1_legacy_schema_repairs.sql` (existing)
+  and enforced by `REPAIRABLE_SCHEMA_COLUMNS`. Dropped the now-unused `pool`
+  import.
+- [x] Added explicit branch logging in `initializeAuthentication`: blank ->
+  "running init-schema.sql, then migrations"; existing -> "skipping init-schema,
+  applying migrations only".
+- [x] `runMigrations` now logs "N file(s) found; X already applied, Y pending"
+  alongside the existing pending list + per-file apply/complete + summary.
+- [x] `checkIsBlankDatabase` contract confirmed and documented in `§V4`:
+  blank = none of the 4 critical tables; a partially-initialized DB is treated
+  as existing (migrations only) and a still-missing object fails boot at
+  `inspectDatabaseSchema` rather than silently half-initializing.
+- [x] `initializeDefaultSettings()` log relabeled as an idempotent seed
+  (`ON CONFLICT DO NOTHING`), not an init.
+- [x] Updated `SPEC.md §V4` to the precise init-only-if-empty contract.
 
 **Acceptance:**
 

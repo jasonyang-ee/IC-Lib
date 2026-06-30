@@ -159,6 +159,8 @@ describe('initializeAuthentication', () => {
     expect(executedSql).toContain('INIT_SETTINGS_SQL');
     expect(executedSql.indexOf('INIT_SCHEMA_SQL')).toBeLessThan(executedSql.indexOf('MIGRATION_ONE_SQL'));
     expect(mocks.inspectDatabaseSchema).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Blank database -> running init-schema.sql, then migrations'));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 migration file(s) found; 0 already applied, 1 pending'));
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Pending migrations: 1_legacy_schema_repairs.sql'));
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Migration 1_legacy_schema_repairs.sql completed (1/1)'));
     expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Executed migrations: 1_legacy_schema_repairs.sql'));
@@ -223,5 +225,6 @@ describe('initializeAuthentication', () => {
     await expect(initializeAuthentication()).resolves.toBe(true);
     expect(executedSql).toEqual(['INIT_SETTINGS_SQL']);
     expect(mocks.inspectDatabaseSchema).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Existing database -> skipping init-schema, applying migrations only'));
   });
 });
