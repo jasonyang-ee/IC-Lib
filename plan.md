@@ -196,15 +196,29 @@ missing table; `./test.sh` green.
 
 **Tasks:**
 
-- [ ] Audit all 47 test files for: trivial/duplicate assertions, over-mocked
-  tests that assert the mock, and brittle snapshot/timing tests. Prune or
-  strengthen — document each removal in the commit body.
-- [ ] **T4:** add integration coverage for library add/edit, ECO retry from
-  rejected lineage, and temp-file finalize (`§V7,V8,V14,V15`).
-- [ ] **T6/B5:** add regression tests enforcing one schematic `.olb` slot + one
-  PSpice `.olb` slot across upload/link/ECO (`§V8,V22`).
-- [ ] Fold in the Phase 1 file-op drift tests if not already added there.
-- [ ] Update `SPEC.md §T` statuses (T4, T6) and `§B5`.
+- [x] Audited the suite (now 46 files after pruning). Generally high quality
+  (real behavior, not mocks). Removed `database.test.js` (mocked the pool then
+  asserted the mock it created was defined — zero coverage). No other clearly
+  useless tests found.
+- [x] Fixed `initializationService.test.js` using `afterEach` as a vitest global
+  while importing the other hooks explicitly (worked via `globals:true`, but
+  inconsistent) — now imported.
+- [x] Added `adminController.test.js` locking the stats query to
+  `component_specification_values` (regression guard for B7, carried from P3).
+- [x] Phase 1 file-op drift tests already added
+  (`cadFileServiceTransactions.test.js`).
+- [~] **T4** (integration add/edit/ECO-retry/finalize): existing controller
+  suite + the new transaction/admin tests cover meaningful slices; full
+  end-to-end integration coverage remains a dedicated follow-up (no live DB in
+  the test harness — would need a controller-level fixture pass). Left `T4=.`.
+- [ ] **T6/B5 DEFERRED — needs decision.** The single-file guard
+  (`SINGLE_FILE_CATEGORIES=['symbol','model']`) is category-keyed, but the
+  PSpice `.olb` symbol is a *role within* the `pspice` category, which also holds
+  multi-allowed `.lib` libraries. Enforcing one PSpice symbol requires
+  role-aware conflict detection across upload + save-guard + keep/replace modal
+  (client) and the link/ECO guards (server, `§V22`), without restricting `.lib`.
+  This is a delicate UX-affecting change; recommend a focused follow-up with the
+  keep-vs-replace behavior confirmed. Left `T6=.`, `B5` open.
 
 **Acceptance:** test count rationalized with rationale; new gaps covered;
 `./test.sh` green.
