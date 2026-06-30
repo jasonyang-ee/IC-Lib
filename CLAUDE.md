@@ -1,8 +1,9 @@
 ## Commands
 
-- `./start.sh` — start dev server (client + server).
-- `./test.sh` — run lint + tests before end.
-- `/caveman-commit` — single commit summary. always use and provide at end of chat.
+- `./setup.sh`: set up Python dev env.
+- `./start.sh`: start app at http://localhost:8081.
+- `./test.sh`: run tests + linters. always run before ending chat.
+- `/caveman-commit` — single commit summary. always use at end of chat.
 - `/caveman-compress` — compress this `AGENTS.md`.
 - `/spec` — sync `SPEC.md` with code + future SDD.
 
@@ -11,6 +12,12 @@
 - `AGENTS.md` = repo work rules.
 - `SPEC.md` = system truth. read prior to backend and frontend dev. update as code evolves.
 - `UX.md` = user path map. read prior to frontend dev. update as UI evolves.
+
+## AI File Purpose
+
+- `AGENTS.md` = repo work rules.
+- `SPEC.md` = single system truth (incl. operator UX in §U). read before backend/frontend work. update as code changes.
+- `FORMAT.md` = SPEC.md section + caveman encoding rules.
 
 ## Project Structure
 
@@ -57,7 +64,10 @@ IC-Lib/
 - **Inventory + Projects**: stock/location flows, barcode lookup, BOM/project consume/export
 - **Audit + Ops**: activity log, reports, SMTP/admin settings, DB maintenance/import scripts
 
-## Release Checklist
+## End of Chat Checklist
 
-- Update `CHANGELOG.md` `## [Unreleased]` for every feature/fix
-- Run `/caveman-commit` for single summary commit
+- Update `CHANGELOG.md` `## [Unreleased]` for every feature/fix.
+- Update `SPEC.md` with any code changes or new features (§U for UI changes).
+- Provide single summary commit.
+- Ensure all lint and tests pass.
+- Never commit. I will do git operations.
