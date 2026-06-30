@@ -5,8 +5,11 @@ import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils
 import {
   buildOlbCategoryAssignments,
   CAD_FILE_UPLOAD_ACCEPT,
+  getCadFileSlot,
+  getPspiceFileRole,
   isAmbiguousCadUploadFile,
   PSPICE_LABEL,
+  PSPICE_SYMBOL_LABEL,
   SCHEMATIC_SYMBOL_LABEL,
   THREE_D_MODEL_LABEL,
 } from '../../utils/cadFileTypes';
@@ -33,9 +36,26 @@ const CATEGORY_ORDER = ['symbol', 'footprint', 'pad', 'model', 'pspice', 'librar
 // Categories that support renaming (pad files are excluded)
 const RENAMEABLE_CATEGORIES = ['footprint', 'symbol', 'model', 'pspice'];
 
-// Categories restricted to a single file per component
-const SINGLE_FILE_CATEGORIES = ['symbol', 'model'];
-const SINGLE_FILE_LABELS = { symbol: SCHEMATIC_SYMBOL_LABEL, model: THREE_D_MODEL_LABEL };
+// Single-file "slots": at most one file may occupy each per component. The slot
+// classification lives in cadFileTypes (getCadFileSlot); PSpice .lib libraries
+// are multi-allowed while the PSpice symbol (.olb) is single-slot by role.
+const SLOT_LABELS = {
+  symbol: SCHEMATIC_SYMBOL_LABEL,
+  model: THREE_D_MODEL_LABEL,
+  'pspice-symbol': PSPICE_SYMBOL_LABEL,
+};
+
+// Files from a prior-files map (category -> file objects with `.name`) that
+// already occupy a given single-file slot.
+const getSlotOccupants = (slot, priorFiles) => {
+  if (slot === 'pspice-symbol') {
+    return (priorFiles.pspice || []).filter((file) => getPspiceFileRole(file.name) === 'symbol');
+  }
+  if (slot === 'symbol') return priorFiles.symbol || [];
+  if (slot === 'model') return priorFiles.model || [];
+  return [];
+};
+
 const MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024;
 
 // Normalize file extension to lowercase (e.g., "file.OLB" → "file.olb")
@@ -69,25 +89,31 @@ function collectUploadResultEntries(results) {
 function detectSingleFileConflicts(entries, priorFiles) {
   const conflictingKeys = new Set();
   let firstConflict = null;
-  const nextCounts = new Map(
-    SINGLE_FILE_CATEGORIES.map((category) => [category, priorFiles[category]?.length || 0]),
-  );
+  const slotCounts = new Map();
+
+  const occupantCount = (slot) => {
+    if (!slotCounts.has(slot)) {
+      slotCounts.set(slot, getSlotOccupants(slot, priorFiles).length);
+    }
+    return slotCounts.get(slot);
+  };
 
   for (const entry of entries) {
     const { category, filename, tempFilename } = entry;
-    if (!SINGLE_FILE_CATEGORIES.includes(category)) {
+    const slot = getCadFileSlot(category, filename);
+    if (!slot) {
       continue;
     }
 
-    const currentCount = nextCounts.get(category) || 0;
-    if (currentCount > 0) {
+    if (occupantCount(slot) > 0) {
       const key = `${category}:${filename}`;
       conflictingKeys.add(key);
       if (!firstConflict) {
+        const occupants = getSlotOccupants(slot, priorFiles);
         firstConflict = {
           category,
-          categoryLabel: SINGLE_FILE_LABELS[category] || CATEGORY_LABELS[category] || category,
-          existingFile: priorFiles[category]?.[0]?.name || filename,
+          categoryLabel: SLOT_LABELS[slot] || CATEGORY_LABELS[category] || category,
+          existingFile: occupants[0]?.name || filename,
           newFile: filename,
           newTempFilename: tempFilename,
           isLink: false,
@@ -95,7 +121,7 @@ function detectSingleFileConflicts(entries, priorFiles) {
       }
     }
 
-    nextCounts.set(category, currentCount + 1);
+    slotCounts.set(slot, occupantCount(slot) + 1);
   }
 
   return { conflictingKeys, firstConflict };
@@ -1382,17 +1408,19 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
             return;
           }
 
-          // Check single-file category conflict
-          if (cat && SINGLE_FILE_CATEGORIES.includes(cat) && filesRef.current[cat]?.length > 0) {
-            const [file] = selectedFiles;
+          // Check single-file slot conflict (symbol, 3D model, or PSpice symbol).
+          const [firstSelected] = selectedFiles;
+          const conflictSlot = firstSelected?.file_name ? getCadFileSlot(cat, firstSelected.file_name) : null;
+          const slotOccupants = conflictSlot ? getSlotOccupants(conflictSlot, filesRef.current) : [];
+          if (conflictSlot && slotOccupants.length > 0) {
             setFileConflict({
               category: cat,
-              categoryLabel: SINGLE_FILE_LABELS[cat] || CATEGORY_LABELS[cat] || cat,
-              existingFile: filesRef.current[cat][0].name,
-              newFile: file.file_name,
+              categoryLabel: SLOT_LABELS[conflictSlot] || CATEGORY_LABELS[cat] || cat,
+              existingFile: slotOccupants[0].name,
+              newFile: firstSelected.file_name,
               newTempFilename: null,
               isLink: true,
-              cadFileId: file.id,
+              cadFileId: firstSelected.id,
             });
             setLinkPicker({ show: false, category: '' });
             return;

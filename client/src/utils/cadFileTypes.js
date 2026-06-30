@@ -87,6 +87,17 @@ export const getPspiceFileLabel = (fileName) => {
   return PSPICE_LABEL;
 };
 
+// Single-file "slot" a CAD file occupies on a component, or null if the file
+// type allows multiple per component. Schematic symbol and 3D model are single
+// slots by category; for PSpice only the symbol (.olb) is single-slot, while
+// .lib libraries stay multi-allowed — so the slot is keyed by role, not category.
+export const getCadFileSlot = (category, fileName) => {
+  if (category === 'symbol') return 'symbol';
+  if (category === 'model') return 'model';
+  if (category === 'pspice' && getPspiceFileRole(fileName) === 'symbol') return 'pspice-symbol';
+  return null;
+};
+
 export const buildOlbCategoryAssignments = (files, { hasExistingSymbol = false } = {}) => {
   let symbolAssigned = hasExistingSymbol;
 

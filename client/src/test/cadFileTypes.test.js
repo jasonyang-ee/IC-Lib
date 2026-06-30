@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildOlbCategoryAssignments,
   CAD_FILE_UPLOAD_ACCEPT,
+  getCadFileSlot,
   getPspiceFileLabel,
   isAmbiguousCadUploadFile,
   MODEL_FILE_EXTENSIONS,
@@ -46,5 +47,18 @@ describe('cadFileTypes', () => {
     ], { hasExistingSymbol: true })).toEqual([
       { tempFilename: 'temp-3', filename: 'third.olb', assignedCategory: 'pspice' },
     ]);
+  });
+
+  it('classifies single-file slots, keeping the PSpice symbol single but .lib multi (T6/B5)', () => {
+    expect(getCadFileSlot('symbol', 'LMV321.olb')).toBe('symbol');
+    expect(getCadFileSlot('model', 'LMV321.step')).toBe('model');
+    // Only the PSpice symbol (.olb) is single-slot...
+    expect(getCadFileSlot('pspice', 'LMV321.olb')).toBe('pspice-symbol');
+    // ...PSpice libraries stay multi-allowed.
+    expect(getCadFileSlot('pspice', 'LMV321.lib')).toBeNull();
+    expect(getCadFileSlot('pspice', 'LMV321.cir')).toBeNull();
+    // Footprint and pad are never slot-restricted.
+    expect(getCadFileSlot('footprint', 'SOIC8.psm')).toBeNull();
+    expect(getCadFileSlot('pad', 'pad1.pad')).toBeNull();
   });
 });

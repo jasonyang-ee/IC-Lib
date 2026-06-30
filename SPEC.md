@@ -101,6 +101,7 @@ V21: ECO status proposal UI/API ! allow `new -> prototype`, `reviewing -> archiv
 V22: ECO CAD diff/apply key on persisted `file_type`; same-ext `.olb` in `symbol` vs `pspice` ! stay isolated through ECO submit/approve, so link/unlink in one role ⊥ mutate the other role by filename/ext coincidence.
 V23: vendor-search append flows ! normalize optional FK lookups before component/alternative distributor writes: blank `manufacturer_id|distributor_id` -> `null`/skip; alternative create may resolve/create manufacturer by `manufacturer_name` when local ID miss.
 V24: admin bulk vendor refresh queues oldest sync first: stock -> supported distributor rows by `distributor_info.last_vendor_sync_at`; specs -> DigiKey-backed components by `components.last_specs_refresh_at`; non-rate-limit completion bumps cursor even when vendor data missing; vendor daily-limit reject -> abort batch @ current item.
+V26: component CAD single-file slots ! ≤1 per component: schematic symbol, 3D model, PSpice symbol (`.olb`). PSpice `.lib` libraries multi-allowed. slot keyed by `getCadFileSlot(category,filename)` (role-aware for pspice via `getPspiceFileRole`). upload|link of 2nd file into an occupied slot -> keep-vs-replace conflict modal (`client/src/components/library/ComponentFiles.jsx`, mirrors symbol/model guard); ECO CAD diff stays `file_type`-isolated per V22.
 V25: CAD fs mutation ! atomic across disk+DB. rename (`renameCadFile`, file-library single-file rename, part-edit `renameFile`, ECO `applyMassFileRenameEco`, `renameFootprintGroup`): physical rename + `cad_files` update + TEXT regen ∈ 1 txn; fail → DB rollback + best-effort physical revert. delete (`deleteCadFile`): DB row delete + TEXT regen ∈ txn, unlink only post-COMMIT (crash → harmless on-disk orphan re-surfaced by scan, ⊥ DB row → missing file). same-inode case-only rename ⊥ collision reject. temp finalize move-then-register self-heals via scan.
 
 ## §T
@@ -111,7 +112,7 @@ T2|x|seed `alt_parts|shared_file_rename` into default ECO stage SQL + legacy rep
 T3|x|delete dead `/api/specification-templates/*` surface (no client use, no table; category specs live in `category_specifications`)|V18,B2
 T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7,V8,V14,V15,I.lib,I.file,I.eco
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
-T6|.|enforce 1 schematic `.olb` slot + 1 PSpice `.olb` slot across upload/link/ECO flows; add focused server/client regression coverage|V8,V15,V22,I.lib,I.eco
+T6|x|enforce single PSpice `.olb` symbol slot (role-aware `getCadFileSlot`) in upload/link conflict guard w/ keep-vs-replace modal; `.lib` multi stays; client regression in `cadFileTypes.test.js`|V8,V22,V26,B5
 
 ## §B
 
