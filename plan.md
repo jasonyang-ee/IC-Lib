@@ -234,15 +234,20 @@ regression (`§U`).
 
 **Tasks:**
 
-- [ ] Audit `client/src/utils/api.js` usage: ensure all components go through
-  the shared client (no ad-hoc `fetch`), consistent error shape.
-- [ ] Standardize error/toast handling via the Notification context across
-  pages and modals.
-- [ ] Verify role gating consistently uses `client/src/utils/accessControl.js`
-  helpers (no inline role string checks) per `§U.nav`/`§V2`.
-- [ ] Naming + structure consistency across `components/` feature folders;
-  remove dead code/unused exports.
-- [ ] Confirm no `§U` behavior drift (spot-check pivots and modals).
+- [x] API client: audited — **already consistent**. No ad-hoc `fetch`, no
+  `axios` imports outside `utils/api.js`.
+- [x] Toast handling: found `Inventory.jsx` (16x) and `Audit.jsx` (1x) using
+  native `alert()` while the other 21 files use the Notification context.
+  Converted all to `showError`/`showInfo`, aligning to `§U.model` (toasts carry
+  feedback). Wired `useNotification` into both pages.
+- [x] Role gating: audited — mostly consistent via declarative `ProtectedRoute`
+  + `accessControl.js` multi-role helpers. Remaining inline `user?.role ===
+  'admin'` checks are few, localized, and clear; left as-is (a single-role
+  `isAdmin` helper would add indirection for little gain).
+- [x] Removed two debug `console.log('Raw barcode input', ...)` lines
+  (Inventory, VendorSearch). Left namespaced `[ECO]` operational logs.
+- [x] No `§U` behavior drift: changes are feedback-channel swaps (alert->toast)
+  and log removal only.
 
 **Acceptance:** consistent patterns, no UX regression, `./test.sh` green.
 

@@ -6,6 +6,7 @@ import { api } from '../utils/api';
 import { QRCodeSVG } from 'qrcode.react';
 import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { InventorySidebar, InventoryTable, QRCodeModal } from '../components/inventory';
 
 // [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
@@ -16,6 +17,7 @@ const Inventory = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { canWrite } = useAuth();
+  const { showError } = useNotification();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedProject, setSelectedProject] = useState('');
   const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
@@ -273,8 +275,6 @@ const Inventory = () => {
     if (!barcode || barcode.trim() === '') {
       return;
     }
-
-    console.log('Raw barcode input:', barcode);
 
     // Define control characters
     const GS = String.fromCharCode(29); // Group Separator
@@ -605,7 +605,7 @@ const Inventory = () => {
         setEditedItems({});
         setEditingAlternative({});
       } catch (error) {
-        alert('Error saving changes: ' + (error.message || 'Unknown error'));
+        showError('Error saving changes: ' + (error.message || 'Unknown error'));
       }
     } else {
       setEditMode(false);
@@ -692,11 +692,11 @@ const Inventory = () => {
         setCopiedLabel(itemId);
         setTimeout(() => setCopiedLabel(''), 2000);
       } else {
-        alert('Failed to copy to clipboard. Please copy manually.');
+        showError('Failed to copy to clipboard. Please copy manually.');
       }
     } catch (err) {
       console.error('Fallback copy failed:', err);
-      alert('Failed to copy to clipboard. Please copy manually.');
+      showError('Failed to copy to clipboard. Please copy manually.');
     }
   };
 
@@ -718,11 +718,11 @@ const Inventory = () => {
         setCopiedQRField(fieldId);
         setTimeout(() => setCopiedQRField(''), 2000);
       } else {
-        alert('Failed to copy to clipboard. Please copy manually.');
+        showError('Failed to copy to clipboard. Please copy manually.');
       }
     } catch (err) {
       console.error('Fallback copy failed:', err);
-      alert('Failed to copy to clipboard. Please copy manually.');
+      showError('Failed to copy to clipboard. Please copy manually.');
     }
   };
 
@@ -730,14 +730,14 @@ const Inventory = () => {
     try {
       // Check if clipboard API is available for images
       if (!navigator.clipboard || !navigator.clipboard.write) {
-        alert('Image copying is not supported in your browser or context. Please use right-click > Save Image or screenshot the QR code.');
+        showError('Image copying is not supported in your browser or context. Please use right-click > Save Image or screenshot the QR code.');
         return;
       }
 
       // Find the SVG element
       const svgElement = document.querySelector(`#qr-${fieldId} svg`);
       if (!svgElement) {
-        alert('QR code not found. Please try again.');
+        showError('QR code not found. Please try again.');
         return;
       }
 
@@ -764,19 +764,19 @@ const Inventory = () => {
             setTimeout(() => setCopiedQRField(''), 2000);
           } catch (err) {
             console.error('Failed to copy QR code image:', err);
-            alert('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
+            showError('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
           }
         });
       };
       
       img.onerror = () => {
-        alert('Failed to load QR code image. Please try again.');
+        showError('Failed to load QR code image. Please try again.');
       };
       
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     } catch (error) {
       console.error('Error copying QR code:', error);
-      alert('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
+      showError('Failed to copy QR code image. Please try using right-click > Save Image or take a screenshot.');
     }
   };
 
@@ -848,19 +848,19 @@ const Inventory = () => {
             setTimeout(() => setCopiedQRField(''), 2000);
           } catch (err) {
             console.error('Clipboard write error:', err);
-            alert('Failed to copy QR code image to clipboard.');
+            showError('Failed to copy QR code image to clipboard.');
           }
         }, 'image/png');
       };
       
       img.onerror = () => {
-        alert('Failed to load QR code image. Please try again.');
+        showError('Failed to load QR code image. Please try again.');
       };
       
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     } catch (error) {
       console.error('Error copying QR code:', error);
-      alert('Failed to copy QR code image.');
+      showError('Failed to copy QR code image.');
     }
   };
 
@@ -925,19 +925,19 @@ const Inventory = () => {
             setTimeout(() => setCopiedQRField(''), 2000);
           } catch (err) {
             console.error('Clipboard write error:', err);
-            alert('Failed to copy QR code image to clipboard.');
+            showError('Failed to copy QR code image to clipboard.');
           }
         }, 'image/png');
       };
       
       img.onerror = () => {
-        alert('Failed to load QR code image. Please try again.');
+        showError('Failed to load QR code image. Please try again.');
       };
       
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
     } catch (error) {
       console.error('Error copying QR code:', error);
-      alert('Failed to copy QR code image.');
+      showError('Failed to copy QR code image.');
     }
   };
 

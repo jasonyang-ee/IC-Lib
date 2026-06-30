@@ -146,8 +146,6 @@ const VendorSearch = () => {
       return;
     }
 
-    console.log('Raw barcode input:', barcode);
-
     // Define control characters
     const GS = String.fromCharCode(29); // Group Separator
     const RS = String.fromCharCode(30); // Record Separator

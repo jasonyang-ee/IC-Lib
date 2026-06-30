@@ -3,8 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { Download } from 'lucide-react';
 import { AuditTable, AuditFilters } from '../components/audit';
+import { useNotification } from '../contexts/NotificationContext';
 
 const Audit = () => {
+  const { showInfo } = useNotification();
   const [searchTerm, setSearchTerm] = useState('');
   const [activityFilter, setActivityFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
@@ -83,7 +85,7 @@ const Audit = () => {
   // Export to CSV
   const exportToCSV = () => {
     if (!filteredData || filteredData.length === 0) {
-      alert('No data to export');
+      showInfo('No data to export');
       return;
     }
 
