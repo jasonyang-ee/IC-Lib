@@ -9,15 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 
+- `SPEC.md` §U operator-UX section (merged and compressed from `UX.md`).
 
 ### Changed
 
-- 
+- Refined `CLAUDE.md` project-structure map and key-features list to match current code; corrected role set (`lab` added) and command list.
+- `SPEC.md` §V21 now includes `reviewing -> archived` status proposal to match `client/src/utils/ecoStatusProposalOptions.js`.
+- Removed `UX.md` (content folded into `SPEC.md` §U).
 
 ### Fixed
 
-- 
+- `start.sh` dev mode now sources `.env` with auto-export instead of `export $(grep ... | xargs)`, so values with spaces, quotes, `=`, or `#` load intact.
+- `scripts/package.json` dropped broken `validate`/`verify`/`verify:detailed` scripts that pointed at non-existent `validate-csv.js`/`verify-import.js`.
 
 ## [1.10.0] - 2026-05-14
 

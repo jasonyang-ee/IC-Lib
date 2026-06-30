@@ -1,34 +1,40 @@
 ## Commands
 
-- `./setup.sh`: set up Python dev env.
-- `./start.sh`: start app at http://localhost:8081.
-- `./test.sh`: run tests + linters. always run before ending chat.
+- `./start.sh`: start app. dev mode if `.env` present (client :5173, backend :3500); else prod mode (nginx + node). auto-installs deps.
+- `./test.sh`: lint + test client/server/scripts. always run before ending chat. flags: `--lint-only|--test-only|--coverage|--watch`.
+- `./release.sh`: bump version, update `CHANGELOG.md`, tag, push, draft GitHub release. flags: `--major|--minor|--patch|--yes`.
 - `/caveman-commit` — single commit summary. always use at end of chat.
-- `/caveman-compress` — compress this `AGENTS.md`.
-- `/spec` — sync `SPEC.md` with code + future SDD.
+- `/caveman-compress` — compress this `CLAUDE.md`.
+- `/spec` — sync `SPEC.md` with code + SDD flow.
 
 ## AI File Purpose
 
-- `AGENTS.md` = repo work rules.
-- `SPEC.md` = system truth. read prior to backend and frontend dev. update as code evolves.
-- `UX.md` = user path map. read prior to frontend dev. update as UI evolves.
-
-## AI File Purpose
-
-- `AGENTS.md` = repo work rules.
+- `CLAUDE.md` = repo work rules (this file).
 - `SPEC.md` = single system truth (incl. operator UX in §U). read before backend/frontend work. update as code changes.
-- `FORMAT.md` = SPEC.md section + caveman encoding rules.
+- `FORMAT.md` = SPEC.md section layout + caveman encoding rules.
 
 ## Project Structure
 
-```
-IC-Lib/
-  client/          # React 19 + Vite + TailwindCSS v4 + React Query 5
-  server/          # Express.js + PostgreSQL + JWT auth
-  database/        # SQL schema + migrations
-  docker/          # nginx reverse proxy
-  scripts/         # CSV import utilities
-```
+Stack: `client/` React 19 + Vite + TailwindCSS v4 + React Query 5; `server/` Express 4 + PostgreSQL + JWT cookie auth.
+
+- `client/src/pages/` = route screens: Login, Dashboard, Library, FileLibrary, Inventory, VendorSearch, Projects, ECO, Reports, Audit, UserSettings, Settings (admin).
+- `client/src/components/` = feature folders (common, library, eco, fileLibrary, inventory, projects, settings, vendorSearch, audit) + Layout, Sidebar, ProtectedRoute.
+- `client/src/contexts/` = Auth, FeatureFlags, Notification providers.
+- `client/src/utils/` = api client, accessControl, bomExport, cadFile*, eco* helpers, basePath, libraryUtils.
+- `client/src/test/` = vitest setup.
+- `server/src/index.js` = app entry (startup verify/migrate -> listen); `server/src/repair.js` = CLI (`npm run repair -- admin-reset`).
+- `server/src/routes/` = `{entity}.js` express routers; `server/src/controllers/` = `{entity}Controller.js` handlers.
+- `server/src/services/` = `{name}Service.js` business logic (cad, eco*, email, digikey, mouser, footprint, schemaInspection, ...).
+- `server/src/middleware/auth.js` = authenticate + role/edit guards; `server/src/config/database.js` = pg pool.
+- `server/src/constants/` = cadFiles, ecoFields; `server/src/utils/` = featureFlags, footprintFiles, safeFsPaths.
+- `server/src/test/` = vitest suites.
+- `database/init-*.sql` = fresh base objects (schema, users + auth bootstrap, settings/categories/distributors/specs/ECO defaults, smtp); `reset-schema.sql` = full destructive rebuild.
+- `database/migrations/<int>_<desc>.sql` = numeric-ordered incremental changes (startup auto-applied).
+- `docker/` = nginx.conf reverse proxy + repair helper.
+- `scripts/` = `import.js` legacy CSV import + eslint config.
+- `library/` = CAD file tree: footprint|symbol|model|pspice|pad|template.
+- `import/` = CSV import source data; `image/` = static assets.
+- `Dockerfile`, `docker-compose.yml` = container build/run.
 
 ## Code Style
 
@@ -50,19 +56,22 @@ IC-Lib/
 
 ## Auth
 
-- Roles: `read-only`, `reviewer`, `read-write`, `approver`, `admin`
-- Server guards: `authenticate`, `canWrite`, `canApprove`, `isAdmin`
+- Roles: `read-only`, `reviewer`, `lab`, `read-write`, `approver`, `admin`
+- `lab` = `read-write` except File Library page/browse/manage (still uses component-scoped CAD helpers in Library edit)
+- Server guards (`middleware/auth.js`): `authenticate`, `canWrite`, `canApprove`, `isAdmin`, `canDeleteLibraryFiles` (approver|admin), `canAccessFileLibrary` (read-write|approver|admin), `canDirectEditComponent`/`canDirectEditComponentByBody` (ECO-mode edit policy)
+- Client role helpers: `client/src/utils/accessControl.js`
 - Optional-actor read flows use `req.user?.id || null`
 - Do not add auth to inventory/project/dashboard read paths unless feature explicitly changes access model
 
 ## Key Features
 
-- Repo map only. Product behavior, invariants, statuses live in `SPEC.md`.
-- **Component Library**: component CRUD, vendor-assisted intake, specs, distributors, alt parts
-- **CAD Files**: temp upload/finalize, shared file library, junction-backed links, ZIP flows
-- **ECO**: staged change-control, approvals, PDF/email outputs
-- **Inventory + Projects**: stock/location flows, barcode lookup, BOM/project consume/export
-- **Audit + Ops**: activity log, reports, SMTP/admin settings, DB maintenance/import scripts
+- Repo map only. Product behavior, invariants, statuses live in `SPEC.md` (§U = operator UX).
+- **Component Library**: component CRUD, category-driven numbering, specs + custom specs + vendor-field mapping, distributors w/ price breaks, alternative parts, approval status lifecycle, project-assignment view
+- **Vendor Search**: Digikey + Mouser lookup, barcode/camera scan, multi-select, add-to-library draft seed, append-to-existing, Ultra Librarian / SnapEDA footprint fetch
+- **CAD Files**: temp upload/finalize, shared file library (file-types + category modes), junction-backed component links, footprint-driven pad/3D-model reuse history, ZIP flows, orphan cleanup, library scan, CIS template downloads
+- **ECO**: staged change-control, pipeline-tag routing, multi-stage approvals w/ parallel groups + delegation, status-proposal transitions, retry from rejected lineage, shared file-rename governance, PDF + email outputs
+- **Inventory + Projects**: stock/location/minimum flows, barcode lookup, QR/label tools, project BOM w/ lowest-break pricing, consume-all, CSV BOM export
+- **Audit + Ops + Admin**: activity log, reports (quality/coverage/value/stock), dashboard stats, SMTP config, category/manufacturer admin, bulk vendor stock/spec refresh, DB verify/init/backup/reset, legacy CSV import (`scripts/import.js`)
 
 ## End of Chat Checklist
 
@@ -70,4 +79,4 @@ IC-Lib/
 - Update `SPEC.md` with any code changes or new features (§U for UI changes).
 - Provide single summary commit.
 - Ensure all lint and tests pass.
-- Never commit. I will do git operations.
+- Commit without adding trailing claude co-author text. Use `/caveman-commit` command for commit message.

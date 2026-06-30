@@ -7,11 +7,8 @@
   "main": "import.js",
   "type": "module",
   "scripts": {
-    "validate": "node validate-csv.js",
     "import": "node import.js",
     "import:dry-run": "node import.js --dry-run",
-    "verify": "node verify-import.js",
-    "verify:detailed": "node verify-import.js --detailed",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "node import.js --dry-run --file=Diodes"

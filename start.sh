@@ -30,11 +30,20 @@ if [ "$MODE" = "development" ]; then
     echo "IC Lib - Local Development Mode"
     echo ""
 
-    # Load .env file
+    # Load .env file. Source it with auto-export so quoted values and values
+    # containing spaces, '=', or '#' survive intact (the old xargs approach
+    # word-split and mangled them).
+    ENV_FILE=""
     if [ -f .env ]; then
-        export $(grep -v '^#' .env | xargs)
+        ENV_FILE=".env"
     elif [ -f "$(dirname "$0")/.env" ]; then
-        export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+        ENV_FILE="$(dirname "$0")/.env"
+    fi
+    if [ -n "$ENV_FILE" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        . "$ENV_FILE"
+        set +a
     fi
 
     # Validate required variables
