@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CAD file rename (`renameCadFile`, File Library single-file rename, and part-edit `renameFile`) now performs the physical rename and `cad_files`/TEXT-column update inside one transaction with best-effort physical rollback, so a database failure can no longer leave a file renamed on disk while the database keeps the old name (which previously stranded the old name as `missing` and the renamed file as an untracked orphan). Same-inode (case-only) renames on case-insensitive filesystems are no longer rejected as collisions.
+- CAD file delete (`deleteCadFile`) now removes the `cad_files` row and regenerates TEXT columns inside a transaction and only unlinks the physical file after commit, so a crash can at worst leave a harmless on-disk orphan (re-surfaced by the library scan) instead of a database row pointing at a missing file.
+- Part-edit `renameFile` no longer swallows a failed `cad_files` update and returns success; the error now propagates after rollback.
 - `start.sh` dev mode now sources `.env` with auto-export instead of `export $(grep ... | xargs)`, so values with spaces, quotes, `=`, or `#` load intact.
 - `scripts/package.json` dropped broken `validate`/`verify`/`verify:detailed` scripts that pointed at non-existent `validate-csv.js`/`verify-import.js`.
 

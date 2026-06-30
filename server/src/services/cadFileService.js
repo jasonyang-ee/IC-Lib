@@ -284,14 +284,28 @@ export async function getComponentsByFileName(fileName, fileType) {
 }
 
 /**
- * Rename a CAD file (physical + database).
- * Updates cad_files table and regenerates TEXT columns for all affected components.
+ * Returns true when two existing paths resolve to the same physical file.
+ * Used to allow case-only renames on case-insensitive filesystems (e.g. Windows)
+ * where the source and target compare equal on disk.
+ */
+function isSameExistingFile(firstPath, secondPath) {
+  try {
+    const firstStat = fs.statSync(firstPath);
+    const secondStat = fs.statSync(secondPath);
+    return firstStat.dev === secondStat.dev && firstStat.ino === secondStat.ino;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rename a CAD file (physical + database) atomically.
+ * The physical rename, cad_files update, and TEXT-column regeneration run inside
+ * a single transaction; if any step fails the DB rolls back and the physical
+ * rename is reverted (best effort), so disk and DB never drift apart.
  */
 export async function renameCadFile(cadFileId, newFileName) {
-  // Get current file info
-  const cfResult = await pool.query(`
-    SELECT * FROM cad_files WHERE id = $1
-  `, [cadFileId]);
+  const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
 
   if (cfResult.rows.length === 0) {
     throw new Error('CAD file not found');
@@ -306,44 +320,68 @@ export async function renameCadFile(cadFileId, newFileName) {
 
   const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, oldFileName);
   const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeNewFileName);
+  const isRename = safeNewFileName !== oldFileName;
 
-  // Collision check
-  if (fs.existsSync(newPath)) {
+  // Collision check (skip when the target is the same physical file, e.g. a
+  // case-only rename on a case-insensitive filesystem).
+  if (isRename && fs.existsSync(newPath) && !isSameExistingFile(oldPath, newPath)) {
     throw new Error(`File "${safeNewFileName}" already exists in the ${cadFile.file_type} directory`);
   }
 
-  // Rename physical file if it exists
-  if (fs.existsSync(oldPath)) {
-    fs.renameSync(oldPath, newPath);
-  }
-
-  // Get affected components before update
+  // Affected components are read before the transaction so we know which TEXT
+  // columns to regenerate; the set does not change during the rename.
   const affectedComponents = await getComponentsByCadFile(cadFileId);
 
-  // Update cad_files table
-  await pool.query(`
-    UPDATE cad_files
-    SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $3
-  `, [safeNewFileName, `${subdir}/${safeNewFileName}`, cadFileId]);
+  const client = await pool.connect();
+  let physicalRenamed = null;
+  let transactionStarted = false;
 
-  // Regenerate TEXT columns for all affected components
-  for (const comp of affectedComponents) {
-    await regenerateCadText(comp.id, cadFile.file_type);
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    if (isRename && fs.existsSync(oldPath)) {
+      fs.renameSync(oldPath, newPath);
+      physicalRenamed = { oldPath, newPath };
+    }
+
+    await client.query(`
+      UPDATE cad_files
+      SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [safeNewFileName, `${subdir}/${safeNewFileName}`, cadFileId]);
+
+    for (const comp of affectedComponents) {
+      await regenerateCadText(comp.id, cadFile.file_type, client);
+    }
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+
+    return { oldFileName, newFileName: safeNewFileName, fileType: cadFile.file_type };
+  } catch (error) {
+    if (transactionStarted) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
+    }
+    if (physicalRenamed && fs.existsSync(physicalRenamed.newPath)) {
+      try { fs.renameSync(physicalRenamed.newPath, physicalRenamed.oldPath); } catch { /* best-effort revert */ }
+    }
+    throw error;
+  } finally {
+    client.release();
   }
-
-  return { oldFileName, newFileName: safeNewFileName, fileType: cadFile.file_type };
 }
 
 /**
  * Delete a CAD file from the system.
- * Removes physical file, cad_files record, and regenerates TEXT columns.
+ * The cad_files record removal (which cascades junction rows) and TEXT-column
+ * regeneration run inside a transaction; the physical file is only unlinked
+ * after that transaction commits. Ordering is deliberate: a crash after commit
+ * leaves a harmless on-disk orphan (re-surfaced by the library scan) rather than
+ * a cad_files row pointing at a file that no longer exists.
  */
 export async function deleteCadFile(cadFileId) {
-  // Get current file info
-  const cfResult = await pool.query(`
-    SELECT * FROM cad_files WHERE id = $1
-  `, [cadFileId]);
+  const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
 
   if (cfResult.rows.length === 0) {
     throw new Error('CAD file not found');
@@ -353,24 +391,41 @@ export async function deleteCadFile(cadFileId) {
   const subdir = TYPE_SUBDIR[cadFile.file_type];
   const safeFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
 
-  // Delete physical file if it exists
+  // Linked components are read before the transaction so we know which TEXT
+  // columns to regenerate after the junction rows cascade away.
+  const linkedComponents = await getComponentsByCadFile(cadFileId);
+
+  const client = await pool.connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    // Junction records are removed via ON DELETE CASCADE on the cad_files FK.
+    await client.query('DELETE FROM cad_files WHERE id = $1', [cadFileId]);
+
+    for (const comp of linkedComponents) {
+      await regenerateCadText(comp.id, cadFile.file_type, client);
+    }
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+  } catch (error) {
+    if (transactionStarted) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  // Physical deletion only after the DB row is gone (see ordering note above).
   if (subdir) {
     const filePath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeFileName);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
-  }
-
-  // Get linked components before deletion (for response and TEXT regen)
-  const linkedComponents = await getComponentsByCadFile(cadFileId);
-
-  // Junction records are deleted via ON DELETE CASCADE on cad_files FK
-  // Delete cad_files record
-  await pool.query('DELETE FROM cad_files WHERE id = $1', [cadFileId]);
-
-  // Regenerate TEXT columns for all affected components
-  for (const comp of linkedComponents) {
-    await regenerateCadText(comp.id, cadFile.file_type);
   }
 
   return { fileName: cadFile.file_name, fileType: cadFile.file_type, linkedComponents };

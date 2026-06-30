@@ -102,6 +102,7 @@ V21: ECO status proposal UI/API ! allow `new -> prototype`, `reviewing -> archiv
 V22: ECO CAD diff/apply key on persisted `file_type`; same-ext `.olb` in `symbol` vs `pspice` ! stay isolated through ECO submit/approve, so link/unlink in one role ⊥ mutate the other role by filename/ext coincidence.
 V23: vendor-search append flows ! normalize optional FK lookups before component/alternative distributor writes: blank `manufacturer_id|distributor_id` -> `null`/skip; alternative create may resolve/create manufacturer by `manufacturer_name` when local ID miss.
 V24: admin bulk vendor refresh queues oldest sync first: stock -> supported distributor rows by `distributor_info.last_vendor_sync_at`; specs -> DigiKey-backed components by `components.last_specs_refresh_at`; non-rate-limit completion bumps cursor even when vendor data missing; vendor daily-limit reject -> abort batch @ current item.
+V25: CAD fs mutation ! atomic across disk+DB. rename (`renameCadFile`, file-library single-file rename, part-edit `renameFile`, ECO `applyMassFileRenameEco`, `renameFootprintGroup`): physical rename + `cad_files` update + TEXT regen ∈ 1 txn; fail → DB rollback + best-effort physical revert. delete (`deleteCadFile`): DB row delete + TEXT regen ∈ txn, unlink only post-COMMIT (crash → harmless on-disk orphan re-surfaced by scan, ⊥ DB row → missing file). same-inode case-only rename ⊥ collision reject. temp finalize move-then-register self-heals via scan.
 
 ## §T
 

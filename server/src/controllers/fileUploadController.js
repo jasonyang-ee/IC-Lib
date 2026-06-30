@@ -441,7 +441,11 @@ export async function finalizeTempFile(req, res) {
 
         const filename = moveResult.filename;
 
-        // Register in DB and optionally link to component
+        // Register in DB and optionally link to component.
+        // Move-then-register is intentional: the filesystem is the source of
+        // truth, registerCadFile is idempotent (ON CONFLICT), and the startup /
+        // admin library scan re-registers anything a transient DB error misses,
+        // so a register failure here is self-healing and never strands a DB row.
         if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
           await autoLinkFileToComponent(category, filename, mfgPartNumber);
         } else if (VALID_CAD_CATEGORIES.has(category)) {
@@ -754,40 +758,61 @@ export async function renameFile(req, res) {
       return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists in the ${category} directory` });
     }
 
-    // Move/rename file to flat directory with new name
     const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
     const newPath = path.join(targetDir, sanitizedNewFilename);
-    fs.renameSync(oldPath, newPath);
 
-    // Clean up empty legacy directory if applicable
+    // The physical rename and the cad_files update run inside one transaction so
+    // a DB failure cannot leave the file renamed on disk while the database still
+    // holds the old name. On any failure the DB rolls back and the physical
+    // rename is reverted (best effort).
+    const cadFile = VALID_CAD_CATEGORIES.has(category)
+      ? await cadFileService.findCadFile(oldFilename, category)
+      : null;
+
+    const client = await pool.connect();
+    let physicalRenamed = false;
+    let transactionStarted = false;
+
+    try {
+      await client.query('BEGIN');
+      transactionStarted = true;
+
+      fs.renameSync(oldPath, newPath);
+      physicalRenamed = true;
+
+      if (cadFile) {
+        await client.query(
+          'UPDATE cad_files SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+          [sanitizedNewFilename, `${config.subdir}/${sanitizedNewFilename}`, cadFile.id],
+        );
+
+        const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
+        for (const comp of affected) {
+          await cadFileService.regenerateCadText(comp.id, category, client);
+        }
+      }
+
+      await client.query('COMMIT');
+      transactionStarted = false;
+    } catch (opError) {
+      if (transactionStarted) {
+        try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
+      }
+      if (physicalRenamed && fs.existsSync(newPath)) {
+        try { fs.renameSync(newPath, oldPath); } catch { /* best-effort revert */ }
+      }
+      throw opError;
+    } finally {
+      client.release();
+    }
+
+    // Clean up empty legacy directory only after the rename has committed.
     const oldDir = path.dirname(oldPath);
     if (oldDir !== targetDir) {
       try {
         const remaining = fs.readdirSync(oldDir).filter(f => !f.startsWith('.'));
         if (remaining.length === 0) fs.rmdirSync(oldDir);
       } catch { /* ignore cleanup errors */ }
-    }
-
-    // Update cad_files table and regenerate TEXT columns
-    // (Physical rename already done above; just update DB record)
-    if (VALID_CAD_CATEGORIES.has(category)) {
-      try {
-        const cadFile = await cadFileService.findCadFile(oldFilename, category);
-        if (cadFile) {
-          const subdir = config.subdir;
-          await pool.query(`
-            UPDATE cad_files SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
-          `, [sanitizedNewFilename, `${subdir}/${sanitizedNewFilename}`, cadFile.id]);
-
-          // Regenerate TEXT columns for affected components
-          const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
-          for (const comp of affected) {
-            await cadFileService.regenerateCadText(comp.id, category);
-          }
-        }
-      } catch (dbError) {
-        console.error(`[FileUpload] Failed to update cad_files refs: ${dbError.message}`);
-      }
     }
 
     res.json({
