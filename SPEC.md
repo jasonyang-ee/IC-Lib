@@ -30,7 +30,6 @@ I.file: api `/api/files/*|/api/file-library/*` -> temp upload/finalize/cleanup/e
 I.eco: api `/api/eco/*` -> ECO list/detail/create/delete/approve/reject/pdf/last-rejected + stage CRUD/import/export/approver assignment.
 I.proj: api `/api/projects/*` -> project CRUD, project component add/update/remove, consume inventory; project detail rows include lowest-break unit pricing when distributor data exists; client BOM export via `client/src/utils/bomExport.js`.
 I.ops: api `/api/dashboard/*|/api/reports/*|/api/settings/*|/api/smtp/*|/api/admin/*` -> stats, audit feed/clear, reports, feature flags, category/BOM/ECO/email/db ops, CIS/label downloads, SMTP test, admin init/reset/verify.
-I.spec_tpl?: api `/api/specification-templates/*` -> CRUD over `specification_templates`; repo schema/migration ? missing.
 I.cli: cmd `./start.sh` -> dev server; `./test.sh` -> lint + tests; `node scripts/import.js [--dry-run|--file=<category>]` -> legacy CSV import; `cd server && npm run repair -- admin-reset` -> reset default `admin` password.
 I.env: env `JWT_SECRET` ! set; `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, `DB_*`, vendor API creds, `SMTP_ENCRYPTION_KEY`.
 
@@ -109,7 +108,7 @@ V25: CAD fs mutation ! atomic across disk+DB. rename (`renameCadFile`, file-libr
 id|status|task|cites
 T1|x|distill repo code -> caveman SDD spec backfill|G1,C9,I.web,V1
 T2|x|seed `alt_parts|shared_file_rename` into default ECO stage SQL + legacy repair paths|V12,V19,I.eco
-T3|.|add `specification_templates` table/migration or delete `/api/specification-templates/*` surface|V18,I.spec_tpl
+T3|x|delete dead `/api/specification-templates/*` surface (no client use, no table; category specs live in `category_specifications`)|V18,B2
 T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7,V8,V14,V15,I.lib,I.file,I.eco
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
 T6|.|enforce 1 schematic `.olb` slot + 1 PSpice `.olb` slot across upload/link/ECO flows; add focused server/client regression coverage|V8,V15,V22,I.lib,I.eco
@@ -123,3 +122,4 @@ B3|2026-04-27|shared file-rename ECOs reused generic `filename` tag so approval 
 B4|2026-04-29|blank DB boot ran legacy repair migrations before `init-schema.sql`; fresh startup could fail on missing base tables|V4
 B5|2026-04-30|dual `.olb` ECO path keeps `symbol` vs `pspice` isolated, but upload/link conflict guard still treats only `symbol|model` as single-file slots, so >1 PSpice `.olb` symbol may attach to one part|T6
 B6|2026-05-04|Vendor Search append path sent blank UUID strings for unresolved manufacturer/distributor lookups, so alt/distributor writes could 500 on optional FK fields instead of normalizing or resolving by name|V23
+B7|2026-06-30|`adminController` `getDatabaseStats` + `verifyDatabaseSchema` referenced nonexistent table `component_specifications` (real table `component_specification_values`) ∴ DB-stats endpoint 500 on the spec subquery & verify-schema false-reports it missing. fixed both refs|V18

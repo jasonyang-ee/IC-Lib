@@ -19,8 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SPEC.md` §V21 now includes `reviewing -> archived` status proposal to match `client/src/utils/ecoStatusProposalOptions.js`.
 - Removed `UX.md` (content folded into `SPEC.md` §U).
 
+### Removed
+
+- Dead `/api/specification-templates/*` route and its controller. Nothing in the client called it and it persisted to a `specification_templates` table that exists in no schema or migration (so every write 500'd); category specifications are served by `category_specifications`.
+
 ### Fixed
 
+- Admin database statistics (`getDatabaseStats`) and schema verification (`verifyDatabaseSchema`) referenced a nonexistent `component_specifications` table; corrected to `component_specification_values`, so the stats endpoint no longer 500s on the specification count and schema verify no longer false-reports the table missing.
 - CAD file rename (`renameCadFile`, File Library single-file rename, and part-edit `renameFile`) now performs the physical rename and `cad_files`/TEXT-column update inside one transaction with best-effort physical rollback, so a database failure can no longer leave a file renamed on disk while the database keeps the old name (which previously stranded the old name as `missing` and the renamed file as an untracked orphan). Same-inode (case-only) renames on case-insensitive filesystems are no longer rejected as collisions.
 - CAD file delete (`deleteCadFile`) now removes the `cad_files` row and regenerates TEXT columns inside a transaction and only unlinks the physical file after commit, so a crash can at worst leave a harmless on-disk orphan (re-surfaced by the library scan) instead of a database row pointing at a missing file.
 - Part-edit `renameFile` no longer swallows a failed `cad_files` update and returns success; the error now propagates after rollback.

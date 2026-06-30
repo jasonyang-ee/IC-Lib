@@ -241,7 +241,7 @@ export const getDatabaseStats = async (req, res, next) => {
         (SELECT COUNT(*) FROM component_categories WHERE enabled = true) as total_categories,
         (SELECT COUNT(*) FROM manufacturers) as total_manufacturers,
         (SELECT COUNT(*) FROM distributors) as total_distributors,
-        (SELECT COUNT(*) FROM component_specifications) as total_specifications,
+        (SELECT COUNT(*) FROM component_specification_values) as total_specifications,
         (SELECT COUNT(*) FROM distributor_info) as total_distributor_info,
         (SELECT COUNT(*) FROM inventory) as total_inventory_records
     `);
@@ -296,7 +296,7 @@ export const verifyDatabaseSchema = async (req, res, next) => {
         'component_categories',
         'manufacturers',
         'distributors',
-        'component_specifications',
+        'component_specification_values',
         'distributor_info',
         'inventory',
         'footprint_sources',

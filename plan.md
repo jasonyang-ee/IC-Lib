@@ -164,17 +164,22 @@ schema-inspection expectations cover every persisted surface in `§I` (`§V18`).
 
 **Tasks:**
 
-- [ ] **T3/B2:** `/api/specification-templates/*` writes to
-  `specification_templates`, which has no schema or migration. Decide:
-  (a) add the table via migration + `init-schema.sql` (UUID `uuidv7()` PK per
-  `§C2`) and add it to `EXPECTED_SCHEMA_TABLES`, or (b) remove the route +
-  controller if the client never calls it. Check `client/src/` usage first.
-- [ ] Audit `EXPECTED_SCHEMA_TABLES`, `EXPECTED_SCHEMA_VIEWS`,
-  `REPAIRABLE_SCHEMA_COLUMNS` against `init-schema.sql` + all migrations + the
-  routes in `§I` for any other uncovered persisted surface.
-- [ ] Verify every migration is idempotent and re-runnable; spot-fix any that
-  are not.
-- [ ] Update `SPEC.md §I`/`§B`/`§T` (close T3/B2) accordingly.
+- [x] **T3/B2:** chose **(b)** — removed the route + controller. Client never
+  called it; the `specification_templates` table exists in no schema/migration;
+  category specs live in `category_specifications`. Also dropped the dead
+  `app.use`/import in `index.js`.
+- [x] Audited every table referenced in server code against tables defined in
+  `database/*.sql`. Found and fixed a real bug (B7): `adminController`
+  `getDatabaseStats` + `verifyDatabaseSchema` referenced a nonexistent
+  `component_specifications` table (real table `component_specification_values`)
+  -> stats endpoint 500 + verify false-missing. No other phantom tables;
+  `footprint_pad_links` is correctly dropped by migration 11.
+- [x] Verified all migrations idempotent: DDL uses `IF NOT EXISTS`; the two
+  backfill `INSERT`s use `ON CONFLICT DO NOTHING` inside `IF EXISTS` guards with
+  guarded `DROP`.
+- [x] Updated `SPEC.md`: removed `I.spec_tpl?`, closed `T3`, recorded `B7`.
+- [ ] (-> Phase 4) Add an `adminController` regression test locking the stats
+  query to `component_specification_values`.
 
 **Acceptance:** schema inspection passes on fresh + migrated DB; no route hits a
 missing table; `./test.sh` green.
