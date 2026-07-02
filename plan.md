@@ -35,8 +35,9 @@ re-verified against the code on 2026-07-02 — file:line receipts included.
 
 Spec backlog: `T1,T2,T3,T6 = x`; `B1–B7` recorded; `T4,T5` open (Phases B/D).
 This round proposes `§T.T7` (auth hardening), `§T.T8` (footprint naming),
-`§T.T9` (backend dedup) and invariants `§V27`/`§V28` — added via the `spec`
-skill when each phase lands.
+`§T.T9` (backend dedup), `§T.T10` (barcode scan overhaul), `§T.T11` (OIDC/SSO)
+and invariants `§V27`/`§V28`/`§V29` — added via the `spec` skill when each
+phase lands.
 
 ---
 
@@ -55,6 +56,10 @@ Confirmed by reading the code this session. Each bug gets a `§B` entry via
 | F4 | **Footprint pair rename case-mismatch (client)**: `submitRename` normalizes the primary's new name but not `pairedNewFilename` — renaming a pair to an uppercase base yields `foo.psm` + `FOO.dra`, breaking the shared-base invariant behind `§V25` pair handling. | `client/src/components/library/ComponentFiles.jsx:623` vs `:627` | F |
 | F5 | **File Library single rename bypasses footprint normalization**: `renamePhysicalFile` applies only `assertSafeLeafName` — no `normalizeFootprintFilenameCase`, no `sanitizeFootprintBaseName` — while the component-page rename (`fileUploadController.renameFile:677-693`) sanitizes fully. Two rename surfaces, divergent rules. | `controllers/fileLibraryController.js:223-256` | F |
 | F6 | **`.psm`-only lowercase**: `normalizeFootprintFilenameCase` lowercases the base only for `.psm`; `.bsm`/`.dra` keep case (server + client copies). | `server/src/utils/footprintFiles.js:26-38`; `client/src/utils/footprintFiles.js:28-40` | F |
+| F7 | **Barcode input lag**: scan decode waits on a **1.5 s debounce** after the last keystroke (both pages). A keyboard-wedge scanner finishes typing in <100 ms and sends a terminating Enter that is ignored, so every scan idles 1.5 s before anything happens. The scan input is also controlled state on the page component — each of the ~100+ scanner "keystrokes" re-renders the whole page incl. the inventory table. | `Inventory.jsx:385-394`; `VendorSearch.jsx:257-266` | H |
+| F8 | **Barcode decoder accuracy**: (a) unprefixed-field fallback regex grabs the *first* plausible field as the MPN — a Mouser label leading with `K4500016605` (sales order) sets MPN to the order number until/unless a later `1P` overwrites it, and barcodes without `1P` return garbage; (b) ECIA fields `1T` (lot), `9D` (date), `1K`/`10K`/`11K` (order refs), `nZ` padding are unhandled and can feed (a); (c) vendor is hardcoded `'Digikey'` even for Mouser scans; (d) camera scan dumps the **raw ECIA blob** into `searchTerm` before decode, so a failed decode searches control-character garbage. | `Inventory.jsx:335-351,357,423`; `VendorSearch.jsx:203-219,225,294` | H |
+| F9 | **Barcode search misses SKUs**: `POST /api/inventory/search/barcode` (exact `di.sku`/MPN/PN match) is **dead** — `api.js:133` defines it, nothing calls it. Inventory scan search is a client-side filter that does **not** include distributor SKUs, so scanning a SKU-only barcode (e.g. Mouser Code128) finds nothing even when the part exists. | `server/src/controllers/inventoryController.js:253-292`; `client/src/pages/Inventory.jsx:184-194`; `api.js:133` | H |
+| F10 | **Library sort/search state resets on every visit**: `sortBy`/`sortOrder` (and search/filters) are plain `useState` — after adding a part the operator loses their sort/search context. localStorage persistence precedent exists (`darkMode`, `sidebarCollapsed` in `Sidebar.jsx:9-15`). | `client/src/pages/Library.jsx:110-111` | I |
 
 ### Duplicated logic (backend data-path unification targets)
 
@@ -72,6 +77,7 @@ Confirmed by reading the code this session. Each bug gets a `§B` entry via
 | D10 | `INSERT INTO distributor_info` written 8x (componentController) + 2x (ecoController apply) | `componentController.js:951,1236,1355,1527,1541,2148`; `ecoController.js:1527,1561` |
 | D11 | Table-name lists (backup/clear/inspection) maintained in 4 places | `databaseService.js:63,386`; `adminController.js:302`; `settingsController.js:1980`; `schemaInspectionService.js:15` |
 | D12 | `/api/categories` mutations are an **unguarded, client-dead** duplicate of the admin-guarded `/api/settings/categories` surface: the settings UI uses `/settings/categories` (`CategoryTab.jsx:95,118`); `api.js:119-121` defines `/categories` mutations but **nothing calls them**; the settings surface has no category-DELETE, so the only delete path is the unguarded dead one | `routes/categories.js` vs `routes/settings.js:75-85` |
+| D13 | ECIA/ISO-15434 barcode decoder duplicated **verbatim** (~115 lines each): control-char handling, header strip, field-prefix parse, debounce effect, clear/focus handlers | `Inventory.jsx:270-437` vs `VendorSearch.jsx:141-300` |
 
 ---
 
@@ -322,6 +328,202 @@ green after each.
 consciously deferred with a note; no behavior change (gate green, manual spot
 check of upload/rename/delete flows); `§B` entries for F2/F3; `§T9` recorded.
 
+### Phase H — Barcode scan UX overhaul (Inventory + Vendor Search) (NEW)
+
+**Goal:** scanning a Digikey DataMatrix or Mouser Code128 label is instant and
+accurate on both pages: no perceptible lag between scan-gun trigger and result,
+no mis-parsed part numbers, SKU-only barcodes resolve. Fixes F7/F8/F9,
+deduplicates D13.
+
+**H1 — Shared decoder module (fixes F8, D13):**
+
+- [ ] Extract `client/src/utils/vendorBarcode.js` — one `decodeVendorBarcode(raw)`
+  used by both pages, returning
+  `{ vendor, mfrPartNumber, sku, quantity, raw } | { error }`.
+- [ ] Parse the **full ECIA field-prefix table**, not just 4 prefixes: `P`
+  (customer/distributor PN), `1P` (mfr PN), `30P` (Digikey PN), `K`/`1K`/`10K`/
+  `11K`/`14K` (order refs — recognize and *discard*), `Q` (qty), `9D` (date),
+  `1T` (lot), `4L` (country), `1V` (supplier name → vendor detection), `nZ`
+  (padding — discard). Longest-prefix-first matching so `1P` wins over `P`,
+  `30P` over `P`, `11K` over `K`.
+- [ ] **Kill the unprefixed-field fallback** for multi-field (GS-containing)
+  scans — it is the F8(a) mis-parse. Keep a fallback only for single-field
+  scans (plain SKU/PN Code128): treat the whole string as a search term.
+- [ ] Vendor detection: `30P` present → Digikey; `1V` value → that supplier;
+  else `unknown` — stop hardcoding `'Digikey'`.
+- [ ] Camera path: never put the raw ECIA blob in `searchTerm` (F8(d)) — only
+  the decoded MPN/SKU on success; toast the parse error otherwise.
+- [ ] **Unit tests** using the two real sample strings already in the code
+  comments (`Inventory.jsx:12-13` — Digikey w/ `P`+`1P`+`30P`+`Q`, Mouser w/
+  `K`+`14K`+`1P`+`Q`+`1V`), plus: no-`1P` barcode → no false MPN; literal
+  `{GS}`/`\x1d` representations; single-field SKU scan.
+
+**H2 — Input latency (fixes F7):**
+
+- [ ] Decode on **scan terminator**: handle `Enter`/`Tab` keydown in the scan
+  input → decode immediately (scan guns send a suffix). Keep a debounce only as
+  fallback and drop it to ~250 ms; both pages.
+- [ ] Stop re-rendering the page per scanner keystroke: move the scan input's
+  controlled state into `InventorySidebar`/`VendorSearchForm` (or use an
+  uncontrolled input + ref read at decode time); parent receives only the
+  decoded result.
+- [ ] Camera scanner (`BarcodeScanner.jsx:109-129`): the rAF loop calls the
+  WASM detector every frame (~60 fps) on the full-res frame — main-thread
+  saturation makes the preview stutter and feeds blurry frames to the detector.
+  Throttle detection to ~5–10 fps (interval or frame-skip counter) and detect
+  on a downscaled offscreen canvas; add `focusMode: 'continuous'` constraint
+  and a torch toggle where supported. This is the camera-accuracy lever too —
+  sharper frames beat more frames.
+
+**H3 — Search accuracy + speed (fixes F9):**
+
+- [ ] Include SKUs in scan search: on successful decode, filter client-side by
+  MPN as today; when the client filter yields **0 rows**, call the currently
+  dead `api.searchByBarcode` (exact `di.sku`/MPN/PN match server-side) and
+  offer the hit ("found in library, not in your current filter view" — clear
+  filters CTA). This revives the endpoint instead of deleting it; if the team
+  prefers pure client-side, the alternative is shipping `di.sku` in the
+  inventory payload — decide at implementation (endpoint reuse recommended:
+  no payload bloat).
+- [ ] Debounce the free-text inventory search input (~200 ms) so large
+  inventories don't re-filter per keystroke (`filteredInventory` memo runs
+  6-field `includes` × N rows × every keypress).
+- [ ] Vendor Search page: same shared decoder; keep auto-trigger of
+  `searchMutation` on decode success.
+- [ ] Spec: `§U.inv`/`§U.vsearch` scan flow update; `§B` entry for F8 (decoder
+  mis-parse class); new `§T.T10` "barcode scan overhaul" (cites `§U`, F7–F9).
+- [ ] `./test.sh` green; manual scan-gun + camera smoke test on both pages.
+
+**Risk:** M (decoder behavior change — mitigated by unit tests over real label
+samples; camera loop change is isolated). **Acceptance:** scan-to-result under
+~300 ms with a scan gun; the two sample labels + a no-`1P` label decode
+correctly; SKU-only scan resolves via server fallback; one decoder module; no
+raw ECIA text ever lands in a search box.
+
+### Phase I — Persist Library view preferences (sort/search/filters) (NEW)
+
+**Goal:** the Parts Library keeps the operator's sort direction, search term,
+and filters across visits and refreshes — after adding a part, the list comes
+back exactly as they left it, so the new part is easy to spot. Fixes F10.
+
+**Approach:**
+
+- [ ] `client/src/utils/viewPrefs.js`: tiny `loadViewPrefs(key, whitelist)` /
+  `saveViewPrefs(key, prefs)` around `localStorage` with safe JSON parse +
+  value whitelisting (never trust stored values — invalid `sortBy` falls back
+  to `part_number`). Pattern precedent: `Sidebar.jsx:15`.
+- [ ] Library (`Library.jsx:110-111`): initialize `sortBy`/`sortOrder` from
+  `viewPrefs:library`; persist on change. Also persist `selectedApprovalStatuses`
+  and category selection (filters are part of "consistent display").
+- [ ] **Search term**: persist in `sessionStorage` (per-tab, survives the
+  add-part round-trip but not a new day) — matches the existing VendorSearch
+  `sessionStorage` result-cache pattern (`VendorSearch.jsx:47-51`). Decision
+  point: if the team wants cross-session search too, move it to the same
+  localStorage blob — default recommendation is sessionStorage.
+- [ ] Apply the same treatment to Inventory's `sortBy`/`sortOrder`
+  (`Inventory.jsx` sort state) — cheap consistency win, same util.
+- [ ] Note: this is per-browser persistence. If prefs should roam across
+  devices/users later, the `admin_settings`-style per-user server storage is
+  the follow-up — out of scope here.
+- [ ] Tests: vitest for the prefs util (corrupt JSON, non-whitelisted values,
+  round-trip). Spec: `§U.lib` note; no invariant needed.
+
+**Risk:** L. **Acceptance:** change sort to desc, add a part, return — sort,
+filters, and search term intact; corrupt/legacy localStorage never breaks the
+page; gate green.
+
+### Phase J — Enterprise auth: OIDC / SSO (NEW)
+
+**Goal:** enterprise onboarding — users sign in through the org IdP (Entra ID,
+Okta, Keycloak, Google Workspace — anything OIDC) while local accounts remain
+as break-glass. No change to the role model or route guards.
+
+**Architecture decision (the load-bearing one):** OIDC federates *identity at
+login only*. After the IdP callback, the server mints the **same app JWT
+cookie** it mints today (`middleware/auth.js:34-42`, httpOnly `token`, 24 h).
+`authenticate`, all role guards, and the client `AuthContext` stay untouched —
+the entire OIDC surface is: one service, three routes, one login-page button,
+one migration. Do **not** adopt IdP access tokens as the app session, and do
+not introduce server-side session storage. SAML is explicitly out of scope
+(every target IdP speaks OIDC).
+
+**J1 — Server:**
+
+- [ ] Dependency: `openid-client` (v6, certified). Flow: Authorization Code +
+  PKCE (+ `state`/`nonce`), discovery via issuer metadata (JWKS handled by the
+  lib).
+- [ ] `services/oidcService.js`: config load, discovery caching, auth-URL
+  build, code exchange, ID-token claim extraction
+  (`sub`, `iss`, `email`, `email_verified`, `preferred_username`, `name`).
+- [ ] Routes (in `routes/auth.js`):
+  - `GET /api/auth/oidc/status` — public: `{ enabled, providerName }` for the
+    login page.
+  - `GET /api/auth/oidc/login` — sets short-lived httpOnly state cookie
+    (state + nonce + PKCE verifier + optional `returnTo`), 302 to IdP.
+  - `GET /api/auth/oidc/callback` — validates state, exchanges code, verifies
+    nonce, upserts user (J2), mints the standard JWT cookie via existing
+    `generateToken`/`getAuthCookieOptions`, 302 to the SPA. `SameSite=lax`
+    already permits the cookie on this top-level redirect — no cookie change.
+  - Errors land on `/login?error=sso_failed` with a toast, never a bare 500.
+- [ ] Config via env (enterprise convention, no DB round-trip at boot):
+  `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+  `OIDC_REDIRECT_URI`, `OIDC_SCOPES` (default `openid profile email`),
+  `OIDC_PROVIDER_NAME`, `OIDC_DEFAULT_ROLE` (default `read-only`). Feature is
+  enabled iff issuer+client-id present. Document in `.env` example +
+  `docker-compose.yml`; `docker/nginx.conf` must proxy the callback path;
+  redirect URI must respect the deployed base path (`utils/basePath.js`
+  handles the SPA side).
+- [ ] Logout: existing `POST /auth/logout` clears the cookie — sufficient.
+  RP-initiated logout (`end_session_endpoint`) is a follow-up, not v1.
+
+**J2 — User model (migration `database/migrations/<int>_oidc_users.sql`):**
+
+- [ ] `users`: relax `password_hash` to NULLable (SSO-only users have none —
+  guard local login against NULL hash), add `auth_provider` VARCHAR NOT NULL
+  DEFAULT `'local'`, `oidc_issuer` TEXT, `oidc_sub` TEXT, and a partial
+  `UNIQUE (oidc_issuer, oidc_sub)`. Idempotent guarded `DO $$` per repo
+  convention; **update `schemaInspectionService` expectations** (startup
+  verify) and `init-users.sql` for fresh installs.
+- [ ] **JIT provisioning:** first SSO login creates the user — username from
+  `preferred_username`/email local-part (uniquified), `display_name`, `email`,
+  role = `OIDC_DEFAULT_ROLE`. Admins elevate roles in the existing user admin
+  UI; role stays **app-owned** (v1 has no IdP-group→role mapping — that is a
+  documented follow-up with a claim-mapping table).
+- [ ] **Account linking:** if an SSO login's email matches exactly one local
+  user, link (`auth_provider` stays, issuer/sub filled) **only when
+  `email_verified === true`**; otherwise create a separate user. Manual
+  admin-side link/unlink in user settings is the fallback.
+- [ ] `repair.js admin-reset` stays the break-glass path; local login remains
+  enabled in v1 (an `OIDC_DISABLE_LOCAL_LOGIN` hard-mode flag is a follow-up).
+
+**J3 — Client:**
+
+- [ ] `Login.jsx`: query `/api/auth/oidc/status`; render "Sign in with
+  {providerName}" → full-page navigate to `/api/auth/oidc/login`. Local form
+  stays. `AuthContext` already verifies the cookie on mount
+  (`authContext.test.jsx:46`), so post-callback the SPA just works.
+- [ ] Show `auth_provider` in the admin users table; SSO-only users get no
+  "change password" affordance.
+
+**J4 — Tests + spec:**
+
+- [ ] `oidcService` unit tests with mocked discovery/token endpoints (vitest,
+  same `vi.mock` pattern); callback route tests: bad/missing state → 400,
+  happy path → cookie set + user upserted, JIT user gets `OIDC_DEFAULT_ROLE`;
+  local login with NULL `password_hash` → rejected cleanly.
+- [ ] Auth-matrix test from Phase C keeps passing (new GET routes are public
+  by design — document them in the Phase D boundary table).
+- [ ] Spec: `§U.login` SSO flow; new `§V29` "SSO-federated users receive
+  app-issued sessions and pass the same role gates as local users; no route
+  trusts IdP tokens directly; `oidc_issuer+oidc_sub` uniquely identify a
+  federated identity"; new `§T.T11`. CHANGELOG.
+
+**Risk:** M–H (auth-critical; mitigated by not touching the session/guard
+layer and keeping local login). **Acceptance:** login via a real IdP
+(Keycloak in dev docker is the cheap test rig) round-trips to a working
+session with correct role; JIT + linking rules hold; local break-glass works;
+all existing auth tests green; `§V29`/`§T11` recorded.
+
 ### Phase D — `§T.T5`: decide + document public-read auth policy (reads)
 
 **Goal:** close `§T.T5`. Make a deliberate, documented decision about which GET
@@ -431,13 +633,17 @@ hand-off, still representative):
 
 ### Suggested order
 
-**C → E → F → G1/G2 → D → G3 → B → A.**
+**C → E → H → I → F → G1/G2 → D → J → G3 → B → A.**
 
 - C first: security holes, quick, and its route-matrix test protects everything after.
 - E second: later phases verify against a real gate.
-- F next: the new product spec (footprint naming) — G1's D3 consolidation folds in here.
-- G1/G2 while CAD context is warm; G3 later (distributor dedup benefits from B's fixture — swap G3/B if fixture lands first).
-- D needs care (guest UX); B and A close out.
+- H/I next: operator-facing UX pain (scan lag/accuracy, lost sort state) — small,
+  self-contained, immediately felt.
+- F then G1/G2 while CAD context is warm — G1's D3 consolidation folds into F.
+- D before J: the public-read boundary must be documented before enterprise SSO
+  review; J builds on C+D's clean auth story.
+- G3 later (distributor dedup benefits from B's fixture — swap G3/B if the
+  fixture lands first); B and A close out.
 
 Each phase: record `§B` first when fixing a bug (backprop), spec entries when
 the phase lands, `CHANGELOG.md` `## [Unreleased]`, single summary commit via
