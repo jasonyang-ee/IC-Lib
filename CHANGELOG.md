@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SPEC.md` §V21 now includes `reviewing -> archived` status proposal to match `client/src/utils/ecoStatusProposalOptions.js`.
 - Removed `UX.md` (content folded into `SPEC.md` §U).
 
+### Security
+
+- Closed 12 unauthenticated mutation routes: component bulk/single stock, specification, and distributor refresh endpoints now require a write role (`authenticate, canWrite`); manufacturer create requires a write role, and manufacturer update/rename/delete require admin. The unguarded `/api/categories` mutation routes (create/update/update-part-numbers/delete) were removed outright — nothing in the client called them and the admin-guarded `/api/settings/categories` surface is the real category editor. A new full-router sweep test (`routeAuthGuards.test.js`) asserts every state-changing route in every router starts with `authenticate` (documented exceptions: login, inventory barcode lookup).
+
 ### Removed
 
 - Dead `/file-library/type/:type/rename` (`massUpdateFileName`) endpoint, which had been disabled (always returned 400), along with its unused client `massRenameFile` API helper. Renames go through `rename-file` / `rename-group`.

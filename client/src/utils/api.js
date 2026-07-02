@@ -116,9 +116,6 @@ export const api = {
   getCategories: () => apiClient.get('/categories'),
   getCategoryById: (id) => apiClient.get(`/categories/${id}`),
   getNextPartNumber: (categoryId) => apiClient.get(`/categories/${categoryId}/next-part-number`),
-  createCategory: (data) => apiClient.post('/categories', data),
-  updateCategory: (id, data) => apiClient.put(`/categories/${id}`, data),
-  deleteCategory: (id) => apiClient.delete(`/categories/${id}`),
   getComponentsByCategory: (id, params) => apiClient.get(`/categories/${id}/components`, { params }),
   updateCategoryOrder: (categories) => apiClient.put('/settings/categories/reorder', { categories }),
 

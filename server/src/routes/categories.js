@@ -12,17 +12,8 @@ router.get('/:id', categoryController.getCategoryById);
 // Get next part number for a category (checks all categories with same prefix)
 router.get('/:id/next-part-number', categoryController.getNextPartNumber);
 
-// Create new category
-router.post('/', categoryController.createCategory);
-
-// Update category
-router.put('/:id', categoryController.updateCategory);
-
-// Update all part numbers in a category (for prefix change)
-router.post('/:id/update-part-numbers', categoryController.updateCategoryPartNumbers);
-
-// Delete category
-router.delete('/:id', categoryController.deleteCategory);
+// Category mutations live on the admin-guarded /api/settings/categories surface.
+// This router is read-only.
 
 // Get components in a category
 router.get('/:id/components', categoryController.getComponentsByCategory);

@@ -1,5 +1,6 @@
 import express from 'express';
 import * as manufacturerController from '../controllers/manufacturerController.js';
+import { authenticate, canWrite, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -9,16 +10,16 @@ router.get('/', manufacturerController.getAllManufacturers);
 // Get manufacturer by ID
 router.get('/:id', manufacturerController.getManufacturerById);
 
-// Create new manufacturer
-router.post('/', manufacturerController.createManufacturer);
+// Create new manufacturer (Library add/edit flow)
+router.post('/', authenticate, canWrite, manufacturerController.createManufacturer);
 
-// Update manufacturer
-router.put('/:id', manufacturerController.updateManufacturer);
+// Update manufacturer (admin only)
+router.put('/:id', authenticate, isAdmin, manufacturerController.updateManufacturer);
 
-// Rename/merge manufacturer
-router.put('/:id/rename', manufacturerController.renameManufacturer);
+// Rename/merge manufacturer (admin Settings merge UI)
+router.put('/:id/rename', authenticate, isAdmin, manufacturerController.renameManufacturer);
 
-// Delete manufacturer
-router.delete('/:id', manufacturerController.deleteManufacturer);
+// Delete manufacturer (admin only)
+router.delete('/:id', authenticate, isAdmin, manufacturerController.deleteManufacturer);
 
 export default router;

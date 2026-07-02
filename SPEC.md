@@ -103,6 +103,7 @@ V23: vendor-search append flows ! normalize optional FK lookups before component
 V24: admin bulk vendor refresh queues oldest sync first: stock -> supported distributor rows by `distributor_info.last_vendor_sync_at`; specs -> DigiKey-backed components by `components.last_specs_refresh_at`; non-rate-limit completion bumps cursor even when vendor data missing; vendor daily-limit reject -> abort batch @ current item.
 V26: component CAD single-file slots ! ≤1 per component: schematic symbol, 3D model, PSpice symbol (`.olb`). PSpice `.lib` libraries multi-allowed. slot keyed by `getCadFileSlot(category,filename)` (role-aware for pspice via `getPspiceFileRole`). upload|link of 2nd file into an occupied slot -> keep-vs-replace conflict modal (`client/src/components/library/ComponentFiles.jsx`, mirrors symbol/model guard); ECO CAD diff stays `file_type`-isolated per V22.
 V25: CAD fs mutation ! atomic across disk+DB. rename (`renameCadFile`, file-library single-file rename, part-edit `renameFile`, ECO `applyMassFileRenameEco`, `renameFootprintGroup`): physical rename + `cad_files` update + TEXT regen ∈ 1 txn; fail → DB rollback + best-effort physical revert. delete (`deleteCadFile`): DB row delete + TEXT regen ∈ txn, unlink only post-COMMIT (crash → harmless on-disk orphan re-surfaced by scan, ⊥ DB row → missing file). same-inode case-only rename ⊥ collision reject. temp finalize move-then-register self-heals via scan.
+V27: ∀ state-changing route (POST|PUT|PATCH|DELETE) ! `authenticate` first (per-route or router-level `router.use`); role gate ! match resource write policy (V2). public exceptions only: `POST /api/auth/login`, `POST /api/inventory/search/barcode` (mutation-shaped read). enforced by full-router sweep `server/src/test/routeAuthGuards.test.js`.
 
 ## §T
 
@@ -113,6 +114,7 @@ T3|x|delete dead `/api/specification-templates/*` surface (no client use, no tab
 T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7,V8,V14,V15,I.lib,I.file,I.eco
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
 T6|x|enforce single PSpice `.olb` symbol slot (role-aware `getCadFileSlot`) in upload/link conflict guard w/ keep-vs-replace modal; `.lib` multi stays; client regression in `cadFileTypes.test.js`|V8,V22,V26,B5
+T7|x|auth hardening: guard 8 unauthenticated mutations (components stock/spec/distributor -> canWrite; manufacturers create -> canWrite, update/rename/delete -> isAdmin), delete dead unguarded `/api/categories` mutation surface (client uses admin `/settings/categories`), route-matrix lock-in sweep test|V2,C5,V27,B8
 
 ## §B
 
@@ -124,3 +126,4 @@ B4|2026-04-29|blank DB boot ran legacy repair migrations before `init-schema.sql
 B5|2026-04-30|dual `.olb` ECO path keeps `symbol` vs `pspice` isolated, but upload/link conflict guard still treats only `symbol|model` as single-file slots, so >1 PSpice `.olb` symbol may attach to one part|T6
 B6|2026-05-04|Vendor Search append path sent blank UUID strings for unresolved manufacturer/distributor lookups, so alt/distributor writes could 500 on optional FK fields instead of normalizing or resolving by name|V23
 B7|2026-06-30|`adminController` `getDatabaseStats` + `verifyDatabaseSchema` referenced nonexistent table `component_specifications` (real table `component_specification_values`) ∴ DB-stats endpoint 500 on the spec subquery & verify-schema false-reports it missing. fixed both refs|V18
+B8|2026-07-02|12 mutation routes lacked `authenticate` (components bulk update-stock/update-specifications/update-distributors + `:id/update-stock`; manufacturers POST/PUT/rename/DELETE; categories POST/PUT/update-part-numbers/DELETE — categories surface dead client-side, deleted) ∴ any anonymous caller could mutate stock/specs/distributors/manufacturers/categories, violates V2|V27,T7

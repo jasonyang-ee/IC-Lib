@@ -19,13 +19,13 @@ router.get('/subcategories/suggestions', componentController.getSubCategorySugge
 router.get('/field-suggestions', componentController.getFieldSuggestions);
 
 // Bulk update stock info for all components (MUST be before /:id routes)
-router.post('/bulk/update-stock', componentController.bulkUpdateStock);
+router.post('/bulk/update-stock', authenticate, canWrite, componentController.bulkUpdateStock);
 
 // Bulk update specifications for all components (MUST be before /:id routes)
-router.post('/bulk/update-specifications', componentController.bulkUpdateSpecifications);
+router.post('/bulk/update-specifications', authenticate, canWrite, componentController.bulkUpdateSpecifications);
 
 // Bulk update distributors for all components (MUST be before /:id routes)
-router.post('/bulk/update-distributors', componentController.bulkUpdateDistributors);
+router.post('/bulk/update-distributors', authenticate, canWrite, componentController.bulkUpdateDistributors);
 
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
@@ -73,7 +73,7 @@ router.post('/:id/alternatives/:altId/promote', authenticate, canWrite, canDirec
 router.post('/:id/approval', authenticate, isAdmin, componentController.updateComponentApproval);
 
 // Update stock info for a single component (primary + alternatives)
-router.post('/:id/update-stock', componentController.updateComponentStock);
+router.post('/:id/update-stock', authenticate, canWrite, componentController.updateComponentStock);
 
 // Change component category (admin only - regenerates part number)
 router.put('/:id/change-category', authenticate, canWrite, canDirectEditComponent, componentController.changeComponentCategory);
