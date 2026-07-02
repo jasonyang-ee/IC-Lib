@@ -35,9 +35,9 @@ re-verified against the code on 2026-07-02 — file:line receipts included.
 
 Spec backlog: `T1,T2,T3,T6 = x`; `B1–B7` recorded; `T4,T5` open (Phases B/D).
 This round proposes `§T.T7` (auth hardening), `§T.T8` (footprint naming),
-`§T.T9` (backend dedup), `§T.T10` (barcode scan overhaul), `§T.T11` (OIDC/SSO)
-and invariants `§V27`/`§V28`/`§V29` — added via the `spec` skill when each
-phase lands.
+`§T.T9` (backend dedup), `§T.T10` (barcode scan overhaul), `§T.T11` (OIDC/SSO),
+`§T.T12` (DB schema/verify pass) and invariants `§V27`/`§V28`/`§V29` — added
+via the `spec` skill when each phase lands.
 
 ---
 
@@ -78,6 +78,44 @@ Confirmed by reading the code this session. Each bug gets a `§B` entry via
 | D11 | Table-name lists (backup/clear/inspection) maintained in 4 places | `databaseService.js:63,386`; `adminController.js:302`; `settingsController.js:1980`; `schemaInspectionService.js:15` |
 | D12 | `/api/categories` mutations are an **unguarded, client-dead** duplicate of the admin-guarded `/api/settings/categories` surface: the settings UI uses `/settings/categories` (`CategoryTab.jsx:95,118`); `api.js:119-121` defines `/categories` mutations but **nothing calls them**; the settings surface has no category-DELETE, so the only delete path is the unguarded dead one | `routes/categories.js` vs `routes/settings.js:75-85` |
 | D13 | ECIA/ISO-15434 barcode decoder duplicated **verbatim** (~115 lines each): control-char handling, header strip, field-prefix parse, debounce effect, clear/focus handlers | `Inventory.jsx:270-437` vs `VendorSearch.jsx:141-300` |
+
+---
+
+## Live-DB audit (2026-07-02, read-only against `flat.gentex.int:5434/iclib`)
+
+Full read-only pass (`default_transaction_read_only=on`; catalog + data-health
+queries only). **Overall: the live database is healthy** — the fixes below are
+small and mostly close *future* risk, not present breakage.
+
+**Verified good:**
+
+- PostgreSQL **18.3** — `uuidv7()` is native (no extension needed); only
+  `plpgsql` installed. DB size 13 MB (~73 components, 298 CAD files, 592
+  activity rows).
+- All **37 expected tables** present (exact match with
+  `EXPECTED_SCHEMA_TABLES`); all repo migrations **1–13 applied, none pending**;
+  `created_at(uuid)` + trigger functions present; `updated_at` triggers wired on
+  all 14 expected tables; singleton settings tables each hold exactly 1 row.
+- Integrity: 0 duplicate `manufacturer_pn`/`part_number`; 0 junction orphans;
+  0 TEXT-column↔junction drift (`pcb_footprint` regen is consistent); 0
+  `cad_files.file_path` drift; every component has an inventory row;
+  `distributor_info` XOR CHECK (`component_id`/`alternative_id`) holds — the
+  114 NULL-component rows are all alternative-part rows, 0 both-NULL, 0 orphans,
+  0 duplicate (component, distributor) pairs.
+- Phase-F legacy exposure is tiny: **6** footprint names not lowercase, **0**
+  dotted bases, **0** `+` — grandfathering costs almost nothing.
+
+**Findings → actions:**
+
+| # | Finding | Action | Phase |
+|---|---|---|---|
+| DB1 | `EXPECTED_SCHEMA_VIEWS` (`schemaInspectionService.js:47-52`) protects only 4 of the 7 views that `init-schema.sql` creates and the live DB has — `components_full`, `component_specifications_view`, `eco_orders_full` are unchecked. Deeper: **no server code queries any of the 7 views** — they are an external OrCAD-CIS/ODBC compat surface only; SPEC `§C4`'s "query/report/runtime surfaces rely on views" is stale. | Code fix (no migration): add the 3 views to `EXPECTED_SCHEMA_VIEWS` (+ update `initializationService.test.js:42` mock); reword `§C4` — views = external CIS/ODBC surface, keep but don't claim runtime use. | K |
+| DB2 | **11 FK columns lack covering indexes** (live *and* init files — fresh installs match): `users.created_by`, `users.delegation`, `components.approval_user_id`, `eco_orders.approved_by`, `eco_orders.initiated_by`, `eco_distributors.alternative_id`, `eco_distributors.distributor_id`, `eco_alternative_parts.alternative_id`, `eco_alternative_parts.manufacturer_id`, `eco_specifications.category_spec_id`, `smtp_settings.updated_by`. Harmless at 13 MB; a cascade-delete/JOIN scan cost as data + enterprise usage (Phase J) grow. | Migration `14_fk_covering_indexes.sql` (all `CREATE INDEX IF NOT EXISTS`) + mirror in `init-schema.sql`/`init-users.sql`. | K |
+| DB3 | `schema_migrations` holds a historical row `0_schema_version_1_8_0.sql` (applied 2026-04-21) whose file is not in the repo. Startup pending-detection is files-minus-rows (`initializationService.js:72-93`), so the extra row is **inert**. | Document only (SPEC `§C` note); do not delete history. | K |
+| DB4 | The 6 non-lowercase footprint names are all `.dra` — exactly the F6 fingerprint (`.psm`-only lowercase): `MXM3_N.dra`, `TEM-110-02-030-G-D-L1.dra`, `VSSOP-8_l/m/n.dra`, `XAL6060_n.dra`. A SQL migration **cannot** fix these (the files live on disk; renaming DB-side would break disk↔DB pairing). | Phase F grandfather policy stands; after F lands, optionally rename these 6 via the File Library pair-rename UI (disk+DB atomically). | F |
+| DB5 | Data hygiene, operator-level: `ADS127L18IRSHT.olb` (symbol) flagged `missing=true` — file gone from disk; `TitleBlock.olb` is the single orphan CAD file (intentional template, fine). | No code/migration change — existing UI flows (missing badge, orphan cleanup) cover it; mention to operators. | — |
+| DB6 | Every timestamp column is `timestamp without time zone` (0 `timestamptz` in the schema) — fine for a single-site deployment, a latent footgun for multi-TZ enterprise use. Conversion is high-risk/low-urgency. | Defer with a decision note in Phase J (enterprise onboarding docs state the server-TZ assumption); no v1 migration. | J note |
+| DB7 | Positive receipts for planned work: `distributor_info_component_distributor_unique` + `distributor_info_alternative_distributor_unique` exist live → G3's upsert helper has ready `ON CONFLICT` targets. `footprint_sources` has **0 rows** → confirms G2 (nothing ever wrote it). `users_role_check` already includes all 6 roles incl. `lab`. | Fold into G2/G3 implementation notes. | G |
 
 ---
 
@@ -186,9 +224,11 @@ still work.
 
 Scope: files entering the **footprint** category. Legacy names already on disk /
 in `cad_files` are left untouched (the scan registers what exists —
-`cadFileService.js:847-869`); the rules apply at every *input* boundary. A
-follow-up report of non-compliant legacy names is optional, **no** bulk
-auto-rename (OrCAD boards reference these names).
+`cadFileService.js:847-869`); the rules apply at every *input* boundary. **Live
+exposure is 6 files, all `.dra`** (see DB4 in the live-DB audit) — after F
+lands, rename them via the File Library pair-rename UI; **no** bulk
+auto-rename (OrCAD boards reference these names) and no SQL-side rename ever
+(disk↔DB pairing).
 
 **Implementation — one choke point, then wire every entry path through it:**
 
@@ -298,8 +338,9 @@ green after each.
   delete the service body. Decide at implementation; either way the phantom SQL
   goes.
 - [ ] `footprint_sources` table: now written by nobody (only deleted/counted —
-  `componentController.js:714`, backup lists). Leave the table (init-schema is
-  fresh-init-only; no destructive migration), note it in SPEC as legacy.
+  `componentController.js:714`, backup lists) and **confirmed 0 rows on the
+  live DB** (DB7). Leave the table (init-schema is fresh-init-only; no
+  destructive migration), note it in SPEC as legacy.
 
 **G3 — Cross-controller write helpers:**
 
@@ -314,7 +355,9 @@ green after each.
 - [ ] `services/distributorService.js`: `upsertDistributorInfo(db, componentId|altId, payload)` —
   replace the 10 inserts (D10). Verify column parity across all 10 call sites
   before merging; this is the riskiest dedup — do it last, with the Phase-B
-  fixture if available.
+  fixture if available. Live DB already has the `ON CONFLICT` targets
+  (`distributor_info_component_distributor_unique`,
+  `distributor_info_alternative_distributor_unique` — DB7).
 - [ ] `constants/dbTables.js`: single source for the backup/clear/inspection
   table lists (D11); import from `databaseService`, `adminController`,
   `settingsController`, `schemaInspectionService`. Keep
@@ -524,6 +567,48 @@ layer and keeping local login). **Acceptance:** login via a real IdP
 session with correct role; JIT + linking rules hold; local break-glass works;
 all existing auth tests green; `§V29`/`§T11` recorded.
 
+> DB6 note: schema timestamps are all `timestamp without time zone` — the
+> enterprise onboarding doc must state the server-TZ assumption; `timestamptz`
+> conversion is a deliberate non-goal for J v1.
+
+### Phase K — Database schema/verify pass (from the live-DB audit) (NEW)
+
+**Goal:** close the DB1–DB3 audit findings. Small, independent, safe — the live
+DB is healthy; this hardens verification and query paths before J's migration
+work builds on them.
+
+**Approach:**
+
+- [ ] **Migration `database/migrations/14_fk_covering_indexes.sql`** (DB2):
+  `CREATE INDEX IF NOT EXISTS` for the 11 unindexed FK columns listed in the
+  audit table (`idx_<table>_<column>` naming, matching the existing
+  `idx_eco_orders_parent` convention). Idempotent by construction; version in
+  the migration header + `CHANGELOG.md` per repo convention (not the filename).
+- [ ] Mirror the same indexes in `init-schema.sql` / `init-users.sql` so fresh
+  installs match migrated ones (allowed: init files are fresh-init-only and
+  these are new base objects, no `ALTER`).
+- [ ] **`EXPECTED_SCHEMA_VIEWS` completeness** (DB1): add `components_full`,
+  `component_specifications_view`, `eco_orders_full` to
+  `schemaInspectionService.js:47-52`; update the
+  `initializationService.test.js:42` mock accordingly. Startup verify then
+  actually guards the whole CIS/ODBC view surface.
+- [ ] **SPEC updates** via `spec` skill: reword `§C4` (views are an external
+  OrCAD-CIS/ODBC compat surface; server runtime does not query them; TEXT
+  columns remain the CIS contract); note the inert historical
+  `0_schema_version_1_8_0.sql` row (DB3); new `§T.T12` "DB schema/verify pass:
+  FK covering indexes + full view verification". Record DB1 in `§B` only if
+  treating the unverified views as a bug (recommended: yes, one-line entry).
+- [ ] Re-run the read-only audit script against a migrated dev DB to confirm
+  `fkNoIndex` returns empty and startup verify passes with the widened view
+  list. (Audit scripts live in the session scratchpad — recreate from this
+  plan's query list; they are ~100 lines of catalog SQL.)
+- [ ] Reserve the **next** migration integer after 14 for J2's OIDC users
+  migration to avoid renumbering.
+
+**Risk:** L (additive indexes + verification-only code). **Acceptance:**
+migration applies cleanly on live + fresh init parity; startup verify green
+with all 7 views; `./test.sh` green; CHANGELOG + SPEC updated.
+
 ### Phase D — `§T.T5`: decide + document public-read auth policy (reads)
 
 **Goal:** close `§T.T5`. Make a deliberate, documented decision about which GET
@@ -633,15 +718,17 @@ hand-off, still representative):
 
 ### Suggested order
 
-**C → E → H → I → F → G1/G2 → D → J → G3 → B → A.**
+**C → E → K → H → I → F → G1/G2 → D → J → G3 → B → A.**
 
 - C first: security holes, quick, and its route-matrix test protects everything after.
 - E second: later phases verify against a real gate.
+- K third: small, independent; lands migration 14 + widened startup verify
+  before anything else touches the DB, and reserves the next integer for J2.
 - H/I next: operator-facing UX pain (scan lag/accuracy, lost sort state) — small,
   self-contained, immediately felt.
 - F then G1/G2 while CAD context is warm — G1's D3 consolidation folds into F.
 - D before J: the public-read boundary must be documented before enterprise SSO
-  review; J builds on C+D's clean auth story.
+  review; J builds on C+D's clean auth story and K's migration groundwork.
 - G3 later (distributor dedup benefits from B's fixture — swap G3/B if the
   fixture lands first); B and A close out.
 
