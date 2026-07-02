@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `./test.sh` is now a CI-parity gate: after the autofix lint pass it also runs the no-fix `npm run lint` for each package, it runs the `scripts` package test (dry-run CSV import) alongside client/server tests, and it fails when autofix rewrites a previously-clean tree (drift guard) so committed code can't silently differ from what was checked. Existing flags (`--lint-only`, `--test-only`, `--coverage`, `--watch`) unchanged; dependencies auto-install like `start.sh`.
 - Inventory and Audit pages now report errors and notices through the in-app toast system (`useNotification`) instead of native browser `alert()` dialogs, matching the rest of the app.
 - Startup database logging now states the path taken explicitly: blank DB -> "running init-schema.sql, then migrations"; existing DB -> "skipping init-schema, applying migrations only". The migration runner additionally logs discovered/already-applied/pending counts, and the default-settings step is labeled an idempotent seed rather than an init.
 - Removed the online `ALTER TABLE cad_files ADD COLUMN IF NOT EXISTS missing` from `server/src/index.js` (ran on every boot, after `listen`); the column is owned by `init-schema.sql` (fresh DBs) and `1_legacy_schema_repairs.sql` (existing DBs) and enforced by startup schema inspection.
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CAD file delete (`deleteCadFile`) now removes the `cad_files` row and regenerates TEXT columns inside a transaction and only unlinks the physical file after commit, so a crash can at worst leave a harmless on-disk orphan (re-surfaced by the library scan) instead of a database row pointing at a missing file.
 - Part-edit `renameFile` no longer swallows a failed `cad_files` update and returns success; the error now propagates after rollback.
 - `start.sh` dev mode now sources `.env` with auto-export instead of `export $(grep ... | xargs)`, so values with spaces, quotes, `=`, or `#` load intact.
+- `scripts` package `test` script filtered for `Diodes` but the import CSV is named `Diode_...`, so the dry-run import test always exited 1 without processing anything (unnoticed because the old gate never ran it). Filter corrected to `Diode`.
 - `scripts/package.json` dropped broken `validate`/`verify`/`verify:detailed` scripts that pointed at non-existent `validate-csv.js`/`verify-import.js`.
 
 ## [1.10.0] - 2026-05-14

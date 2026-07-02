@@ -11,7 +11,7 @@
     "import:dry-run": "node import.js --dry-run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "node import.js --dry-run --file=Diodes"
+    "test": "node import.js --dry-run --file=Diode"
   },
   "dependencies": {
     "csv-parse": "^5.5.3",
