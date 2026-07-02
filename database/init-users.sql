@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_created_by ON users(created_by);
+CREATE INDEX IF NOT EXISTS idx_users_delegation ON users(delegation);
 
 -- Activity types table for user actions
 CREATE TABLE IF NOT EXISTS activity_types (

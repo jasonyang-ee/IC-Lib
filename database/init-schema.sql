@@ -211,6 +211,7 @@ CREATE INDEX IF NOT EXISTS idx_components_category ON components(category_id);
 CREATE INDEX IF NOT EXISTS idx_components_manufacturer ON components(manufacturer_id);
 CREATE INDEX IF NOT EXISTS idx_components_part_number ON components(part_number);
 CREATE INDEX IF NOT EXISTS idx_components_approval_status ON components(approval_status);
+CREATE INDEX IF NOT EXISTS idx_components_approval_user ON components(approval_user_id);
 
 -- Category specifications indexes
 CREATE INDEX IF NOT EXISTS idx_category_specs_category ON category_specifications(category_id);
@@ -765,10 +766,17 @@ CREATE INDEX IF NOT EXISTS idx_eco_orders_component ON eco_orders(component_id);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_status ON eco_orders(status);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_eco_number ON eco_orders(eco_number);
 CREATE INDEX IF NOT EXISTS idx_eco_orders_parent ON eco_orders(parent_eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_initiated_by ON eco_orders(initiated_by);
+CREATE INDEX IF NOT EXISTS idx_eco_orders_approved_by ON eco_orders(approved_by);
 CREATE INDEX IF NOT EXISTS idx_eco_changes_eco ON eco_changes(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_distributors_eco ON eco_distributors(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_distributors_alternative ON eco_distributors(alternative_id);
+CREATE INDEX IF NOT EXISTS idx_eco_distributors_distributor ON eco_distributors(distributor_id);
 CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_eco ON eco_alternative_parts(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_alternative ON eco_alternative_parts(alternative_id);
+CREATE INDEX IF NOT EXISTS idx_eco_alternative_parts_manufacturer ON eco_alternative_parts(manufacturer_id);
 CREATE INDEX IF NOT EXISTS idx_eco_specifications_eco ON eco_specifications(eco_id);
+CREATE INDEX IF NOT EXISTS idx_eco_specifications_category_spec ON eco_specifications(category_spec_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_eco ON eco_approvals(eco_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_stage ON eco_approvals(stage_id);
 CREATE INDEX IF NOT EXISTS idx_eco_approvals_user ON eco_approvals(user_id);

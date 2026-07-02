@@ -11,7 +11,7 @@ G3: provide audit/reporting/admin surfaces for governed library ops.
 C1: stack React 19 + Vite + TailwindCSS v4 + React Query 5 | Express 4 | PostgreSQL 18 | JWT cookie auth.
 C2: DB primary keys ! `UUID DEFAULT uuidv7()`; create time derive via `created_at(id)`.
 C3: app owns flat CAD tree `library/footprint|symbol|model|pspice|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`, plus `footprint_related_cad_files` for reusable footprint-driven pad and 3D-model history.
-C4: query/report/runtime surfaces rely on views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file`.
+C4: views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts` = external OrCAD-CIS/ODBC compat surface only — server runtime ⊥ query them; keep + startup-verify all 7 (`EXPECTED_SCHEMA_VIEWS`, locked by `schemaInspectionService.test.js`); OrCAD/CIS compat ! keep TEXT cols `pcb_footprint|schematic|step_model|pspice|pad_file`. note: live `schema_migrations` holds historical row `0_schema_version_1_8_0.sql` (file ∉ repo) — inert, pending-detection = files minus rows; ⊥ delete history.
 C5: roles `read-only|reviewer|lab|read-write|approver|admin`; `lab` = `read-write` except File Library page/browse/manage access ⊥; some component-scoped CAD helper APIs still usable from Parts Library edit flow.
 C6: runtime flags/env ! support `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, DB creds, vendor API creds, `SMTP_ENCRYPTION_KEY`.
 C7: startup may repair missing base schema from `database/init-*.sql`; incremental change ! live in `database/migrations/<int>_<desc>.sql`.
@@ -115,6 +115,7 @@ T4|.|add integration tests for library add/edit/ECO retry/file finalize paths|V7
 T5|.|decide final public-read auth policy, document boundary, add route tests beyond current inventory/project coverage|V2,V10,I.web,I.inv,I.proj,I.ops
 T6|x|enforce single PSpice `.olb` symbol slot (role-aware `getCadFileSlot`) in upload/link conflict guard w/ keep-vs-replace modal; `.lib` multi stays; client regression in `cadFileTypes.test.js`|V8,V22,V26,B5
 T7|x|auth hardening: guard 8 unauthenticated mutations (components stock/spec/distributor -> canWrite; manufacturers create -> canWrite, update/rename/delete -> isAdmin), delete dead unguarded `/api/categories` mutation surface (client uses admin `/settings/categories`), route-matrix lock-in sweep test|V2,C5,V27,B8
+T12|x|DB schema/verify pass: migration `14_fk_covering_indexes.sql` (11 FK covering indexes, mirrored init-schema/init-users/init-smtp) + `EXPECTED_SCHEMA_VIEWS` widened to all 7 views + init-vs-expectation drift test; fresh-install scratch verify: fkNoIndex empty, 7 views present|C4,B9
 
 ## §B
 
@@ -127,3 +128,4 @@ B5|2026-04-30|dual `.olb` ECO path keeps `symbol` vs `pspice` isolated, but uplo
 B6|2026-05-04|Vendor Search append path sent blank UUID strings for unresolved manufacturer/distributor lookups, so alt/distributor writes could 500 on optional FK fields instead of normalizing or resolving by name|V23
 B7|2026-06-30|`adminController` `getDatabaseStats` + `verifyDatabaseSchema` referenced nonexistent table `component_specifications` (real table `component_specification_values`) ∴ DB-stats endpoint 500 on the spec subquery & verify-schema false-reports it missing. fixed both refs|V18
 B8|2026-07-02|12 mutation routes lacked `authenticate` (components bulk update-stock/update-specifications/update-distributors + `:id/update-stock`; manufacturers POST/PUT/rename/DELETE; categories POST/PUT/update-part-numbers/DELETE — categories surface dead client-side, deleted) ∴ any anonymous caller could mutate stock/specs/distributors/manufacturers/categories, violates V2|V27,T7
+B9|2026-07-02|`EXPECTED_SCHEMA_VIEWS` verified only 4 of 7 views init-schema creates (`components_full`, `component_specifications_view`, `eco_orders_full` unchecked) ∴ startup verify blind to loss of external CIS/ODBC view surface; §C4 also falsely claimed runtime queries views|C4,T12

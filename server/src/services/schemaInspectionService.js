@@ -44,11 +44,16 @@ export const STARTUP_REQUIRED_TABLES = EXPECTED_SCHEMA_TABLES.filter(
   tableName => tableName !== 'schema_migrations',
 );
 
+// External OrCAD-CIS/ODBC compat surface: server runtime does not query these,
+// but external tooling does, so startup verifies all of them.
 export const EXPECTED_SCHEMA_VIEWS = [
   'production_parts',
   'prototype_parts',
   'archived_parts',
   'alternative_parts',
+  'components_full',
+  'component_specifications_view',
+  'eco_orders_full',
 ];
 
 export const REPAIRABLE_SCHEMA_COLUMNS = [

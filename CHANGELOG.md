@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Migration `14_fk_covering_indexes.sql`: covering indexes for 11 foreign-key columns that lacked them (`users.created_by`/`delegation`, `components.approval_user_id`, `eco_orders.initiated_by`/`approved_by`, `eco_distributors.alternative_id`/`distributor_id`, `eco_alternative_parts.alternative_id`/`manufacturer_id`, `eco_specifications.category_spec_id`, `smtp_settings.updated_by`), mirrored in the init files so fresh installs match migrated databases. Verified on a scratch fresh install: no FK column without a covering index remains.
+- Startup schema verification now covers all 7 database views: `components_full`, `component_specifications_view`, and `eco_orders_full` added to `EXPECTED_SCHEMA_VIEWS` (previously only 4 of the 7 views created by `init-schema.sql` were checked). A new test locks the expectation list to the views `init-schema.sql` actually creates. The views are an external OrCAD-CIS/ODBC compatibility surface; server runtime does not query them (SPEC §C4 reworded accordingly).
 - `SPEC.md` §U operator-UX section (merged and compressed from `UX.md`).
 
 ### Changed

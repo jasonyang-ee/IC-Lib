@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS smtp_settings (
 -- Only one SMTP configuration should exist at a time (singleton pattern)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_smtp_settings_singleton ON smtp_settings((1));
 
+-- FK covering index (parity with migration 14)
+CREATE INDEX IF NOT EXISTS idx_smtp_settings_updated_by ON smtp_settings(updated_by);
+
 -- Trigger to update updated_at timestamp
 CREATE TRIGGER update_smtp_settings_updated_at
     BEFORE UPDATE ON smtp_settings
