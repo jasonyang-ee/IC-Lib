@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared `VendorBarcodeScanPanel` component (keyboard-wedge input + camera) used by both Inventory and Vendor Search; scan-gun Enter/Tab terminator decodes immediately (fallback debounce 250 ms, down from 1.5 s), and scanner keystrokes re-render only the panel instead of the whole page.
 - Camera barcode scanner: detection throttled to ~8 fps on a downscaled offscreen canvas (previously every animation frame at full resolution), continuous autofocus requested where supported, and a torch toggle on capable devices.
 - Inventory barcode scan now falls back to the exact server-side SKU/part-number lookup (`POST /api/inventory/search/barcode`, previously defined but never called) when the scanned part is not visible in the filtered view: a part hidden by filters gets a "Clear Filters & Show Part" action, a genuine miss keeps the "Search Vendor" action.
+- Library view preferences persist across visits and refreshes: sort field/direction, approval-status filter, and category selection are stored in `localStorage` (`viewPrefs:library`), and the search term per tab in `sessionStorage` — after adding a part, the list comes back exactly as the operator left it. Inventory sort field/direction persist the same way (`viewPrefs:inventory`). Stored values are whitelist-validated by the new `viewPrefs` util (with tests), so corrupt or legacy blobs fall back to defaults, and a persisted category that no longer exists resets to All Categories.
 
 ### Changed
 

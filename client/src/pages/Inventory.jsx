@@ -7,9 +7,17 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { InventorySidebar, InventoryTable, QRCodeModal } from '../components/inventory';
+import { loadViewPrefs, oneOf, saveViewPrefs } from '../utils/viewPrefs';
 
 // Debounce for the free-text filter so large inventories don't re-filter per keystroke
 const SEARCH_DEBOUNCE_MS = 200;
+
+// View-preference persistence (sort state survives navigation and refresh)
+const INVENTORY_VIEW_PREFS_KEY = 'viewPrefs:inventory';
+const INVENTORY_VIEW_PREFS_VALIDATORS = {
+  sortBy: oneOf(['part_number', 'manufacturer_pn', 'quantity', 'location', 'minimum_quantity', 'updated_at']),
+  sortOrder: oneOf(['asc', 'desc']),
+};
 
 const Inventory = () => {
   const queryClient = useQueryClient();
@@ -33,13 +41,19 @@ const Inventory = () => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [alternativesData, setAlternativesData] = useState({});
   const [editingAlternative, setEditingAlternative] = useState(null);
-  const [sortBy, setSortBy] = useState('part_number');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [storedViewPrefs] = useState(() => loadViewPrefs(INVENTORY_VIEW_PREFS_KEY, INVENTORY_VIEW_PREFS_VALIDATORS));
+  const [sortBy, setSortBy] = useState(storedViewPrefs.sortBy ?? 'part_number');
+  const [sortOrder, setSortOrder] = useState(storedViewPrefs.sortOrder ?? 'asc');
   const [_receiveQtyFromQr, _setReceiveQtyFromQr] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
+
+  // Persist sort prefs
+  useEffect(() => {
+    saveViewPrefs(INVENTORY_VIEW_PREFS_KEY, { sortBy, sortOrder });
+  }, [sortBy, sortOrder]);
 
   // Debounce the free-text filter input
   useEffect(() => {

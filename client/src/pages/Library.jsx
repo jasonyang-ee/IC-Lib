@@ -18,6 +18,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { canAccessFileLibrary, canDirectEditLibraryComponents } from '../utils/accessControl';
 import { getEcoStatusProposalOptions } from '../utils/ecoStatusProposalOptions';
+import { isString, loadSessionValue, loadViewPrefs, oneOf, saveSessionValue, saveViewPrefs, subsetOf } from '../utils/viewPrefs';
 
 const DISTRIBUTOR_ORDER = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
 const LIBRARY_STATUS_FILTERS = [
@@ -28,6 +29,16 @@ const LIBRARY_STATUS_FILTERS = [
   { value: 'archived', label: 'Archived' },
 ];
 const DEFAULT_LIBRARY_STATUSES = ['new', 'reviewing', 'prototype', 'production'];
+
+// View-preference persistence (per browser; search term is per tab)
+const LIBRARY_VIEW_PREFS_KEY = 'viewPrefs:library';
+const LIBRARY_SEARCH_SESSION_KEY = 'viewPrefs:library:search';
+const LIBRARY_VIEW_PREFS_VALIDATORS = {
+  sortBy: oneOf(['part_number', 'manufacturer_pn', 'value', 'description', 'created_at', 'updated_at']),
+  sortOrder: oneOf(['asc', 'desc']),
+  selectedApprovalStatuses: subsetOf(LIBRARY_STATUS_FILTERS.map((status) => status.value)),
+  selectedCategory: isString,
+};
 
 /**
  * Normalize distributor rows to always have 4 entries in standard order,
@@ -93,9 +104,11 @@ const Library = () => {
   const { showSuccess, showError, showInfo } = useNotification();
   const canAccessFileLibraryPage = canAccessFileLibrary(user?.role);
   
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedApprovalStatuses, setSelectedApprovalStatuses] = useState(DEFAULT_LIBRARY_STATUSES);
+  // Restore persisted view prefs (validated — corrupt/unknown values fall back to defaults)
+  const [storedViewPrefs] = useState(() => loadViewPrefs(LIBRARY_VIEW_PREFS_KEY, LIBRARY_VIEW_PREFS_VALIDATORS));
+  const [selectedCategory, setSelectedCategory] = useState(storedViewPrefs.selectedCategory ?? '');
+  const [searchTerm, setSearchTerm] = useState(() => loadSessionValue(LIBRARY_SEARCH_SESSION_KEY));
+  const [selectedApprovalStatuses, setSelectedApprovalStatuses] = useState(storedViewPrefs.selectedApprovalStatuses ?? DEFAULT_LIBRARY_STATUSES);
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
@@ -107,8 +120,8 @@ const Library = () => {
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
   const [categoryChangeConfirmation, setCategoryChangeConfirmation] = useState({ show: false, newCategoryId: null, newCategoryName: '' });
-  const [sortBy, setSortBy] = useState('part_number');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [sortBy, setSortBy] = useState(storedViewPrefs.sortBy ?? 'part_number');
+  const [sortOrder, setSortOrder] = useState(storedViewPrefs.sortOrder ?? 'asc');
   const [copiedText, setCopiedText] = useState('');
   const [autoFillToast, setAutoFillToast] = useState({ show: false, message: '', count: 0 });
   
@@ -439,6 +452,15 @@ const Library = () => {
     }
   };
 
+  // Persist view prefs so the list comes back exactly as the operator left it
+  useEffect(() => {
+    saveViewPrefs(LIBRARY_VIEW_PREFS_KEY, { sortBy, sortOrder, selectedApprovalStatuses, selectedCategory });
+  }, [sortBy, sortOrder, selectedApprovalStatuses, selectedCategory]);
+
+  useEffect(() => {
+    saveSessionValue(LIBRARY_SEARCH_SESSION_KEY, searchTerm);
+  }, [searchTerm]);
+
   // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -448,6 +470,13 @@ const Library = () => {
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // A persisted category that no longer exists must not filter everything out
+  useEffect(() => {
+    if (selectedCategory && categories && !categories.some((cat) => cat.id === selectedCategory)) {
+      setSelectedCategory('');
+    }
+  }, [categories, selectedCategory]);
 
   // Fetch components
   const { data: components, isLoading } = useQuery({
