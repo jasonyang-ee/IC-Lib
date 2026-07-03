@@ -24,6 +24,18 @@ services:
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
       # - MOUSER_API_KEY=your_api_key
+
+      # Optional: OIDC / SSO (enabled iff issuer + client id are set).
+      # Redirect URI must be this deployment's public URL + /api/auth/oidc/callback
+      # (include the subdirectory if CONFIG_SUBDIRECTORY_PATH is set).
+      # Note: schema timestamps are timezone-naive; server and DB assume one site TZ.
+      # - OIDC_ISSUER_URL=https://idp.example.com/realms/company
+      # - OIDC_CLIENT_ID=iclib
+      # - OIDC_CLIENT_SECRET=your_client_secret
+      # - OIDC_REDIRECT_URI=http://localhost:80/api/auth/oidc/callback
+      # - OIDC_SCOPES=openid profile email
+      # - OIDC_PROVIDER_NAME=Company SSO
+      # - OIDC_DEFAULT_ROLE=read-only
     volumes:
       - ./iclib/library:/app/library
       # Optional: mount a directory containing your company logo for ECO PDFs

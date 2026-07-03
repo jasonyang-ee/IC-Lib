@@ -71,11 +71,18 @@ export const login = async (req, res) => {
       });
     }
 
+    // SSO-only users have no local password; reject cleanly before bcrypt
+    if (!user.password_hash) {
+      return res.status(401).json({
+        error: 'Invalid username or password',
+      });
+    }
+
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
-      return res.status(401).json({ 
-        error: 'Invalid username or password', 
+      return res.status(401).json({
+        error: 'Invalid username or password',
       });
     }
 
@@ -200,6 +207,7 @@ export const getAllUsers = async (req, res) => {
         created_at(u.id) as created_at,
         u.last_login,
         u.is_active,
+        u.auth_provider,
         creator.username as created_by_username
       FROM users u
       LEFT JOIN users creator ON u.created_by = creator.id
@@ -498,9 +506,16 @@ export const changePassword = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // SSO-only users have no local password to change
+    if (!result.rows[0].password_hash) {
+      return res.status(400).json({
+        error: 'This account signs in through single sign-on and has no local password',
+      });
+    }
+
     // Verify current password
     const isValidPassword = await bcrypt.compare(
-      currentPassword, 
+      currentPassword,
       result.rows[0].password_hash,
     );
 
@@ -533,7 +548,7 @@ export const getProfile = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, username, role, email, display_name, notification_preferences, file_storage_path,
-              created_at(id) as created_at, last_login, is_active
+              created_at(id) as created_at, last_login, is_active, auth_provider
        FROM users WHERE id = $1`,
       [req.user.userId],
     );
@@ -561,6 +576,7 @@ export const getProfile = async (req, res) => {
       createdAt: user.created_at,
       lastLogin: user.last_login,
       isActive: user.is_active,
+      authProvider: user.auth_provider || 'local',
     });
   } catch (error) {
     console.error('[error] [Auth] Get profile error:', error);

@@ -53,6 +53,11 @@ const PUBLIC_MUTATION_ALLOWLIST = new Set([
 // guest read-only flow. Every GET not listed here must require authenticate.
 // Adding a new public GET is a deliberate act: extend this list AND §V10.
 const PUBLIC_GET_ALLOWLIST = new Set([
+  // OIDC/SSO flow (V29): status feeds the login page; login/callback carry
+  // the IdP redirect flow and must be reachable pre-session
+  'auth get /oidc/status',
+  'auth get /oidc/login',
+  'auth get /oidc/callback',
   'categories get /',
   'categories get /:id',
   'categories get /:id/next-part-number',

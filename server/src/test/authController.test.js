@@ -28,7 +28,7 @@ vi.mock('../services/ecoApprovalEligibilityService.js', () => ({
 }));
 
 const { AUTH_COOKIE_NAME } = await import('../middleware/auth.js');
-const { login, logout } = await import('../controllers/authController.js');
+const { login, logout, changePassword } = await import('../controllers/authController.js');
 
 const mockReq = (overrides = {}) => ({
   body: {},
@@ -115,5 +115,43 @@ describe('authController cookie auth', () => {
       }),
     );
     expect(res.json).toHaveBeenCalledWith({ message: 'Logged out successfully' });
+  });
+
+  it('rejects local login for SSO-only users (NULL password_hash) without calling bcrypt', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{
+        id: 'user-2',
+        username: 'sso.user',
+        password_hash: null,
+        role: 'read-only',
+        is_active: true,
+        display_name: 'SSO User',
+      }],
+    });
+
+    const req = mockReq({ body: { username: 'sso.user', password: 'anything' } });
+    const res = mockRes();
+
+    await login(req, res);
+
+    expect(compareMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid username or password' });
+    expect(res.cookie).not.toHaveBeenCalled();
+  });
+
+  it('rejects change-password for SSO-only users with a clear 400', async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ password_hash: null }] });
+
+    const req = mockReq({ body: { currentPassword: 'x', newPassword: 'longenough' } });
+    const res = mockRes();
+
+    await changePassword(req, res);
+
+    expect(compareMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'This account signs in through single sign-on and has no local password',
+    });
   });
 });

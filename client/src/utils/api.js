@@ -56,6 +56,9 @@ export const api = {
   logout: () => apiClient.post('/auth/logout'),
   verifyAuth: () => apiClient.get('/auth/verify'),
   changePassword: (data) => apiClient.post('/auth/change-password', data),
+  getOidcStatus: () => apiClient.get('/auth/oidc/status'),
+  // Full-page navigation target (not an XHR) for the SSO redirect flow
+  getOidcLoginUrl: () => `${API_BASE_URL}/auth/oidc/login`,
   
   // User Management (Admin only)
   getAllUsers: () => apiClient.get('/auth/users'),

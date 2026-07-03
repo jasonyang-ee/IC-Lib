@@ -1,11 +1,18 @@
 import express from 'express';
 import * as authController from '../controllers/authController.js';
+import * as oidcController from '../controllers/oidcController.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Public routes
 router.post('/login', authController.login);
+
+// OIDC/SSO routes - public by design (documented in SPEC V10/V29):
+// status feeds the login page, login/callback carry the IdP redirect flow
+router.get('/oidc/status', oidcController.oidcStatus);
+router.get('/oidc/login', oidcController.oidcLogin);
+router.get('/oidc/callback', oidcController.oidcCallback);
 
 // Protected routes (require authentication)
 router.get('/verify', authenticate, authController.verify);

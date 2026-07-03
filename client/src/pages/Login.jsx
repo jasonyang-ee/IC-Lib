@@ -1,17 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../utils/api';
 import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
+
+const SSO_ERROR_MESSAGES = {
+  sso_failed: 'Single sign-on failed. Please try again or use a local account.',
+  account_disabled: 'Your account is disabled. Contact an administrator.',
+};
 
 const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oidcStatus, setOidcStatus] = useState({ enabled: false, providerName: null });
+
+  // SSO availability for the provider button; errors from the callback
+  // redirect land here as ?error=...
+  useEffect(() => {
+    api.getOidcStatus()
+      .then((response) => setOidcStatus(response.data || { enabled: false }))
+      .catch(() => setOidcStatus({ enabled: false, providerName: null }));
+
+    const params = new URLSearchParams(window.location.search);
+    const ssoError = params.get('error');
+    if (ssoError) {
+      setError(SSO_ERROR_MESSAGES[ssoError] || SSO_ERROR_MESSAGES.sso_failed);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -138,6 +160,21 @@ const Login = () => {
               <span className="px-2 bg-white dark:bg-[#2a2a2a] text-gray-500 dark:text-gray-400">or</span>
             </div>
           </div>
+
+          {/* SSO Login Button */}
+          {oidcStatus.enabled && (
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = api.getOidcLoginUrl();
+              }}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors mb-3"
+            >
+              <LogIn className="w-5 h-5" />
+              Sign in with {oidcStatus.providerName || 'SSO'}
+            </button>
+          )}
 
           {/* Guest Login Button */}
           <button

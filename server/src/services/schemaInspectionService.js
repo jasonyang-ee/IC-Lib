@@ -59,6 +59,9 @@ export const EXPECTED_SCHEMA_VIEWS = [
 export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'file_storage_path' },
   { table: 'users', column: 'delegation' },
+  { table: 'users', column: 'auth_provider' },
+  { table: 'users', column: 'oidc_issuer' },
+  { table: 'users', column: 'oidc_sub' },
   { table: 'cad_files', column: 'missing' },
   { table: 'components', column: 'last_specs_refresh_at' },
   { table: 'distributor_info', column: 'last_vendor_sync_at' },

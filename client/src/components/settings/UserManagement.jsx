@@ -277,6 +277,7 @@ const UserManagement = () => {
               <tr className="border-b border-gray-200 dark:border-[#3a3a3a]">
                 <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Username</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Role</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Sign-in</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Status</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Last Login</th>
                 <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">Created</th>
@@ -295,6 +296,15 @@ const UserManagement = () => {
                   <td className="py-3 px-4">
                     <span className={`inline-flex px-2 py-1 text-xs rounded-full font-medium ${getRoleBadgeColor(user.role)}`}>
                       {user.role.replace('-', ' ')}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className={`inline-flex px-2 py-1 text-xs rounded-full font-medium ${
+                      user.auth_provider === 'oidc'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'
+                    }`}>
+                      {user.auth_provider === 'oidc' ? 'SSO' : 'Local'}
                     </span>
                   </td>
                   <td className="py-3 px-4">
@@ -451,18 +461,24 @@ const UserManagement = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  New Password (leave blank to keep current)
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
-                  placeholder="Leave blank to keep current password"
-                />
-              </div>
+              {selectedUser.auth_provider === 'oidc' ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  This account signs in through single sign-on and has no local password.
+                </p>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    New Password (leave blank to keep current)
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+                    placeholder="Leave blank to keep current password"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

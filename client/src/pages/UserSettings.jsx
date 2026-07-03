@@ -22,6 +22,7 @@ const UserSettings = () => {
   // Profile state
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [authProvider, setAuthProvider] = useState('local');
   const [profileForm, setProfileForm] = useState({
     email: '',
     displayName: '',
@@ -50,6 +51,7 @@ const UserSettings = () => {
         ]);
         const profile = profileResponse.data;
         const preferences = preferencesResponse.data;
+        setAuthProvider(profile.authProvider || 'local');
         setProfileForm({
           email: profile.email || '',
           displayName: profile.displayName || '',
@@ -231,6 +233,21 @@ const UserSettings = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Your role determines your access permissions in the system.
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Sign-in Method
+                </label>
+                <div className="px-4 py-3 bg-gray-100 dark:bg-[#333333] rounded-lg">
+                  <span className={`inline-flex px-2 py-1 text-xs rounded-full font-medium ${
+                    authProvider === 'local'
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                  }`}>
+                    {authProvider === 'local' ? 'Local account' : 'Single sign-on (SSO)'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -457,7 +474,8 @@ const UserSettings = () => {
             </div>
           </div>
 
-          {/* Change Password */}
+          {/* Change Password - SSO-only accounts have no local password */}
+          {authProvider === 'local' ? (
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center gap-3 mb-6">
               <Key className="w-6 h-6 text-gray-700 dark:text-gray-300" />
@@ -546,6 +564,18 @@ const UserSettings = () => {
               </div>
             </form>
           </div>
+          ) : (
+          <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+            <div className="flex items-center gap-3 mb-2">
+              <Key className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Password</h2>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Your account signs in through single sign-on and has no local password.
+              Password changes are managed by your identity provider.
+            </p>
+          </div>
+          )}
         </div>
       )}
     </div>

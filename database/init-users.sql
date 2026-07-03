@@ -1,8 +1,9 @@
 -- Users table for authentication
+-- password_hash is NULLable: SSO-only (OIDC) users carry no local password
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuidv7(),
   username VARCHAR(50) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255),
   role VARCHAR(20) NOT NULL CHECK (role IN ('read-only', 'reviewer', 'lab', 'read-write', 'approver', 'admin')),
   email VARCHAR(255),
   display_name VARCHAR(100),
@@ -16,7 +17,10 @@ CREATE TABLE IF NOT EXISTS users (
   delegation UUID REFERENCES users(id) ON DELETE SET NULL,
   created_by UUID REFERENCES users(id),
   last_login TIMESTAMP,
-  is_active BOOLEAN DEFAULT true
+  is_active BOOLEAN DEFAULT true,
+  auth_provider VARCHAR(20) NOT NULL DEFAULT 'local',
+  oidc_issuer TEXT,
+  oidc_sub TEXT
 );
 
 -- Create index on username for faster lookups
@@ -25,6 +29,10 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_created_by ON users(created_by);
 CREATE INDEX IF NOT EXISTS idx_users_delegation ON users(delegation);
+-- A federated identity is uniquely identified by (issuer, sub)
+CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_identity_unique
+  ON users(oidc_issuer, oidc_sub)
+  WHERE oidc_issuer IS NOT NULL AND oidc_sub IS NOT NULL;
 
 -- Activity types table for user actions
 CREATE TABLE IF NOT EXISTS activity_types (
