@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Closed path-safety gaps in the part-page file API: user-supplied filenames in restore, batch collision check, download, delete, and save-time collision linking are now validated as safe leaf names (no separators/traversal), matching the File Library controller. Restoring a soft-deleted file no longer silently overwrites a file that reappeared at the target name.
 - Closed 12 unauthenticated mutation routes: component bulk/single stock, specification, and distributor refresh endpoints now require a write role (`authenticate, canWrite`); manufacturer create requires a write role, and manufacturer update/rename/delete require admin. The unguarded `/api/categories` mutation routes (create/update/update-part-numbers/delete) were removed outright — nothing in the client called them and the admin-guarded `/api/settings/categories` surface is the real category editor. A new full-router sweep test (`routeAuthGuards.test.js`) asserts every state-changing route in every router starts with `authenticate` (documented exceptions: login, inventory barcode lookup).
 
 ### Removed
@@ -40,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Vendor footprint fetch (Ultra Librarian / SnapEDA) no longer contains phantom SQL: it referenced a `components.footprint_path` column and `footprint_sources` columns that don't exist in the schema (dormant only because the client never sent a `componentId`), and downloaded outside the managed `library/` tree. Downloaded files now stage through the same `library/temp` pipeline as every other CAD upload; the never-written `footprint_sources` table stays for schema stability.
+- Part-page file rename can no longer change a file's extension (e.g. `.psm` to `.dra` within the footprint category) — the old extension is always preserved. Case-only renames on case-insensitive filesystems are no longer rejected as collisions on this surface.
+- Part-page file rename now funnels through the same atomic `cadFileService.renameCadFile` transaction as the File Library (one hand-rolled duplicate transaction removed); several duplicated internals consolidated (file lookup, same-file check, component CAD file queries, category component counts).
 - Renaming a footprint pair from the part page to an uppercase base no longer produces mismatched names (`foo.psm` + `FOO.dra`) — the paired file's new name is normalized the same way as the primary's, so the pair keeps its shared base.
 - File Library single-file rename previously bypassed footprint filename normalization entirely (only the part-page rename sanitized); both surfaces now apply identical rules.
 - Vendor barcode decoding no longer guesses the manufacturer part number from unprefixed ECIA fields: a Mouser label leading with a sales-order number previously searched inventory for the order number; multi-field barcodes without a `1P` field now report a clear error instead of returning garbage. Camera scans no longer dump the raw ECIA control-character payload into the search box on a failed decode.

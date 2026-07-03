@@ -275,7 +275,7 @@ export async function getComponentsByFileName(fileName, fileType) {
  * Used to allow case-only renames on case-insensitive filesystems (e.g. Windows)
  * where the source and target compare equal on disk.
  */
-function isSameExistingFile(firstPath, secondPath) {
+export function isSameExistingFile(firstPath, secondPath) {
   try {
     const firstStat = fs.statSync(firstPath);
     const secondStat = fs.statSync(secondPath);
@@ -1001,10 +1001,11 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool, opt
 }
 
 /**
- * Get all components in a category with their CAD file counts.
- * Used for the Category view in the File Library page.
+ * Get components with their CAD file counts, optionally filtered to one
+ * category. Used for the Category / "All Categories" views in the File
+ * Library page.
  */
-export async function getComponentsWithCadFiles(categoryId) {
+export async function getComponentsWithCadFiles(categoryId = null) {
   const result = await pool.query(`
     SELECT
       c.id,
@@ -1020,7 +1021,7 @@ export async function getComponentsWithCadFiles(categoryId) {
     LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
     LEFT JOIN component_categories cat ON c.category_id = cat.id
     LEFT JOIN component_cad_files ccf ON c.id = ccf.component_id
-    WHERE c.category_id = $1
+    WHERE $1::uuid IS NULL OR c.category_id = $1
     GROUP BY c.id, m.name, cat.name
     ORDER BY c.part_number ASC
   `, [categoryId]);
@@ -1028,28 +1029,17 @@ export async function getComponentsWithCadFiles(categoryId) {
 }
 
 /**
- * Get all components across all categories with their CAD file counts.
- * Used for the "All Categories" view in the File Library page.
+ * Get the CAD files of one type linked to a component by manufacturer PN.
+ * Shared by the part-page file list and the file export ZIP.
  */
-export async function getAllComponentsWithCadFiles() {
+export async function getComponentCadFilesByMPN(mfgPartNumber, fileType) {
   const result = await pool.query(`
-    SELECT
-      c.id,
-      c.part_number,
-      c.manufacturer_pn,
-      c.description,
-      c.value,
-      c.package_size,
-      m.name as manufacturer_name,
-      cat.name as category_name,
-      COUNT(ccf.id) as cad_file_count
-    FROM components c
-    LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-    LEFT JOIN component_categories cat ON c.category_id = cat.id
-    LEFT JOIN component_cad_files ccf ON c.id = ccf.component_id
-    GROUP BY c.id, m.name, cat.name
-    ORDER BY c.part_number ASC
-  `);
+    SELECT cf.id, cf.file_name, cf.file_type, cf.missing
+    FROM component_cad_files ccf
+    JOIN cad_files cf ON ccf.cad_file_id = cf.id
+    JOIN components c ON ccf.component_id = c.id
+    WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
+  `, [mfgPartNumber, fileType]);
   return result.rows;
 }
 
@@ -1100,10 +1090,11 @@ export default {
   syncFootprintRelatedCadFilesForComponent,
   findCadFile,
   isTrackableCadFile,
+  isSameExistingFile,
   scanAndRegisterFiles,
   detectMissingFiles,
   syncComponentCadFiles,
   getComponentsWithCadFiles,
-  getAllComponentsWithCadFiles,
+  getComponentCadFilesByMPN,
   getComponentsSharingFiles,
 };

@@ -1,26 +1,30 @@
 import axios from 'axios';
-import pool from '../config/database.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { normalizeCadUploadFilename, sanitizeCadBaseName } from '../utils/footprintFiles.js';
 
-const FOOTPRINT_DOWNLOAD_DIR = process.env.FOOTPRINT_DOWNLOAD_DIR || './downloads/footprints';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Ensure download directory exists
-async function ensureDownloadDir() {
-  try {
-    await fs.mkdir(FOOTPRINT_DOWNLOAD_DIR, { recursive: true });
-  } catch (error) {
-    console.error('Error creating download directory:', error);
-  }
+// Vendor footprint downloads stage into the shared temp-upload data path
+// (library/temp + finalize), the same pipeline as every other CAD upload.
+const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
+const TEMP_DIR = path.join(LIBRARY_BASE, 'temp');
+
+async function stageFootprintInTemp(fileName, data) {
+  await fs.mkdir(TEMP_DIR, { recursive: true });
+  const filename = normalizeCadUploadFilename(fileName);
+  const tempFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${filename}`;
+  await fs.writeFile(path.join(TEMP_DIR, tempFilename), data);
+  return { filename, tempFilename, category: 'footprint' };
 }
 
 // Download footprint from Ultra Librarian
-export async function downloadFromUltraLibrarian(partNumber, componentId) {
+export async function downloadFromUltraLibrarian(partNumber) {
   try {
-    await ensureDownloadDir();
-
     const token = process.env.ULTRA_LIBRARIAN_TOKEN;
-    
+
     if (!token || token === 'your_ultra_librarian_token') {
       return {
         success: false,
@@ -40,31 +44,16 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
     );
 
     if (response.data && response.data.downloadUrl) {
-      const downloadPath = path.join(FOOTPRINT_DOWNLOAD_DIR, `${partNumber}_UL.brd`);
-      
-      // Download the actual file
+      // Download the actual file and stage it through the temp-upload pipeline
       const fileResponse = await axios.get(response.data.downloadUrl, {
         responseType: 'arraybuffer',
       });
-      
-      await fs.writeFile(downloadPath, fileResponse.data);
 
-      // Update component with footprint path if componentId provided
-      if (componentId) {
-        await pool.query(
-          'UPDATE components SET footprint_path = $1 WHERE id = $2',
-          [downloadPath, componentId],
-        );
-
-        await pool.query(`
-          INSERT INTO footprint_sources (component_id, source_name, download_url, file_format)
-          VALUES ($1, $2, $3, $4)
-        `, [componentId, 'Ultra Librarian', response.data.downloadUrl, 'Allegro']);
-      }
+      const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_UL.brd`, fileResponse.data);
 
       return {
         success: true,
-        path: downloadPath,
+        ...staged,
         source: 'Ultra Librarian',
       };
     }
@@ -85,12 +74,10 @@ export async function downloadFromUltraLibrarian(partNumber, componentId) {
 }
 
 // Download footprint from SnapEDA
-export async function downloadFromSnapEDA(partNumber, componentId) {
+export async function downloadFromSnapEDA(partNumber) {
   try {
-    await ensureDownloadDir();
-
     const apiKey = process.env.SNAPEDA_API_KEY;
-    
+
     if (!apiKey || apiKey === 'your_snapeda_api_key') {
       return {
         success: false,
@@ -112,37 +99,23 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
 
     if (searchResponse.data && searchResponse.data.results && searchResponse.data.results.length > 0) {
       const part = searchResponse.data.results[0];
-      
+
       if (part.cad_models && part.cad_models.allegro) {
         const downloadUrl = part.cad_models.allegro.download_url;
-        const downloadPath = path.join(FOOTPRINT_DOWNLOAD_DIR, `${partNumber}_SnapEDA.brd`);
-        
-        // Download the actual file
+
+        // Download the actual file and stage it through the temp-upload pipeline
         const fileResponse = await axios.get(downloadUrl, {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
           responseType: 'arraybuffer',
         });
-        
-        await fs.writeFile(downloadPath, fileResponse.data);
 
-        // Update component with footprint path if componentId provided
-        if (componentId) {
-          await pool.query(
-            'UPDATE components SET footprint_path = $1 WHERE id = $2',
-            [downloadPath, componentId],
-          );
-
-          await pool.query(`
-            INSERT INTO footprint_sources (component_id, source_name, download_url, file_format)
-            VALUES ($1, $2, $3, $4)
-          `, [componentId, 'SnapEDA', downloadUrl, 'Allegro']);
-        }
+        const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_SnapEDA.brd`, fileResponse.data);
 
         return {
           success: true,
-          path: downloadPath,
+          ...staged,
           source: 'SnapEDA',
         };
       }
@@ -164,16 +137,16 @@ export async function downloadFromSnapEDA(partNumber, componentId) {
 }
 
 // Try to download from both sources
-export async function downloadFootprint(partNumber, componentId) {
+export async function downloadFootprint(partNumber) {
   // Try Ultra Librarian first
-  let result = await downloadFromUltraLibrarian(partNumber, componentId);
-  
+  let result = await downloadFromUltraLibrarian(partNumber);
+
   if (result.success) {
     return result;
   }
 
   // If failed, try SnapEDA
-  result = await downloadFromSnapEDA(partNumber, componentId);
-  
+  result = await downloadFromSnapEDA(partNumber);
+
   return result;
 }

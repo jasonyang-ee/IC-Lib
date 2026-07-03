@@ -19,6 +19,7 @@ import {
   normalizeCadUploadFilename,
   sanitizeCadBaseName,
 } from '../utils/footprintFiles.js';
+import { assertSafeLeafName } from '../utils/safeFsPaths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -131,8 +132,7 @@ function getArchiveBaseName(entryName) {
  * Returns the full path if found, null otherwise
  */
 function findFile(category, filename, mfgPartNumber) {
-  const config = FILE_CATEGORIES[category];
-  if (!config) return null;
+  if (!FILE_CATEGORIES[category]) return null;
 
   // Try temp directory first — files during new part creation/editing are here with unique prefix
   // Temp takes priority so renames during creation don't affect existing library files
@@ -143,18 +143,7 @@ function findFile(category, filename, mfgPartNumber) {
     if (match) return path.join(tempDir, match);
   }
 
-  // Try flat path
-  const flatPath = path.join(LIBRARY_BASE, config.subdir, filename);
-  if (fs.existsSync(flatPath)) return flatPath;
-
-  // Try legacy nested path
-  if (mfgPartNumber) {
-    const sanitizedPN = sanitizePartNumber(mfgPartNumber);
-    const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
-    if (fs.existsSync(nestedPath)) return nestedPath;
-  }
-
-  return null;
+  return findLibraryFile(category, filename, mfgPartNumber);
 }
 
 function findLibraryFile(category, filename, mfgPartNumber) {
@@ -486,8 +475,9 @@ export async function finalizeTempFile(req, res) {
         if (!VALID_CAD_CATEGORIES.has(category)) continue;
 
         try {
-          await autoLinkFileToComponent(category, filename, mfgPartNumber);
-          results.push({ filename, type: category, collision: true, linked: true });
+          const safeFilename = assertSafeLeafName(filename, 'filename');
+          await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
+          results.push({ filename: safeFilename, type: category, collision: true, linked: true });
         } catch (err) {
           console.error(`[FileUpload] Failed to link collision file ${filename}: ${err.message}`);
           results.push({ filename, type: category, collision: true, error: err.message });
@@ -545,14 +535,18 @@ export function checkCollisionsBatch(req, res) {
     for (const { tempFilename, category, filename } of files) {
       const config = FILE_CATEGORIES[category];
       if (!config) continue;
-      const targetPath = path.join(LIBRARY_BASE, config.subdir, filename);
+      const safeFilename = assertSafeLeafName(filename, 'filename');
+      const targetPath = path.join(LIBRARY_BASE, config.subdir, safeFilename);
       if (fs.existsSync(targetPath)) {
-        collisions.push({ tempFilename, category, filename });
+        collisions.push({ tempFilename, category, filename: safeFilename });
       }
     }
 
     res.json({ collisions });
   } catch (error) {
+    if (/^Invalid /.test(error.message || '')) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error checking collisions batch:', error);
     res.status(500).json({ error: 'Failed to check collisions' });
   }
@@ -580,15 +574,9 @@ export async function listFiles(req, res) {
       if (dbColumn) {
         try {
           // Query cad_files via junction table for this component (include missing flag)
-          const result = await pool.query(`
-            SELECT cf.id, cf.file_name, cf.file_type, cf.missing
-            FROM component_cad_files ccf
-            JOIN cad_files cf ON ccf.cad_file_id = cf.id
-            JOIN components c ON ccf.component_id = c.id
-            WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
-          `, [mfgPartNumber, category]);
+          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category);
 
-          for (const row of result.rows) {
+          for (const row of rows) {
             const fname = row.file_name;
             if (!cadFileService.isTrackableCadFile(fname, category)) {
               continue;
@@ -693,12 +681,10 @@ export async function renameFile(req, res) {
       return res.status(400).json({ error: 'Pad files cannot be renamed' });
     }
 
-    // Sanitize new filename: replace special chars and spaces with underscores, preserve extension
-    const oldExt = path.extname(oldFilename).toLowerCase();
-    const newExt = path.extname(newFilename).toLowerCase();
-
-    // Ensure the extension is preserved (use old extension if new one differs or is missing)
-    const finalExt = (newExt && config.extensions.includes(newExt)) ? newExt : oldExt;
+    // Sanitize new filename: replace special chars and spaces with underscores.
+    // The extension is always preserved — a rename must not switch a file to a
+    // different extension within the category (e.g. .psm -> .dra).
+    const finalExt = path.extname(oldFilename).toLowerCase();
     const newBaseName = sanitizeCadBaseName(newFilename.replace(/\.[^.]+$/, ''));
 
     if (!newBaseName) {
@@ -767,67 +753,41 @@ export async function renameFile(req, res) {
       });
     }
 
-    // Collision check in flat directory
+    // Collision check in flat directory (same-inode case-only renames pass)
     const flatNewPath = path.join(LIBRARY_BASE, config.subdir, sanitizedNewFilename);
-    if (fs.existsSync(flatNewPath)) {
+    if (fs.existsSync(flatNewPath) && !cadFileService.isSameExistingFile(oldPath, flatNewPath)) {
       return res.status(409).json({ error: `A file named "${sanitizedNewFilename}" already exists in the ${category} directory` });
     }
 
-    const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
-    const newPath = path.join(targetDir, sanitizedNewFilename);
-
-    // The physical rename and the cad_files update run inside one transaction so
-    // a DB failure cannot leave the file renamed on disk while the database still
-    // holds the old name. On any failure the DB rolls back and the physical
-    // rename is reverted (best effort).
     const cadFile = VALID_CAD_CATEGORIES.has(category)
       ? await cadFileService.findCadFile(oldFilename, category)
       : null;
 
-    const client = await pool.connect();
-    let physicalRenamed = false;
-    let transactionStarted = false;
-
-    try {
-      await client.query('BEGIN');
-      transactionStarted = true;
-
-      fs.renameSync(oldPath, newPath);
-      physicalRenamed = true;
-
-      if (cadFile) {
-        await client.query(
-          'UPDATE cad_files SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-          [sanitizedNewFilename, `${config.subdir}/${sanitizedNewFilename}`, cadFile.id],
-        );
-
-        const affected = await cadFileService.getComponentsByCadFile(cadFile.id);
-        for (const comp of affected) {
-          await cadFileService.regenerateCadText(comp.id, category, client);
-        }
-      }
-
-      await client.query('COMMIT');
-      transactionStarted = false;
-    } catch (opError) {
-      if (transactionStarted) {
-        try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
-      }
-      if (physicalRenamed && fs.existsSync(newPath)) {
-        try { fs.renameSync(newPath, oldPath); } catch { /* best-effort revert */ }
-      }
-      throw opError;
-    } finally {
-      client.release();
-    }
-
-    // Clean up empty legacy directory only after the rename has committed.
-    const oldDir = path.dirname(oldPath);
-    if (oldDir !== targetDir) {
+    if (cadFile) {
+      // Tracked file: the shared CAD data path renames physical + cad_files +
+      // TEXT regen atomically (rollback + best-effort physical revert on failure).
       try {
-        const remaining = fs.readdirSync(oldDir).filter(f => !f.startsWith('.'));
-        if (remaining.length === 0) fs.rmdirSync(oldDir);
-      } catch { /* ignore cleanup errors */ }
+        await cadFileService.renameCadFile(cadFile.id, sanitizedNewFilename);
+      } catch (renameError) {
+        if (renameError.message?.includes('already exists')) {
+          return res.status(409).json({ error: renameError.message });
+        }
+        throw renameError;
+      }
+    } else {
+      // Untracked file (e.g. legacy nested location): physical-only rename into
+      // the flat directory.
+      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
+      fs.renameSync(oldPath, path.join(targetDir, sanitizedNewFilename));
+
+      // Clean up empty legacy directory after the rename.
+      const oldDir = path.dirname(oldPath);
+      if (oldDir !== targetDir) {
+        try {
+          const remaining = fs.readdirSync(oldDir).filter(f => !f.startsWith('.'));
+          if (remaining.length === 0) fs.rmdirSync(oldDir);
+        } catch { /* ignore cleanup errors */ }
+      }
     }
 
     res.json({
@@ -851,11 +811,13 @@ export async function renameFile(req, res) {
  */
 export async function deleteFile(req, res) {
   try {
-    const { category, mfgPartNumber, filename } = req.body;
+    const { category, mfgPartNumber } = req.body;
 
-    if (!category || !mfgPartNumber || !filename) {
+    if (!category || !mfgPartNumber || !req.body.filename) {
       return res.status(400).json({ error: 'Category, part number, and filename are required' });
     }
+
+    const filename = assertSafeLeafName(req.body.filename, 'filename');
 
     const config = FILE_CATEGORIES[category];
     if (!config) {
@@ -953,6 +915,9 @@ export async function deleteFile(req, res) {
       client.release();
     }
   } catch (error) {
+    if (/^Invalid /.test(error.message || '')) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
@@ -964,7 +929,8 @@ export async function deleteFile(req, res) {
  */
 export async function downloadFile(req, res) {
   try {
-    const { category, mfgPartNumber, filename } = req.params;
+    const { category, mfgPartNumber } = req.params;
+    const filename = assertSafeLeafName(req.params.filename, 'filename');
 
     const config = FILE_CATEGORIES[category];
     if (!config) {
@@ -979,6 +945,9 @@ export async function downloadFile(req, res) {
 
     res.download(filePath, filename);
   } catch (error) {
+    if (/^Invalid /.test(error.message || '')) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error downloading file:', error);
     res.status(500).json({ error: 'Failed to download file' });
   }
@@ -1002,15 +971,9 @@ export async function exportFiles(req, res) {
       const dbColumn = CATEGORY_TO_COLUMN[category];
       if (dbColumn) {
         try {
-          const result = await pool.query(`
-            SELECT cf.file_name
-            FROM component_cad_files ccf
-            JOIN cad_files cf ON ccf.cad_file_id = cf.id
-            JOIN components c ON ccf.component_id = c.id
-            WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
-          `, [mfgPartNumber, category]);
+          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category);
 
-          for (const row of result.rows) {
+          for (const row of rows) {
             const fname = row.file_name;
             if (!cadFileService.isTrackableCadFile(fname, category)) {
               continue;
@@ -1095,20 +1058,34 @@ export async function restoreDeletedFile(req, res) {
         continue;
       }
 
+      let safeFilename;
+      try {
+        safeFilename = assertSafeLeafName(filename, 'filename');
+      } catch (err) {
+        results.push({ filename, error: err.message });
+        continue;
+      }
+
       const tempPath = path.join(LIBRARY_BASE, 'temp', path.basename(tempFilename));
-      const targetPath = path.join(LIBRARY_BASE, config.subdir, filename);
+      const targetPath = path.join(LIBRARY_BASE, config.subdir, safeFilename);
 
       if (!fs.existsSync(tempPath)) {
-        results.push({ filename, error: 'Temp file not found' });
+        results.push({ filename: safeFilename, error: 'Temp file not found' });
+        continue;
+      }
+
+      // Never restore over a file that reappeared at the target in the meantime
+      if (fs.existsSync(targetPath)) {
+        results.push({ filename: safeFilename, error: 'A file with this name already exists in the library' });
         continue;
       }
 
       fs.renameSync(tempPath, targetPath);
 
       // Re-register in cad_files and re-link to component
-      await autoLinkFileToComponent(category, filename, mfgPartNumber);
+      await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
 
-      results.push({ filename, restored: true });
+      results.push({ filename: safeFilename, restored: true });
     }
 
     res.json({ results });

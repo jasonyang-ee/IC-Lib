@@ -63,16 +63,6 @@ function getTypeInfo(type) {
   return TYPE_MAP[type] || null;
 }
 
-function isSamePhysicalFile(firstPath, secondPath) {
-  try {
-    const firstStat = fs.statSync(firstPath);
-    const secondStat = fs.statSync(secondPath);
-    return firstStat.dev === secondStat.dev && firstStat.ino === secondStat.ino;
-  } catch {
-    return false;
-  }
-}
-
 function shouldStageSharedFileRename(req, affectedCount, ecoAffectedCount) {
   return isEcoEnabled() && req.user?.role !== 'admin' && affectedCount > 1 && ecoAffectedCount > 0;
 }
@@ -380,7 +370,7 @@ export const renameFootprintGroup = async (req, res) => {
       if (
         target.newFileName !== cadFile.file_name
         && fs.existsSync(newPath)
-        && !isSamePhysicalFile(oldPath, newPath)
+        && !cadFileService.isSameExistingFile(oldPath, newPath)
       ) {
         return res.status(409).json({ error: `File "${target.newFileName}" already exists in the footprint directory` });
       }
@@ -877,9 +867,7 @@ export const unlinkFileFromComponent = async (req, res) => {
 export const getComponentsByCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const components = categoryId === 'all'
-      ? await cadFileService.getAllComponentsWithCadFiles()
-      : await cadFileService.getComponentsWithCadFiles(categoryId);
+    const components = await cadFileService.getComponentsWithCadFiles(categoryId === 'all' ? null : categoryId);
     res.json({ components });
   } catch (error) {
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by category:', error.message);

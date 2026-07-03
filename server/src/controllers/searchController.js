@@ -57,13 +57,13 @@ export const searchAllVendors = async (req, res, next) => {
 
 export const downloadUltraLibrarianFootprint = async (req, res, next) => {
   try {
-    const { partNumber, componentId } = req.body;
+    const { partNumber } = req.body;
 
     if (!partNumber) {
       return res.status(400).json({ error: 'Part number is required' });
     }
 
-    const result = await footprintService.downloadFromUltraLibrarian(partNumber, componentId);
+    const result = await footprintService.downloadFromUltraLibrarian(partNumber);
     res.json(result);
   } catch (error) {
     next(error);
@@ -72,13 +72,13 @@ export const downloadUltraLibrarianFootprint = async (req, res, next) => {
 
 export const downloadSnapEDAFootprint = async (req, res, next) => {
   try {
-    const { partNumber, componentId } = req.body;
+    const { partNumber } = req.body;
 
     if (!partNumber) {
       return res.status(400).json({ error: 'Part number is required' });
     }
 
-    const result = await footprintService.downloadFromSnapEDA(partNumber, componentId);
+    const result = await footprintService.downloadFromSnapEDA(partNumber);
     res.json(result);
   } catch (error) {
     next(error);
