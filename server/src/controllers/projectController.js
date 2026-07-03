@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { logActivity } from '../services/activityLogService.js';
 
 // Get all projects
 export const getAllProjects = async (req, res) => {
@@ -157,20 +158,17 @@ export const createProject = async (req, res) => {
     const project = result.rows[0];
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      null,
-      req.user?.id || null,
-      '',
-      'project_created',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: null,
+      userId: req.user?.id || null,
+      partNumber: '',
+      activityType: 'project_created',
+      details: {
         project_id: project.id,
         project_name: name,
         status: project.status,
-      }),
-    ]);
+      },
+    });
     
     res.status(201).json(project);
   } catch (error) {
@@ -202,20 +200,17 @@ export const updateProject = async (req, res) => {
     const project = result.rows[0];
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      null,
-      req.user?.id || null,
-      '',
-      'project_updated',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: null,
+      userId: req.user?.id || null,
+      partNumber: '',
+      activityType: 'project_updated',
+      details: {
         project_id: id,
         project_name: project.name,
         status: project.status,
-      }),
-    ]);
+      },
+    });
     
     res.json(project);
   } catch (error) {
@@ -247,19 +242,16 @@ export const deleteProject = async (req, res) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      null,
-      req.user?.id || null,
-      '',
-      'project_deleted',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: null,
+      userId: req.user?.id || null,
+      partNumber: '',
+      activityType: 'project_deleted',
+      details: {
         project_id: id,
         project_name: projectName,
-      }),
-    ]);
+      },
+    });
     
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
@@ -321,23 +313,20 @@ export const addComponentToProject = async (req, res) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      component_id || null,
-      req.user?.id || null,
-      componentInfo?.rows[0]?.part_number || '',
-      'component_added_to_project',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: component_id || null,
+      userId: req.user?.id || null,
+      partNumber: componentInfo?.rows[0]?.part_number || '',
+      activityType: 'component_added_to_project',
+      details: {
         project_id: projectId,
         project_name: projectInfo.rows[0]?.name,
         component_id: component_id,
         alternative_id: alternative_id,
         quantity: quantity || 1,
         part_number: componentInfo?.rows[0]?.part_number,
-      }),
-    ]);
+      },
+    });
     
     res.status(201).json(projectComponent);
   } catch (error) {
@@ -371,22 +360,19 @@ export const updateProjectComponent = async (req, res) => {
     const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      projectComponent.component_id || null,
-      req.user?.id || null,
-      '',
-      'project_component_updated',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: projectComponent.component_id || null,
+      userId: req.user?.id || null,
+      partNumber: '',
+      activityType: 'project_component_updated',
+      details: {
         project_id: projectId,
         project_name: projectInfo.rows[0]?.name,
         component_id: projectComponent.component_id,
         alternative_id: projectComponent.alternative_id,
         quantity: projectComponent.quantity,
-      }),
-    ]);
+      },
+    });
     
     res.json(projectComponent);
   } catch (error) {
@@ -418,21 +404,18 @@ export const removeComponentFromProject = async (req, res) => {
     }
     
     // Log activity
-    await pool.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      componentResult.rows[0]?.component_id || null,
-      req.user?.id || null,
-      '',
-      'component_removed_from_project',
-      JSON.stringify({
+    await logActivity(pool, {
+      componentId: componentResult.rows[0]?.component_id || null,
+      userId: req.user?.id || null,
+      partNumber: '',
+      activityType: 'component_removed_from_project',
+      details: {
         project_id: projectId,
         project_name: projectInfo.rows[0]?.name,
         component_id: componentResult.rows[0]?.component_id,
         alternative_id: componentResult.rows[0]?.alternative_id,
-      }),
-    ]);
+      },
+    });
     
     res.json({ message: 'Component removed from project successfully' });
   } catch (error) {
@@ -513,22 +496,19 @@ export const consumeProjectComponents = async (req, res) => {
 
           // Log consumption
           if (pc.part_number) {
-            await client.query(`
-              INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-              VALUES ($1, $2, $3, $4, $5)
-            `, [
-              pc.component_id,
-              req.user?.id || null,
-              pc.part_number,
-              'inventory_consumed',
-              JSON.stringify({
+            await logActivity(client, {
+              componentId: pc.component_id,
+              userId: req.user?.id || null,
+              partNumber: pc.part_number,
+              activityType: 'inventory_consumed',
+              details: {
                 project_id: id,
                 project_name: projectName,
                 consumed_quantity: pc.quantity,
                 new_quantity: result.rows[0].quantity,
                 source: 'project_consumption',
-              }),
-            ]);
+              },
+            });
           }
         } else if (pc.alternative_id) {
           // Update alternative inventory

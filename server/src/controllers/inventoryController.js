@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { logActivity } from '../services/activityLogService.js';
 
 export const getAllInventory = async (req, res, next) => {
   try {
@@ -139,42 +140,36 @@ export const updateInventory = async (req, res, next) => {
 
     // Log activity based on what changed
     if (location !== undefined && location !== oldItem.location) {
-      await pool.query(`
-        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [
-        oldItem.component_id,
-        req.user?.id || null,
-        oldItem.part_number,
-        'location_updated',
-        JSON.stringify({
+      await logActivity(pool, {
+        componentId: oldItem.component_id,
+        userId: req.user?.id || null,
+        partNumber: oldItem.part_number,
+        activityType: 'location_updated',
+        details: {
           description: oldItem.description,
           category_name: oldItem.category_name,
           old_location: oldItem.location,
           new_location: location,
-        }),
-      ]);
+        },
+      });
     }
 
     if (quantity !== undefined && quantity !== oldItem.quantity) {
       // Determine if this is a quantity set or consume operation
       const activityType = quantity < oldItem.quantity ? 'inventory_consumed' : 'inventory_updated';
-      await pool.query(`
-        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [
-        oldItem.component_id,
-        req.user?.id || null,
-        oldItem.part_number,
-        activityType,
-        JSON.stringify({
+      await logActivity(pool, {
+        componentId: oldItem.component_id,
+        userId: req.user?.id || null,
+        partNumber: oldItem.part_number,
+        activityType: activityType,
+        details: {
           description: oldItem.description,
           category_name: oldItem.category_name,
           old_quantity: oldItem.quantity,
           new_quantity: quantity,
           change: quantity - oldItem.quantity,
-        }),
-      ]);
+        },
+      });
     }
 
     res.json(updatedItem);
@@ -207,20 +202,17 @@ export const deleteInventory = async (req, res, next) => {
     // Log the deletion
     if (oldData.rows.length > 0) {
       const item = oldData.rows[0];
-      await pool.query(`
-        INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [
-        item.component_id,
-        req.user?.id || null,
-        item.part_number,
-        'inventory_deleted',
-        JSON.stringify({
+      await logActivity(pool, {
+        componentId: item.component_id,
+        userId: req.user?.id || null,
+        partNumber: item.part_number,
+        activityType: 'inventory_deleted',
+        details: {
           description: item.description,
           quantity: item.quantity,
           location: item.location,
-        }),
-      ]);
+        },
+      });
     }
 
     res.json({ message: 'Inventory item deleted successfully' });

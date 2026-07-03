@@ -45,6 +45,8 @@ import {
   isEcoStatusProposalAllowed,
 } from '../services/componentLifecycleService.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
+import { logActivity } from '../services/activityLogService.js';
+import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
 
 const userDisplayNameSql = (alias) => `NULLIF(BTRIM(${alias}.display_name), '')`;
@@ -53,21 +55,18 @@ const userDisplayNameSql = (alias) => `NULLIF(BTRIM(${alias}.display_name), '')`
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
   try {
-    await client.query(`
-      INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [
-      ecoOrder.component_id,
-      userId || null,
-      ecoOrder.part_number,
-      activityType,
-      JSON.stringify({
+    await logActivity(client, {
+      componentId: ecoOrder.component_id,
+      userId: userId || null,
+      partNumber: ecoOrder.part_number,
+      activityType: activityType,
+      details: {
         eco_id: ecoOrder.id,
         eco_number: ecoOrder.eco_number,
         user_id: userId,
         ...details,
-      }),
-    ]);
+      },
+    });
   } catch (error) {
     console.error('Error logging ECO activity:', error);
   }
@@ -1478,14 +1477,7 @@ const applyECOChanges = async (client, eco, id) => {
 
       // Resolve manufacturer_id if it's a NEW: prefixed name
       if (overrides.manufacturer_id && typeof overrides.manufacturer_id === 'string' && overrides.manufacturer_id.startsWith('NEW:')) {
-        const mfgName = overrides.manufacturer_id.substring(4);
-        const existing = await client.query('SELECT id FROM manufacturers WHERE name = $1', [mfgName]);
-        if (existing.rows.length > 0) {
-          overrides.manufacturer_id = existing.rows[0].id;
-        } else {
-          const created = await client.query('INSERT INTO manufacturers (name) VALUES ($1) RETURNING id', [mfgName]);
-          overrides.manufacturer_id = created.rows[0].id;
-        }
+        overrides.manufacturer_id = await getOrCreateManufacturer(client, overrides.manufacturer_id.substring(4));
       }
 
       // Create new component in the new category
@@ -1629,14 +1621,7 @@ const applyECOChanges = async (client, eco, id) => {
 
       // Handle manufacturer_id: find-or-create if value is a "NEW:" prefixed name
       if (change.field_name === 'manufacturer_id' && typeof value === 'string' && value.startsWith('NEW:')) {
-        const mfgName = value.substring(4);
-        const existing = await client.query('SELECT id FROM manufacturers WHERE name = $1', [mfgName]);
-        if (existing.rows.length > 0) {
-          value = existing.rows[0].id;
-        } else {
-          const created = await client.query('INSERT INTO manufacturers (name) VALUES ($1) RETURNING id', [mfgName]);
-          value = created.rows[0].id;
-        }
+        value = await getOrCreateManufacturer(client, value.substring(4));
       }
 
       updateFields.push(`${change.field_name} = $${paramIndex}`);
@@ -1733,19 +1718,7 @@ const applyECOChanges = async (client, eco, id) => {
     // Resolve manufacturer: find-or-create by name if manufacturer_id is missing
     let resolvedManufacturerId = alt.manufacturer_id;
     if (!resolvedManufacturerId && alt.manufacturer_name) {
-      const existing = await client.query(
-        'SELECT id FROM manufacturers WHERE name = $1',
-        [alt.manufacturer_name],
-      );
-      if (existing.rows.length > 0) {
-        resolvedManufacturerId = existing.rows[0].id;
-      } else {
-        const created = await client.query(
-          'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
-          [alt.manufacturer_name],
-        );
-        resolvedManufacturerId = created.rows[0].id;
-      }
+      resolvedManufacturerId = await getOrCreateManufacturer(client, alt.manufacturer_name);
     }
 
     if (alt.action === 'add') {

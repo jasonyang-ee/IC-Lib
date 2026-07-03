@@ -4,6 +4,7 @@ import pool from '../config/database.js';
 import { AUTH_COOKIE_NAME, generateToken, getAuthCookieOptions } from '../middleware/auth.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 import { canDelegateToRole } from '../services/ecoApprovalEligibilityService.js';
+import { logActivity, logUserActivity } from '../services/activityLogService.js';
 
 const SALT_ROUNDS = 10;
 const ECO_NOTIFICATION_FIELDS = [
@@ -94,16 +95,16 @@ export const login = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('user_login', $1, $2)`,
-        [`User ${username} logged in`, user.id],
-      );
-      await pool.query(
-        `INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-         VALUES (NULL, $1, '', 'user_login', $2)`,
-        [user.id, JSON.stringify({ username: user.username, role: user.role })],
-      );
+      await logUserActivity(pool, {
+        typeName: 'user_login',
+        description: `User ${username} logged in`,
+        userId: user.id,
+      });
+      await logActivity(pool, {
+        userId: user.id,
+        activityType: 'user_login',
+        details: { username: user.username, role: user.role },
+      });
     } catch (logError) {
       console.error('Failed to log login activity:', logError);
     }
@@ -170,16 +171,16 @@ export const logout = async (req, res) => {
     // Log activity
     if (req.user) {
       try {
-        await pool.query(
-          `INSERT INTO user_activity_log (type_name, description, user_id)
-           VALUES ('user_logout', $1, $2)`,
-          [`User ${req.user.username} logged out`, req.user.userId],
-        );
-        await pool.query(
-          `INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-           VALUES (NULL, $1, '', 'user_logout', $2)`,
-          [req.user.userId, JSON.stringify({ username: req.user.username })],
-        );
+        await logUserActivity(pool, {
+          typeName: 'user_logout',
+          description: `User ${req.user.username} logged out`,
+          userId: req.user.userId,
+        });
+        await logActivity(pool, {
+          userId: req.user.userId,
+          activityType: 'user_logout',
+          details: { username: req.user.username },
+        });
       } catch (logError) {
         console.error('Failed to log logout activity:', logError);
       }
@@ -294,11 +295,11 @@ export const createUser = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('user_created', $1, $2)`,
-        [`Created user: ${username} with role: ${role}`, req.user.userId],
-      );
+      await logUserActivity(pool, {
+        typeName: 'user_created',
+        description: `Created user: ${username} with role: ${role}`,
+        userId: req.user.userId,
+      });
     } catch (logError) {
       console.error('Failed to log user creation:', logError);
     }
@@ -414,11 +415,11 @@ export const updateUser = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('user_updated', $1, $2)`,
-        [`Updated user: ${result.rows[0].username}`, req.user.userId],
-      );
+      await logUserActivity(pool, {
+        typeName: 'user_updated',
+        description: `Updated user: ${result.rows[0].username}`,
+        userId: req.user.userId,
+      });
     } catch (logError) {
       console.error('Failed to log user update:', logError);
     }
@@ -461,11 +462,11 @@ export const deleteUser = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('user_deleted', $1, $2)`,
-        [`Deleted user: ${username}`, req.user.userId],
-      );
+      await logUserActivity(pool, {
+        typeName: 'user_deleted',
+        description: `Deleted user: ${username}`,
+        userId: req.user.userId,
+      });
     } catch (logError) {
       console.error('Failed to log user deletion:', logError);
     }
@@ -616,11 +617,11 @@ export const updateProfile = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('profile_updated', $1, $2)`,
-        [`User ${req.user.username} updated their profile`, req.user.userId],
-      );
+      await logUserActivity(pool, {
+        typeName: 'profile_updated',
+        description: `User ${req.user.username} updated their profile`,
+        userId: req.user.userId,
+      });
     } catch (logError) {
       console.error('[error] [Auth] Failed to log profile update:', logError);
     }
@@ -814,11 +815,11 @@ export const updateNotificationPreferences = async (req, res) => {
     }
 
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('notification_preferences_updated', $1, $2)`,
-        [`User ${req.user.username} updated ECO preferences`, req.user.userId],
-      );
+      await logUserActivity(pool, {
+        typeName: 'notification_preferences_updated',
+        description: `User ${req.user.username} updated ECO preferences`,
+        userId: req.user.userId,
+      });
     } catch (logError) {
       console.error('[error] [Auth] Failed to log notification preferences update:', logError);
     }

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { gzipSync, gunzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
+import { logUserActivity } from '../services/activityLogService.js';
 import {
   DEFAULT_ECO_PDF_HEADER,
   DEFAULT_ECO_PREFIX,
@@ -480,13 +481,11 @@ export const updateCategoryConfig = async (req, res) => {
 
     // Log activity if parts were updated
     if (updatedComponents.length > 0) {
-      await client.query(`
-        INSERT INTO user_activity_log (type_name, description, user_id)
-        VALUES ('category_config_updated', $1, $2)
-      `, [
-        `Updated category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}, updated ${updatedComponents.length} part numbers`,
-        req.user?.userId || null,
-      ]);
+      await logUserActivity(client, {
+        typeName: 'category_config_updated',
+        description: `Updated category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}, updated ${updatedComponents.length} part numbers`,
+        userId: req.user?.userId || null,
+      });
     }
 
     await client.query('COMMIT');
@@ -1190,14 +1189,11 @@ export const importAllSettings = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('settings_import', $1, $2)`,
-        [
-          `Imported settings: ${results.users.created + results.users.updated} users, ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs`,
-          req.user?.userId,
-        ],
-      );
+      await logUserActivity(pool, {
+        typeName: 'settings_import',
+        description: `Imported settings: ${results.users.created + results.users.updated} users, ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs`,
+        userId: req.user?.userId,
+      });
     } catch (logError) {
       console.error('Failed to log settings import:', logError);
     }
@@ -1528,14 +1524,11 @@ export const importCategories = async (req, res) => {
 
     // Log activity
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('categories_import', $1, $2)`,
-        [
-          `Imported: ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs created/updated, ${results.specifications.deleted} specs deleted`,
-          req.user?.userId,
-        ],
-      );
+      await logUserActivity(pool, {
+        typeName: 'categories_import',
+        description: `Imported: ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs created/updated, ${results.specifications.deleted} specs deleted`,
+        userId: req.user?.userId,
+      });
     } catch (logError) {
       console.error('Failed to log categories import:', logError);
     }
@@ -1959,8 +1952,9 @@ export const deleteUserRecords = async (req, res) => {
 
 // ===== Database Export/Import =====
 
-// Tables to export, in dependency order for correct import
-const EXPORT_TABLES = [
+// Tables to export, in dependency order for correct import. Membership is
+// locked to EXPECTED_SCHEMA_TABLES by dbTableLists.test.js (D11).
+export const EXPORT_TABLES = [
   'users',
   'activity_types',
   'component_categories',

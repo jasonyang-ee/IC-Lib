@@ -3,6 +3,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
 
+// Core-schema quick-verify subset (D11): membership locked to
+// EXPECTED_SCHEMA_TABLES by dbTableLists.test.js.
+export const VERIFY_CORE_TABLES = [
+  'components',
+  'component_categories',
+  'manufacturers',
+  'distributors',
+  'component_specification_values',
+  'distributor_info',
+  'inventory',
+  'footprint_sources',
+];
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -291,18 +304,7 @@ export const verifyDatabaseSchema = async (req, res, next) => {
       const issues = [];
       
       // Check required tables exist
-      const requiredTables = [
-        'components',
-        'component_categories',
-        'manufacturers',
-        'distributors',
-        'component_specification_values',
-        'distributor_info',
-        'inventory',
-        'footprint_sources',
-      ];
-      
-      for (const tableName of requiredTables) {
+      for (const tableName of VERIFY_CORE_TABLES) {
         const tableCheck = await client.query(`
           SELECT EXISTS (
             SELECT FROM information_schema.tables 

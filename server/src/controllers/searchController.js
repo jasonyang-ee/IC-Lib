@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
 import * as footprintService from '../services/footprintService.js';
@@ -124,24 +125,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
     }
 
     // Get or create manufacturer
-    let manufacturerId = null;
-    if (manufacturer && manufacturer !== 'N/A') {
-      const manufacturerCheck = await pool.query(
-        'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
-        [manufacturer],
-      );
-
-      if (manufacturerCheck.rows.length > 0) {
-        manufacturerId = manufacturerCheck.rows[0].id;
-      } else {
-        // Create new manufacturer
-        const newManufacturer = await pool.query(
-          'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
-          [manufacturer],
-        );
-        manufacturerId = newManufacturer.rows[0].id;
-      }
-    }
+    const manufacturerId = await getOrCreateManufacturer(pool, manufacturer);
 
     // Process multiple distributors if provided
     const distributorData = [];

@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
 import { AUTH_COOKIE_NAME, generateToken, getAuthCookieOptions } from '../middleware/auth.js';
+import { logActivity, logUserActivity } from '../services/activityLogService.js';
 import {
   buildAuthorizationRequest,
   exchangeAuthorizationCode,
@@ -104,16 +105,16 @@ export const oidcCallback = async (req, res) => {
     await pool.query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
     try {
-      await pool.query(
-        `INSERT INTO user_activity_log (type_name, description, user_id)
-         VALUES ('user_login', $1, $2)`,
-        [`User ${user.username} logged in via SSO (${getProviderName()})`, user.id],
-      );
-      await pool.query(
-        `INSERT INTO activity_log (component_id, user_id, part_number, activity_type, details)
-         VALUES (NULL, $1, '', 'user_login', $2)`,
-        [user.id, JSON.stringify({ username: user.username, role: user.role, sso: true })],
-      );
+      await logUserActivity(pool, {
+        typeName: 'user_login',
+        description: `User ${user.username} logged in via SSO (${getProviderName()})`,
+        userId: user.id,
+      });
+      await logActivity(pool, {
+        userId: user.id,
+        activityType: 'user_login',
+        details: { username: user.username, role: user.role, sso: true },
+      });
     } catch (logError) {
       console.error('[ERROR] [OIDC] Failed to log SSO login activity:', logError.message);
     }

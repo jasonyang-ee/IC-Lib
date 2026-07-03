@@ -8,6 +8,31 @@ import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Deliberate clear-order subsets of the schema (D11): membership is locked to
+// EXPECTED_SCHEMA_TABLES by dbTableLists.test.js; order matters for cascades.
+
+// Main parts tables in reverse dependency order (legacy clear path)
+export const CLEAR_PARTS_TABLES = [
+  'footprint_sources',
+  'inventory',
+  'distributor_info',
+  'component_specification_values',
+  'components',
+  'component_categories',
+  'distributors',
+  'manufacturers',
+];
+
+// Parts/project data tables ONLY, never settings/config tables
+export const CLEAR_PARTS_PROJECT_TABLES = [
+  'eco_orders',            // cascades: eco_changes, eco_distributors, eco_alternative_parts, eco_specifications, eco_stage_approvers, eco_approvals
+  'activity_log',
+  'projects',              // cascades: project_components
+  'footprint_sources',
+  'cad_files',             // cascades: component_cad_files
+  'components',            // cascades: inventory, inventory_alternative, distributor_info, component_specification_values, components_alternative, component_cad_files
+];
+
 /**
  * Split SQL content into individual statements
  * Handles multi-line statements and comments properly
@@ -58,19 +83,7 @@ export const clearDatabaseData = async () => {
     // Disable triggers temporarily to avoid cascade issues
     await client.query('SET session_replication_role = replica;');
     
-    // Clear main tables in the simplified schema (in reverse dependency order)
-    const mainTables = [
-      'footprint_sources',
-      'inventory',
-      'distributor_info',
-      'component_specification_values',
-      'components',
-      'component_categories',
-      'distributors',
-      'manufacturers',
-    ];
-    
-    for (const table of mainTables) {
+    for (const table of CLEAR_PARTS_TABLES) {
       try {
         await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         results.clearedTables.push(table);
@@ -377,18 +390,7 @@ export const deletePartsAndProjectData = async () => {
     // Disable triggers temporarily to avoid cascade issues
     await client.query('SET session_replication_role = replica;');
 
-    // Tables to truncate — order matters for cascade relationships
-    // These are ONLY parts/project data tables, NOT settings/config tables
-    const tablesToClear = [
-      'eco_orders',            // cascades: eco_changes, eco_distributors, eco_alternative_parts, eco_specifications, eco_stage_approvers, eco_approvals
-      'activity_log',
-      'projects',              // cascades: project_components
-      'footprint_sources',
-      'cad_files',             // cascades: component_cad_files
-      'components',            // cascades: inventory, inventory_alternative, distributor_info, component_specification_values, components_alternative, component_cad_files
-    ];
-
-    for (const table of tablesToClear) {
+    for (const table of CLEAR_PARTS_PROJECT_TABLES) {
       try {
         await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         results.clearedTables.push(table);
