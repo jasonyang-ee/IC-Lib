@@ -11,6 +11,7 @@ import {
   getRedirectUri,
   isOidcEnabled,
 } from '../services/oidcService.js';
+import { logError } from '../utils/logger.js';
 
 const OIDC_STATE_COOKIE = 'oidc_state';
 const STATE_TTL = '10m';
@@ -62,7 +63,7 @@ export const oidcLogin = async (req, res) => {
     res.cookie(OIDC_STATE_COOKIE, stateToken, getStateCookieOptions());
     res.redirect(authorizationUrl);
   } catch (error) {
-    console.error('[ERROR] [OIDC] Failed to start SSO login:', error.message);
+    logError('OIDC', 'Failed to start SSO login:', error.message);
     redirectToLoginError(res);
   }
 };
@@ -84,7 +85,7 @@ export const oidcCallback = async (req, res) => {
   try {
     transaction = jwt.verify(stateToken, process.env.JWT_SECRET);
   } catch {
-    console.error('[ERROR] [OIDC] Callback with missing or invalid state cookie');
+    logError('OIDC', 'Callback with missing or invalid state cookie');
     return redirectToLoginError(res);
   }
 
@@ -116,7 +117,7 @@ export const oidcCallback = async (req, res) => {
         details: { username: user.username, role: user.role, sso: true },
       });
     } catch (logError) {
-      console.error('[ERROR] [OIDC] Failed to log SSO login activity:', logError.message);
+      logError('OIDC', 'Failed to log SSO login activity:', logError.message);
     }
 
     const token = generateToken(user);
@@ -125,10 +126,10 @@ export const oidcCallback = async (req, res) => {
     res.redirect(getPostLoginRedirect());
   } catch (error) {
     if (error.message === 'Account is disabled') {
-      console.error('[ERROR] [OIDC] SSO login rejected: account disabled');
+      logError('OIDC', 'SSO login rejected: account disabled');
       return redirectToLoginError(res, 'account_disabled');
     }
-    console.error('[ERROR] [OIDC] SSO callback failed:', error.message);
+    logError('OIDC', 'SSO callback failed:', error.message);
     redirectToLoginError(res);
   }
 };

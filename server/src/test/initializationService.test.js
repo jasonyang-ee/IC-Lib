@@ -88,10 +88,18 @@ function createClient(executedSql) {
 
 describe('initializeAuthentication', () => {
   let consoleLogSpy;
+  let consoleWarnSpy;
+
+  const expectLogged = (needle) => {
+    const calls = [...consoleLogSpy.mock.calls, ...consoleWarnSpy.mock.calls];
+    const logged = calls.some((call) => call.join(' ').includes(needle));
+    expect(logged, `expected a log containing: ${needle}`).toBe(true);
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mocks.bcrypt.hash.mockResolvedValue('hashed-password');
     mocks.inspectDatabaseSchema.mockResolvedValue({
       valid: true,
@@ -104,6 +112,7 @@ describe('initializeAuthentication', () => {
 
   afterEach(() => {
     consoleLogSpy?.mockRestore();
+    consoleWarnSpy?.mockRestore();
   });
 
   it('bootstraps blank databases with init-schema before legacy repair migrations', async () => {
@@ -159,11 +168,11 @@ describe('initializeAuthentication', () => {
     expect(executedSql).toContain('INIT_SETTINGS_SQL');
     expect(executedSql.indexOf('INIT_SCHEMA_SQL')).toBeLessThan(executedSql.indexOf('MIGRATION_ONE_SQL'));
     expect(mocks.inspectDatabaseSchema).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Blank database -> running init-schema.sql, then migrations'));
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 migration file(s) found; 0 already applied, 1 pending'));
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Pending migrations: 1_legacy_schema_repairs.sql'));
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Migration 1_legacy_schema_repairs.sql completed (1/1)'));
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Executed migrations: 1_legacy_schema_repairs.sql'));
+    expectLogged('Blank database -> running init-schema.sql, then migrations');
+    expectLogged('1 migration file(s) found; 0 already applied, 1 pending');
+    expectLogged('Pending migrations: 1_legacy_schema_repairs.sql');
+    expectLogged('Migration 1_legacy_schema_repairs.sql completed (1/1)');
+    expectLogged('Executed migrations: 1_legacy_schema_repairs.sql');
   });
 
   it('reseeds default settings on existing databases without rerunning init-schema', async () => {
@@ -225,6 +234,6 @@ describe('initializeAuthentication', () => {
     await expect(initializeAuthentication()).resolves.toBe(true);
     expect(executedSql).toEqual(['INIT_SETTINGS_SQL']);
     expect(mocks.inspectDatabaseSchema).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Existing database -> skipping init-schema, applying migrations only'));
+    expectLogged('Existing database -> skipping init-schema, applying migrations only');
   });
 });

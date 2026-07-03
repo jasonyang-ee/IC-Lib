@@ -2,10 +2,11 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/database.js';
 import { canDirectEditComponentInEcoMode } from '../services/componentLifecycleService.js';
 import { isEcoEnabled } from '../utils/featureFlags.js';
+import { logError, logFatal } from '../utils/logger.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('\x1b[31m[FATAL]\x1b[0m \x1b[36m[Auth]\x1b[0m JWT_SECRET environment variable is not set. Server cannot start securely.');
+  logFatal('Auth', 'JWT_SECRET environment variable is not set. Server cannot start securely.');
   process.exit(1);
 }
 export const JWT_EXPIRES_IN = '24h';
@@ -95,7 +96,7 @@ export const authenticate = (req, res, next) => {
     };
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    logError('Auth', 'Authentication error:', error);
     res.status(401).json({ 
       error: 'Authentication failed',
       message: 'Token verification failed', 
@@ -242,7 +243,7 @@ const buildDirectComponentEditGuard = (getComponentId) => async (req, res, next)
 
     next();
   } catch (error) {
-    console.error('Direct component edit policy error:', error);
+    logError('Auth', 'Direct component edit policy error:', error);
     res.status(500).json({
       error: 'Failed to verify direct edit policy',
     });

@@ -7,6 +7,7 @@ import { Client } from 'pg';
 import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { logError, logInfo } from '../utils/logger.js';
 
 // Deliberate clear-order subsets of the schema (D11): membership is locked to
 // EXPECTED_SCHEMA_TABLES by dbTableLists.test.js; order matters for cascades.
@@ -205,17 +206,17 @@ export const initializeDatabase = async () => {
     `);
     
     const tableCount = parseInt(tableCountResult.rows[0].count);
-    console.log(`[initDatabase] Found ${tableCount} existing tables`);
+    logInfo('Admin', `Found ${tableCount} existing tables`);
 
     if (tableCount > 0) {
       results.message = `Database already contains ${tableCount} tables. Use "Clear All Data" or "Full Database Reset" instead.`;
       results.tableCount = tableCount;
       results.success = false;
-      console.log('[initDatabase] Aborting - tables already exist');
+      logInfo('Admin', 'Aborting - tables already exist');
       return results;
     }
 
-    console.log('[initDatabase] Database is empty, initializing schema...');
+    logInfo('Admin', 'Database is empty, initializing schema...');
 
     // Initialize users table FIRST (required by schema foreign keys)
     const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
@@ -248,13 +249,13 @@ export const initializeDatabase = async () => {
     results.tableCount = tablesResult.rows.length;
     results.success = true;
     results.message = `Database initialized successfully with ${results.tableCount} tables.`;
-    console.log(`[initDatabase] Success - created ${results.tableCount} tables`);
+    logInfo('Admin', `Success - created ${results.tableCount} tables`);
     
   } catch (error) {
     results.success = false;
     results.message = `Database initialization failed: ${error.message}`;
     results.errors.push({ general: error.message });
-    console.error('[initDatabase] Error:', error);
+    logError('Admin', 'Error:', error);
   } finally {
     await client.end();
   }

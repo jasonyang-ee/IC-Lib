@@ -5,6 +5,7 @@ import cadFileService from '../services/cadFileService.js';
 import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
 import { logActivity } from '../services/activityLogService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
+import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 /**
  * Convert a value to a comma-separated TEXT string for PostgreSQL.
@@ -289,7 +290,7 @@ export const createComponent = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log component creation activity:', logError.message);
+      logError('Component', 'Failed to log component creation activity:', logError.message);
     }
     
     // Auto-create inventory entry (backup in case trigger doesn't exist)
@@ -312,7 +313,7 @@ export const createComponent = async (req, res, next) => {
         allowFootprintHistoryLearning: true,
       });
     } catch (syncError) {
-      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
+      logWarn('ComponentController', 'Failed to sync CAD files:', syncError.message);
     }
 
     // Fetch the complete component with joined data
@@ -332,7 +333,7 @@ export const createComponent = async (req, res, next) => {
 
     res.status(201).json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
-    console.error('Error in createComponent:', error);
+    logError('Component', 'Error in createComponent:', error);
     next(error);
   }
 };
@@ -408,8 +409,8 @@ export const changeComponentCategory = async (req, res, next) => {
     const nextNumber = maxNumber + 1;
     const newPartNumber = `${prefix}-${String(nextNumber).padStart(leading_zeros, '0')}`;
 
-    console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Changing category for ${oldPartNumber}: ${oldCategoryId} -> ${new_category_id}`);
-    console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m New part number: ${newPartNumber}`);
+    logInfo('ComponentController', `Changing category for ${oldPartNumber}: ${oldCategoryId} -> ${new_category_id}`);
+    logInfo('ComponentController', `New part number: ${newPartNumber}`);
 
     // Delete old specification values that belong to the old category
     // These specs are not valid for the new category and would become orphan data
@@ -423,7 +424,7 @@ export const changeComponentCategory = async (req, res, next) => {
     `, [id, oldCategoryId]);
 
     if (deleteSpecsResult.rowCount > 0) {
-      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Removed ${deleteSpecsResult.rowCount} old specification values`);
+      logInfo('ComponentController', `Removed ${deleteSpecsResult.rowCount} old specification values`);
     }
 
     // Note: No need to update components_alternative - they reference component_id (UUID)
@@ -459,7 +460,7 @@ export const changeComponentCategory = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log category change activity:', logError.message);
+      logError('Component', 'Failed to log category change activity:', logError.message);
     }
 
     await client.query('COMMIT');
@@ -479,7 +480,7 @@ export const changeComponentCategory = async (req, res, next) => {
       WHERE c.id = $1
     `, [id]);
 
-    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Category changed: ${oldPartNumber} -> ${newPartNumber}`);
+    logInfo('Component', `Category changed: ${oldPartNumber} -> ${newPartNumber}`);
 
     res.json({
       success: true,
@@ -490,7 +491,7 @@ export const changeComponentCategory = async (req, res, next) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error changing category: ${error.message}`);
+    logError('ComponentController', `Error changing category: ${error.message}`);
     next(error);
   } finally {
     client.release();
@@ -590,7 +591,7 @@ export const updateComponent = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log component update activity:', logError.message);
+      logError('Component', 'Failed to log component update activity:', logError.message);
     }
 
     // Sync CAD files to junction table and regenerate TEXT columns
@@ -604,7 +605,7 @@ export const updateComponent = async (req, res, next) => {
         pad_file: parseCadField(updatedComponent.pad_file),
       });
     } catch (syncError) {
-      console.error('\x1b[33m[WARN]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Failed to sync CAD files:', syncError.message);
+      logWarn('ComponentController', 'Failed to sync CAD files:', syncError.message);
     }
 
     // Fetch the complete component with joined data
@@ -624,7 +625,7 @@ export const updateComponent = async (req, res, next) => {
 
     res.json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
-    console.error('Error in updateComponent:', error);
+    logError('Component', 'Error in updateComponent:', error);
     next(error);
   }
 };
@@ -666,7 +667,7 @@ export const deleteComponent = async (req, res, next) => {
           },
         });
       } catch (logError) {
-        console.error('Failed to log component deletion activity:', logError.message);
+        logError('Component', 'Failed to log component deletion activity:', logError.message);
       }
       
       // Delete from related tables first (foreign key constraints)
@@ -688,7 +689,7 @@ export const deleteComponent = async (req, res, next) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error deleting component:', error);
+    logError('Component', 'Error deleting component:', error);
     next(error);
   }
 };
@@ -716,7 +717,7 @@ export const getComponentSpecifications = async (req, res, next) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching component specifications:', error);
+    logError('Component', 'Error fetching component specifications:', error);
     next(error);
   }
 };
@@ -787,7 +788,7 @@ export const updateComponentSpecifications = async (req, res, next) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error updating component specifications:', error);
+    logError('Component', 'Error updating component specifications:', error);
     next(error);
   }
 };
@@ -874,7 +875,7 @@ export const updateDistributorInfo = async (req, res, next) => {
           };
         }
       } catch (error) {
-        console.error(`Error fetching pricing for SKU ${dist.sku}:`, error.message);
+        logError('Component', `Error fetching pricing for SKU ${dist.sku}:`, error.message);
         // Continue with original data if fetch fails
       }
 
@@ -969,7 +970,7 @@ export const updateDistributorInfo = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log distributor update activity:', logError.message);
+      logError('Component', 'Failed to log distributor update activity:', logError.message);
     }
 
     // Return updated distributor info
@@ -1236,7 +1237,7 @@ export const createAlternative = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log alternative added activity:', logError.message);
+      logError('Component', 'Failed to log alternative added activity:', logError.message);
     }
     
     res.status(201).json(result.rows[0]);
@@ -1354,7 +1355,7 @@ export const updateAlternative = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log alternative update activity:', logError.message);
+      logError('Component', 'Failed to log alternative update activity:', logError.message);
     }
     
     res.json(result.rows[0]);
@@ -1410,7 +1411,7 @@ export const deleteAlternative = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log alternative deletion activity:', logError.message);
+      logError('Component', 'Failed to log alternative deletion activity:', logError.message);
     }
     
     res.json({ message: 'Alternative deleted successfully' });
@@ -1517,7 +1518,7 @@ export const promoteAlternative = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log alternative promotion activity:', logError.message);
+      logError('Component', 'Failed to log alternative promotion activity:', logError.message);
     }
 
     await client.query('COMMIT');
@@ -1544,7 +1545,7 @@ export const promoteAlternative = async (req, res, next) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error promoting alternative: ${error.message}`);
+    logError('ComponentController', `Error promoting alternative: ${error.message}`);
     next(error);
   } finally {
     client.release();
@@ -1618,7 +1619,7 @@ export const updateComponentStock = async (req, res, next) => {
         }
 
       } catch (error) {
-        console.error(`Error updating stock for SKU ${dist.sku}:`, error.message);
+        logError('Component', `Error updating stock for SKU ${dist.sku}:`, error.message);
         errors.push({
           sku: dist.sku,
           distributor: dist.distributor_name,
@@ -1636,7 +1637,7 @@ export const updateComponentStock = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Error updating component stock:', error);
+    logError('Component', 'Error updating component stock:', error);
     next(error);
   }
 };
@@ -1755,7 +1756,7 @@ export const bulkUpdateStock = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Error in bulk stock update:', error);
+    logError('Component', 'Error in bulk stock update:', error);
     next(error);
   }
 };
@@ -1766,7 +1767,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
     const { limit } = req.query;
     const maxLimit = limit ? parseInt(limit) : null;
 
-    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Starting bulk specification update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
+    logInfo('SpecsUpdate', `Starting bulk specification update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
 
     // Oldest spec refresh first so repeated limited runs behave like a circular queue.
     let query = `
@@ -1793,7 +1794,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
     const componentsResult = await pool.query(query);
     const totalComponents = componentsResult.rows.length;
-    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Found ${totalComponents} eligible components to process`);
+    logInfo('SpecsUpdate', `Found ${totalComponents} eligible components to process`);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -1805,13 +1806,13 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       const progress = Math.round(((i + 1) / totalComponents) * 100);
       
       try {
-        console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m [${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number}`);
+        logInfo('SpecsUpdate', `[${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number}`);
         
         let vendorData = null;
 
         // Fetch from DigiKey
         if (comp.distributor_name.toLowerCase() === 'digikey') {
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Searching Digikey for: ${comp.sku}`);
+          logInfo('SpecsUpdate', `  Searching Digikey for: ${comp.sku}`);
           const result = await digikeyService.searchPart(comp.sku);
           vendorData = result.results?.[0];
         }
@@ -1888,14 +1889,14 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
 
           if (specsUpdated) {
             updatedCount++;
-            console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Updated specifications for ${comp.part_number}`);
+            logInfo('SpecsUpdate', `  Updated specifications for ${comp.part_number}`);
           } else {
             skippedCount++;
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   No spec mappings matched for ${comp.part_number}`);
+            logInfo('SpecsUpdate', `  No spec mappings matched for ${comp.part_number}`);
           }
         } else {
           skippedCount++;
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   No vendor data found for ${comp.part_number}`);
+          logInfo('SpecsUpdate', `  No vendor data found for ${comp.part_number}`);
         }
 
         await touchComponentSpecsRefresh(comp.component_id);
@@ -1906,7 +1907,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       } catch (error) {
         // Check for rate limit error
         if (error.message === 'RATE_LIMIT_EXCEEDED') {
-          console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
+          logError('SpecsUpdate', `ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
           return res.status(429).json({
             success: false,
             error: 'RATE_LIMIT_EXCEEDED',
@@ -1917,7 +1918,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
           });
         }
         
-        console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m   Error processing ${comp.part_number}: ${error.message}`);
+        logError('SpecsUpdate', `  Error processing ${comp.part_number}: ${error.message}`);
         errors.push({
           partNumber: comp.part_number,
           sku: comp.sku,
@@ -1928,7 +1929,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
       }
     }
 
-    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[SpecsUpdate]\x1b[0m Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
+    logInfo('SpecsUpdate', `Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,
@@ -1940,7 +1941,7 @@ export const bulkUpdateSpecifications = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Error in bulk specification update:', error);
+    logError('Component', 'Error in bulk specification update:', error);
     next(error);
   }
 };
@@ -1951,7 +1952,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     const { limit } = req.query;
     const maxLimit = limit ? parseInt(limit) : null;
 
-    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Starting bulk distributor update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
+    logInfo('DistributorUpdate', `Starting bulk distributor update${maxLimit ? ` (limit: ${maxLimit})` : ''}`);
 
     // Get all components with manufacturer part numbers that DON'T already have distributor info
     // Skip components that already have at least one distributor entry
@@ -1980,7 +1981,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
 
     const componentsResult = await pool.query(query);
     const totalComponents = componentsResult.rows.length;
-    console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Found ${totalComponents} components to process`);
+    logInfo('DistributorUpdate', `Found ${totalComponents} components to process`);
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -2001,14 +2002,14 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       const progress = Math.round(((i + 1) / totalComponents) * 100);
       
       try {
-        console.log(`\x1b[36m[INFO]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m [${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number} (${comp.manufacturer_pn})`);
+        logInfo('DistributorUpdate', `[${progress}%] Processing ${i + 1}/${totalComponents}: ${comp.part_number} (${comp.manufacturer_pn})`);
         
         // Search all vendors for this manufacturer part number
         const allResults = [];
 
         // Search Digikey
         try {
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Searching Digikey for: ${comp.manufacturer_pn}`);
+          logInfo('DistributorUpdate', `  Searching Digikey for: ${comp.manufacturer_pn}`);
           const digikeyResult = await digikeyService.searchPart(comp.manufacturer_pn);
           if (digikeyResult.results && digikeyResult.results.length > 0) {
             // Filter for exact manufacturer part number match
@@ -2016,7 +2017,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: ${digikeyResult.results.length} results, ${exactMatches.length} exact matches`);
+            logInfo('DistributorUpdate', `  Digikey: ${digikeyResult.results.length} results, ${exactMatches.length} exact matches`);
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'digikey',
@@ -2027,22 +2028,22 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               });
             });
           } else if (digikeyResult.error) {
-            console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey API error: ${digikeyResult.error}`);
+            logWarn('DistributorUpdate', `  Digikey API error: ${digikeyResult.error}`);
           } else {
-            console.log('\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey: No results found');
+            logInfo('DistributorUpdate', '  Digikey: No results found');
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation
           if (error.message === 'RATE_LIMIT_EXCEEDED') {
-            console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
+            logError('DistributorUpdate', `  Digikey RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
             throw error;
           }
-          console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Digikey search failed: ${error.message}`);
+          logWarn('DistributorUpdate', `  Digikey search failed: ${error.message}`);
         }
 
         // Search Mouser
         try {
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Searching Mouser for: ${comp.manufacturer_pn}`);
+          logInfo('DistributorUpdate', `  Searching Mouser for: ${comp.manufacturer_pn}`);
           const mouserResult = await mouserService.searchPart(comp.manufacturer_pn);
           if (mouserResult.results && mouserResult.results.length > 0) {
             // Filter for exact manufacturer part number match
@@ -2050,7 +2051,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               r.manufacturerPartNumber && 
               r.manufacturerPartNumber.toLowerCase() === comp.manufacturer_pn.toLowerCase(),
             );
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: ${mouserResult.results.length} results, ${exactMatches.length} exact matches`);
+            logInfo('DistributorUpdate', `  Mouser: ${mouserResult.results.length} results, ${exactMatches.length} exact matches`);
             exactMatches.forEach(result => {
               allResults.push({
                 source: 'mouser',
@@ -2061,22 +2062,22 @@ export const bulkUpdateDistributors = async (req, res, next) => {
               });
             });
           } else if (mouserResult.error) {
-            console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser API error: ${mouserResult.error}`);
+            logWarn('DistributorUpdate', `  Mouser API error: ${mouserResult.error}`);
           } else {
-            console.log('\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser: No results found');
+            logInfo('DistributorUpdate', '  Mouser: No results found');
           }
         } catch (error) {
           // Re-throw rate limit errors to abort the entire operation
           if (error.message === 'RATE_LIMIT_EXCEEDED') {
-            console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
+            logError('DistributorUpdate', `  Mouser RATE LIMIT EXCEEDED: ${error.vendorMessage || error.message}`);
             throw error;
           }
-          console.log(`\x1b[33m[WARN]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Mouser search failed: ${error.message}`);
+          logWarn('DistributorUpdate', `  Mouser search failed: ${error.message}`);
         }
 
         // If we have results, pick the best one per distributor (lowest MOQ)
         if (allResults.length > 0) {
-          console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Found ${allResults.length} distributor entries for ${comp.part_number}`);
+          logInfo('DistributorUpdate', `  Found ${allResults.length} distributor entries for ${comp.part_number}`);
           // Group by source
           const bySource = {};
           allResults.forEach(result => {
@@ -2121,14 +2122,14 @@ export const bulkUpdateDistributors = async (req, res, next) => {
 
           if (distributorsUpdated) {
             updatedCount++;
-            console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Updated distributors for ${comp.part_number}`);
+            logInfo('DistributorUpdate', `  Updated distributors for ${comp.part_number}`);
           } else {
             skippedCount++;
-            console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   No distributor updates for ${comp.part_number}`);
+            logInfo('DistributorUpdate', `  No distributor updates for ${comp.part_number}`);
           }
         } else {
           skippedCount++;
-          console.log(`\x1b[90m[DEBUG]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   No vendor matches found for ${comp.part_number}`);
+          logInfo('DistributorUpdate', `  No vendor matches found for ${comp.part_number}`);
         }
 
         // Add delay to avoid rate limiting (Mouser: ~30 calls/min)
@@ -2137,7 +2138,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       } catch (error) {
         // Check for rate limit error
         if (error.message === 'RATE_LIMIT_EXCEEDED') {
-          console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
+          logError('DistributorUpdate', `ABORTED: Rate limit exceeded after ${updatedCount + skippedCount} components`);
           return res.status(429).json({
             success: false,
             error: 'RATE_LIMIT_EXCEEDED',
@@ -2148,7 +2149,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
           });
         }
         
-        console.log(`\x1b[31m[ERROR]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m   Error processing ${comp.part_number}: ${error.message}`);
+        logError('DistributorUpdate', `  Error processing ${comp.part_number}: ${error.message}`);
         errors.push({
           partNumber: comp.part_number,
           manufacturerPn: comp.manufacturer_pn,
@@ -2158,7 +2159,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
       }
     }
 
-    console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[33m[DistributorUpdate]\x1b[0m Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
+    logInfo('DistributorUpdate', `Bulk update complete: ${updatedCount} updated, ${skippedCount} skipped, ${errors.length} errors`);
 
     res.json({
       success: true,
@@ -2170,7 +2171,7 @@ export const bulkUpdateDistributors = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Error in bulk distributor update:', error);
+    logError('Component', 'Error in bulk distributor update:', error);
     next(error);
   }
 };
@@ -2277,7 +2278,7 @@ export const updateComponentApproval = async (req, res, next) => {
         },
       });
     } catch (logError) {
-      console.error('Failed to log approval activity:', logError.message);
+      logError('Component', 'Failed to log approval activity:', logError.message);
     }
 
     // Fetch complete component with joined data
@@ -2299,7 +2300,7 @@ export const updateComponentApproval = async (req, res, next) => {
 
     res.json(fullComponent.rows[0]);
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[ComponentController]\x1b[0m Error in updateComponentApproval: ${error.message}`);
+    logError('ComponentController', `Error in updateComponentApproval: ${error.message}`);
     next(error);
   }
 };

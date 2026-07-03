@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { logError } from '../utils/logger.js';
 
 export const getDashboardStats = async (req, res, next) => {
   try {
@@ -314,7 +315,7 @@ export const getDatabaseInfo = async (req, res, next) => {
       version: dbInfo.pg_version.split(' ')[1] || dbInfo.pg_version,
     });
   } catch (error) {
-    console.error('Error fetching database info:', error);
+    logError('Dashboard', 'Error fetching database info:', error);
     next(error);
   }
 };

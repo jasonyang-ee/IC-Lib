@@ -14,6 +14,7 @@ import {
 } from '../utils/footprintFiles.js';
 import { isEcoEnabled } from '../utils/featureFlags.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
+import { logError, logInfo } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,7 +93,7 @@ export const getFilesByType = async (req, res) => {
       files: existingFiles.map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching files by type:', error.message);
+    logError('FileLibrary', 'Error fetching files by type:', error.message);
     res.status(500).json({ error: 'Failed to fetch files' });
   }
 };
@@ -114,7 +115,7 @@ export const getFileTypeStats = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching file type stats:', error.message);
+    logError('FileLibrary', 'Error fetching file type stats:', error.message);
     res.status(500).json({ error: 'Failed to fetch file type statistics' });
   }
 };
@@ -166,7 +167,7 @@ export const getComponentsByFile = async (req, res) => {
       relatedFileGroups: buildRelatedFileGroups(relatedFiles),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by file:', error.message);
+    logError('FileLibrary', 'Error fetching components by file:', error.message);
     res.status(500).json({ error: 'Failed to fetch components' });
   }
 };
@@ -207,7 +208,7 @@ export const searchFiles = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error searching files:', error.message);
+    logError('FileLibrary', 'Error searching files:', error.message);
     res.status(500).json({ error: 'Failed to search files' });
   }
 };
@@ -254,7 +255,7 @@ export const renamePhysicalFile = async (req, res) => {
         return res.status(409).json({ error: `File "${safeNewFileName}" already exists in the ${type} directory` });
       }
       fs.renameSync(oldPath, newPath);
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename (no DB record): "${safeOldFileName}" -> "${safeNewFileName}"`);
+      logInfo('FileLibrary', `Physical rename (no DB record): "${safeOldFileName}" -> "${safeNewFileName}"`);
       return res.json({ success: true, oldFileName: safeOldFileName, newFileName: safeNewFileName, updatedCount: 0, updatedComponents: [] });
     }
 
@@ -282,7 +283,7 @@ export const renamePhysicalFile = async (req, res) => {
 
         await client.query('COMMIT');
 
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared rename ECO ${eco.eco_number}: "${safeOldFileName}" -> "${safeNewFileName}" (${stagedComponents.length} controlled components)`);
+        logInfo('FileLibrary', `Staged shared rename ECO ${eco.eco_number}: "${safeOldFileName}" -> "${safeNewFileName}" (${stagedComponents.length} controlled components)`);
 
         return res.json({
           success: true,
@@ -312,7 +313,7 @@ export const renamePhysicalFile = async (req, res) => {
     // Rename via cadFileService (handles physical rename + cad_files update + TEXT regen)
     await cadFileService.renameCadFile(cadFile.id, safeNewFileName);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical rename: "${safeOldFileName}" -> "${safeNewFileName}", updated ${affectedBefore.length} components`);
+    logInfo('FileLibrary', `Physical rename: "${safeOldFileName}" -> "${safeNewFileName}", updated ${affectedBefore.length} components`);
 
     res.json({
       success: true,
@@ -325,7 +326,7 @@ export const renamePhysicalFile = async (req, res) => {
     if (error instanceof FootprintNameError) {
       return res.status(422).json({ error: error.message });
     }
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming physical file:', error.message);
+    logError('FileLibrary', 'Error renaming physical file:', error.message);
     const status = error.message?.includes('already exists')
       ? 409
       : /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '')
@@ -413,7 +414,7 @@ export const renameFootprintGroup = async (req, res) => {
       await client.query('COMMIT');
       transactionStarted = false;
 
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Staged shared footprint rename ECO ${eco.eco_number} (${stagedComponents.length} controlled components)`);
+      logInfo('FileLibrary', `Staged shared footprint rename ECO ${eco.eco_number} (${stagedComponents.length} controlled components)`);
 
       return res.json({
         success: true,
@@ -485,7 +486,7 @@ export const renameFootprintGroup = async (req, res) => {
       }
     }
 
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming footprint group:', error.message);
+    logError('FileLibrary', 'Error renaming footprint group:', error.message);
 
     const status = error instanceof FootprintNameError
       ? 422
@@ -531,7 +532,7 @@ export const deletePhysicalFile = async (req, res) => {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete (no DB record): "${safeFileName}"`);
+      logInfo('FileLibrary', `Physical delete (no DB record): "${safeFileName}"`);
       return res.json({ success: true, fileName: safeFileName, updatedCount: 0, updatedComponents: [] });
     }
 
@@ -543,7 +544,7 @@ export const deletePhysicalFile = async (req, res) => {
     // Delete via cadFileService (handles physical file + DB + TEXT regen)
     await cadFileService.deleteCadFile(cadFile.id);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Physical delete: "${fileName}", updated ${linkedComponents.length} components`);
+    logInfo('FileLibrary', `Physical delete: "${fileName}", updated ${linkedComponents.length} components`);
 
     res.json({
       success: true,
@@ -552,7 +553,7 @@ export const deletePhysicalFile = async (req, res) => {
       updatedComponents: linkedComponents.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting physical file:', error.message);
+    logError('FileLibrary', 'Error deleting physical file:', error.message);
     const status = /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500;
     res.status(status).json({ error: status === 500 ? 'Failed to delete file' : error.message });
   }
@@ -607,7 +608,7 @@ export const deleteFileGroup = async (req, res) => {
       updatedComponents: [],
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error deleting file group:', error.message);
+    logError('FileLibrary', 'Error deleting file group:', error.message);
     res.status(500).json({ error: 'Failed to delete file group' });
   }
 };
@@ -632,7 +633,7 @@ export const getOrphanFiles = async (req, res) => {
 
     res.json({ orphans: existingOrphans });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching orphan files:', error.message);
+    logError('FileLibrary', 'Error fetching orphan files:', error.message);
     res.status(500).json({ error: 'Failed to fetch orphan files' });
   }
 };
@@ -691,7 +692,7 @@ export const bulkDeleteOrphanFiles = async (req, res) => {
       deletedFiles,
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error bulk deleting orphan files:', error.message);
+    logError('FileLibrary', 'Error bulk deleting orphan files:', error.message);
     res.status(500).json({ error: 'Failed to bulk delete orphan files' });
   }
 };
@@ -705,7 +706,7 @@ export const getCadFilesForComponent = async (req, res) => {
     const files = await cadFileService.getCadFilesForComponentGrouped(componentId);
     res.json({ files });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching component CAD files:', error.message);
+    logError('FileLibrary', 'Error fetching component CAD files:', error.message);
     res.status(500).json({ error: 'Failed to fetch component CAD files' });
   }
 };
@@ -734,7 +735,7 @@ export const linkFileToComponent = async (req, res) => {
       await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [cadFileId]);
     }
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Linked "${cadFile.file_name}" to component ${componentId}`);
+    logInfo('FileLibrary', `Linked "${cadFile.file_name}" to component ${componentId}`);
 
     res.json({
       success: true,
@@ -742,7 +743,7 @@ export const linkFileToComponent = async (req, res) => {
       linkedCadFiles: linkedCadFiles.map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error linking file to component:', error.message);
+    logError('FileLibrary', 'Error linking file to component:', error.message);
     res.status(500).json({ error: 'Failed to link file to component' });
   }
 };
@@ -787,7 +788,7 @@ export const linkFootprintRelatedFiles = async (req, res) => {
       relatedFileGroups: buildRelatedFileGroups(relatedFiles),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error linking footprint-related files:', error.message);
+    logError('FileLibrary', 'Error linking footprint-related files:', error.message);
     const status = /require footprint CAD file ids|require pad or model CAD file ids|require matching related CAD file types/.test(error.message || '') ? 400 : 500;
     res.status(status).json({ error: status === 500 ? 'Failed to link footprint related files' : error.message });
   }
@@ -828,7 +829,7 @@ export const unlinkFootprintRelatedFiles = async (req, res) => {
       relatedFileGroups: buildRelatedFileGroups(relatedFiles),
     });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error unlinking footprint-related files:', error.message);
+    logError('FileLibrary', 'Error unlinking footprint-related files:', error.message);
     res.status(500).json({ error: 'Failed to unlink footprint related files' });
   }
 };
@@ -852,11 +853,11 @@ export const unlinkFileFromComponent = async (req, res) => {
     const cadFile = cfResult.rows[0];
     await cadFileService.unlinkCadFileFromComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Unlinked "${cadFile.file_name}" from component ${componentId}`);
+    logInfo('FileLibrary', `Unlinked "${cadFile.file_name}" from component ${componentId}`);
 
     res.json({ success: true });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error unlinking file from component:', error.message);
+    logError('FileLibrary', 'Error unlinking file from component:', error.message);
     res.status(500).json({ error: 'Failed to unlink file from component' });
   }
 };
@@ -870,7 +871,7 @@ export const getComponentsByCategory = async (req, res) => {
     const components = await cadFileService.getComponentsWithCadFiles(categoryId === 'all' ? null : categoryId);
     res.json({ components });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching components by category:', error.message);
+    logError('FileLibrary', 'Error fetching components by category:', error.message);
     res.status(500).json({ error: 'Failed to fetch components' });
   }
 };
@@ -884,7 +885,7 @@ export const getSharingComponents = async (req, res) => {
     const components = await cadFileService.getComponentsSharingFiles(componentId);
     res.json({ components });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching sharing components:', error.message);
+    logError('FileLibrary', 'Error fetching sharing components:', error.message);
     res.status(500).json({ error: 'Failed to fetch sharing components' });
   }
 };
@@ -904,7 +905,7 @@ export const scanLibraryFiles = async (req, res) => {
       tagged,
     });
   } catch (error) {
-    console.error('Error scanning library files:', error);
+    logError('FileLibrary', 'Error scanning library files:', error);
     res.status(500).json({ error: 'Failed to scan library files' });
   }
 };
@@ -934,7 +935,7 @@ export const getAvailableFiles = async (req, res) => {
       }
     } catch (dbError) {
       // cad_files table may not exist yet - continue with disk scan
-      console.error('[FileLibrary] DB query failed, falling back to disk scan:', dbError.message);
+      logError('FileLibrary', 'DB query failed, falling back to disk scan:', dbError.message);
     }
 
     // Filter DB files to only those that physically exist on disk
@@ -1002,7 +1003,7 @@ export const getAvailableFiles = async (req, res) => {
 
     res.json({ files });
   } catch (error) {
-    console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error fetching available files:', error.message);
+    logError('FileLibrary', 'Error fetching available files:', error.message);
     res.status(500).json({ error: 'Failed to fetch available files' });
   }
 };

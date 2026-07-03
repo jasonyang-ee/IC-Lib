@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { logError } from '../utils/logger.js';
 
 export const getAllCategories = async (req, res, next) => {
   try {
@@ -94,7 +95,7 @@ export const getNextPartNumber = async (req, res, next) => {
       next_part_number: nextPartNumber,
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[CategoryController]\x1b[0m Error getting next part number: ${error.message}`);
+    logError('CategoryController', `Error getting next part number: ${error.message}`);
     next(error);
   }
 };

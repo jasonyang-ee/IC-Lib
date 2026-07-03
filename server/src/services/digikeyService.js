@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logError, logInfo } from '../utils/logger.js';
 
 const DIGIKEY_API_BASE = 'https://api.digikey.com';
 let accessToken = null;
@@ -20,7 +21,7 @@ const getCachedResult = (partNumber) => {
   
   const cached = searchCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    console.log(`[DigiKey] Cache hit for: ${partNumber}`);
+    logInfo('Digikey', `Cache hit for: ${partNumber}`);
     return cached.data;
   }
   
@@ -53,7 +54,7 @@ const setCachedResult = (partNumber, data) => {
 // Export cache clear function for testing or manual refresh
 export const clearSearchCache = () => {
   searchCache.clear();
-  console.log('[DigiKey] Search cache cleared');
+  logInfo('Digikey', 'Search cache cleared');
 };
 
 // Get OAuth2 access token
@@ -81,7 +82,7 @@ async function getAccessToken() {
     tokenExpiry = Date.now() + (response.data.expires_in * 1000);
     return accessToken;
   } catch (error) {
-    console.error('Error getting Digikey access token:', error.message);
+    logError('Digikey', 'Error getting Digikey access token:', error.message);
     throw new Error('Failed to authenticate with Digikey API');
   }
 }
@@ -100,7 +101,7 @@ export async function searchPart(partNumber, skipCache = false) {
   
   // Check for in-flight request for same part number (deduplication)
   if (pendingRequests.has(cacheKey)) {
-    console.log(`[DigiKey] Waiting for in-flight request: ${partNumber}`);
+    logInfo('Digikey', `Waiting for in-flight request: ${partNumber}`);
     return pendingRequests.get(cacheKey);
   }
   
@@ -176,9 +177,9 @@ export async function searchPart(partNumber, skipCache = false) {
     
     return result;
   } catch (error) {
-    console.error('Digikey search error:', error.response?.data || error.message);
-    console.error('Status:', error.response?.status);
-    console.error('Request URL:', error.config?.url);
+    logError('Digikey', 'Digikey search error:', error.response?.data || error.message);
+    logError('Digikey', 'Status:', error.response?.status);
+    logError('Digikey', 'Request URL:', error.config?.url);
     
     // Check for rate limit errors
     if (error.response?.status === 429 || 
@@ -245,7 +246,7 @@ export async function getPartDetails(digikeyPartNumber) {
 
     return response.data;
   } catch (error) {
-    console.error('Digikey part details error:', error.message);
+    logError('Digikey', 'Digikey part details error:', error.message);
     throw error;
   }
 }

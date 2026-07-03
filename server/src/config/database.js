@@ -1,5 +1,6 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { logError } from '../utils/logger.js';
 
 dotenv.config();
 
@@ -19,7 +20,7 @@ const pool = new Pool({
 // Silent on connect - only log errors
 // Connection logging is handled by initialization service
 pool.on('error', (err) => {
-  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Database]\x1b[0m Unexpected error on idle client: ${err.message}`);
+  logError('Database', `Unexpected error on idle client: ${err.message}`);
   process.exit(-1);
 });
 

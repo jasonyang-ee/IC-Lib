@@ -37,6 +37,7 @@ import { initializeAuthentication, getAuthenticationStatus } from './services/in
 
 // Import CAD file scan service
 import { scanAndRegisterFiles, detectMissingFiles } from './services/cadFileService.js';
+import { logError, logInfo, logWarn } from './utils/logger.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -107,7 +108,7 @@ app.use('/api/file-library', fileLibraryRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {
-  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m ${err.message}`);
+  logError('Server', `${err.message}`);
   res.status(err.status || 500).json({
     error: {
       message: err.message || 'Internal Server Error',
@@ -123,12 +124,12 @@ app.use((req, res) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (error) => {
-  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Unhandled Rejection: ${error.message}`);
+  logError('Server', `Unhandled Rejection: ${error.message}`);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Uncaught Exception: ${error.message}`);
+  logError('Server', `Uncaught Exception: ${error.message}`);
 });
 
 // Initialize authentication and start server
@@ -136,12 +137,12 @@ async function startServer() {
   try {
     // Print ASCII banner
     console.log('');
-    console.log('\x1b[33m    ,--. ,-----.    ,--.   ,--.,------.\x1b[0m');
-    console.log('\x1b[33m    |  |\'  .--./    |  |   |  ||  | ) /\x1b[0m');
-    console.log('\x1b[33m    |  ||  |        |  |   |  ||  .-. `\\\x1b[0m');
-    console.log('\x1b[33m    |  |\'  \'--\'\\    |  \'--.|  ||  \'--\' /\x1b[0m');
-    console.log('\x1b[33m    `--\' `-----\'    `-----\'`--\'`------\'\x1b[0m');
-    console.log('\x1b[36m        IC Component Library Manager\x1b[0m');
+    logInfo('Server', '\x1b[33m    ,--. ,-----.    ,--.   ,--.,------.\x1b[0m');
+    logInfo('Server', '\x1b[33m    |  |\'  .--./    |  |   |  ||  | ) /\x1b[0m');
+    logInfo('Server', '\x1b[33m    |  ||  |        |  |   |  ||  .-. `\\\x1b[0m');
+    logInfo('Server', '\x1b[33m    |  |\'  \'--\'\\    |  \'--.|  ||  \'--\' /\x1b[0m');
+    logInfo('Server', '\x1b[33m    `--\' `-----\'    `-----\'`--\'`------\'\x1b[0m');
+    logInfo('Server', '\x1b[36m        IC Component Library Manager\x1b[0m');
     console.log('');
 
 
@@ -154,10 +155,10 @@ async function startServer() {
     
     // Start server
     app.listen(PORT, async () => {
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Running on port ${PORT}`);
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Environment: ${NODE_ENV}`);
+      logInfo('Server', `Running on port ${PORT}`);
+      logInfo('Server', `Environment: ${NODE_ENV}`);
       if (SUBDIRECTORY_PATH) {
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Server]\x1b[0m Subdirectory path: ${SUBDIRECTORY_PATH}`);
+        logInfo('Server', `Subdirectory path: ${SUBDIRECTORY_PATH}`);
       }
       console.log('');
 
@@ -168,18 +169,18 @@ async function startServer() {
       try {
         const registered = await scanAndRegisterFiles();
         if (registered > 0) {
-          console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Registered ${registered} new file(s)`);
+          logInfo('Scan', `Registered ${registered} new file(s)`);
         }
         const removed = await detectMissingFiles();
         if (removed > 0) {
-          console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Tagged ${removed} missing file(s)`);
+          logInfo('Scan', `Tagged ${removed} missing file(s)`);
         }
       } catch (scanErr) {
-        console.error(`\x1b[33m[WARN]\x1b[0m \x1b[36m[Scan]\x1b[0m Startup scan failed: ${scanErr.message}`);
+        logWarn('Scan', `Startup scan failed: ${scanErr.message}`);
       }
     });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Server]\x1b[0m Failed to start: ${error.message}`);
+    logError('Server', `Failed to start: ${error.message}`);
     process.exit(1);
   }
 }

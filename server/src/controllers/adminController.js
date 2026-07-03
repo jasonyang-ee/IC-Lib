@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
+import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 // Core-schema quick-verify subset (D11): membership locked to
 // EXPECTED_SCHEMA_TABLES by dbTableLists.test.js.
@@ -87,9 +88,9 @@ const executeSQLFile = async (client, filePath, fileName) => {
       executedCount++;
     } catch (error) {
       const preview = statement.trim().substring(0, 100).replace(/\s+/g, ' ');
-      console.error(`[${fileName}] Statement ${i + 1}/${statements.length} FAILED`);
-      console.error(`[${fileName}] SQL: ${preview}...`);
-      console.error(`[${fileName}] Error: ${error.message}`);
+      logError('Admin', `[${fileName}] Statement ${i + 1}/${statements.length} FAILED`);
+      logError('Admin', `[${fileName}] SQL: ${preview}...`);
+      logError('Admin', `[${fileName}] Error: ${error.message}`);
       errors.push({
         statementNumber: i + 1,
         statement: preview + '...',
@@ -99,7 +100,7 @@ const executeSQLFile = async (client, filePath, fileName) => {
     }
   }
   
-  console.log(`[${fileName}] Summary: ${executedCount}/${statements.length} successful, ${errors.length} failed`);
+  logInfo('Admin', `[${fileName}] Summary: ${executedCount}/${statements.length} successful, ${errors.length} failed`);
   
   return { executedCount, errors, totalStatements: statements.length };
 };
@@ -109,7 +110,7 @@ export const initializeDatabase = async (req, res, _next) => {
   const client = await pool.connect();
   
   try {
-    console.log('Starting database initialization...');
+    logInfo('Admin', 'Starting database initialization...');
     
     // Check if tables already exist
     const tableCheck = await client.query(`
@@ -132,7 +133,7 @@ export const initializeDatabase = async (req, res, _next) => {
     
     // Execute init-schema.sql
     const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
-    console.log('Loading schema from:', schemaPath);
+    logInfo('Admin', 'Loading schema from:', schemaPath);
     
     const result = await executeSQLFile(client, schemaPath, 'init-schema.sql');
     
@@ -154,7 +155,7 @@ export const initializeDatabase = async (req, res, _next) => {
       errors: result.errors,
     });
   } catch (error) {
-    console.error('Database initialization error:', error);
+    logError('Admin', 'Database initialization error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to initialize database',
@@ -170,41 +171,41 @@ export const resetDatabase = async (req, res, _next) => {
   const client = await pool.connect();
   
   try {
-    console.log('Starting database reset...');
+    logInfo('Admin', 'Starting database reset...');
     
     // Don't use transaction for schema operations - they're DDL and auto-commit
     // Drop all tables
     await client.query('DROP SCHEMA public CASCADE');
-    console.log('Dropped existing schema');
+    logInfo('Admin', 'Dropped existing schema');
     
     // Recreate schema
     await client.query('CREATE SCHEMA public');
     await client.query('GRANT ALL ON SCHEMA public TO postgres');
     await client.query('GRANT ALL ON SCHEMA public TO public');
-    console.log('Created new schema');
+    logInfo('Admin', 'Created new schema');
     
     // Execute init-schema.sql to recreate tables
     const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
     const schemaResult = await executeSQLFile(client, schemaPath, 'init-schema.sql');
-    console.log(`Schema recreated: ${schemaResult.executedCount}/${schemaResult.totalStatements} statements`);
+    logInfo('Admin', `Schema recreated: ${schemaResult.executedCount}/${schemaResult.totalStatements} statements`);
     if (schemaResult.errors.length > 0) {
-      console.error('Schema errors:', schemaResult.errors);
+      logError('Admin', 'Schema errors:', schemaResult.errors);
     }
     
     // Initialize users table
     const usersPath = path.join(__dirname, '../../../database/init-users.sql');
     const usersResult = await executeSQLFile(client, usersPath, 'init-users.sql');
-    console.log(`[info] [Admin] Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
+    logInfo('Admin', `Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
     if (usersResult.errors.length > 0) {
-      console.error('[error] [Admin] Users initialization errors:', usersResult.errors);
+      logError('Admin', 'Users initialization errors:', usersResult.errors);
     }
     
     // Verify users table was created
     try {
       const usersCheck = await client.query('SELECT COUNT(*) FROM users');
-      console.log(`[info] [Admin] Users table verified: ${usersCheck.rows[0].count} users`);
+      logInfo('Admin', `Users table verified: ${usersCheck.rows[0].count} users`);
     } catch (error) {
-      console.error('[error] [Admin] Users table verification FAILED:', error.message);
+      logError('Admin', 'Users table verification FAILED:', error.message);
       throw new Error('Users table was not created successfully');
     }
 
@@ -212,9 +213,9 @@ export const resetDatabase = async (req, res, _next) => {
     const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0;
 
     if (hasErrors) {
-      console.warn('[warn] [Admin] Database reset completed with errors:');
-      if (schemaResult.errors.length > 0) console.warn('[warn] [Admin] Schema errors:', schemaResult.errors.length);
-      if (usersResult.errors.length > 0) console.warn('[warn] [Admin] Users errors:', usersResult.errors.length);
+      logWarn('Admin', 'Database reset completed with errors:');
+      if (schemaResult.errors.length > 0) logWarn('Admin', 'Schema errors:', schemaResult.errors.length);
+      if (usersResult.errors.length > 0) logWarn('Admin', 'Users errors:', usersResult.errors.length);
     }
 
     res.json({
@@ -234,7 +235,7 @@ export const resetDatabase = async (req, res, _next) => {
       },
     });
   } catch (error) {
-    console.error('Database reset error:', error);
+    logError('Admin', 'Database reset error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to reset database',

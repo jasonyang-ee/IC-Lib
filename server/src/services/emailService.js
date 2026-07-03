@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import pool from '../config/database.js';
+import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 // Encryption key for SMTP password (should be set in environment variables)
 const ENCRYPTION_KEY = process.env.SMTP_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
@@ -458,7 +459,7 @@ export function decrypt(text) {
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error decrypting: ${error.message}`);
+    logError('EmailService', `Error decrypting: ${error.message}`);
     return null;
   }
 }
@@ -474,7 +475,7 @@ export async function getSMTPSettings() {
     }
     return result.rows[0];
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error getting SMTP settings: ${error.message}`);
+    logError('EmailService', `Error getting SMTP settings: ${error.message}`);
     return null;
   }
 }
@@ -518,7 +519,7 @@ export async function createTransporter() {
 export async function sendEmail({ to, subject, html, text, attachments }) {
   const transporter = await createTransporter();
   if (!transporter) {
-    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured or disabled, skipping email');
+    logWarn('EmailService', 'SMTP not configured or disabled, skipping email');
     return { success: false, reason: 'SMTP not configured' };
   }
 
@@ -540,10 +541,10 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
       VALUES ($1, $2, $3, 'sent')
     `, [to, subject, 'generic']);
 
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[EmailService]\x1b[0m Email sent to ${to}: ${subject}`);
+    logInfo('EmailService', `Email sent to ${to}: ${subject}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Failed to send email to ${to}: ${error.message}`);
+    logError('EmailService', `Failed to send email to ${to}: ${error.message}`);
 
     // Log the failure
     await pool.query(`
@@ -623,7 +624,7 @@ async function getECONotificationRecipients(notificationType) {
     const result = await pool.query(query);
     return result.rows;
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[EmailService]\x1b[0m Error getting ECO notification recipients: ${error.message}`);
+    logError('EmailService', `Error getting ECO notification recipients: ${error.message}`);
     return [];
   }
 }
@@ -635,14 +636,14 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   // Check if SMTP is configured
   const settings = await getSMTPSettings();
   if (!settings || !settings.enabled) {
-    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m SMTP not configured, skipping ECO notification');
+    logWarn('EmailService', 'SMTP not configured, skipping ECO notification');
     return;
   }
 
   // Get recipients based on action type
   const recipients = await getECONotificationRecipients(actionType);
   if (recipients.length === 0) {
-    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No recipients for ECO notification');
+    logWarn('EmailService', 'No recipients for ECO notification');
     return;
   }
 
@@ -676,7 +677,7 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   // Log results
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
-  console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[EmailService]\x1b[0m ECO ${actionType} notifications: ${successful} sent, ${failed} failed`);
+  logInfo('EmailService', `ECO ${actionType} notifications: ${successful} sent, ${failed} failed`);
 
   // Log to email_log with ECO reference
   for (const result of results) {
@@ -695,7 +696,7 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
 
 export async function sendApprovedECODocumentControlNotification({ to, eco, approvedByName, attachment }) {
   if (!to) {
-    console.log('\x1b[33m[WARN]\x1b[0m \x1b[36m[EmailService]\x1b[0m No ECO document control email configured, skipping complete notification');
+    logWarn('EmailService', 'No ECO document control email configured, skipping complete notification');
     return { success: false, reason: 'No document control email configured' };
   }
 

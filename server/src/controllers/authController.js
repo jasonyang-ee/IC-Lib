@@ -5,6 +5,7 @@ import { AUTH_COOKIE_NAME, generateToken, getAuthCookieOptions } from '../middle
 import { sendWelcomeEmail } from '../services/emailService.js';
 import { canDelegateToRole } from '../services/ecoApprovalEligibilityService.js';
 import { logActivity, logUserActivity } from '../services/activityLogService.js';
+import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 const SALT_ROUNDS = 10;
 const ECO_NOTIFICATION_FIELDS = [
@@ -106,7 +107,7 @@ export const login = async (req, res) => {
         details: { username: user.username, role: user.role },
       });
     } catch (logError) {
-      console.error('Failed to log login activity:', logError);
+      logError('Auth', 'Failed to log login activity:', logError);
     }
 
     // Generate JWT token
@@ -124,7 +125,7 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logError('Auth', 'Login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 };
@@ -158,7 +159,7 @@ export const verify = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Verify error:', error);
+    logError('Auth', 'Verify error:', error);
     res.status(500).json({ error: 'Verification failed' });
   }
 };
@@ -182,7 +183,7 @@ export const logout = async (req, res) => {
           details: { username: req.user.username },
         });
       } catch (logError) {
-        console.error('Failed to log logout activity:', logError);
+        logError('Auth', 'Failed to log logout activity:', logError);
       }
     }
 
@@ -190,7 +191,7 @@ export const logout = async (req, res) => {
 
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
-    console.error('Logout error:', error);
+    logError('Auth', 'Logout error:', error);
     res.status(500).json({ error: 'Logout failed' });
   }
 };
@@ -217,7 +218,7 @@ export const getAllUsers = async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Get users error:', error);
+    logError('Auth', 'Get users error:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
@@ -301,7 +302,7 @@ export const createUser = async (req, res) => {
         userId: req.user.userId,
       });
     } catch (logError) {
-      console.error('Failed to log user creation:', logError);
+      logError('Auth', 'Failed to log user creation:', logError);
     }
 
     const shouldSendWelcomeEmail = email && role !== 'read-only';
@@ -317,9 +318,9 @@ export const createUser = async (req, res) => {
           password: userPassword,
           passwordWasGenerated,
         });
-        console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[AuthController]\x1b[0m Welcome email sent to ${email}`);
+        logInfo('AuthController', `Welcome email sent to ${email}`);
       } catch (emailError) {
-        console.error(`\x1b[33m[WARN]\x1b[0m \x1b[36m[AuthController]\x1b[0m Failed to send welcome email: ${emailError.message}`);
+        logWarn('AuthController', `Failed to send welcome email: ${emailError.message}`);
         // Don't fail the request if email fails
       }
     }
@@ -330,7 +331,7 @@ export const createUser = async (req, res) => {
       emailSent: !!shouldSendWelcomeEmail,
     });
   } catch (error) {
-    console.error('Create user error:', error);
+    logError('Auth', 'Create user error:', error);
     res.status(500).json({ error: 'Failed to create user' });
   }
 };
@@ -421,12 +422,12 @@ export const updateUser = async (req, res) => {
         userId: req.user.userId,
       });
     } catch (logError) {
-      console.error('Failed to log user update:', logError);
+      logError('Auth', 'Failed to log user update:', logError);
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Update user error:', error);
+    logError('Auth', 'Update user error:', error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 };
@@ -468,12 +469,12 @@ export const deleteUser = async (req, res) => {
         userId: req.user.userId,
       });
     } catch (logError) {
-      console.error('Failed to log user deletion:', logError);
+      logError('Auth', 'Failed to log user deletion:', logError);
     }
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
-    console.error('Delete user error:', error);
+    logError('Auth', 'Delete user error:', error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
 };
@@ -537,7 +538,7 @@ export const changePassword = async (req, res) => {
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change password error:', error);
+    logError('Auth', 'Change password error:', error);
     res.status(500).json({ error: 'Failed to change password' });
   }
 };
@@ -580,7 +581,7 @@ export const getProfile = async (req, res) => {
       authProvider: user.auth_provider || 'local',
     });
   } catch (error) {
-    console.error('[error] [Auth] Get profile error:', error);
+    logError('Auth', 'Get profile error:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 };
@@ -623,7 +624,7 @@ export const updateProfile = async (req, res) => {
         userId: req.user.userId,
       });
     } catch (logError) {
-      console.error('[error] [Auth] Failed to log profile update:', logError);
+      logError('Auth', 'Failed to log profile update:', logError);
     }
 
     res.json({
@@ -637,7 +638,7 @@ export const updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[error] [Auth] Update profile error:', error);
+    logError('Auth', 'Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 };
@@ -655,7 +656,7 @@ export const getFileStoragePath = async (req, res) => {
     const userPath = result.rows[0]?.file_storage_path || '';
     res.json({ path: userPath || process.env.FILE_STORAGE_PATH || '' });
   } catch (error) {
-    console.error('[error] [Auth] Get file storage path error:', error);
+    logError('Auth', 'Get file storage path error:', error);
     res.status(500).json({ error: 'Failed to fetch file storage path' });
   }
 };
@@ -699,7 +700,7 @@ export const getNotificationPreferences = async (req, res) => {
       availableDelegates: eligibleDelegates,
     });
   } catch (error) {
-    console.error('[error] [Auth] Get notification preferences error:', error);
+    logError('Auth', 'Get notification preferences error:', error);
     res.status(500).json({ error: 'Failed to fetch notification preferences' });
   }
 };
@@ -821,7 +822,7 @@ export const updateNotificationPreferences = async (req, res) => {
         userId: req.user.userId,
       });
     } catch (logError) {
-      console.error('[error] [Auth] Failed to log notification preferences update:', logError);
+      logError('Auth', 'Failed to log notification preferences update:', logError);
     }
 
     res.json({
@@ -830,7 +831,7 @@ export const updateNotificationPreferences = async (req, res) => {
       delegation: nextDelegation,
     });
   } catch (error) {
-    console.error('[error] [Auth] Update notification preferences error:', error);
+    logError('Auth', 'Update notification preferences error:', error);
     res.status(500).json({ error: 'Failed to update notification preferences' });
   }
 };

@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { normalizeCadUploadFilename, sanitizeCadBaseName } from '../utils/footprintFiles.js';
+import { logError } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,7 +65,7 @@ export async function downloadFromUltraLibrarian(partNumber) {
       message: 'No footprint available for this part number',
     };
   } catch (error) {
-    console.error('Ultra Librarian download error:', error.message);
+    logError('Footprint', 'Ultra Librarian download error:', error.message);
     return {
       success: false,
       error: error.message,
@@ -127,7 +128,7 @@ export async function downloadFromSnapEDA(partNumber) {
       message: 'No Allegro footprint available for this part number',
     };
   } catch (error) {
-    console.error('SnapEDA download error:', error.message);
+    logError('Footprint', 'SnapEDA download error:', error.message);
     return {
       success: false,
       error: error.message,

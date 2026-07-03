@@ -20,6 +20,7 @@ import {
   sanitizeCadBaseName,
 } from '../utils/footprintFiles.js';
 import { assertSafeLeafName } from '../utils/safeFsPaths.js';
+import { logError } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -207,7 +208,7 @@ async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
       await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, category, filename);
     }
   } catch (error) {
-    console.error(`[FileUpload] Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
+    logError('FileUpload', `Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
   }
 }
 
@@ -338,7 +339,7 @@ export async function uploadTempFile(req, res) {
             rejected: rejected.length > 0 ? rejected : undefined,
           });
         } catch (error) {
-          console.error('Error extracting ZIP to temp:', error);
+          logError('FileUpload', 'Error extracting ZIP to temp:', error);
           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
           results.push({
             originalName: file.originalname,
@@ -382,7 +383,7 @@ export async function uploadTempFile(req, res) {
 
     res.json({ message: 'Files staged in temp', results });
   } catch (error) {
-    console.error('Error uploading temp files:', error);
+    logError('FileUpload', 'Error uploading temp files:', error);
     res.status(500).json({ error: 'Failed to process uploaded files' });
   }
 }
@@ -457,7 +458,7 @@ export async function finalizeTempFile(req, res) {
           try {
             await cadFileService.registerCadFile(filename, category);
           } catch (err) {
-            console.error(`[FileUpload] Failed to register ${filename}: ${err.message}`);
+            logError('FileUpload', `Failed to register ${filename}: ${err.message}`);
           }
         }
 
@@ -479,7 +480,7 @@ export async function finalizeTempFile(req, res) {
           await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
           results.push({ filename: safeFilename, type: category, collision: true, linked: true });
         } catch (err) {
-          console.error(`[FileUpload] Failed to link collision file ${filename}: ${err.message}`);
+          logError('FileUpload', `Failed to link collision file ${filename}: ${err.message}`);
           results.push({ filename, type: category, collision: true, error: err.message });
         }
       }
@@ -487,7 +488,7 @@ export async function finalizeTempFile(req, res) {
 
     res.json({ message: 'Files finalized', results });
   } catch (error) {
-    console.error('Error finalizing temp files:', error);
+    logError('FileUpload', 'Error finalizing temp files:', error);
     res.status(500).json({ error: 'Failed to finalize files' });
   }
 }
@@ -515,7 +516,7 @@ export async function cleanupTempFiles(req, res) {
 
     res.json({ deleted });
   } catch (error) {
-    console.error('Error cleaning up temp files:', error);
+    logError('FileUpload', 'Error cleaning up temp files:', error);
     res.status(500).json({ error: 'Failed to cleanup temp files' });
   }
 }
@@ -547,7 +548,7 @@ export function checkCollisionsBatch(req, res) {
     if (/^Invalid /.test(error.message || '')) {
       return res.status(400).json({ error: error.message });
     }
-    console.error('Error checking collisions batch:', error);
+    logError('FileUpload', 'Error checking collisions batch:', error);
     res.status(500).json({ error: 'Failed to check collisions' });
   }
 }
@@ -612,7 +613,7 @@ export async function listFiles(req, res) {
           }
         } catch (dbError) {
           // DB query failed, continue with directory scan
-          console.error(`[FileUpload] DB lookup failed for ${mfgPartNumber}: ${dbError.message}`);
+          logError('FileUpload', `DB lookup failed for ${mfgPartNumber}: ${dbError.message}`);
         }
       }
 
@@ -654,7 +655,7 @@ export async function listFiles(req, res) {
       files,
     });
   } catch (error) {
-    console.error('Error listing files:', error);
+    logError('FileUpload', 'Error listing files:', error);
     res.status(500).json({ error: 'Failed to list files' });
   }
 }
@@ -799,7 +800,7 @@ export async function renameFile(req, res) {
     if (error instanceof FootprintNameError) {
       return res.status(422).json({ error: error.message });
     }
-    console.error('Error renaming file:', error);
+    logError('FileUpload', 'Error renaming file:', error);
     res.status(500).json({ error: 'Failed to rename file' });
   }
 }
@@ -918,7 +919,7 @@ export async function deleteFile(req, res) {
     if (/^Invalid /.test(error.message || '')) {
       return res.status(400).json({ error: error.message });
     }
-    console.error('Error deleting file:', error);
+    logError('FileUpload', 'Error deleting file:', error);
     res.status(500).json({ error: 'Failed to delete file' });
   }
 }
@@ -948,7 +949,7 @@ export async function downloadFile(req, res) {
     if (/^Invalid /.test(error.message || '')) {
       return res.status(400).json({ error: error.message });
     }
-    console.error('Error downloading file:', error);
+    logError('FileUpload', 'Error downloading file:', error);
     res.status(500).json({ error: 'Failed to download file' });
   }
 }
@@ -1034,7 +1035,7 @@ export async function exportFiles(req, res) {
     });
     res.send(zipBuffer);
   } catch (error) {
-    console.error('Error exporting files:', error);
+    logError('FileUpload', 'Error exporting files:', error);
     res.status(500).json({ error: 'Failed to export files' });
   }
 }
@@ -1090,7 +1091,7 @@ export async function restoreDeletedFile(req, res) {
 
     res.json({ results });
   } catch (error) {
-    console.error('Error restoring deleted files:', error);
+    logError('FileUpload', 'Error restoring deleted files:', error);
     res.status(500).json({ error: 'Failed to restore files' });
   }
 }
@@ -1118,7 +1119,7 @@ export async function confirmDeleteFile(req, res) {
 
     res.json({ deleted });
   } catch (error) {
-    console.error('Error confirming delete:', error);
+    logError('FileUpload', 'Error confirming delete:', error);
     res.status(500).json({ error: 'Failed to confirm delete' });
   }
 }

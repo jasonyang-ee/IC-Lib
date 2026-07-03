@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
 import { encrypt, testSMTPConnection, sendEmail, buildPreviewEmail } from '../services/emailService.js';
+import { logError } from '../utils/logger.js';
 
 /**
  * Get SMTP settings (without password)
@@ -18,7 +19,7 @@ export const getSMTPSettings = async (req, res) => {
     
     res.json({ configured: true, ...settings });
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error getting SMTP settings: ${error.message}`);
+    logError('SMTPController', `Error getting SMTP settings: ${error.message}`);
     res.status(500).json({ error: 'Failed to get SMTP settings' });
   }
 };
@@ -103,7 +104,7 @@ export const saveSMTPSettings = async (req, res) => {
       res.json({ message: 'SMTP settings created', ...settings });
     }
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error saving SMTP settings: ${error.message}`);
+    logError('SMTPController', `Error saving SMTP settings: ${error.message}`);
     res.status(500).json({ error: 'Failed to save SMTP settings' });
   } finally {
     client.release();
@@ -122,7 +123,7 @@ export const testSMTP = async (req, res) => {
       res.status(400).json({ success: false, error: result.error });
     }
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error testing SMTP: ${error.message}`);
+    logError('SMTPController', `Error testing SMTP: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -160,7 +161,7 @@ export const sendTestEmail = async (req, res) => {
       res.status(400).json({ success: false, error: result.error || result.reason });
     }
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error sending test email: ${error.message}`);
+    logError('SMTPController', `Error sending test email: ${error.message}`);
     res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -188,7 +189,7 @@ export const getNotificationPreferences = async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error getting notification preferences: ${error.message}`);
+    logError('SMTPController', `Error getting notification preferences: ${error.message}`);
     res.status(500).json({ error: 'Failed to get notification preferences' });
   }
 };
@@ -230,7 +231,7 @@ export const updateNotificationPreferences = async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SMTPController]\x1b[0m Error updating notification preferences: ${error.message}`);
+    logError('SMTPController', `Error updating notification preferences: ${error.message}`);
     res.status(500).json({ error: 'Failed to update notification preferences' });
   }
 };

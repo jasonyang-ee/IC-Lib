@@ -3,6 +3,7 @@ import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import * as digikeyService from '../services/digikeyService.js';
 import * as mouserService from '../services/mouserService.js';
 import * as footprintService from '../services/footprintService.js';
+import { logError } from '../utils/logger.js';
 
 export const searchDigikey = async (req, res, next) => {
   try {
@@ -187,7 +188,7 @@ export const addVendorPartToLibrary = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error('Error preparing vendor part data:', error);
+    logError('Search', 'Error preparing vendor part data:', error);
     next(error);
   }
 };

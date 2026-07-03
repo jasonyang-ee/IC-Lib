@@ -48,6 +48,7 @@ import { syncCategorySpecification } from '../services/specificationService.js';
 import { logActivity } from '../services/activityLogService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
+import { logError } from '../utils/logger.js';
 
 const userDisplayNameSql = (alias) => `NULLIF(BTRIM(${alias}.display_name), '')`;
 
@@ -68,7 +69,7 @@ const logECOActivity = async (client, ecoOrder, activityType, details, userId) =
       },
     });
   } catch (error) {
-    console.error('Error logging ECO activity:', error);
+    logError('ECO', 'Error logging ECO activity:', error);
   }
 };
 
@@ -831,7 +832,7 @@ export const getAllECOs = async (req, res) => {
 
     res.json(decoratedRows);
   } catch (error) {
-    console.error('Error fetching ECO orders:', error);
+    logError('ECO', 'Error fetching ECO orders:', error);
     res.status(500).json({ error: 'Failed to fetch ECO orders' });
   }
 };
@@ -1048,7 +1049,7 @@ export const getECOById = async (req, res) => {
       rejection_history: rejectionHistory,
     });
   } catch (error) {
-    console.error('Error fetching ECO details:', error);
+    logError('ECO', 'Error fetching ECO details:', error);
     res.status(500).json({ error: 'Failed to fetch ECO details' });
   } finally {
     client.release();
@@ -1159,7 +1160,7 @@ export const getLastRejectedECOByComponent = async (req, res) => {
       cad_files: cadFilesResult.rows,
     });
   } catch (error) {
-    console.error('[ECO] Error fetching last rejected ECO:', error);
+    logError('ECO', 'Error fetching last rejected ECO:', error);
     res.status(500).json({ error: 'Failed to fetch last rejected ECO' });
   } finally {
     client.release();
@@ -1392,13 +1393,13 @@ export const createECO = async (req, res) => {
     // Send email notification (async, don't block the response)
     const ecoForEmail = await getECOForEmail(pool, ecoResult.rows[0].id);
     sendECONotification(ecoForEmail, 'eco_created').catch(err => {
-      console.error('Error sending ECO creation notification:', err);
+      logError('ECO', 'Error sending ECO creation notification:', err);
     });
     
     res.status(201).json(ecoResult.rows[0]);
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating ECO order:', error);
+    logError('ECO', 'Error creating ECO order:', error);
     res.status(500).json({ error: error.message || 'Failed to create ECO order' });
   } finally {
     client.release();
@@ -1818,7 +1819,7 @@ const applyECOChanges = async (client, eco, id) => {
   for (const cf of cadFilesResult.rows) {
     const cadFileId = cf.cad_file_id || await resolveCadFileId(client, cf);
     if (!cadFileId) {
-      console.error(`[ECO] Skipping unresolved CAD file action for ${cf.file_name || 'unknown file'} (${cf.file_type || 'unknown type'})`);
+      logError('ECO', `Skipping unresolved CAD file action for ${cf.file_name || 'unknown file'} (${cf.file_type || 'unknown type'})`);
       continue;
     }
 
@@ -1911,7 +1912,7 @@ export const approveECO = async (req, res) => {
       const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
       const approverName = approverResult.rows[0]?.display_name || 'Unknown';
       notifyApprovedECOCompletion(id, approverName).catch(err => {
-        console.error('Error sending approved ECO completion notifications:', err);
+        logError('ECO', 'Error sending approved ECO completion notifications:', err);
       });
 
       return res.json({
@@ -2013,7 +2014,7 @@ export const approveECO = async (req, res) => {
           from_stage: currentStageNames,
           to_stage: nextNames,
         }).catch(err => {
-          console.error('Error sending stage advancement notification:', err);
+          logError('ECO', 'Error sending stage advancement notification:', err);
         });
 
         return res.json({
@@ -2047,7 +2048,7 @@ export const approveECO = async (req, res) => {
       const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
       const approverName = approverResult.rows[0]?.display_name || 'Unknown';
       notifyApprovedECOCompletion(id, approverName).catch(err => {
-        console.error('Error sending approved ECO completion notifications:', err);
+        logError('ECO', 'Error sending approved ECO completion notifications:', err);
       });
 
       return res.json({
@@ -2080,7 +2081,7 @@ export const approveECO = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error approving ECO order:', error);
+    logError('ECO', 'Error approving ECO order:', error);
     res.status(500).json({ error: 'Failed to approve ECO order' });
   } finally {
     client.release();
@@ -2172,13 +2173,13 @@ export const rejectECO = async (req, res) => {
     const rejecterName = rejecterResult.rows[0]?.display_name || 'Unknown';
     const ecoForEmail = await getECOForEmail(pool, id);
     sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName }).catch(err => {
-      console.error('Error sending ECO rejection notification:', err);
+      logError('ECO', 'Error sending ECO rejection notification:', err);
     });
 
     res.json(result.rows[0]);
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error rejecting ECO order:', error);
+    logError('ECO', 'Error rejecting ECO order:', error);
     res.status(500).json({ error: 'Failed to reject ECO order' });
   } finally {
     client.release();
@@ -2206,7 +2207,7 @@ export const generateECOPDFEndpoint = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${pdfPayload.ecoData.eco_number}.pdf"`);
     pdfDoc.pipe(res);
   } catch (error) {
-    console.error('Error generating ECO PDF:', error);
+    logError('ECO', 'Error generating ECO PDF:', error);
     res.status(500).json({ error: 'Failed to generate ECO PDF' });
   } finally {
     client.release();
@@ -2254,7 +2255,7 @@ export const deleteECO = async (req, res) => {
     res.json({ message: 'ECO order deleted successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error deleting ECO order:', error);
+    logError('ECO', 'Error deleting ECO order:', error);
     res.status(500).json({ error: 'Failed to delete ECO order' });
   } finally {
     client.release();
@@ -2283,7 +2284,7 @@ export const getApprovalStages = async (req, res) => {
     `);
     res.json(result.rows.map(normalizeStageRecord));
   } catch (error) {
-    console.error('Error fetching approval stages:', error);
+    logError('ECO', 'Error fetching approval stages:', error);
     res.status(500).json({ error: 'Failed to fetch approval stages' });
   }
 };
@@ -2317,7 +2318,7 @@ export const exportApprovalStages = async (req, res) => {
       }),
     });
   } catch (error) {
-    console.error('Error exporting approval stages:', error);
+    logError('ECO', 'Error exporting approval stages:', error);
     res.status(500).json({ error: 'Failed to export approval stages' });
   }
 };
@@ -2443,7 +2444,7 @@ export const importApprovalStages = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error importing approval stages:', error);
+    logError('ECO', 'Error importing approval stages:', error);
     const statusCode = error instanceof ApprovalStageImportValidationError ? 400 : 500;
     res.status(statusCode).json({ error: error.message || 'Failed to import approval stages' });
   } finally {
@@ -2483,7 +2484,7 @@ export const createApprovalStage = async (req, res) => {
 
     res.status(201).json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
-    console.error('Error creating approval stage:', error);
+    logError('ECO', 'Error creating approval stage:', error);
     res.status(500).json({ error: 'Failed to create approval stage' });
   }
 };
@@ -2527,7 +2528,7 @@ export const updateApprovalStage = async (req, res) => {
 
     res.json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
-    console.error('Error updating approval stage:', error);
+    logError('ECO', 'Error updating approval stage:', error);
     res.status(500).json({ error: 'Failed to update approval stage' });
   }
 };
@@ -2598,7 +2599,7 @@ export const deleteApprovalStage = async (req, res) => {
     res.json({ message: 'Approval stage deleted successfully' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error deleting approval stage:', error);
+    logError('ECO', 'Error deleting approval stage:', error);
     res.status(500).json({ error: 'Failed to delete approval stage' });
   } finally {
     client.release();
@@ -2642,7 +2643,7 @@ export const reorderApprovalStages = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error reordering approval stages:', error);
+    logError('ECO', 'Error reordering approval stages:', error);
     res.status(500).json({ error: 'Failed to reorder approval stages' });
   } finally {
     client.release();
@@ -2701,7 +2702,7 @@ export const setStageApprovers = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error setting stage approvers:', error);
+    logError('ECO', 'Error setting stage approvers:', error);
     res.status(500).json({ error: 'Failed to set stage approvers' });
   } finally {
     client.release();

@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
 import { logActivity } from '../services/activityLogService.js';
+import { logError } from '../utils/logger.js';
 
 // Get all projects
 export const getAllProjects = async (req, res) => {
@@ -17,7 +18,7 @@ export const getAllProjects = async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching projects:', error);
+    logError('Project', 'Error fetching projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
   }
 };
@@ -138,7 +139,7 @@ export const getProjectById = async (req, res) => {
     
     res.json(project);
   } catch (error) {
-    console.error('Error fetching project:', error);
+    logError('Project', 'Error fetching project:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
   }
 };
@@ -172,7 +173,7 @@ export const createProject = async (req, res) => {
     
     res.status(201).json(project);
   } catch (error) {
-    console.error('Error creating project:', error);
+    logError('Project', 'Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }
 };
@@ -214,7 +215,7 @@ export const updateProject = async (req, res) => {
     
     res.json(project);
   } catch (error) {
-    console.error('Error updating project:', error);
+    logError('Project', 'Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
   }
 };
@@ -255,7 +256,7 @@ export const deleteProject = async (req, res) => {
     
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
-    console.error('Error deleting project:', error);
+    logError('Project', 'Error deleting project:', error);
     res.status(500).json({ error: 'Failed to delete project' });
   }
 };
@@ -330,7 +331,7 @@ export const addComponentToProject = async (req, res) => {
     
     res.status(201).json(projectComponent);
   } catch (error) {
-    console.error('Error adding component to project:', error);
+    logError('Project', 'Error adding component to project:', error);
     res.status(500).json({ error: 'Failed to add component to project' });
   }
 };
@@ -376,7 +377,7 @@ export const updateProjectComponent = async (req, res) => {
     
     res.json(projectComponent);
   } catch (error) {
-    console.error('Error updating project component:', error);
+    logError('Project', 'Error updating project component:', error);
     res.status(500).json({ error: 'Failed to update project component' });
   }
 };
@@ -419,7 +420,7 @@ export const removeComponentFromProject = async (req, res) => {
     
     res.json({ message: 'Component removed from project successfully' });
   } catch (error) {
-    console.error('Error removing component from project:', error);
+    logError('Project', 'Error removing component from project:', error);
     res.status(500).json({ error: 'Failed to remove component from project' });
   }
 };
@@ -559,7 +560,7 @@ export const consumeProjectComponents = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error consuming project components:', error);
+    logError('Project', 'Error consuming project components:', error);
     res.status(500).json({ error: 'Failed to consume project components' });
   } finally {
     client.release();

@@ -14,6 +14,7 @@ import {
   getCadFileBaseName,
 } from '../utils/footprintFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
+import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -860,7 +861,7 @@ export async function scanAndRegisterFiles() {
           await registerCadFile(filename, config.fileType);
           totalRegistered++;
         } catch (e) {
-          console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[Scan]\x1b[0m Failed to register ${filename}: ${e.message}`);
+          logError('Scan', `Failed to register ${filename}: ${e.message}`);
         }
       }
     }
@@ -890,17 +891,17 @@ export async function detectMissingFiles() {
       // File is missing from disk but not yet tagged — mark as missing
       await pool.query('UPDATE cad_files SET missing = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
       taggedCount++;
-      console.log(`\x1b[33m[WARN]\x1b[0m \x1b[36m[Scan]\x1b[0m Removed missing file: ${row.file_name} (${row.file_type})`);
+      logWarn('Scan', `Removed missing file: ${row.file_name} (${row.file_type})`);
     } else if (existsOnDisk && row.missing) {
       // File was previously missing but has been restored — clear the flag
       await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
       restoredCount++;
-      console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Restored file: ${row.file_name} (${row.file_type})`);
+      logInfo('Scan', `Restored file: ${row.file_name} (${row.file_type})`);
     }
   }
 
   if (restoredCount > 0) {
-    console.log(`\x1b[32m[INFO]\x1b[0m \x1b[36m[Scan]\x1b[0m Restored ${restoredCount} previously missing file(s)`);
+    logInfo('Scan', `Restored ${restoredCount} previously missing file(s)`);
   }
   return taggedCount;
 }

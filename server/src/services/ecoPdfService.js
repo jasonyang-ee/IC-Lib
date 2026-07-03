@@ -4,6 +4,7 @@ import path from 'path';
 import { DEFAULT_ECO_PDF_HEADER } from './ecoSettingsService.js';
 import { ECO_PIPELINE_TYPE_LABELS, getEcoPipelineTypes } from './ecoPipelineService.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
+import { logWarn } from '../utils/logger.js';
 
 // Colors
 const COLORS = {
@@ -250,7 +251,7 @@ export const generateECOPdf = (ecoData, options = {}) => {
         headerStartY = PAGE.marginTop + 48; // shift title below logo
       }
     } catch (err) {
-      console.warn('ECO PDF logo not found or unreadable:', err.message);
+      logWarn('EcoPdf', 'ECO PDF logo not found or unreadable:', err.message);
     }
   }
 

@@ -19,6 +19,7 @@ import {
   REPAIRABLE_SCHEMA_COLUMNS,
   inspectDatabaseSchema,
 } from '../services/schemaInspectionService.js';
+import { logError, logInfo } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,7 +106,7 @@ export const getSettings = async (req, res) => {
     const settings = await readSettings();
     res.json(settings);
   } catch (error) {
-    console.error('Error reading settings:', error);
+    logError('Settings', 'Error reading settings:', error);
     res.status(500).json({ 
       error: 'Failed to read settings',
       message: error.message, 
@@ -148,7 +149,7 @@ export const updateSettings = async (req, res) => {
       settings: updatedSettings,
     });
   } catch (error) {
-    console.error('Error updating settings:', error);
+    logError('Settings', 'Error updating settings:', error);
     res.status(500).json({ 
       error: 'Failed to update settings',
       message: error.message, 
@@ -168,7 +169,7 @@ export const getGlobalPrefix = async (req, res) => {
     const row = result.rows[0];
     res.json({ enabled: row.global_prefix_enabled, prefix: row.global_prefix, leading_zeros: row.global_leading_zeros });
   } catch (error) {
-    console.error('Error reading global prefix settings:', error);
+    logError('Settings', 'Error reading global prefix settings:', error);
     res.status(500).json({ error: 'Failed to read global prefix settings', message: error.message });
   }
 };
@@ -223,7 +224,7 @@ export const updateGlobalPrefix = async (req, res) => {
       updatedCategories: updatedCount,
     });
   } catch (error) {
-    console.error('Error updating global prefix settings:', error);
+    logError('Settings', 'Error updating global prefix settings:', error);
     res.status(500).json({ error: 'Failed to update global prefix settings', message: error.message });
   }
 };
@@ -236,7 +237,7 @@ export const getDatabaseStatus = async (req, res) => {
     const status = await databaseService.getDatabaseStatus();
     res.json(status);
   } catch (error) {
-    console.error('Error getting database status:', error);
+    logError('Settings', 'Error getting database status:', error);
     res.status(500).json({ 
       error: 'Failed to get database status',
       message: error.message, 
@@ -250,7 +251,7 @@ export const getDatabaseStatus = async (req, res) => {
  */
 export const clearDatabase = async (req, res) => {
   try {
-    console.log('Starting database clear (data only)...');
+    logInfo('Settings', 'Starting database clear (data only)...');
     const results = await databaseService.clearDatabaseData();
     
     if (results.success) {
@@ -268,7 +269,7 @@ export const clearDatabase = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error clearing database:', error);
+    logError('Settings', 'Error clearing database:', error);
     res.status(500).json({ 
       error: 'Failed to clear database',
       message: error.message, 
@@ -290,7 +291,7 @@ export const resetDatabase = async (req, res) => {
       });
     }
 
-    console.log('Starting full database reset...');
+    logInfo('Settings', 'Starting full database reset...');
     const results = await databaseService.resetDatabase();
     
     if (results.success) {
@@ -308,7 +309,7 @@ export const resetDatabase = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error resetting database:', error);
+    logError('Settings', 'Error resetting database:', error);
     res.status(500).json({ 
       error: 'Failed to reset database',
       message: error.message, 
@@ -351,7 +352,7 @@ export const verifyDatabase = async (req, res) => {
       ],
     });
   } catch (error) {
-    console.error('Error verifying database:', error);
+    logError('Settings', 'Error verifying database:', error);
     res.status(500).json({
       error: 'Failed to verify database',
       message: error.message,
@@ -377,7 +378,7 @@ export const getCategoryConfigs = async (req, res) => {
     
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching category configs:', error);
+    logError('Settings', 'Error fetching category configs:', error);
     res.status(500).json({ 
       error: 'Failed to fetch category configurations',
       message: error.message, 
@@ -437,7 +438,7 @@ export const updateCategoryConfig = async (req, res) => {
     // If prefix or leading_zeros changed, we need to update all part numbers
     const updatedComponents = [];
     if (prefixChanged || leadingZerosChanged) {
-      console.log(`\x1b[33m[INFO]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}`);
+      logInfo('SettingsController', `Category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}`);
 
       // Get all components in this category, ordered by their current numeric value
       const componentsResult = await client.query(
@@ -469,7 +470,7 @@ export const updateCategoryConfig = async (req, res) => {
         }
       }
 
-      console.log(`\x1b[32m[SUCCESS]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Updated ${updatedComponents.length} part numbers for category ${currentCategory.name}`);
+      logInfo('Settings', `Updated ${updatedComponents.length} part numbers for category ${currentCategory.name}`);
     }
 
     // Update the category configuration
@@ -508,7 +509,7 @@ export const updateCategoryConfig = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error(`\x1b[31m[ERROR]\x1b[0m \x1b[36m[SettingsController]\x1b[0m Error updating category config: ${error.message}`);
+    logError('SettingsController', `Error updating category config: ${error.message}`);
     res.status(500).json({ 
       error: 'Failed to update category configuration',
       message: error.message, 
@@ -569,7 +570,7 @@ export const createCategory = async (req, res) => {
       category: result.rows[0],
     });
   } catch (error) {
-    console.error('Error creating category:', error);
+    logError('Settings', 'Error creating category:', error);
     
     // Handle unique constraint violations
     if (error.code === '23505') {
@@ -618,7 +619,7 @@ export const updateCategoryOrder = async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error updating category order:', error);
+    logError('Settings', 'Error updating category order:', error);
     res.status(500).json({ 
       error: 'Failed to update category order',
       message: error.message, 
@@ -651,7 +652,7 @@ export const getCategorySpecifications = async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching category specifications:', error);
+    logError('Settings', 'Error fetching category specifications:', error);
     res.status(500).json({ 
       error: 'Failed to fetch category specifications',
       message: error.message, 
@@ -691,7 +692,7 @@ export const createCategorySpecification = async (req, res) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating category specification:', error);
+    logError('Settings', 'Error creating category specification:', error);
     
     // Handle unique constraint violation
     if (error.code === '23505') {
@@ -758,7 +759,7 @@ export const updateCategorySpecification = async (req, res) => {
     
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error updating category specification:', error);
+    logError('Settings', 'Error updating category specification:', error);
     
     // Handle unique constraint violation
     if (error.code === '23505') {
@@ -798,7 +799,7 @@ export const deleteCategorySpecification = async (req, res) => {
       deleted: result.rows[0],
     });
   } catch (error) {
-    console.error('Error deleting category specification:', error);
+    logError('Settings', 'Error deleting category specification:', error);
     res.status(500).json({ 
       error: 'Failed to delete category specification',
       message: error.message, 
@@ -848,7 +849,7 @@ export const reorderCategorySpecifications = async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('Error reordering category specifications:', error);
+    logError('Settings', 'Error reordering category specifications:', error);
     res.status(500).json({ 
       error: 'Failed to reorder specifications',
       message: error.message, 
@@ -880,7 +881,7 @@ export const syncComponentsToInventory = async (req, res) => {
       entries: result.rows,
     });
   } catch (error) {
-    console.error('Error syncing components to inventory:', error);
+    logError('Settings', 'Error syncing components to inventory:', error);
     res.status(500).json({ 
       error: 'Failed to sync components to inventory',
       message: error.message, 
@@ -961,7 +962,7 @@ export const exportAllSettings = async (req, res) => {
       data: exportData,
     });
   } catch (error) {
-    console.error('Error exporting settings:', error);
+    logError('Settings', 'Error exporting settings:', error);
     res.status(500).json({ 
       error: 'Failed to export settings',
       message: error.message, 
@@ -1181,7 +1182,7 @@ export const importAllSettings = async (req, res) => {
         await writeSettings(data.settings);
         results.settings.updated = true;
       } catch (settingsError) {
-        console.error('Error updating settings:', settingsError);
+        logError('Settings', 'Error updating settings:', settingsError);
       }
     }
 
@@ -1195,7 +1196,7 @@ export const importAllSettings = async (req, res) => {
         userId: req.user?.userId,
       });
     } catch (logError) {
-      console.error('Failed to log settings import:', logError);
+      logError('Settings', 'Failed to log settings import:', logError);
     }
 
     res.json({
@@ -1205,7 +1206,7 @@ export const importAllSettings = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error importing settings:', error);
+    logError('Settings', 'Error importing settings:', error);
     res.status(500).json({ 
       error: 'Failed to import settings',
       message: error.message, 
@@ -1243,7 +1244,7 @@ export const exportUsers = async (req, res) => {
       data: exportData,
     });
   } catch (error) {
-    console.error('Error exporting users:', error);
+    logError('Settings', 'Error exporting users:', error);
     res.status(500).json({ 
       error: 'Failed to export users',
       message: error.message, 
@@ -1329,7 +1330,7 @@ export const importUsers = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error importing users:', error);
+    logError('Settings', 'Error importing users:', error);
     res.status(500).json({ 
       error: 'Failed to import users',
       message: error.message, 
@@ -1391,7 +1392,7 @@ export const exportCategories = async (req, res) => {
       data: exportData,
     });
   } catch (error) {
-    console.error('Error exporting categories:', error);
+    logError('Settings', 'Error exporting categories:', error);
     res.status(500).json({ 
       error: 'Failed to export categories',
       message: error.message, 
@@ -1530,7 +1531,7 @@ export const importCategories = async (req, res) => {
         userId: req.user?.userId,
       });
     } catch (logError) {
-      console.error('Failed to log categories import:', logError);
+      logError('Settings', 'Failed to log categories import:', logError);
     }
 
     res.json({
@@ -1540,7 +1541,7 @@ export const importCategories = async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error importing categories:', error);
+    logError('Settings', 'Error importing categories:', error);
     res.status(500).json({ 
       error: 'Failed to import categories',
       message: error.message, 
@@ -1563,7 +1564,7 @@ export const getEcoLogoFilename = async (req, res) => {
       eco_complete_notification_email: result.rows[0]?.eco_complete_notification_email || '',
     });
   } catch (error) {
-    console.error('Error reading ECO logo filename:', error);
+    logError('Settings', 'Error reading ECO logo filename:', error);
     res.status(500).json({ error: 'Failed to read ECO logo filename' });
   }
 };
@@ -1621,7 +1622,7 @@ export const updateEcoLogoFilename = async (req, res) => {
       eco_complete_notification_email: resolvedNotificationEmail,
     });
   } catch (error) {
-    console.error('Error updating ECO logo filename:', error);
+    logError('Settings', 'Error updating ECO logo filename:', error);
     res.status(500).json({ error: 'Failed to update ECO logo filename' });
   }
 };
@@ -1643,7 +1644,7 @@ export const getECOSettings = async (req, res) => {
     
     res.json(normalizeEcoSettingsRow(result.rows[0]));
   } catch (error) {
-    console.error('Error fetching ECO settings:', error);
+    logError('Settings', 'Error fetching ECO settings:', error);
     res.status(500).json({ 
       error: 'Failed to fetch ECO settings',
       message: error.message, 
@@ -1709,7 +1710,7 @@ export const updateECOSettings = async (req, res) => {
     
     res.json(normalizeEcoSettingsRow(result.rows[0]));
   } catch (error) {
-    console.error('Error updating ECO settings:', error);
+    logError('Settings', 'Error updating ECO settings:', error);
     res.status(500).json({ 
       error: 'Failed to update ECO settings',
       message: error.message, 
@@ -1733,7 +1734,7 @@ export const previewECONumber = async (req, res) => {
     
     res.json({ preview });
   } catch (error) {
-    console.error('Error previewing ECO number:', error);
+    logError('Settings', 'Error previewing ECO number:', error);
     res.status(500).json({
       error: 'Failed to preview ECO number',
       message: error.message,
@@ -1769,7 +1770,7 @@ export const listCISFiles = async (req, res) => {
   try {
     res.json(await listFilesInDir(CIS_DIR));
   } catch (error) {
-    console.error('Error listing CIS files:', error);
+    logError('Settings', 'Error listing CIS files:', error);
     res.status(500).json({ error: 'Failed to list CIS files' });
   }
 };
@@ -1778,7 +1779,7 @@ export const downloadCISFile = async (req, res) => {
   try {
     downloadFileFromDir(CIS_DIR, req.params.filename, res);
   } catch (error) {
-    console.error('Error downloading CIS file:', error);
+    logError('Settings', 'Error downloading CIS file:', error);
     res.status(500).json({ error: 'Failed to download CIS file' });
   }
 };
@@ -1787,7 +1788,7 @@ export const listLabelTemplates = async (req, res) => {
   try {
     res.json(await listFilesInDir(LABEL_DIR));
   } catch (error) {
-    console.error('Error listing label templates:', error);
+    logError('Settings', 'Error listing label templates:', error);
     res.status(500).json({ error: 'Failed to list label templates' });
   }
 };
@@ -1796,7 +1797,7 @@ export const downloadLabelTemplate = async (req, res) => {
   try {
     downloadFileFromDir(LABEL_DIR, req.params.filename, res);
   } catch (error) {
-    console.error('Error downloading label template:', error);
+    logError('Settings', 'Error downloading label template:', error);
     res.status(500).json({ error: 'Failed to download label template' });
   }
 };
@@ -1808,7 +1809,7 @@ export const downloadLabelTemplate = async (req, res) => {
  */
 export const initSettings = async (req, res) => {
   try {
-    console.log('Initializing default settings...');
+    logInfo('Settings', 'Initializing default settings...');
     const results = await databaseService.initSettings();
 
     if (results.success) {
@@ -1825,7 +1826,7 @@ export const initSettings = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error initializing settings:', error);
+    logError('Settings', 'Error initializing settings:', error);
     res.status(500).json({
       error: 'Failed to initialize settings',
       message: error.message,
@@ -1847,7 +1848,7 @@ export const deletePartsAndProjectData = async (req, res) => {
       });
     }
 
-    console.log('Deleting parts and project data...');
+    logInfo('Settings', 'Deleting parts and project data...');
     const results = await databaseService.deletePartsAndProjectData();
 
     if (results.success) {
@@ -1864,7 +1865,7 @@ export const deletePartsAndProjectData = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error deleting parts data:', error);
+    logError('Settings', 'Error deleting parts data:', error);
     res.status(500).json({
       error: 'Failed to delete parts data',
       message: error.message,
@@ -1886,7 +1887,7 @@ export const deleteLibraryFiles = async (req, res) => {
       });
     }
 
-    console.log('Deleting library files...');
+    logInfo('Settings', 'Deleting library files...');
     const results = await databaseService.deleteLibraryFiles();
 
     if (results.success) {
@@ -1903,7 +1904,7 @@ export const deleteLibraryFiles = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error deleting library files:', error);
+    logError('Settings', 'Error deleting library files:', error);
     res.status(500).json({
       error: 'Failed to delete library files',
       message: error.message,
@@ -1925,7 +1926,7 @@ export const deleteUserRecords = async (req, res) => {
       });
     }
 
-    console.log('Deleting user records...');
+    logInfo('Settings', 'Deleting user records...');
     const results = await databaseService.deleteUserRecords();
 
     if (results.success) {
@@ -1942,7 +1943,7 @@ export const deleteUserRecords = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error deleting user records:', error);
+    logError('Settings', 'Error deleting user records:', error);
     res.status(500).json({
       error: 'Failed to delete user records',
       message: error.message,
@@ -1994,7 +1995,7 @@ export const EXPORT_TABLES = [
  */
 export const exportDatabase = async (req, res) => {
   try {
-    console.log('[INFO] [Settings] Starting database export...');
+    logInfo('Settings', 'Starting database export...');
     const data = { _exportVersion: 1, _exportDate: new Date().toISOString(), tables: {} };
 
     for (const table of EXPORT_TABLES) {
@@ -2020,9 +2021,9 @@ export const exportDatabase = async (req, res) => {
     });
     res.send(compressed);
 
-    console.log(`[INFO] [Settings] Database export complete: ${Object.keys(data.tables).length} tables, ${compressed.length} bytes`);
+    logInfo('Settings', `Database export complete: ${Object.keys(data.tables).length} tables, ${compressed.length} bytes`);
   } catch (error) {
-    console.error('[ERROR] [Settings] Database export failed:', error.message);
+    logError('Settings', 'Database export failed:', error.message);
     res.status(500).json({ error: 'Failed to export database', message: error.message });
   }
 };
@@ -2033,7 +2034,7 @@ export const exportDatabase = async (req, res) => {
  */
 export const importDatabase = async (req, res) => {
   try {
-    console.log('[INFO] [Settings] Starting database import...');
+    logInfo('Settings', 'Starting database import...');
 
     if (!req.file) {
       return res.status(400).json({ error: 'No backup file provided' });
@@ -2124,7 +2125,7 @@ export const importDatabase = async (req, res) => {
           importStats.rowsImported += insertResult.rowCount;
         } catch (err) {
           importStats.errors.push({ table, error: err.message });
-          console.error(`[ERROR] [Settings] Import table ${table}: ${err.message}`);
+          logError('Settings', `Import table ${table}: ${err.message}`);
           err.message = `Import failed for table ${table}: ${err.message}`;
           err.details = [{ table, error: err.message }];
           throw err;
@@ -2139,7 +2140,7 @@ export const importDatabase = async (req, res) => {
       client.release();
     }
 
-    console.log(`[INFO] [Settings] Database import complete: ${importStats.tablesImported} tables, ${importStats.rowsImported} rows`);
+    logInfo('Settings', `Database import complete: ${importStats.tablesImported} tables, ${importStats.rowsImported} rows`);
     res.json({
       success: true,
       message: `Imported ${importStats.tablesImported} tables with ${importStats.rowsImported} rows`,
@@ -2147,7 +2148,7 @@ export const importDatabase = async (req, res) => {
       ...importStats,
     });
   } catch (error) {
-    console.error('[ERROR] [Settings] Database import failed:', error.message);
+    logError('Settings', 'Database import failed:', error.message);
     res.status(500).json({
       error: 'Failed to import database',
       message: error.message,

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logError } from '../utils/logger.js';
 
 const MOUSER_API_BASE = 'https://api.mouser.com/api/v1';
 const API_KEY = process.env.MOUSER_API_KEY;
@@ -114,7 +115,7 @@ export async function getPartByMouserPartNumber(mouserPartNumber) {
 
     return response.data;
   } catch (error) {
-    console.error('Mouser part details error:', error.message);
+    logError('Mouser', 'Mouser part details error:', error.message);
     throw error;
   }
 }
