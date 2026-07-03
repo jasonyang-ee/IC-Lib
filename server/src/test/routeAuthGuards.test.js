@@ -48,6 +48,57 @@ const PUBLIC_MUTATION_ALLOWLIST = new Set([
   'inventory post /search/barcode',
 ]);
 
+// The exact public GET surface (documented in SPEC §V10): catalog, dashboard
+// stats, reports, settings reads, and CIS/label downloads stay public for the
+// guest read-only flow. Every GET not listed here must require authenticate.
+// Adding a new public GET is a deliberate act: extend this list AND §V10.
+const PUBLIC_GET_ALLOWLIST = new Set([
+  'categories get /',
+  'categories get /:id',
+  'categories get /:id/next-part-number',
+  'categories get /:id/components',
+  'components get /',
+  'components get /subcategories/suggestions',
+  'components get /field-suggestions',
+  'components get /:id',
+  'components get /:id/specifications',
+  'components get /:id/distributors',
+  'components get /:id/projects',
+  'components get /:id/alternatives',
+  'dashboard get /stats',
+  'dashboard get /recent-activities',
+  'dashboard get /category-breakdown',
+  'dashboard get /extended-stats',
+  'distributors get /',
+  'inventory get /',
+  'inventory get /:id',
+  'inventory get /component/:componentId',
+  'inventory get /alerts/low-stock',
+  'inventory get /:id/alternatives',
+  'manufacturers get /',
+  'manufacturers get /:id',
+  'projects get /',
+  'projects get /:id',
+  'reports get /component-summary',
+  'reports get /category-distribution',
+  'reports get /inventory-value',
+  'reports get /missing-footprints',
+  'reports get /manufacturers',
+  'reports get /low-stock',
+  'settings get /features',
+  'settings get /',
+  'settings get /eco',
+  'settings get /eco/logo',
+  'settings get /eco/preview',
+  'settings get /global-prefix',
+  'settings get /categories',
+  'settings get /categories/:categoryId/specifications',
+  'settings get /cis-files',
+  'settings get /cis-files/:filename',
+  'settings get /label-templates',
+  'settings get /label-templates/:filename',
+]);
+
 const getRouteHandlers = (router, method, routePath) => {
   const layer = router.stack.find((stackLayer) => stackLayer.route
     && stackLayer.route.path === routePath
@@ -86,6 +137,35 @@ const findUnguardedMutations = (routerName, router) => {
   }
 
   return unguarded;
+};
+
+/**
+ * Same registration-order walk for GET routes: everything is either on the
+ * explicit public allowlist or behind authenticate. Reports both directions of
+ * drift — an unlisted public GET and a stale allowlist entry.
+ */
+const auditGetRoutes = (routerName, router) => {
+  const publicUnlisted = [];
+  const guardedButListed = [];
+  let routerAuthActive = false;
+
+  for (const layer of router.stack) {
+    if (!layer.route) {
+      if (layer.handle.name === 'authenticate') routerAuthActive = true;
+      continue;
+    }
+
+    if (!layer.route.methods.get) continue;
+
+    const key = `${routerName} get ${layer.route.path}`;
+    const firstHandler = layer.route.stack[0]?.handle.name;
+    const guarded = routerAuthActive || firstHandler === 'authenticate';
+
+    if (!guarded && !PUBLIC_GET_ALLOWLIST.has(key)) publicUnlisted.push(key);
+    if (guarded && PUBLIC_GET_ALLOWLIST.has(key)) guardedButListed.push(key);
+  }
+
+  return { publicUnlisted, guardedButListed };
 };
 
 describe('route auth guards', () => {
@@ -133,6 +213,21 @@ describe('route auth guards', () => {
       && Object.keys(layer.route.methods).some((method) => MUTATING_METHODS.includes(method)));
 
     expect(mutatingLayers).toEqual([]);
+  });
+
+  it('every GET route is either on the documented public allowlist or authenticated (V10)', () => {
+    const audits = Object.entries(ALL_ROUTERS)
+      .map(([name, router]) => auditGetRoutes(name, router));
+
+    expect(audits.flatMap((audit) => audit.publicUnlisted)).toEqual([]);
+    expect(audits.flatMap((audit) => audit.guardedButListed)).toEqual([]);
+  });
+
+  it('tightened operational reads require auth (audit feed, DB internals)', () => {
+    expect(getRouteHandlers(dashboardRoutes, 'get', '/activities/all')).toEqual(['authenticate', 'getAllActivities']);
+    expect(getRouteHandlers(dashboardRoutes, 'get', '/db-info')).toEqual(['authenticate', 'getDatabaseInfo']);
+    expect(getRouteHandlers(settingsRoutes, 'get', '/database/status')).toEqual(['authenticate', 'isAdmin', 'getDatabaseStatus']);
+    expect(getRouteHandlers(settingsRoutes, 'get', '/database/verify')).toEqual(['authenticate', 'isAdmin', 'verifyDatabase']);
   });
 
   it('keeps destructive admin surfaces admin-gated', () => {

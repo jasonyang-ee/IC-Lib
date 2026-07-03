@@ -84,11 +84,11 @@ router.put('/categories/:categoryId/specifications/reorder', authenticate, isAdm
 router.put('/specifications/:id', authenticate, isAdmin, updateCategorySpecification);
 router.delete('/specifications/:id', authenticate, isAdmin, deleteCategorySpecification);
 
-// Database management routes - require admin
-router.get('/database/status', getDatabaseStatus);
+// Database management routes - require admin (incl. schema/DB-internal reads)
+router.get('/database/status', authenticate, isAdmin, getDatabaseStatus);
 router.post('/database/clear', authenticate, isAdmin, clearDatabase);
 router.post('/database/reset', authenticate, isAdmin, resetDatabase);
-router.get('/database/verify', verifyDatabase);
+router.get('/database/verify', authenticate, isAdmin, verifyDatabase);
 router.post('/database/sync-inventory', authenticate, isAdmin, syncComponentsToInventory);
 router.post('/database/init-settings', authenticate, isAdmin, initSettings);
 router.post('/database/delete-parts', authenticate, isAdmin, deletePartsAndProjectData);
