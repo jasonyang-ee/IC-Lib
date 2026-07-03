@@ -2,6 +2,17 @@ import path from 'path';
 
 export const FOOTPRINT_PRIMARY_EXTENSIONS = ['.psm', '.bsm'];
 export const FOOTPRINT_SECONDARY_EXTENSION = '.dra';
+export const FOOTPRINT_FILE_EXTENSIONS = [...FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION];
+
+export const FOOTPRINT_PLUS_ERROR_MESSAGE = '"+" is not allowed in OrCAD footprint names';
+
+/** Typed error so controllers can map footprint-name violations to 422. */
+export class FootprintNameError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'FootprintNameError';
+  }
+}
 
 export function getCadFileExtension(fileName) {
   return path.extname(String(fileName || '')).toLowerCase();
@@ -23,27 +34,65 @@ export function isFootprintSecondaryFile(fileName) {
   return getCadFileExtension(fileName) === FOOTPRINT_SECONDARY_EXTENSION;
 }
 
-export function normalizeFootprintFilenameCase(fileName) {
+export function isFootprintFileExtension(fileNameOrExtension) {
+  const normalized = String(fileNameOrExtension || '');
+  const extension = normalized.startsWith('.') ? normalized.toLowerCase() : getCadFileExtension(normalized);
+  return FOOTPRINT_FILE_EXTENSIONS.includes(extension);
+}
+
+/**
+ * Footprint filename rules (every input boundary; legacy on-disk names are
+ * grandfathered): whole name lowercase, base has no dots (extension = the
+ * last-dot segment, every other dot silently dropped). Non-footprint
+ * extensions only get the lowercase extension.
+ */
+export function normalizeFootprintFilename(fileName) {
   const extension = getCadFileExtension(fileName);
   if (!extension) {
     return String(fileName || '');
   }
 
-  const baseName = getCadFileBaseName(fileName);
-  if (extension === '.psm') {
-    return `${baseName.toLowerCase()}${extension}`;
+  let baseName = getCadFileBaseName(fileName);
+  if (FOOTPRINT_FILE_EXTENSIONS.includes(extension)) {
+    baseName = baseName.replace(/\./g, '').toLowerCase();
   }
 
   return `${baseName}${extension}`;
 }
 
-export function sanitizeFootprintBaseName(fileName) {
-  return String(fileName || '')
-    .replace(/\.[^.]+$/, '')
+/**
+ * Normalize a filename entering the CAD library (upload, ZIP extract, rename,
+ * finalize): lowercase extension for every category, full footprint rules for
+ * footprint extensions.
+ */
+export function normalizeCadUploadFilename(fileName) {
+  return normalizeFootprintFilename(fileName);
+}
+
+/** `+` is OrCAD-illegal in footprint names — reject, never silently strip. */
+export function assertNoPlusInFootprintName(fileName) {
+  if (String(fileName || '').includes('+')) {
+    throw new FootprintNameError(FOOTPRINT_PLUS_ERROR_MESSAGE);
+  }
+  return fileName;
+}
+
+/** Shared base-name sanitize (no case/dot rules — those are footprint-only). */
+export function sanitizeCadBaseName(baseName) {
+  return String(baseName || '')
     .replace(/[<>:"/\\|?*]/g, '_')
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+export function sanitizeFootprintBaseName(fileName) {
+  let baseName = String(fileName || '');
+  // Strip a trailing footprint extension if the caller passed a full filename
+  if (isFootprintFileExtension(baseName)) {
+    baseName = baseName.replace(/\.[^.]+$/, '');
+  }
+  return sanitizeCadBaseName(baseName).replace(/\./g, '').toLowerCase();
 }
 
 export function buildFootprintRenameTargets(fileNames, newBaseName) {
@@ -68,6 +117,8 @@ export function buildFootprintRenameTargets(fileNames, newBaseName) {
     throw new Error('Footprint pair rename requires matching base names for the primary file and .dra file');
   }
 
+  assertNoPlusInFootprintName(newBaseName);
+
   const sanitizedBaseName = sanitizeFootprintBaseName(newBaseName);
   if (!sanitizedBaseName) {
     throw new Error('Invalid filename after sanitization');
@@ -77,7 +128,7 @@ export function buildFootprintRenameTargets(fileNames, newBaseName) {
     const extension = getCadFileExtension(oldFileName);
     return {
       oldFileName,
-      newFileName: normalizeFootprintFilenameCase(`${sanitizedBaseName}${extension}`),
+      newFileName: normalizeFootprintFilename(`${sanitizedBaseName}${extension}`),
     };
   });
 }

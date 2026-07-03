@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Footprint CAD filenames (`.psm`, `.bsm`, `.dra`) are now fully normalized at every input boundary (upload, ZIP extract, save-time finalize, part-edit rename, File Library single and pair rename, shared-rename ECO staging): the whole name is lowercased and dots are dropped from the base name (the extension is the last-dot segment; `My.Part.V2.psm` becomes `mypartv2.psm`). `+` is rejected with a clear error (HTTP 422 server-side, pre-submit toast client-side) because OrCAD does not accept it — never silently stripped. Names already on disk are grandfathered (the library scan registers them as-is, and linking an existing file is never rejected); after this release the six legacy uppercase `.dra` names can be fixed via the File Library pair-rename UI. When normalization maps a new name onto an existing file, the rename is rejected as a collision (409) instead of overwriting. The File Library rename modal previews the normalized name before submitting.
 - `./test.sh` is now a CI-parity gate: after the autofix lint pass it also runs the no-fix `npm run lint` for each package, it runs the `scripts` package test (dry-run CSV import) alongside client/server tests, and it fails when autofix rewrites a previously-clean tree (drift guard) so committed code can't silently differ from what was checked. Existing flags (`--lint-only`, `--test-only`, `--coverage`, `--watch`) unchanged; dependencies auto-install like `start.sh`.
 - Inventory and Audit pages now report errors and notices through the in-app toast system (`useNotification`) instead of native browser `alert()` dialogs, matching the rest of the app.
 - Startup database logging now states the path taken explicitly: blank DB -> "running init-schema.sql, then migrations"; existing DB -> "skipping init-schema, applying migrations only". The migration runner additionally logs discovered/already-applied/pending counts, and the default-settings step is labeled an idempotent seed rather than an init.
@@ -39,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Renaming a footprint pair from the part page to an uppercase base no longer produces mismatched names (`foo.psm` + `FOO.dra`) — the paired file's new name is normalized the same way as the primary's, so the pair keeps its shared base.
+- File Library single-file rename previously bypassed footprint filename normalization entirely (only the part-page rename sanitized); both surfaces now apply identical rules.
 - Vendor barcode decoding no longer guesses the manufacturer part number from unprefixed ECIA fields: a Mouser label leading with a sales-order number previously searched inventory for the order number; multi-field barcodes without a `1P` field now report a clear error instead of returning garbage. Camera scans no longer dump the raw ECIA control-character payload into the search box on a failed decode.
 - Inventory free-text filtering is debounced (200 ms), so large inventories no longer re-filter on every keystroke.
 - A component can no longer accumulate more than one PSpice symbol (`.olb`): adding or linking a second one now shows the same keep-vs-replace conflict prompt used for schematic symbols and 3D models. PSpice `.lib` libraries remain unlimited (B5/T6).

@@ -5,7 +5,13 @@ import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
 import { CAD_TYPE_SUBDIR } from '../constants/cadFiles.js';
-import { buildFootprintRenameTargets } from '../utils/footprintFiles.js';
+import {
+  FootprintNameError,
+  assertNoPlusInFootprintName,
+  buildFootprintRenameTargets,
+  isFootprintFileExtension,
+  normalizeFootprintFilename,
+} from '../utils/footprintFiles.js';
 import { isEcoEnabled } from '../utils/featureFlags.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 
@@ -235,7 +241,14 @@ export const renamePhysicalFile = async (req, res) => {
     }
 
     const safeOldFileName = assertSafeLeafName(oldFileName, 'oldFileName');
-    const safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+    let safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+
+    // Footprint naming rules apply at every input boundary (this rename
+    // surface previously bypassed them): reject "+", normalize the rest.
+    if (info.fileType === 'footprint' && isFootprintFileExtension(safeNewFileName)) {
+      assertNoPlusInFootprintName(safeNewFileName); // typed error -> 422 below
+      safeNewFileName = normalizeFootprintFilename(safeNewFileName);
+    }
 
     // Find the cad_file record
     const cadFile = await cadFileService.findCadFile(safeOldFileName, info.fileType);
@@ -319,8 +332,15 @@ export const renamePhysicalFile = async (req, res) => {
       updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
     });
   } catch (error) {
+    if (error instanceof FootprintNameError) {
+      return res.status(422).json({ error: error.message });
+    }
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming physical file:', error.message);
-    const status = /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500;
+    const status = error.message?.includes('already exists')
+      ? 409
+      : /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '')
+        ? 400
+        : 500;
     res.status(status).json({ error: status === 500 ? 'Failed to rename file' : error.message });
   }
 };
@@ -477,13 +497,15 @@ export const renameFootprintGroup = async (req, res) => {
 
     console.error('\x1b[31m[ERROR]\x1b[0m \x1b[36m[FileLibrary]\x1b[0m Error renaming footprint group:', error.message);
 
-    const status = error.message?.includes('not found')
-      ? 404
-      : error.message?.includes('already exists')
-        ? 409
-        : /requires|Invalid filename/.test(error.message || '')
-          ? 400
-          : 500;
+    const status = error instanceof FootprintNameError
+      ? 422
+      : error.message?.includes('not found')
+        ? 404
+        : error.message?.includes('already exists')
+          ? 409
+          : /requires|Invalid filename/.test(error.message || '')
+            ? 400
+            : 500;
 
     res.status(status).json({ error: status === 500 ? 'Failed to rename footprint files' : error.message });
   } finally {

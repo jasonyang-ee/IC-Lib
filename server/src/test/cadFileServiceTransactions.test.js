@@ -21,6 +21,7 @@ vi.mock('fs', () => ({ default: mocks.fs }));
 vi.mock('../config/database.js', () => ({ default: mocks.pool }));
 
 const { renameCadFile, deleteCadFile } = await import('../services/cadFileService.js');
+const { normalizeFootprintFilename } = await import('../utils/footprintFiles.js');
 
 function base(p) {
   return path.basename(String(p));
@@ -137,6 +138,21 @@ describe('renameCadFile (transactional)', () => {
     await expect(renameCadFile('cf-1', 'new.psm')).rejects.toThrow('already exists');
     expect(mocks.fs.renameSync).not.toHaveBeenCalled();
     expect(mocks.pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('collides on the normalized name — two distinct inputs, one target, no silent overwrite', async () => {
+    // "A.B.psm" normalizes to "ab.psm" at the controller boundary; renaming
+    // another file to it must 409 against the existing ab.psm, not overwrite.
+    const normalized = normalizeFootprintFilename('A.B.psm');
+    expect(normalized).toBe('ab.psm');
+
+    configureFs(['old.psm', 'ab.psm']);
+    configurePool({
+      cadFile: { id: 'cf-1', file_name: 'old.psm', file_type: 'footprint' },
+    });
+
+    await expect(renameCadFile('cf-1', normalized)).rejects.toThrow('already exists');
+    expect(mocks.fs.renameSync).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Save, X } from 'lucide-react';
+import { getCadFileExtension, normalizeFootprintFilename } from '../../utils/footprintFiles';
 
 const RenameModal = ({
   renameData,
@@ -19,6 +20,25 @@ const RenameModal = ({
     renameInputRef.current?.focus();
     renameInputRef.current?.select();
   }, []);
+
+  // Footprint names normalize on the server (lowercase, dot-free base) —
+  // preview what the typed name will actually become
+  const isFootprintType = (renameData.type || selectedType) === 'footprint';
+  const typedName = renameData.newName?.trim() || '';
+  const previewNames = (() => {
+    if (!isFootprintType || !typedName) return [];
+    if (isGroupedFootprint) {
+      return (renameData.fileNames || []).map((fileName) => (
+        normalizeFootprintFilename(`${typedName}${getCadFileExtension(fileName)}`)
+      ));
+    }
+    return [normalizeFootprintFilename(typedName)];
+  })();
+  const showPreview = previewNames.length > 0 && (
+    isGroupedFootprint
+      ? previewNames.some((name, index) => name !== `${typedName}${getCadFileExtension(renameData.fileNames?.[index])}`)
+      : previewNames[0] !== typedName
+  );
 
   return (
     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
@@ -53,6 +73,18 @@ const RenameModal = ({
                 <div className="space-y-1">
                   {renameData.fileNames.map((fileName) => (
                     <p key={fileName} className="text-sm text-gray-700 dark:text-gray-300">{fileName}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+            {showPreview && (
+              <div className="mt-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
+                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
+                  Footprint names are normalized (lowercase, no dots in base) — will be saved as
+                </p>
+                <div className="space-y-1">
+                  {previewNames.map((name) => (
+                    <p key={name} className="text-sm font-mono text-blue-800 dark:text-blue-200">{name}</p>
                   ))}
                 </div>
               </div>

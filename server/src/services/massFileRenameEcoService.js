@@ -13,6 +13,7 @@ import {
 import { regenerateCadText } from './cadFileService.js';
 import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
+import { assertNoPlusInFootprintName, normalizeFootprintFilename } from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,6 +89,15 @@ export const createMassFileRenameEco = async (client, {
   if (!Array.isArray(files) || files.length === 0) {
     throw new Error('At least one renamed file is required');
   }
+
+  // Defensive: staged names must already satisfy footprint naming rules (the
+  // rename controllers normalize before staging), so apply-time never writes
+  // an unnormalized name to disk.
+  files = files.map((file) => (
+    file.file_type === 'footprint'
+      ? { ...file, new_file_name: normalizeFootprintFilename(assertNoPlusInFootprintName(file.new_file_name)) }
+      : file
+  ));
 
   if (!Array.isArray(affectedComponents) || affectedComponents.length === 0) {
     throw new Error('At least one affected component is required');

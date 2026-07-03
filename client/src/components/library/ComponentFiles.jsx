@@ -13,7 +13,7 @@ import {
   SCHEMATIC_SYMBOL_LABEL,
   THREE_D_MODEL_LABEL,
 } from '../../utils/cadFileTypes';
-import { groupFootprintFiles, normalizeFootprintFilenameCase } from '../../utils/footprintFiles';
+import { groupFootprintFiles, hasIllegalFootprintPlus, normalizeFootprintFilename, FOOTPRINT_PLUS_ERROR_MESSAGE } from '../../utils/footprintFiles';
 import { collectCadDeleteTargets } from '../../utils/componentCadDelete';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus, X } from 'lucide-react';
@@ -617,14 +617,19 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const submitRename = () => {
     if (!renaming.newName.trim()) return;
     const ext = renaming.filename.substring(renaming.filename.lastIndexOf('.'));
+    const newFilename = normalizeFootprintFilename(renaming.newName + ext);
+    if (hasIllegalFootprintPlus(renaming.newName + ext)) {
+      showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
+      return;
+    }
     renameMutation.mutate({
       category: renaming.category,
       oldFilename: renaming.filename,
-      newFilename: normalizeFootprintFilenameCase(renaming.newName + ext),
+      newFilename,
       tempFilename: renaming.tempFilename || undefined,
       pairedFilename: renaming.pairedFilename || undefined,
       pairedTempFilename: renaming.pairedTempFilename || undefined,
-      pairedNewFilename: renaming.pairedFilename ? renaming.newName + renaming.pairedFilename.substring(renaming.pairedFilename.lastIndexOf('.')) : undefined,
+      pairedNewFilename: renaming.pairedFilename ? normalizeFootprintFilename(renaming.newName + renaming.pairedFilename.substring(renaming.pairedFilename.lastIndexOf('.'))) : undefined,
     });
   };
 
@@ -632,7 +637,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const newFilename = normalizeFootprintFilenameCase(buildCadShortcutFilename(file.name, sanitizedMpn));
+    const candidateFilename = buildCadShortcutFilename(file.name, sanitizedMpn);
+    if (hasIllegalFootprintPlus(candidateFilename)) {
+      showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
+      return;
+    }
+    const newFilename = normalizeFootprintFilename(candidateFilename);
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches MPN');
@@ -660,7 +670,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       tempFilename: tempFilename || undefined,
       pairedFilename: pairedFilename || undefined,
       pairedTempFilename: pairedTempFilename || undefined,
-      pairedNewFilename: pairedFilename ? newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.')) : undefined,
+      pairedNewFilename: pairedFilename ? normalizeFootprintFilename(newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.'))) : undefined,
     });
   };
 
@@ -675,7 +685,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       showError('Package name is empty after formatting');
       return;
     }
-    const newFilename = normalizeFootprintFilenameCase(buildCadShortcutFilename(file.name, sanitizedPkg));
+    const candidateFilename = buildCadShortcutFilename(file.name, sanitizedPkg);
+    if (hasIllegalFootprintPlus(candidateFilename)) {
+      showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
+      return;
+    }
+    const newFilename = normalizeFootprintFilename(candidateFilename);
 
     if (newFilename === file.name) {
       showSuccess('Filename already matches package');
@@ -703,7 +718,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       tempFilename: tempFilename || undefined,
       pairedFilename: pairedFilename || undefined,
       pairedTempFilename: pairedTempFilename || undefined,
-      pairedNewFilename: pairedFilename ? newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.')) : undefined,
+      pairedNewFilename: pairedFilename ? normalizeFootprintFilename(newBase + pairedFilename.substring(pairedFilename.lastIndexOf('.'))) : undefined,
     });
   };
 

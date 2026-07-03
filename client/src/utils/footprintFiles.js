@@ -25,19 +25,32 @@ export const isFootprintSecondaryFile = (fileName) => getCadFileExtension(fileNa
 
 export const isFootprintPairFile = (fileName) => FOOTPRINT_PAIR_EXTENSIONS.includes(getCadFileExtension(fileName));
 
-export const normalizeFootprintFilenameCase = (fileName) => {
+export const FOOTPRINT_PLUS_ERROR_MESSAGE = '"+" is not allowed in OrCAD footprint names';
+
+/**
+ * Footprint filename rules (mirror of server `utils/footprintFiles.js` — keep
+ * exact parity): whole name lowercase, base has no dots (extension = the
+ * last-dot segment, every other dot silently dropped). Non-footprint
+ * extensions only get the lowercase extension.
+ */
+export const normalizeFootprintFilename = (fileName) => {
   const extension = getCadFileExtension(fileName);
   if (!extension) {
     return String(fileName || '');
   }
 
-  const baseName = getCadFileBaseName(fileName);
-  if (extension === '.psm') {
-    return `${baseName.toLowerCase()}${extension}`;
+  let baseName = getCadFileBaseName(fileName);
+  if (FOOTPRINT_PAIR_EXTENSIONS.includes(extension)) {
+    baseName = baseName.replace(/\./g, '').toLowerCase();
   }
 
   return `${baseName}${extension}`;
 };
+
+/** True when the name violates the footprint "+" rule (reject, never strip). */
+export const hasIllegalFootprintPlus = (fileName) => (
+  isFootprintPairFile(fileName) && String(fileName || '').includes('+')
+);
 
 const sortFootprintPrimaryFiles = (left, right, getName) => {
   const leftName = getName(left);

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { formatPackageFilenameBase } from '../utils/cadFileNaming';
 import {
+  FOOTPRINT_PLUS_ERROR_MESSAGE,
   getCadFileBaseName,
   groupFootprintFiles,
   isFootprintSecondaryFile,
@@ -668,6 +669,12 @@ const FileLibrary = () => {
     }
 
     const type = renameData.type || selectedType;
+
+    // "+" is OrCAD-illegal in footprint names — reject pre-submit (server backstops with 422)
+    if (type === 'footprint' && renameData.newName.includes('+')) {
+      showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
+      return;
+    }
     const renameRequest = {
       type,
       files: renameData.files,

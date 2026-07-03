@@ -11,7 +11,14 @@ import {
   PSPICE_SYMBOL_FILE_EXTENSIONS,
 } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
-import { getCadFileBaseName, normalizeFootprintFilenameCase } from '../utils/footprintFiles.js';
+import {
+  FootprintNameError,
+  assertNoPlusInFootprintName,
+  getCadFileBaseName,
+  isFootprintFileExtension,
+  normalizeCadUploadFilename,
+  sanitizeCadBaseName,
+} from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,10 +184,8 @@ function moveToCategory(sourcePath, category, overwrite = false) {
   // Flat storage: no MPN subdirectory
   const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
   const rawFilename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
-  // Lowercase extension for consistency
-  const rawExt = path.extname(rawFilename);
-  let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
-  filename = normalizeFootprintFilenameCase(filename);
+  // Lowercase extension + footprint naming rules
+  const filename = normalizeCadUploadFilename(rawFilename);
   const targetPath = path.join(targetDir, filename);
 
   // Collision check: reject if file already exists (unless overwrite)
@@ -227,6 +232,7 @@ function extractSmartZipToTemp(zipPath) {
   const entries = zip.getEntries();
   const extractedFiles = [];
   const collisions = [];
+  const rejected = [];
   const seenTempFiles = new Set(); // Deduplicate by category:filename (ZIPs often have same file in multiple subdirs)
   const zipFilename = path.basename(zipPath).toLowerCase();
 
@@ -260,11 +266,8 @@ function extractSmartZipToTemp(zipPath) {
     if (!filename) continue;
     const ext = path.extname(filename).toLowerCase();
 
-    // Lowercase file extension for consistency
-    const rawExt = path.extname(filename);
-    if (rawExt !== rawExt.toLowerCase()) {
-      filename = filename.substring(0, filename.length - rawExt.length) + rawExt.toLowerCase();
-    }
+    // Lowercase file extension + footprint naming rules
+    filename = normalizeCadUploadFilename(filename);
 
     if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
     if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
@@ -287,7 +290,11 @@ function extractSmartZipToTemp(zipPath) {
     }
 
     if (category) {
-      filename = normalizeFootprintFilenameCase(filename);
+      // "+" is OrCAD-illegal in footprint names — reject the entry, don't rename silently
+      if (isFootprintFileExtension(filename) && filename.includes('+')) {
+        rejected.push({ filename, category, error: '"+" is not allowed in OrCAD footprint names' });
+        continue;
+      }
 
       // Skip duplicate files (same filename+category from different subdirs in ZIP)
       const dedupeKey = `${category}:${filename.toLowerCase()}`;
@@ -311,7 +318,7 @@ function extractSmartZipToTemp(zipPath) {
   // Clean up the zip file
   fs.unlinkSync(zipPath);
 
-  return { extractedFiles, collisions };
+  return { extractedFiles, collisions, rejected };
 }
 
 /**
@@ -332,13 +339,14 @@ export async function uploadTempFile(req, res) {
       // Handle ZIP files
       if (ext === '.zip') {
         try {
-          const { extractedFiles, collisions } = extractSmartZipToTemp(file.path);
+          const { extractedFiles, collisions, rejected } = extractSmartZipToTemp(file.path);
           results.push({
             originalName: file.originalname,
             type: 'archive',
             extracted: extractedFiles,
             filesExtracted: extractedFiles.length,
             collisions: collisions.length > 0 ? collisions : undefined,
+            rejected: rejected.length > 0 ? rejected : undefined,
           });
         } catch (error) {
           console.error('Error extracting ZIP to temp:', error);
@@ -349,12 +357,18 @@ export async function uploadTempFile(req, res) {
           });
         }
       } else {
-        // Regular file - determine category
-        // Normalize filename with lowercase extension
-        const origExt = path.extname(file.originalname);
-        let normalizedFilename = path.basename(file.originalname, origExt) + origExt.toLowerCase();
-        normalizedFilename = normalizeFootprintFilenameCase(normalizedFilename);
+        // Regular file - lowercase extension + footprint naming rules
+        const normalizedFilename = normalizeCadUploadFilename(path.basename(file.originalname));
         const category = getFileCategory(normalizedFilename);
+
+        if (isFootprintFileExtension(normalizedFilename) && normalizedFilename.includes('+')) {
+          fs.unlinkSync(file.path);
+          results.push({
+            originalName: file.originalname,
+            error: '"+" is not allowed in OrCAD footprint names',
+          });
+          continue;
+        }
 
         if (!category) {
           fs.unlinkSync(file.path);
@@ -414,16 +428,22 @@ export async function finalizeTempFile(req, res) {
         }
 
         // Handle "use_existing" resolution: drop temp file, link existing file
+        // (legacy names on disk are grandfathered — normalize, never reject)
         if (resolution === 'use_existing') {
           const rawFilename = safeName.replace(/^\d+-\d+-/, '');
-          const rawExt = path.extname(rawFilename);
-          let filename = rawFilename.substring(0, rawFilename.length - rawExt.length) + rawExt.toLowerCase();
-          filename = normalizeFootprintFilenameCase(filename);
+          const filename = normalizeCadUploadFilename(rawFilename);
           fs.unlinkSync(tempPath);
           if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
             await autoLinkFileToComponent(category, filename, mfgPartNumber);
           }
           results.push({ filename, type: category, collision: true, linked: true });
+          continue;
+        }
+
+        // New file entering the library: footprint names must not contain "+"
+        const pendingFilename = normalizeCadUploadFilename(safeName.replace(/^\d+-\d+-/, ''));
+        if (isFootprintFileExtension(pendingFilename) && pendingFilename.includes('+')) {
+          results.push({ filename: pendingFilename, error: '"+" is not allowed in OrCAD footprint names' });
           continue;
         }
 
@@ -679,18 +699,17 @@ export async function renameFile(req, res) {
 
     // Ensure the extension is preserved (use old extension if new one differs or is missing)
     const finalExt = (newExt && config.extensions.includes(newExt)) ? newExt : oldExt;
-    const newBaseName = newFilename.replace(/\.[^.]+$/, '')
-      .replace(/[<>:"/\\|?*]/g, '_')
-      .replace(/\s+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
+    const newBaseName = sanitizeCadBaseName(newFilename.replace(/\.[^.]+$/, ''));
 
     if (!newBaseName) {
       return res.status(400).json({ error: 'Invalid filename after sanitization' });
     }
 
     let sanitizedNewFilename = newBaseName + finalExt;
-    sanitizedNewFilename = normalizeFootprintFilenameCase(sanitizedNewFilename);
+    if (isFootprintFileExtension(sanitizedNewFilename)) {
+      assertNoPlusInFootprintName(sanitizedNewFilename); // typed error -> 422 below
+    }
+    sanitizedNewFilename = normalizeCadUploadFilename(sanitizedNewFilename);
 
     const tempDir = path.join(LIBRARY_BASE, 'temp');
     let oldPath = null;
@@ -817,6 +836,9 @@ export async function renameFile(req, res) {
       newFilename: sanitizedNewFilename,
     });
   } catch (error) {
+    if (error instanceof FootprintNameError) {
+      return res.status(422).json({ error: error.message });
+    }
     console.error('Error renaming file:', error);
     res.status(500).json({ error: 'Failed to rename file' });
   }
