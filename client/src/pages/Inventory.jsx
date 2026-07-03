@@ -4,13 +4,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 import { QRCodeSVG } from 'qrcode.react';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { InventorySidebar, InventoryTable, QRCodeModal } from '../components/inventory';
 
-// [)>{RS}06{GS}PDS2431+-ND{GS}1PDS2431+{GS}30PDS2431+-ND{GS}KPI44272{GS}1K88732724{GS}10K107208362{GS}9D2343{GS}1T0007187692{GS}11K1{GS}4LPH{GS}Q10{GS}11ZPICK{GS}12Z1197428{GS}13Z999999{GS}20Z0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000{RS}{EOT}
-// [)>{RS}06{GS}K4500016605{GS}14K008{GS}1PPWR220T-20-50R0F{GS}Q5{GS}11K086036559{GS}4LCR{GS}1VBourns{RS}{EOT}
+// Debounce for the free-text filter so large inventories don't re-filter per keystroke
+const SEARCH_DEBOUNCE_MS = 200;
 
 const Inventory = () => {
   const queryClient = useQueryClient();
@@ -23,8 +22,9 @@ const Inventory = () => {
   const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [vendorBarcode, setVendorBarcode] = useState('');
-  const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [pendingScanLookup, setPendingScanLookup] = useState(null);
+  const [barcodeLibraryHit, setBarcodeLibraryHit] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editedItems, setEditedItems] = useState({});
   const [copiedLabel, setCopiedLabel] = useState('');
@@ -36,20 +36,16 @@ const Inventory = () => {
   const [sortBy, setSortBy] = useState('part_number');
   const [sortOrder, setSortOrder] = useState('asc');
   const [_receiveQtyFromQr, _setReceiveQtyFromQr] = useState(null);
-  const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
 
   // Search input ref for auto-focus
   const searchInputRef = useRef(null);
-  const vendorBarcodeInputRef = useRef(null);
 
-  // Auto-focus search field on page load
+  // Debounce the free-text filter input
   useEffect(() => {
-    if (searchInputRef.current) {
-      vendorBarcodeInputRef.current.focus();
-      vendorBarcodeInputRef.current.select();
-    }
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Handle incoming UUID from Library page
   useEffect(() => {
@@ -170,10 +166,10 @@ const Inventory = () => {
     }));
   }, [inventory]);
 
-  // Filter inventory
+  // Filter inventory (against the debounced search term)
   const filteredInventory = useMemo(() => {
     if (!inventory) return [];
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = debouncedSearchTerm.toLowerCase();
     return inventory.filter(item => {
       const matchesCategory = !selectedCategory || item.category_name === selectedCategory;
       const matchesProject = !projectComponentIds || projectComponentIds.has(item.component_id);
@@ -181,7 +177,7 @@ const Inventory = () => {
       const matchesLocation = !selectedLocation ||
         (selectedLocation === '__none__' ? (!item.location || item.location === '') : item.location === selectedLocation);
 
-      const matchesSearch = !searchTerm ||
+      const matchesSearch = !debouncedSearchTerm ||
         item.part_number?.toLowerCase().includes(searchLower) ||
         item.manufacturer_pn?.toLowerCase().includes(searchLower) ||
         item.manufacturer_name?.toLowerCase().includes(searchLower) ||
@@ -194,7 +190,7 @@ const Inventory = () => {
         ));
       return matchesCategory && matchesProject && matchesApproval && matchesLocation && matchesSearch;
     });
-  }, [inventory, searchTerm, selectedCategory, projectComponentIds, selectedApprovalStatus, selectedLocation, alternativesData]);
+  }, [inventory, debouncedSearchTerm, selectedCategory, projectComponentIds, selectedApprovalStatus, selectedLocation, alternativesData]);
 
   // Sort inventory
   const sortedInventory = useMemo(() => {
@@ -267,174 +263,65 @@ const Inventory = () => {
     }
   }, [expandedRows, inventory, fetchAlternativesForItem]);
 
-  // Digikey barcode decoder
-  const decodeVendorBarcode = useCallback((barcode) => {
-    // Reset result
-    setBarcodeDecodeResult(null);
-
-    if (!barcode || barcode.trim() === '') {
+  // Vendor barcode decode result from the scan panel (shared decoder). Only
+  // decoded values reach this page — raw ECIA payloads stay inside the panel.
+  const handleBarcodeDecode = useCallback((decoded) => {
+    setBarcodeLibraryHit(null);
+    if (decoded.error || !decoded.searchTerm) {
+      setPendingScanLookup(null);
       return;
     }
-
-    // Define control characters
-    const GS = String.fromCharCode(29); // Group Separator
-    const RS = String.fromCharCode(30); // Record Separator
-    const EOT = String.fromCharCode(4); // End of Transmission
-
-    // Replace literal text representations with actual control characters
-    // Some barcode readers send the literal text {GS} instead of the control character
-    let cleanBarcode = barcode
-      .replace(/\{GS\}/g, GS)
-      .replace(/\{RS\}/g, RS)
-      .replace(/\{EOT\}/g, EOT);
-
-    // Also handle escaped representations
-    cleanBarcode = cleanBarcode
-      .replace(/\\x1d/g, GS)
-      .replace(/\\x1e/g, RS)
-      .replace(/\\x04/g, EOT);
-
-    // Split by GS (Group Separator) to get fields
-    const fields = cleanBarcode.split(GS);
-
-    // DigiKey format after header: [)>RS06GS <field1> GS <field2> GS ...
-    // The first field after the header is the manufacturer part number
-    let mfgPartNumber = null;
-    let digikeySkus = [];
-    let quantity = null;
-    
-    // Parse fields
-    fields.forEach((field, index) => {
-      // Remove any leading/trailing control characters and whitespace
-      field = field.trim();
-      
-      // Remove header if present in first field
-      if (index === 0) {
-        // eslint-disable-next-line no-control-regex
-        field = field.replace(/^\[\)>[\x1e]*06/, '');
-        // eslint-disable-next-line no-control-regex
-        field = field.replace(/^[\x1e\x1d]+/, '');
-      }
-      
-      // Remove trailing control characters
-      // eslint-disable-next-line no-control-regex
-      field = field.replace(/[\x1e\x04]+$/, '');
-
-      if (!field) return;
-      
-      // Check for manufacturer part number (1P prefix)
-      if (field.startsWith('1P')) {
-        mfgPartNumber = field.substring(2);
-      }
-      // Check for DigiKey SKU (30P prefix)
-      else if (field.startsWith('30P')) {
-        const sku = field.substring(3);
-        digikeySkus.push(sku);
-      }
-      // Check for alternative SKU format (P prefix without 30)
-      else if (field.startsWith('P') && field.length > 1) {
-        const sku = field.substring(1);
-        if (!digikeySkus.includes(sku)) {
-          digikeySkus.push(sku);
-        }
-      }
-      // Check for quantity (Q prefix)
-      else if (field.startsWith('Q') && field.length > 1) {
-        const qtyStr = field.substring(1).match(/\d+/);
-        if (qtyStr) {
-          quantity = parseInt(qtyStr[0], 10);
-        }
-      }
-      // If no prefix and we haven't found MFG P/N yet, and it looks like a valid part number
-      else if (!mfgPartNumber && field.match(/^[A-Z0-9][A-Z0-9\-+_.]+$/i)) {
-        mfgPartNumber = field;
-      }
-    });
-
-    // If we successfully parsed the barcode
-    if (mfgPartNumber) {
-      const result = {
-        vendor: 'Digikey',
-        manufacturerPN: mfgPartNumber,
-        quantity: quantity,
-        digikeySKU: digikeySkus[0] || null
-      };
-
-      setBarcodeDecodeResult(result);
-
-      // Search for the part using ONLY the manufacturer part number
-      setSearchTerm(mfgPartNumber);
-      
-      // Auto-focus and select the input field for next scan
-      setTimeout(() => {
-        if (vendorBarcodeInputRef.current) {
-          vendorBarcodeInputRef.current.focus();
-          vendorBarcodeInputRef.current.select();
-        }
-      }, 100);
-      
-      return;
-    }
-
-    // If no pattern matched
-    setBarcodeDecodeResult({
-      error: 'Could not parse manufacturer part number from barcode. Please check the format.'
-    });
+    setSearchTerm(decoded.searchTerm);
+    setPendingScanLookup(decoded);
   }, []);
 
-  // Auto-decode barcode with debounce (wait 1.5 second after typing stops)
+  // Server fallback: a scanned part invisible in the client filter may still
+  // exist in the library (e.g. SKU-only barcode — the client filter has no
+  // distributor SKUs). Exact di.sku/MPN/PN match via /inventory/search/barcode.
   useEffect(() => {
-    if (vendorBarcode && vendorBarcode.length > 10) {
-      const timer = setTimeout(() => {
-        decodeVendorBarcode(vendorBarcode);
-      }, 1500); // Wait 1.5 second after last keystroke
-      
-      return () => clearTimeout(timer);
-    }
-  }, [vendorBarcode, decodeVendorBarcode]);
-
-  const handleVendorBarcodeScan = () => {
-    decodeVendorBarcode(vendorBarcode);
-    vendorBarcodeInputRef.current.focus();
-    vendorBarcodeInputRef.current.select();
-  };
-
-  const handleClearVendorBarcode = () => {
-    setVendorBarcode('');
-    setBarcodeDecodeResult(null);
-    // Auto-focus the scan input field for next scan
-    setTimeout(() => {
-      if (vendorBarcodeInputRef.current) {
-        vendorBarcodeInputRef.current.focus();
-        vendorBarcodeInputRef.current.select();
-      }
-    }, 0);
-  };
-
-  // Camera barcode scanner
-  const startCameraScanner = () => {
-    setShowCameraScanner(true);
-  };
-
-  const handleCameraScan = (decodedText) => {
-    setShowCameraScanner(false);
-
-    // Set the decoded text to search field
-    setSearchTerm(decodedText);
-
-    // Try to decode it if it looks like a vendor barcode
-    if (decodedText.length > 20 && (decodedText.includes(String.fromCharCode(29)) || decodedText.includes('[)>'))) {
-      decodeVendorBarcode(decodedText);
+    if (!pendingScanLookup || isLoading) return;
+    // Wait until the filter reflects the scanned term
+    if (debouncedSearchTerm !== pendingScanLookup.searchTerm) return;
+    if (filteredInventory.length > 0) {
+      setPendingScanLookup(null);
+      return;
     }
 
-    // Focus search input
-    setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-        searchInputRef.current.select();
+    let cancelled = false;
+    const lookup = async () => {
+      const terms = [...new Set([pendingScanLookup.sku, pendingScanLookup.searchTerm].filter(Boolean))];
+      for (const term of terms) {
+        try {
+          const response = await api.searchByBarcode(term);
+          if (cancelled) return;
+          if (response.data?.length > 0) {
+            setBarcodeLibraryHit(response.data[0]);
+            break;
+          }
+        } catch {
+          // 404 = no match for this term; try the next one
+        }
       }
-    }, 100);
-  };
+      if (!cancelled) setPendingScanLookup(null);
+    };
+    lookup();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingScanLookup, debouncedSearchTerm, filteredInventory, isLoading]);
+
+  // A scanned part hidden by the current filters: reset filters so it shows,
+  // searching by the value the server matched on
+  const handleShowBarcodeLibraryHit = useCallback(() => {
+    if (!barcodeLibraryHit) return;
+    setSelectedCategory('');
+    setSelectedProject('');
+    setSelectedApprovalStatus('');
+    setSelectedLocation('');
+    const term = barcodeLibraryHit.manufacturer_pn || barcodeLibraryHit.part_number || '';
+    setSearchTerm(term);
+    setBarcodeLibraryHit(null);
+  }, [barcodeLibraryHit]);
 
   // Initialize edited items when entering edit mode
   const handleToggleEditMode = () => {
@@ -1145,13 +1032,10 @@ const Inventory = () => {
         onSortByChange={setSortBy}
         sortOrder={sortOrder}
         onSortOrderChange={setSortOrder}
-        vendorBarcode={vendorBarcode}
-        onVendorBarcodeChange={setVendorBarcode}
-        vendorBarcodeInputRef={vendorBarcodeInputRef}
-        onVendorBarcodeScan={handleVendorBarcodeScan}
-        onClearVendorBarcode={handleClearVendorBarcode}
-        barcodeDecodeResult={barcodeDecodeResult}
-        onStartCameraScanner={startCameraScanner}
+        onBarcodeDecode={handleBarcodeDecode}
+        barcodeLibraryHit={barcodeLibraryHit}
+        onShowBarcodeLibraryHit={handleShowBarcodeLibraryHit}
+        isBarcodeLookupPending={!!pendingScanLookup}
         searchResultCount={filteredInventory?.length}
         onNavigateVendorSearch={(mfgPn) => navigate('/vendor-search', { state: { searchFromInventory: mfgPn } })}
         labelTemplates={labelTemplates}
@@ -1197,13 +1081,6 @@ const Inventory = () => {
         copiedQRField={copiedQRField}
       />
 
-      {/* Camera Barcode Scanner */}
-      {showCameraScanner && (
-        <BarcodeScanner
-          onScan={handleCameraScan}
-          onClose={() => setShowCameraScanner(false)}
-        />
-      )}
       </div>
     </div>
   );

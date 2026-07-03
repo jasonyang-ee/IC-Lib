@@ -1,5 +1,5 @@
-import { Search, Camera, AlertCircle, Download } from 'lucide-react';
-import { SidebarCard, FilterSelect, SearchInput, SortControls } from '../common';
+import { Search, AlertCircle, Download } from 'lucide-react';
+import { SidebarCard, FilterSelect, SearchInput, SortControls, VendorBarcodeScanPanel } from '../common';
 
 const SORT_OPTIONS = [
   { value: 'part_number', label: 'Part Number' },
@@ -31,13 +31,10 @@ const InventorySidebar = ({
   onSortByChange,
   sortOrder,
   onSortOrderChange,
-  vendorBarcode,
-  onVendorBarcodeChange,
-  vendorBarcodeInputRef,
-  onVendorBarcodeScan,
-  onClearVendorBarcode,
-  barcodeDecodeResult,
-  onStartCameraScanner,
+  onBarcodeDecode,
+  barcodeLibraryHit,
+  onShowBarcodeLibraryHit,
+  isBarcodeLookupPending,
   searchResultCount,
   onNavigateVendorSearch,
   labelTemplates,
@@ -112,90 +109,50 @@ const InventorySidebar = ({
 
     {/* Vendor Barcode Scanner */}
     <SidebarCard title="Scan Vendor Barcode">
-      <div className="space-y-2">
-        <input
-          ref={vendorBarcodeInputRef}
-          type="text"
-          value={vendorBarcode}
-          onChange={(e) => onVendorBarcodeChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onVendorBarcodeScan();
-            }
-          }}
-          placeholder="Scan Digikey or Mouser barcode..."
-          className="w-full px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={onVendorBarcodeScan}
-            disabled={!vendorBarcode.trim()}
-            className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
-          >
-            Decode
-          </button>
-          <button
-            onClick={onClearVendorBarcode}
-            className="bg-gray-500 hover:bg-gray-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors"
-          >
-            Clear
-          </button>
-          <button
-            onClick={onStartCameraScanner}
-            className="bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
-            title="Scan with camera"
-          >
-            <Camera className="w-4 h-4" />
-          </button>
-        </div>
+      <VendorBarcodeScanPanel
+        variant="sidebar"
+        autoFocus
+        onDecode={onBarcodeDecode}
+        renderResultExtra={(result) => {
+          if (!result.searchTerm) return null;
 
-        {barcodeDecodeResult && (
-          <div className={`mt-2 p-3 rounded-md text-sm ${
-            barcodeDecodeResult.error
-              ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-800 dark:text-red-200'
-              : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50 text-green-800 dark:text-green-200'
-          }`}>
-            {barcodeDecodeResult.error ? (
-              <p>{barcodeDecodeResult.error}</p>
-            ) : (
-              <div className="space-y-1">
-                <p className="font-semibold">{barcodeDecodeResult.vendor} Barcode Decoded:</p>
-                {barcodeDecodeResult.manufacturerPN && (
-                  <p>MFG P/N: <span className="font-mono">{barcodeDecodeResult.manufacturerPN}</span></p>
-                )}
-                {barcodeDecodeResult.digikeySKU && (
-                  <p>Digikey SKU: <span className="font-mono">{barcodeDecodeResult.digikeySKU}</span></p>
-                )}
-                {barcodeDecodeResult.mouserSKU && (
-                  <p>Mouser SKU: <span className="font-mono">{barcodeDecodeResult.mouserSKU}</span></p>
-                )}
-                {barcodeDecodeResult.quantity && (
-                  <p>Quantity: {barcodeDecodeResult.quantity}</p>
-                )}
-                {/* Show button to search vendor if no results in inventory */}
-                {searchTerm && searchResultCount !== undefined && searchResultCount === 0 && barcodeDecodeResult.manufacturerPN && (
-                  <div className="mt-3 pt-3 border-t border-green-300 dark:border-green-800">
-                    <p className="text-xs mb-2 opacity-75">Part not found in inventory.</p>
-                    <button
-                      onClick={() => onNavigateVendorSearch(barcodeDecodeResult.manufacturerPN)}
-                      className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-3 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
-                    >
-                      <Search className="w-3 h-3" />
-                      Search Vendor for &quot;{barcodeDecodeResult.manufacturerPN}&quot;
-                    </button>
-                  </div>
-                )}
-                {(!searchTerm || (searchResultCount !== undefined && searchResultCount > 0)) && (
-                  <p className="text-xs mt-2 opacity-75">Searching for this part...</p>
-                )}
+          if (barcodeLibraryHit) {
+            return (
+              <div className="mt-3 pt-3 border-t border-green-300 dark:border-green-800">
+                <p className="text-xs mb-2 opacity-75">
+                  Found in library as {barcodeLibraryHit.part_number || barcodeLibraryHit.manufacturer_pn}, hidden by current filters.
+                </p>
+                <button
+                  onClick={onShowBarcodeLibraryHit}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-3 rounded text-xs font-medium transition-colors"
+                >
+                  Clear Filters &amp; Show Part
+                </button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
-      </p>
+            );
+          }
+
+          if (searchResultCount === 0) {
+            if (isBarcodeLookupPending) {
+              return <p className="text-xs mt-2 opacity-75">Checking library...</p>;
+            }
+            return (
+              <div className="mt-3 pt-3 border-t border-green-300 dark:border-green-800">
+                <p className="text-xs mb-2 opacity-75">Part not found in inventory.</p>
+                <button
+                  onClick={() => onNavigateVendorSearch(result.searchTerm)}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white py-2 px-3 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+                >
+                  <Search className="w-3 h-3" />
+                  Search Vendor for &quot;{result.searchTerm}&quot;
+                </button>
+              </div>
+            );
+          }
+
+          return <p className="text-xs mt-2 opacity-75">Searching for this part...</p>;
+        }}
+      />
     </SidebarCard>
 
     {/* Low Stock Alert */}

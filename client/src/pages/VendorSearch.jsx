@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
-import BarcodeScanner from '../components/common/BarcodeScanner';
 import { useAuth } from '../contexts/AuthContext';
 import { VendorSearchForm, VendorSearchResults, SelectedPartsPanel, PartSelectionModal } from '../components/vendorSearch';
 
@@ -15,10 +14,6 @@ const VendorSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
-  const [vendorBarcode, setVendorBarcode] = useState('');
-  const [barcodeDecodeResult, setBarcodeDecodeResult] = useState(null);
-  const [showCameraScanner, setShowCameraScanner] = useState(false);
-  const vendorBarcodeInputRef = useRef(null);
   const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
   const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
   const [_selectedLibraryPart, setSelectedLibraryPart] = useState(null);
@@ -137,166 +132,13 @@ const VendorSearch = () => {
     return manufacturers?.find(m => normalizeLookupValue(m.name) === normalizedManufacturer) || null;
   };
 
-  // Digikey barcode decoder
-  const decodeVendorBarcode = (barcode) => {
-    // Reset result
-    setBarcodeDecodeResult(null);
-
-    if (!barcode || barcode.trim() === '') {
-      return;
-    }
-
-    // Define control characters
-    const GS = String.fromCharCode(29); // Group Separator
-    const RS = String.fromCharCode(30); // Record Separator
-    const EOT = String.fromCharCode(4); // End of Transmission
-    
-    // Replace literal text representations with actual control characters
-    let cleanBarcode = barcode
-      .replace(/\{GS\}/g, GS)
-      .replace(/\{RS\}/g, RS)
-      .replace(/\{EOT\}/g, EOT);
-    
-    // Also handle escaped representations
-    cleanBarcode = cleanBarcode
-      .replace(/\\x1d/g, GS)
-      .replace(/\\x1e/g, RS)
-      .replace(/\\x04/g, EOT);
-    
-    // Split by GS (Group Separator) to get fields
-    const fields = cleanBarcode.split(GS);
-    
-    // DigiKey format after header: [)>RS06GS <field1> GS <field2> GS ...
-    let mfgPartNumber = null;
-    let digikeySkus = [];
-    let quantity = null;
-    
-    // Parse fields
-    fields.forEach((field, index) => {
-      // Remove any leading/trailing control characters and whitespace
-      field = field.trim();
-      
-      // Remove header if present in first field
-      if (index === 0) {
-        // eslint-disable-next-line no-control-regex
-        field = field.replace(/^\[\)>[\x1e]*06/, '');
-        // eslint-disable-next-line no-control-regex
-        field = field.replace(/^[\x1e\x1d]+/, '');
-      }
-      
-      // Remove trailing control characters
-      // eslint-disable-next-line no-control-regex
-      field = field.replace(/[\x1e\x04]+$/, '');
-      
-      if (!field) return;
-      
-      // Check for manufacturer part number (1P prefix)
-      if (field.startsWith('1P')) {
-        mfgPartNumber = field.substring(2);
-      }
-      // Check for DigiKey SKU (30P prefix)
-      else if (field.startsWith('30P')) {
-        const sku = field.substring(3);
-        digikeySkus.push(sku);
-      }
-      // Check for alternative SKU format (P prefix without 30)
-      else if (field.startsWith('P') && field.length > 1) {
-        const sku = field.substring(1);
-        if (!digikeySkus.includes(sku)) {
-          digikeySkus.push(sku);
-        }
-      }
-      // Check for quantity (Q prefix)
-      else if (field.startsWith('Q') && field.length > 1) {
-        const qtyStr = field.substring(1).match(/\d+/);
-        if (qtyStr) {
-          quantity = parseInt(qtyStr[0], 10);
-        }
-      }
-      // If no prefix and we haven't found MFG P/N yet, and it looks like a valid part number
-      else if (!mfgPartNumber && field.match(/^[A-Z0-9][A-Z0-9\-+_.]+$/i)) {
-        mfgPartNumber = field;
-      }
-    });
-
-    // If we successfully parsed the barcode
-    if (mfgPartNumber) {
-      const result = {
-        vendor: 'Digikey',
-        manufacturerPN: mfgPartNumber,
-        quantity: quantity,
-        digikeySKU: digikeySkus[0] || null
-      };
-      
-      setBarcodeDecodeResult(result);
-      
-      // Set the search term to the manufacturer part number
-      setSearchTerm(mfgPartNumber);
-      
-      // Auto-trigger search
-      searchMutation.mutate(mfgPartNumber);
-      
-      // Auto-focus the input field for next scan
-      setTimeout(() => {
-        if (vendorBarcodeInputRef.current) {
-          vendorBarcodeInputRef.current.focus();
-          vendorBarcodeInputRef.current.select();
-        }
-      }, 100);
-      
-      return;
-    }
-
-    // If no pattern matched
-    setBarcodeDecodeResult({
-      error: 'Could not parse manufacturer part number from barcode. Please check the format.'
-    });
-  };
-
-  // Auto-decode barcode with debounce
-  useEffect(() => {
-    if (vendorBarcode && vendorBarcode.length > 10) {
-      const timer = setTimeout(() => {
-        decodeVendorBarcode(vendorBarcode);
-      }, 1500);
-      
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorBarcode]);
-
-  const handleVendorBarcodeScan = () => {
-    decodeVendorBarcode(vendorBarcode);
-    if (vendorBarcodeInputRef.current) {
-      vendorBarcodeInputRef.current.focus();
-      vendorBarcodeInputRef.current.select();
-    }
-  };
-
-  const handleClearVendorBarcode = () => {
-    setVendorBarcode('');
-    setBarcodeDecodeResult(null);
-    setTimeout(() => {
-      if (vendorBarcodeInputRef.current) {
-        vendorBarcodeInputRef.current.focus();
-        vendorBarcodeInputRef.current.select();
-      }
-    }, 0);
-  };
-
-  // Camera barcode scanner
-  const startCameraScanner = () => {
-    setShowCameraScanner(true);
-  };
-
-  const handleCameraScan = (decodedText) => {
-    setShowCameraScanner(false);
-    setSearchTerm(decodedText);
-
-    // Try to decode it if it looks like a vendor barcode
-    if (decodedText.length > 20 && (decodedText.includes(String.fromCharCode(29)) || decodedText.includes('[)>'))) {
-      decodeVendorBarcode(decodedText);
-    }
+  // Vendor barcode decode result from the scan panel (shared decoder): put the
+  // decoded MPN/SKU in the search box and auto-trigger the vendor search. Raw
+  // ECIA payloads and parse errors never reach the search box.
+  const handleBarcodeDecode = (decoded) => {
+    if (decoded.error || !decoded.searchTerm) return;
+    setSearchTerm(decoded.searchTerm);
+    searchMutation.mutate(decoded.searchTerm);
   };
 
   const searchMutation = useMutation({
@@ -759,13 +601,7 @@ const VendorSearch = () => {
         onSearch={handleSearch}
         isSearchPending={searchMutation.isPending}
         onClearSearch={handleClearSearch}
-        vendorBarcode={vendorBarcode}
-        onVendorBarcodeChange={setVendorBarcode}
-        vendorBarcodeInputRef={vendorBarcodeInputRef}
-        onVendorBarcodeScan={handleVendorBarcodeScan}
-        onClearVendorBarcode={handleClearVendorBarcode}
-        onStartCameraScanner={startCameraScanner}
-        barcodeDecodeResult={barcodeDecodeResult}
+        onBarcodeDecode={handleBarcodeDecode}
       />
 
       <VendorSearchResults
@@ -786,14 +622,6 @@ const VendorSearch = () => {
         downloadFootprintMutation={downloadFootprintMutation}
         canWrite={canWrite()}
       />
-
-      {/* Camera Barcode Scanner */}
-      {showCameraScanner && (
-        <BarcodeScanner
-          onScan={handleCameraScan}
-          onClose={() => setShowCameraScanner(false)}
-        />
-      )}
 
       {/* Part Selection Modal */}
       {showPartSelectionModal && (

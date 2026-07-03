@@ -1,4 +1,5 @@
-import { Search, X, Camera } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { VendorBarcodeScanPanel } from '../common';
 
 const VendorSearchForm = ({
   searchTerm,
@@ -6,13 +7,7 @@ const VendorSearchForm = ({
   onSearch,
   isSearchPending,
   onClearSearch,
-  vendorBarcode,
-  onVendorBarcodeChange,
-  vendorBarcodeInputRef,
-  onVendorBarcodeScan,
-  onClearVendorBarcode,
-  onStartCameraScanner,
-  barcodeDecodeResult,
+  onBarcodeDecode,
 }) => {
   return (
     <>
@@ -54,76 +49,15 @@ const VendorSearchForm = ({
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           Scan Vendor Barcode
         </label>
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              ref={vendorBarcodeInputRef}
-              type="text"
-              value={vendorBarcode}
-              onChange={(e) => onVendorBarcodeChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  onVendorBarcodeScan();
-                }
-              }}
-              placeholder="Scan Digikey or Mouser barcode..."
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#444444] rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100 text-sm"
-            />
-            <button
-              onClick={onVendorBarcodeScan}
-              disabled={!vendorBarcode.trim()}
-              className="bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-            >
-              Decode
-            </button>
-            <button
-              onClick={onClearVendorBarcode}
-              className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors"
-            >
-              Clear
-            </button>
-            <button
-              onClick={onStartCameraScanner}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center gap-1"
-              title="Scan with camera"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-          </div>
-
-          {barcodeDecodeResult && (
-            <div className={`mt-2 p-3 rounded-md text-sm ${
-              barcodeDecodeResult.error
-                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-red-800 dark:text-red-200'
-                : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50 text-green-800 dark:text-green-200'
-            }`}>
-              {barcodeDecodeResult.error ? (
-                <p>{barcodeDecodeResult.error}</p>
-              ) : (
-                <div className="space-y-1">
-                  <p className="font-semibold">{barcodeDecodeResult.vendor} Barcode Decoded:</p>
-                  {barcodeDecodeResult.manufacturerPN && (
-                    <p>MFG P/N: <span className="font-mono">{barcodeDecodeResult.manufacturerPN}</span></p>
-                  )}
-                  {barcodeDecodeResult.digikeySKU && (
-                    <p>Digikey SKU: <span className="font-mono">{barcodeDecodeResult.digikeySKU}</span></p>
-                  )}
-                  {barcodeDecodeResult.mouserSKU && (
-                    <p>Mouser SKU: <span className="font-mono">{barcodeDecodeResult.mouserSKU}</span></p>
-                  )}
-                  {barcodeDecodeResult.quantity && (
-                    <p>Quantity: {barcodeDecodeResult.quantity}</p>
-                  )}
-                  <p className="text-xs mt-2 opacity-75">Search term updated with MFG P/N</p>
-                </div>
-              )}
-            </div>
+        <VendorBarcodeScanPanel
+          variant="inline"
+          onDecode={onBarcodeDecode}
+          renderResultExtra={(result) => (
+            result.searchTerm
+              ? <p className="text-xs mt-2 opacity-75">Search term updated — searching vendors...</p>
+              : null
           )}
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          Supports Digikey 2D Data Matrix and Mouser Code 128 barcodes
-        </p>
+        />
       </div>
     </>
   );

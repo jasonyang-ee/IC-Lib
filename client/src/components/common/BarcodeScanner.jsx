@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BarcodeDetector } from 'barcode-detector/ponyfill';
-import { X } from 'lucide-react';
+import { X, Flashlight, FlashlightOff } from 'lucide-react';
 
 /**
  * Shared camera barcode scanner modal component.
@@ -13,16 +13,26 @@ import { X } from 'lucide-react';
  *   onClose()         - called to dismiss the modal
  *   formats           - array of barcode formats (default: ['data_matrix', 'code_128'])
  */
+// Detection cadence and detector input size. Detecting every rAF frame (~60 fps)
+// on the full-res frame saturates the main thread and feeds blurry frames to the
+// WASM detector; ~8 fps on a downscaled frame is both faster and more accurate.
+const DETECT_INTERVAL_MS = 125;
+const DETECT_MAX_WIDTH = 640;
+
 const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128'] }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
   const rafRef = useRef(null);
   const scanningRef = useRef(true);
+  const lastDetectRef = useRef(0);
+  const detectCanvasRef = useRef(null);
 
   const [cameras, setCameras] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState('');
   const [error, setError] = useState(null);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   // Enumerate cameras on mount
   useEffect(() => {
@@ -100,27 +110,56 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
         video.srcObject = stream;
         await video.play();
 
+        // Continuous autofocus + torch capability (sharper frames beat more frames)
+        const [track] = stream.getVideoTracks();
+        const capabilities = track?.getCapabilities?.() || {};
+        if (capabilities.focusMode?.includes('continuous')) {
+          try {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          } catch {
+            // Focus mode is best-effort
+          }
+        }
+        setTorchSupported(Boolean(capabilities.torch));
+        setTorchOn(false);
+
         // Create detector once
         if (!detectorRef.current) {
           detectorRef.current = new BarcodeDetector({ formats });
         }
 
-        // Scanning loop
+        // Scanning loop: rAF keeps the preview smooth, detection is throttled
+        // and runs on a downscaled offscreen canvas
+        lastDetectRef.current = 0;
         const scan = async () => {
           if (!scanningRef.current || cancelled) return;
 
-          try {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-              const barcodes = await detectorRef.current.detect(video);
-              if (barcodes.length > 0 && scanningRef.current) {
-                scanningRef.current = false;
-                cleanup();
-                onScan(barcodes[0].rawValue);
-                return;
+          const now = performance.now();
+          if (now - lastDetectRef.current >= DETECT_INTERVAL_MS) {
+            lastDetectRef.current = now;
+            try {
+              if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+                if (!detectCanvasRef.current) {
+                  detectCanvasRef.current = document.createElement('canvas');
+                }
+                const canvas = detectCanvasRef.current;
+                const scale = Math.min(1, DETECT_MAX_WIDTH / video.videoWidth);
+                canvas.width = Math.round(video.videoWidth * scale);
+                canvas.height = Math.round(video.videoHeight * scale);
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const barcodes = await detectorRef.current.detect(canvas);
+                if (barcodes.length > 0 && scanningRef.current) {
+                  scanningRef.current = false;
+                  cleanup();
+                  onScan(barcodes[0].rawValue);
+                  return;
+                }
               }
+            } catch {
+              // Ignore detection errors (e.g. video not ready)
             }
-          } catch {
-            // Ignore detection errors (e.g. video not ready)
           }
 
           rafRef.current = requestAnimationFrame(scan);
@@ -155,6 +194,17 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
 
   const handleCameraChange = (e) => {
     setSelectedCamera(e.target.value);
+  };
+
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      setTorchOn(!torchOn);
+    } catch {
+      // Torch is best-effort; ignore devices that reject the constraint
+    }
   };
 
   return (
@@ -210,6 +260,15 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
                 playsInline
                 muted
               />
+              {torchSupported && (
+                <button
+                  onClick={toggleTorch}
+                  className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-md transition-colors"
+                  title={torchOn ? 'Turn torch off' : 'Turn torch on'}
+                >
+                  {torchOn ? <FlashlightOff className="w-5 h-5" /> : <Flashlight className="w-5 h-5" />}
+                </button>
+              )}
             </div>
 
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 text-center">
