@@ -1,6 +1,9 @@
 import pool from '../config/database.js';
 import { logActivity } from '../services/activityLogService.js';
 import { logError } from '../utils/logger.js';
+import { PROJECT_STATUSES, isValidProjectStatus } from '../constants/projectStatus.js';
+
+const INVALID_STATUS_ERROR = `Invalid status. Must be one of: ${PROJECT_STATUSES.join(', ')}`;
 
 // Get all projects
 export const getAllProjects = async (req, res) => {
@@ -148,7 +151,12 @@ export const getProjectById = async (req, res) => {
 export const createProject = async (req, res) => {
   try {
     const { name, description, status } = req.body;
-    
+
+    // §V33: reject out-of-domain status at the boundary (DB CHECK is backstop).
+    if (!isValidProjectStatus(status)) {
+      return res.status(400).json({ error: INVALID_STATUS_ERROR });
+    }
+
     const result = await pool.query(
       `INSERT INTO projects (name, description, status)
        VALUES ($1, $2, $3)
@@ -183,9 +191,14 @@ export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, status } = req.body;
-    
+
+    // §V33: reject out-of-domain status at the boundary (DB CHECK is backstop).
+    if (!isValidProjectStatus(status)) {
+      return res.status(400).json({ error: INVALID_STATUS_ERROR });
+    }
+
     const result = await pool.query(
-      `UPDATE projects 
+      `UPDATE projects
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            status = COALESCE($3, status)

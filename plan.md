@@ -1,14 +1,35 @@
-# IC-Lib Improvement Plan — COMPLETE (2026-07-02)
+# IC-Lib Improvement Plan
 
-All phases of the multi-phase plan (C, E, K, H, I, F, G1/G2/G3, D, J, B, A)
-have landed. `SPEC.md` is the living source of truth (`§T` backlog, `§V`
-invariants, `§B` bug log); this file is now just the closing ledger.
+Phase 1 (feature build-out, C/E/K/H/I/F/G/D/J/B/A) landed 2026-07-02 — ledger
+below. Phase 2 (reliability hardening) opened 2026-07-06 by the full-codebase
+review (`REVIEW.md`); backlog is `§T13–T18`. `SPEC.md` is the living source of
+truth (`§T` backlog, `§V` invariants, `§B` bug log); this file plans + ledgers.
 
 > SDD flow: code-as-built is source of truth (`§C9`). New work: spec entries
 > via the `spec` skill, bugs via `backprop`, `CHANGELOG.md` `## [Unreleased]`,
 > gate `bash ./test.sh` green before commit.
 
-## Done ledger
+## Phase 2 — reliability hardening (opened + landed 2026-07-06)
+
+Goal: cross the gap from "works" to "reliable service." Source: `REVIEW.md`
+(2026-07-06). Definition of reliable, in priority order — the orchestrator must
+know when the app is broken; the process must die only on unrecoverable faults;
+deploys must not sever work in flight; auth must resist brute force; the data
+model must reject impossible states. All six shipped in order T13->T18, each an
+independent build with a regression test locking its invariant.
+
+| §T | Sev | Task | Invariant | Landed |
+|---|---|---|---|---|
+| T13 | H1 | Readiness split: `/api/health` DB-free liveness + `/api/ready` (503 when DB down/schema unverified); Dockerfile HEALTHCHECK + nginx `/ready` repointed | `§V30` | `healthController.js`; test DB-down->503, liveness 200 |
+| T14 | H2/H3/H4 | Drop `process.exit` on idle pool error; `gracefulShutdown.js` SIGTERM/SIGINT drain+timeout+`pool.end`; uncaughtException/unhandledRejection -> logFatal+exit≠0 | `§V31` | test drain->0, fatal->≠0, timeout force-exit |
+| T15 | H5 | `express-rate-limit` v7 on login + change-password (429) + global `/api` ceiling; `trust proxy` for nginx | `§V32` | `middleware/rateLimit.js`; test N+1 login->429 |
+| T16 | H6/N7 | `project.status` CHECK migration 16 (backfill first) + init-schema mirror + API 400 + dashboard `planning` dropped | `§V33` | validated scratch pg18; `constants/projectStatus.js` |
+| T17 | N8 | `VENDOR_HTTP_TIMEOUT_MS` on all 9 digikey/mouser/footprint axios calls; bulk refresh skips timed-out item | `§V34` | `constants/vendorHttp.js`; test timeout skipped, batch continues |
+| T18 | N9 | `express-validator` was dead (0 usages) -> removed (prefer deletion over repo-wide adopt) | `§C9` | `npm uninstall` |
+
+Spec backlog: `T13–T18` all `x`; `B15–B18` recorded. New deps: `express-rate-limit@^7`.
+
+## Phase 1 done ledger (landed 2026-07-02)
 
 | Commit | Phase | Summary |
 |---|---|---|

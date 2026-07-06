@@ -552,7 +552,8 @@ CREATE TABLE IF NOT EXISTS projects (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     status VARCHAR(50) DEFAULT 'active', -- 'active', 'completed', 'archived'
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_project_status CHECK (status IN ('active', 'completed', 'archived'))
 );
 
 -- Table: project_components

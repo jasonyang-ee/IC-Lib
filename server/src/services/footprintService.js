@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { normalizeCadUploadFilename, sanitizeCadBaseName } from '../utils/footprintFiles.js';
 import { logError } from '../utils/logger.js';
+import { VENDOR_HTTP_TIMEOUT_MS } from '../constants/vendorHttp.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,7 @@ export async function downloadFromUltraLibrarian(partNumber) {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
@@ -48,6 +50,7 @@ export async function downloadFromUltraLibrarian(partNumber) {
       // Download the actual file and stage it through the temp-upload pipeline
       const fileResponse = await axios.get(response.data.downloadUrl, {
         responseType: 'arraybuffer',
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       });
 
       const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_UL.brd`, fileResponse.data);
@@ -95,6 +98,7 @@ export async function downloadFromSnapEDA(partNumber) {
           q: partNumber,
           api_key: apiKey,
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
@@ -110,6 +114,7 @@ export async function downloadFromSnapEDA(partNumber) {
             'Authorization': `Bearer ${apiKey}`,
           },
           responseType: 'arraybuffer',
+          timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
         });
 
         const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_SnapEDA.brd`, fileResponse.data);

@@ -18,10 +18,14 @@ const pool = new Pool({
 });
 
 // Silent on connect - only log errors
-// Connection logging is handled by initialization service
+// Connection logging is handled by initialization service.
+//
+// §V31: a pg idle-client error is recoverable (network blip, DB failover,
+// idle-timeout reset). The pool evicts the bad client and keeps serving from
+// the rest, so we log and continue - never process.exit here, which would turn
+// a transient backend hiccup into a crash-loop under `restart: unless-stopped`.
 pool.on('error', (err) => {
-  logError('Database', `Unexpected error on idle client: ${err.message}`);
-  process.exit(-1);
+  logError('Database', `Idle client error (evicted, pool continues): ${err.message}`);
 });
 
 export default pool;

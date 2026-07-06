@@ -73,8 +73,11 @@ EXPOSE 80
 # Set working directory back to /app
 WORKDIR /app
 
+# Probe readiness (DB reachable + schema verified), not liveness (§V30):
+# wget --spider treats any non-2xx as failure, so a DB-down /ready (503) marks
+# the container unhealthy instead of routing traffic to an app that can only 500.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s \
-  CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost/ready || exit 1
 
 # Use our startup script as entrypoint
 ENTRYPOINT ["/app/start.sh"]

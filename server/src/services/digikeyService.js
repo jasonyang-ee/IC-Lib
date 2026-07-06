@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logError, logInfo } from '../utils/logger.js';
+import { VENDOR_HTTP_TIMEOUT_MS } from '../constants/vendorHttp.js';
 
 const DIGIKEY_API_BASE = 'https://api.digikey.com';
 let accessToken = null;
@@ -75,6 +76,7 @@ async function getAccessToken() {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
@@ -131,6 +133,7 @@ export async function searchPart(partNumber, skipCache = false) {
           'X-DIGIKEY-Locale-Language': 'en',
           'X-DIGIKEY-Locale-Currency': 'USD',
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
@@ -241,6 +244,7 @@ export async function getPartDetails(digikeyPartNumber) {
           'X-DIGIKEY-Locale-Language': 'en',
           'X-DIGIKEY-Locale-Currency': 'USD',
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 

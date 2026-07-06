@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logError } from '../utils/logger.js';
+import { VENDOR_HTTP_TIMEOUT_MS } from '../constants/vendorHttp.js';
 
 const MOUSER_API_BASE = 'https://api.mouser.com/api/v1';
 const API_KEY = process.env.MOUSER_API_KEY;
@@ -25,6 +26,7 @@ export async function searchPart(partNumber, retryCount = 0) {
         params: {
           apiKey: API_KEY,
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
@@ -110,6 +112,7 @@ export async function getPartByMouserPartNumber(mouserPartNumber) {
           apiKey: API_KEY,
           partNumber: mouserPartNumber,
         },
+        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 

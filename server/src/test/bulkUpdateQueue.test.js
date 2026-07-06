@@ -171,4 +171,42 @@ describe('bulk vendor refresh queues', () => {
     }));
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('bulkUpdateStock skips a timed-out vendor call and finishes the batch (§V34)', async () => {
+    queryMock.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.includes('FROM distributor_info di')) {
+        return {
+          rows: [
+            { id: 'dist-to', sku: 'MOU-TIMEOUT', distributor_name: 'Mouser', part_number: 'CAP-1', component_id: 'c-to', last_vendor_sync_at: null },
+            { id: 'dist-ok', sku: 'DK-OK', distributor_name: 'Digikey', part_number: 'RES-2', component_id: 'c-ok', last_vendor_sync_at: null },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    // A bounded axios call aborts with ECONNABORTED on a hung upstream.
+    const timeoutError = new Error('timeout of 15000ms exceeded');
+    timeoutError.code = 'ECONNABORTED';
+    mouserSearchPartMock.mockRejectedValue(timeoutError);
+    digikeySearchPartMock.mockResolvedValue({
+      results: [{ pricing: [{ quantity: 1, price: 1.5 }], stock: 5, productUrl: 'http://ok' }],
+    });
+
+    const res = mockRes();
+    const next = vi.fn();
+
+    await bulkUpdateStock(mockReq(), res, next);
+
+    // Timeout must NOT abort the batch (only RATE_LIMIT_EXCEEDED does): the hung
+    // item is recorded as an error and the next item still gets updated.
+    expect(res.status).not.toHaveBeenCalledWith(429);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.success).toBe(true);
+    expect(payload.totalChecked).toBe(2);
+    expect(payload.updatedCount).toBe(1);
+    expect(payload.errors).toHaveLength(1);
+    expect(payload.errors[0]).toEqual(expect.objectContaining({ sku: 'MOU-TIMEOUT' }));
+    expect(next).not.toHaveBeenCalled();
+  });
 });

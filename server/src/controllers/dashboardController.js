@@ -216,9 +216,9 @@ export const getExtendedDashboardStats = async (req, res, next) => {
       'SELECT COUNT(*) as count FROM projects',
     );
 
-    // Get active projects (status = 'active' or 'planning')
+    // Get active projects (§V33: 'active' only; 'planning' is not in the domain)
     const activeProjectsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM projects WHERE status IN ('active', 'planning')",
+      "SELECT COUNT(*) as count FROM projects WHERE status = 'active'",
     );
 
     // Get total project components

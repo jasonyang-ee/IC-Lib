@@ -73,6 +73,44 @@ Stack: `client/` React 19 + Vite + TailwindCSS v4 + React Query 5; `server/` Exp
 - **Inventory + Projects**: stock/location/minimum flows, barcode lookup, QR/label tools, project BOM w/ lowest-break pricing, consume-all, CSV BOM export
 - **Audit + Ops + Admin**: activity log, reports (quality/coverage/value/stock), dashboard stats, SMTP config, category/manufacturer admin, bulk vendor stock/spec refresh, DB verify/init/backup/reset, legacy CSV import (`scripts/import.js`)
 
+## Reliability Contract (operational invariants — see SPEC §V30-V34)
+
+Target = a dependable single-site service. Non-negotiable operational rules:
+
+- **Liveness ≠ readiness** (`§V30`): `/api/health` is a cheap liveness ping; a
+  separate readiness check reflects DB reachability and returns 503 when the DB
+  is down. The Docker HEALTHCHECK / orchestrator probe must consume readiness,
+  never a probe that returns 200 while the app can only 500.
+- **Die only on unrecoverable faults** (`§V31`): a `pg` pool idle-client `error`
+  is logged and the client evicted — never `process.exit`. `uncaughtException`/
+  `unhandledRejection` log FATAL then exit non-zero. Recoverable ≠ fatal.
+- **Drain on shutdown** (`§V31`): trap SIGTERM/SIGINT -> `server.close` -> await
+  in-flight up to a timeout -> `pool.end()` -> exit 0.
+- **Throttle auth** (`§V32`): login + change-password are rate-limited (429).
+- **Reject impossible states** (`§V33`): every lifecycle column has a DB CHECK +
+  API 400 (parity with `components.approval_status`); no phantom statuses.
+- **Bound outbound HTTP** (`§V34`): every vendor axios call sets a `timeout`; a
+  hung upstream skips its item, never stalls a bulk batch.
+
+## Working Method (any model — how to reproduce distinguished-engineer results)
+
+1. **Read the map first**: `SPEC.md` (truth: §V invariants, §T backlog, §B
+   bugs, §U operator UX), `plan.md` (phase plan/ledger), `REVIEW.md` (latest
+   review), `FORMAT.md` (caveman/spec rules). Don't re-derive what these state.
+2. **Cite evidence, always**: every claim points to `file:line` you actually
+   read. No finding without a citation. Verify before recommending.
+3. **Right-size ceremony** (`FORMAT.md`): typo -> just fix; shared-module change
+   -> spec/review first. Match the surrounding code's idiom and comment density.
+4. **Sectioned spec ownership** (`FORMAT.md`): append to §V/§T/§B; never rewrite
+   a section you don't own. Route cross-cutting spec edits through `/spec`.
+5. **Backprop every bug** (`/backprop`): a fixed bug or failed test asks "what
+   §V invariant would catch recurrence?" -> add it + a locking test.
+6. **Gate before commit**: `bash ./test.sh` green (CI-parity: lint no-fix +
+   client/server/scripts tests + drift guard). Never write the live DB
+   (`flat.gentex.int:5434/iclib`); validate migrations on a scratch cluster.
+7. **Prefer deletion and unification**: dead surfaces get removed (see Phase 1
+   ledger); duplicated logic funnels to one path locked by a 2-way drift test.
+
 ## End of Chat Checklist
 
 - Update `CHANGELOG.md` `## [Unreleased]` for every feature/fix.
