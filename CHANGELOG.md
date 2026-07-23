@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Migrated the repo's AI-workflow files to the current agent-skeleton: `AGENTS.md` (new) is now the canonical work-rules file, `CLAUDE.md` is a one-line `@AGENTS.md` import, and `SPEC.md` was rewritten onto the baked-header, pipe-table format (`§G/§C/§I/§V`, ids preserved verbatim from the old spec). The old `§U` operator-UX section (~40 lines) was folded into new invariants `§V35`-`§V53`; the completed `§T`/`§B` task and bug logs were dropped (fully preserved in git history and this changelog). `plan.md`, `REVIEW.md`, and `FORMAT.md` were deleted — superseded by `PLAN.md`/`HANDOFF.md` cycle files and the `encode-docs`/`review-code` skills. `PLAN.md` and `HANDOFF.md` were added as blank cycle-file templates (no cycle currently in progress).
+
 ### Added
 
 - Every outbound vendor HTTP call (DigiKey, Mouser, and Ultra Librarian / SnapEDA footprint fetch) is now bounded by a timeout (SPEC §V34). axios defaults to no timeout, so a hung upstream previously held the request open indefinitely — and inside the admin bulk stock/spec refresh, one stuck endpoint stalled the entire batch. All nine vendor calls now share a single `VENDOR_HTTP_TIMEOUT_MS` bound (default 15s, tunable via environment); a timed-out call aborts and is treated by the bulk-refresh loop as a skippable item so the batch continues instead of hanging. Vendor daily rate-limit responses still abort the batch early as before.
