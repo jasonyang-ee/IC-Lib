@@ -7,7 +7,7 @@ Encoding: drop articles/filler/aux verbs. Fragments fine. Short synonyms (fix > 
 Preserve verbatim: code, paths, identifiers, URLs, numbers, error strings, SQL, regex.
 Tables (§C/§I/§R/§V): pipe-delimited, id-keyed; header row + GFM delimiter row (|---|---|), one cell per column. Escape literal \| . Empty cell = -
 ids: monotonic, never reused — take the next from `next:` below, ⊥ from the highest row (rows get pruned)
-next: C11 I12 R1 V54
+next: C13 I12 R1 V54
 One file rule: >1000 lines → prune stale §V, ⊥ split into more files.
 Full rules: /encode-docs skill. Cutting a word that loses a fact ⊥ allowed.
 -->
@@ -28,12 +28,14 @@ C1|stack React 19 + Vite + TailwindCSS v4 + React Query 5 \| Express 4 \| Postgr
 C2|DB primary keys ! `UUID DEFAULT uuidv7()`; create time derive via `created_at(id)`.
 C3|app owns flat CAD tree `library/footprint\|symbol\|model\|pspice\|pad` + temp/delete buffers; DB tracks `cad_files` + `component_cad_files`, plus `footprint_related_cad_files` for reusable footprint-driven pad and 3D-model history.
 C4|views `components_full`, `component_specifications_view`, `eco_orders_full`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts` = external OrCAD-CIS/ODBC compat surface only — server runtime ⊥ query them; keep + startup-verify all 7 (`EXPECTED_SCHEMA_VIEWS`, locked by `schemaInspectionService.test.js`); OrCAD/CIS compat ! keep TEXT cols `pcb_footprint\|schematic\|step_model\|pspice\|pad_file`. note: live `schema_migrations` holds historical row `0_schema_version_1_8_0.sql` (file ∉ repo) — inert, pending-detection = files minus rows; ⊥ delete history. note: `footprint_sources` table legacy — 0 rows live, ∄ writer (footprint fetch stages via `library/temp` instead); kept in schema/backup/clear lists, ⊥ new writes.
-C5|roles `read-only\|reviewer\|lab\|read-write\|approver\|admin`; `lab` = `read-write` except File Library page/browse/manage access ⊥; some component-scoped CAD helper APIs still usable from Parts Library edit flow.
+C5|roles `read-only\|reviewer\|lab\|read-write\|approver\|admin`; `lab` = `read-write` except File Library page/browse/manage access ⊥; some component-scoped CAD helper APIs still usable from Parts Library edit flow. role-gate implementation (`server/src/middleware/auth.js`): `authenticate`, `canWrite`, `canApprove`, `isAdmin`, `canDeleteLibraryFiles` (approver\|admin), `canAccessFileLibrary` (read-write\|approver\|admin), `canDirectEditComponent`/`canDirectEditComponentByBody` (ECO-mode edit policy per §V15); client mirror `client/src/utils/accessControl.js`. optional-actor read flows use `req.user?.id \|\| null`.
 C6|runtime flags/env ! support `CONFIG_ECO`, `CONFIG_BASE_URL`, `CONFIG_SUBDIRECTORY_PATH`, DB creds, vendor API creds, `SMTP_ENCRYPTION_KEY`.
-C7|startup may repair missing base schema from `database/init-*.sql`; incremental change ! live in `database/migrations/<int>_<desc>.sql`.
+C7|startup may repair missing base schema from `database/init-*.sql`; incremental change ! live in `database/migrations/<int>_<desc>.sql`. `database/init-*.sql` ! fresh-init/full-rebuild only — ⊥ `ALTER`, backfill, constraint rewrite, legacy cleanup. migrations idempotent when practical (`IF NOT EXISTS`, guarded `DO $$`); startup auto-applies pending files. migration adding startup-required cols/views/tables ! update server schema inspection expectations too. release traceability = version in migration header + `CHANGELOG.md`, ⊥ filename. live DB (`flat.gentex.int:5434/iclib`) ⊥ agent-writable; validate migrations on scratch PostgreSQL cluster before landing.
 C8|file ops & import/repair flows must work on shared repo filesystem; path escape ⊥.
 C9|spec target code-as-built first; known drift/bugs tracked via `CHANGELOG.md` + git history, ⊥ hidden.
 C10|flexible workflow/audit payloads may persist in JSONB: `activity_log.details`, distributor `price_breaks`, ECO alt `distributors`, similar variable-shape data.
+C11|naming: camelCase vars/fns, PascalCase components, snake_case DB cols/tables. server files `{entity}Controller.js`\|`{name}Service.js`\|`{entity}.js` routes; client files `{PageName}.jsx` pages, `{ComponentName}.jsx` components. logs ASCII only, `[LEVEL] [ServiceName] Message`. UI: minimal icon use.
+C12|inventory/project/dashboard read routes stay unauthenticated per §V10 allowlist — ⊥ add auth there unless a feature explicitly changes the access model.
 
 ## §I INTERFACES
 
