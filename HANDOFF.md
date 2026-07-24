@@ -9,27 +9,3 @@ final verification table ! filled only by the final verify phase; else header ro
 Encoding: same symbol set as SPEC.md.
 Full rules: /encode-docs skill.
 -->
-
-# HANDOFF -
-
-branch - | last commit - | tests - (-)
-uncommitted: -
-
-## done this session
--
-
-## in progress (exact stop point)
--
-
-## next
--
-
-## deviations & decisions
--
-
-## watchouts
--
-
-## final verification
-item|status|evidence|decision
-|---|---|---|---|

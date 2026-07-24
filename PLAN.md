@@ -10,17 +10,3 @@ Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
 planning status: new
 -->
-
-# PLAN
-
-goal: -
-
-## ground rules
--
-
-## existing assets
--
-
-## phase order
-id|goal|depends|exit
-|---|---|---|---|
