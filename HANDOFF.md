@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `f44d7cc` | tests pass 341/341 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 40 files/247 tests, scripts + lint pass)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F6 §T flips + baton; F6 code committed separately
+branch `test` | last commit `c5f0310` | tests pass 341/341 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 40 files/247 tests, scripts + lint pass)
+uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
 
 ## done this session
 
@@ -36,11 +36,13 @@ uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F6 §T flips + baton; 
 - F6.T1: new `server/src/constants/publicRoutes.js` — `ROUTER_MOUNTS` (16 routers), `PUBLIC_GETS` (48), `PUBLIC_MUTATIONS` (2), `PUBLIC_GLOBAL_TARGETS` (= `PUBLIC_GETS` + `inventory post /search/barcode`, ⊥ login), `resolveRouteDescriptor`, `isPublicGlobalTarget`. `routeAuthGuards.test.js` now imports them ∴ its 2-way sweep IS the drift guard for the limiter.
 - F6.T2: `createPublicGlobalLimiter` wraps `createGlobalLimiter` and calls `next()` without incrementing unless `isPublicGlobalTarget(req)`. `index.js` mounts it at `app.use('/api', publicGlobalLimiter)` (same position, after probes).
 - F6.T3: `createAuthLimiter`/`authLimiter` replaced by `createLoginLimiter` (IP) + `createChangePasswordLimiter` (`req.user.id`, IP fallback); separate stores. env `RATE_LIMIT_AUTH_*` → `RATE_LIMIT_LOGIN_*` + `RATE_LIMIT_CHANGE_PASSWORD_*`.
+- F6 (committed `c5f0310`).
 - F6.T4: `.env.example`, `docker-compose.yml`, `README.md` (new env table) document the 3 budgets + process-local MemoryStore + shared-store-before-scaling requirement. `rateLimit.test.js` 9 cases (login 429, success skip, per-user password isolation, login⊥password cross-throttle, public GET throttle, barcode + OIDC status share the budget, private routes unthrottled + ⊥ spending it, login excluded, `:param` match). `routeAuthGuards.test.js` +4 (mount/router-name coverage, target-set algebra, matcher static/param/query/trailing-slash/case/lookalike/wrong-method).
+- F7 pre-read only (⊥ code): confirmed migration int `18` free, all 7 views @ `database/init-schema.sql:367,389,458,476,494,513,845`, `docker version` = 28.0.4 ∴ F7.T3 executable. Found a §R14 blocker the plan ⊥ anticipate — see deviations.
 
 ## in progress (exact stop point)
 
-none — F6 closed, oracle green. F7.T1 not started.
+none — F6 closed, oracle green. F7.T1 not started; stopped on context budget before opening a phase that cannot be finished + committed in one pass.
 mid-edit files: none.
 
 ## next
@@ -51,6 +53,7 @@ F7.T1 | write `database/migrations/18_alternative_class.sql` + mirror it in `dat
 
 - F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC content change this session.
 - create previously answered 201 even when `syncComponentCadFiles` threw (it was `logWarn`-swallowed). Under §V7/§V8 atomicity that swallow is gone ∴ a CAD-sync failure now fails the whole create. Intended, and covered by a named regression.
+- **F7.T1 needs a plan correction before SQL is written.** `components_full` is defined `SELECT c.*, cat.name, cat.prefix, m.name, m.website, COUNT(...) AS distributor_count, COALESCE(...) AS inventory_quantity`. `ALTER TABLE components ADD COLUMN alt_class` appends to `components` ∴ `c.*` expands with `alt_class` BEFORE `category_name` — an insertion mid-list, which (a) `CREATE OR REPLACE VIEW` rejects outright (§R14) and (b) violates §C4's "append after existing columns" by shifting the last 6 ordinals. Worse, the fresh vs upgraded column order of `components` already differs: `init-schema.sql` places `last_specs_refresh_at` BEFORE `updated_at`, while `13_vendor_refresh_queue_cursors.sql` appends it AFTER on upgraded DBs ∴ ∄ single hard-coded projection correct on both paths. Recommended fix: for `components_full` only, replace it inside a guarded `DO $$` that reads the CURRENT `components_full` column list from `information_schema.columns` (ordered by `ordinal_position`), then rebuilds the view as those columns in that exact order followed by `c.alt_class` — correct + idempotent on either path. The other five views have explicit projections identical on both paths ∴ plain `CREATE OR REPLACE` with `, c.alt_class` appended (`alternative_parts` appends the PARENT component's default). F7.T3's ordinal-prefix comparison is what proves this; run it on BOTH the upgrade DB and the fresh DB.
 - F6: `PUBLIC_GLOBAL_TARGETS` deliberately excludes `auth post /login` — it owns a tighter per-IP limiter, and double-counting would let failed logins throttle unrelated guest reads from the same office.
 - F5: the alleged missing `+` guard was disproven in F1; F5 therefore ships evidence + a comment correction, ⊥ a behaviour change. Both rename modes go through the one `handleRenameSubmit` guard.
 - F4: `Library.jsx` ECO staging array renamed to `stagedDistributors`, but the `createECO` body key stays `distributors:` — the server contract is untouched.
