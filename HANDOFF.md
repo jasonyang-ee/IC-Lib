@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch `test` | last commit `8d222cf` | tests 306/306 pass — client 89/89 (25 files), server 217/217 (38 files), scripts dry-run import pass (`bash ./test.sh`); scratch OIDC continuity runtime check green
-uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `HANDOFF.md` phase baton pending commit.
+branch `test` | last commit `81d3472` | tests 313/313 pass — client 91/91 (25 files), server 222/222 (38 files), scripts dry-run import pass (`bash ./test.sh`); scratch OIDC continuity runtime check green
+uncommitted: `BACKLOG.md` user-auth input + deferred ABC request.
 
 ## done this session
 
@@ -24,24 +24,26 @@ uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `HANDOFF.md` p
 - `F3.T1`: exact Entra issuer parsing + normalized tenant allowlist reject before DB; validated `tid`/`oid` only, authorization claims absent → `8d222cf`.
 - `F3.T2`: primary/continuity/email/JIT resolver preserves local role/active, rejects identity conflicts, handles named unique races → `8d222cf`.
 - `F3.T3`: tenant-policy failure proven before resolver/write/audit/cookie; controller + route guard regression green → `8d222cf`.
+- `F4.T1`: admin role/active edits remain local for OIDC users; local-password assignment rejects before bcrypt; ordinary removal is audited, idempotent soft deactivation retaining identity/history → `81d3472`.
+- `F4.T2`: User Management labels SSO, hides its password control, explains local authority, uses retention-safe deactivation language, & suppresses repeat actions for inactive users → `81d3472`.
 
 ## in progress (exact stop point)
 
-none — F3 complete & committed.
+none — F4 complete & committed.
 mid-edit files: none
 
 ## next
 
-`F4.T1` | preconditions: F3 green. In `server/src/controllers/authController.js`, load `auth_provider`, reject nonempty OIDC password before bcrypt/update, keep local role/active edits, & replace ordinary hard delete w/ audited idempotent deactivation; write 4 named cases first.
+`F5.T1` | preconditions: F4 green. Add `OIDC_ALLOWED_TENANTS` to `.env.example` + `docker-compose.yml` with exact Entra shared-issuer behavior; write `server/src/test/oidcConfigDocs.test.js` parity/forbidden-authorization-variable regression first.
 
 ## deviations & decisions
 
-- plan followed. F3.T3 production controller ordering already fail-closed ∴ regression test only; `oidcController.js` unchanged.
+- plan followed. `deleteUser` route/function + client API name retained for compatibility; behavior is now soft deactivation.
 
 ## watchouts
 
 - scratch cluster running @ `127.0.0.1:55432/iclib_review_plan`; contains one disposable synthetic OIDC continuity user. data @ `C:\Users\sami\AppData\Local\Temp\iclib-review-plan-pg18`; live DB untouched & ⊥ writable.
-- F4 security: OIDC password rejection ! occur before `bcrypt.hash`; role/active remain admin-local; ordinary removal ! retain identity row + references.
+- F5 config/docs: keep generic OIDC support; exact Entra `/common`|`/organizations` needs nonempty tenant allowlist; ⊥ authorization-claim variables or Keycloak runtime dependency.
 - PowerShell blocks `npm.ps1`; use `npm.cmd` or repo `bash ./test.sh`.
 - preserve uncommitted `BACKLOG.md`; ⊥ read or stage.
 
