@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch `test` | last commit `55c3c65` | tests 316/316 pass — client 91/91 (25 files), server 225/225 (39 files), scripts dry-run import pass (`bash ./test.sh`); named auth gate 67/67 + scratch migration/runtime checks green
-uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `PLAN.md` + `HANDOFF.md` verified-cycle closure pending phase commit.
+branch `test` | last commit `9a8d073` | tests 316/316 pass — client 91/91 (25 files), server 225/225 (39 files), scripts dry-run import pass (`bash ./test.sh`); named auth gate 67/67 + scratch migration/runtime checks green
+uncommitted: `BACKLOG.md` user-auth input + deferred ABC request.
 
 ## done this session
 
@@ -28,11 +28,11 @@ uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `PLAN.md` + `H
 - `F4.T2`: User Management labels SSO, hides its password control, explains local authority, uses retention-safe deactivation language, & suppresses repeat actions for inactive users → `81d3472`.
 - `F5.T1`: `.env.example` + Compose expose all 8 runtime OIDC vars, including optional tenant allowlist, w/ exact shared-Entra config behavior & ⊥ authorization-claim knobs → `2d4b298`.
 - `F5.T2`: README documents direct Express→Entra + generic OIDC, local authorization/JIT/linking/break-glass, deprovision absence, & ≤24h session caveat; config drift tests green → `2d4b298`.
-- `F6.T1`: cumulative security/spec sweep = 10 HOLD + live-Entra UNVERIFIABLE; named auth 67/67, full 316/316 + scripts, PG18 migrations `1..17`/no-op/schema/continuity rotation, diff checks, & BACKLOG isolation green.
+- `F6.T1`: cumulative security/spec sweep = 10 HOLD + live-Entra UNVERIFIABLE; named auth 67/67, full 316/316 + scripts, PG18 migrations `1..17`/no-op/schema/continuity rotation, diff checks, & BACKLOG isolation green → `9a8d073`.
 
 ## in progress (exact stop point)
 
-none — F6 complete; phase closure pending commit.
+none — F6 + cycle complete & committed.
 mid-edit files: none
 
 ## next
