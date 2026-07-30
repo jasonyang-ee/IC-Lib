@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch `test` | last commit `0b3abd0` | tests 291/291 pass — client 89/89 (25 files), server 202/202 (37 files), scripts dry-run import pass (`bash ./test.sh`, run from repo root)
-uncommitted: `PLAN.md` + `SPEC.md` + `BACKLOG.md` — this prep cycle's output, ⊥ code. `PLAN.md` = new F1-F6 plan; `SPEC.md` = §R1-R5 + §V54-V56 + edits to §V29/§I9/§I11; `BACKLOG.md` = auth request removed (ingested → `PLAN.md`), ABC-rating request retained + enriched w/ its settled schema decision.
+branch `test` | last commit `8d95977` | tests 291/291 pass — client 89/89 (25 files), server 202/202 (37 files), scripts dry-run import pass (`bash ./test.sh`, run from repo root)
+uncommitted: none — prep output committed in `8d95977` (`PLAN.md` F1-F6 plan; `SPEC.md` §R1-R5 + §V54-V56 + edits to §V29/§I9/§I11; `BACKLOG.md` auth request ingested → plan, ABC-rating + identity-lifecycle entries retained).
 
 ## done this session
 
