@@ -82,14 +82,14 @@ files: `database/migrations/17_oidc_identity_continuity.sql`, `database/init-use
 
 §T TASKS:
 
-T1|.|add migration `17_oidc_identity_continuity.sql` + fresh-init parity
+T1|x|add migration `17_oidc_identity_continuity.sql` + fresh-init parity
 touch: `database/migrations/17_oidc_identity_continuity.sql`, `database/init-users.sql`
 details: migration header names target release + §V29. Add nullable `users.oidc_tenant_id TEXT`, `users.oidc_object_id TEXT`; partial unique index on (`oidc_issuer`,`oidc_tenant_id`,`oidc_object_id`) when all non-null. Idempotent `ADD COLUMN IF NOT EXISTS` + `CREATE UNIQUE INDEX IF NOT EXISTS`. Mirror columns/index inside fresh `CREATE TABLE` path; ⊥ `ALTER` in init file. ⊥ `role_source`, ⊥ `oidc_role_mappings`.
 verify: new `server/src/test/oidcIdentitySchema.test.js` cases `migration and init-users define both continuity columns` & `continuity identity is unique only when issuer tenant and object are present`; scratch migration applies, re-run no-op, `\d users` shows parity.
 exit: migrated + fresh DB share exact continuity identity shape.
 next: F2.T2
 
-T2|.|make continuity columns startup-required
+T2|x|make continuity columns startup-required
 touch: `server/src/services/schemaInspectionService.js`, `server/src/test/schemaInspectionService.test.js`
 details: add both columns to `REPAIRABLE_SCHEMA_COLUMNS`; table lists/export lists unchanged because ∄ new table. Assert pre-17 existing DB migrates before schema inspection (§V4).
 verify: `server/src/test/schemaInspectionService.test.js` case `requires OIDC continuity columns on users`; `server/src/test/initializationService.test.js` case `bootstraps blank databases with init-schema before legacy repair migrations`; `bash ./test.sh` green.

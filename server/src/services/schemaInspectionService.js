@@ -62,6 +62,8 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'auth_provider' },
   { table: 'users', column: 'oidc_issuer' },
   { table: 'users', column: 'oidc_sub' },
+  { table: 'users', column: 'oidc_tenant_id' },
+  { table: 'users', column: 'oidc_object_id' },
   { table: 'cad_files', column: 'missing' },
   { table: 'components', column: 'last_specs_refresh_at' },
   { table: 'distributor_info', column: 'last_vendor_sync_at' },

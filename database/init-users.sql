@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
   is_active BOOLEAN DEFAULT true,
   auth_provider VARCHAR(20) NOT NULL DEFAULT 'local',
   oidc_issuer TEXT,
-  oidc_sub TEXT
+  oidc_sub TEXT,
+  oidc_tenant_id TEXT,
+  oidc_object_id TEXT
 );
 
 -- Create index on username for faster lookups
@@ -33,6 +35,12 @@ CREATE INDEX IF NOT EXISTS idx_users_delegation ON users(delegation);
 CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_identity_unique
   ON users(oidc_issuer, oidc_sub)
   WHERE oidc_issuer IS NOT NULL AND oidc_sub IS NOT NULL;
+-- Optional continuity identity supports OIDC providers that emit tenant/object ids
+CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_continuity_identity_unique
+  ON users(oidc_issuer, oidc_tenant_id, oidc_object_id)
+  WHERE oidc_issuer IS NOT NULL
+    AND oidc_tenant_id IS NOT NULL
+    AND oidc_object_id IS NOT NULL;
 
 -- Activity types table for user actions
 CREATE TABLE IF NOT EXISTS activity_types (

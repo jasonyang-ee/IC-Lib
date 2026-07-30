@@ -7,7 +7,10 @@ vi.mock('../config/database.js', () => ({
   default: { query: vi.fn() },
 }));
 
-const { EXPECTED_SCHEMA_VIEWS } = await import('../services/schemaInspectionService.js');
+const {
+  EXPECTED_SCHEMA_VIEWS,
+  REPAIRABLE_SCHEMA_COLUMNS,
+} = await import('../services/schemaInspectionService.js');
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -18,5 +21,12 @@ describe('schema inspection expectations', () => {
       .map((match) => match[1]);
 
     expect([...viewNames].sort()).toEqual([...EXPECTED_SCHEMA_VIEWS].sort());
+  });
+
+  it('requires OIDC continuity columns on users', () => {
+    expect(REPAIRABLE_SCHEMA_COLUMNS).toEqual(expect.arrayContaining([
+      { table: 'users', column: 'oidc_tenant_id' },
+      { table: 'users', column: 'oidc_object_id' },
+    ]));
   });
 });
