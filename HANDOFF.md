@@ -12,35 +12,37 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `2cb139d` | tests pass 316/316 (last full `bash ./test.sh` @ planning head; F1 = read-only, ⊥ code change)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F1 §T flips + baton; ⊥ implementation files
+branch `test` | last commit `9c8fa49` | tests pass 326/326 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 40 files/235 tests, scripts + lint pass)
+uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F2 §T flips + baton; F2 code committed separately
 
 ## done this session
 
-- `/cook`: flipped `planning status` `new` → `work-in-progress`.
-- F1.T1: re-ran one-off `no-shadow:error` on `server/src` → exactly 19 errors, exact sites match §R7 (`authController` 109/185/304/435/638/836; `componentController` 292/462/593/669/972/1239/1357/1413/1520/2280; `oidcController` 119; `settingsController` 1198/1533). classified each: REQUIRED (audit joins live txn via `client`) = `componentController.changeCategory:462`, `deleteComponent:669`, `promoteAlternative:1520`, + `createComponent:292` once F2.T1 wraps create in a txn → 4. OPTIONAL (audit on `pool`, outside txn) = remaining 15. 4+15=19 ✓. readiness matrix: `healthController.readiness` currently = `SELECT 1` ping + `getAuthenticationStatus()`, leaks `error.message` + `authentication` object in 503 body; `inspectDatabaseSchema()` (default `STARTUP_REQUIRED_TABLES`/`EXPECTED_SCHEMA_VIEWS`/`REPAIRABLE_SCHEMA_COLUMNS`) is the live full-schema oracle F3 must call; `liveness` already DB-free.
-- F1.T2: `+` guard confirmed live @ `client/src/pages/FileLibrary.jsx:674-677` inside `handleRenameSubmit`, which serves BOTH single + pair rename (`renameData.mode`) ∴ F5 = comment fix + regression only. helper divergence confirmed = server `path.extname` vs client `lastIndexOf`, supported-boundary output identical. limiter map: `app.use('/api', globalLimiter)` @ `index.js:101` (all API); single shared `authLimiter` used by BOTH `POST /login` + `POST /change-password` @ `routes/auth.js:11,22`. exact §V10 manifest extracted from `routeAuthGuards.test.js`: 48 public GET keys + 2 public mutation keys (`auth post /login`, `inventory post /search/barcode`).
-- F1.T3: `alt_class` ∄ anywhere in `database/`, `server/src`, `client/src` → fully greenfield. next migration int = `18` (`17_oidc_identity_continuity.sql` is highest). all six §C4 component-facing views + `eco_orders_full` confirmed in `database/init-schema.sql:367,389,458,476,494,513,845`. `inspectDatabaseSchema` column check queries `information_schema.columns` ∴ view columns are addable to `REPAIRABLE_SCHEMA_COLUMNS` without new query shape.
-- F1.T4: `authenticate` @ `server/src/middleware/auth.js:60-105` is synchronous, cookie-then-Bearer, attaches `{...decoded, id: decoded.userId}` and never re-reads the DB → F9.T1 must convert it to async + one `is_active` query. `users` schema carries `is_active`, `auth_provider`, `oidc_issuer|sub|tenant_id|object_id` ∴ SCIM needs ⊥ new user columns.
+- F1 (committed `9c8fa49`): contract revalidation, ⊥ code change. 19 shadow sites classified 4 required / 15 optional; readiness, footprint `+` guard, limiter, greenfield `alt_class`, sync `authenticate` all confirmed. detail in that commit's baton.
+- F2.T1: `componentController.createComponent` now acquires a pooled client and runs component insert + category lookup + required `logActivity(client,...)` + inventory insert + `syncComponentCadFiles(...,client,...)` in ONE txn, releases after `COMMIT`, and only then fetches + answers 201. `catch` does best-effort `ROLLBACK`; `finally` releases.
+- F2.T2: `updateComponent` shares one txn between the TEXT `UPDATE` and `syncComponentCadFiles(...,client)`; audit moved AFTER `COMMIT` on `pool` and stays optional.
+- F2.T3: 3 required in-txn audits (`changeComponentCategory`, `deleteComponent`, `promoteAlternative`) lost their inner `catch` per §R9. 16 optional sites renamed `logError` → `activityError` binding + call the imported logger (`authController` 6, `componentController` 6, `oidcController` 1, `settingsController` 2, plus one pre-existing `activityError` site left as-is).
+- F2.T4: `server/eslint.config.js` gains `'no-shadow':'error'` + `'no-console':'error'` with a `src/utils/logger.js`-only console override; removed 3 decorative `console.log('')` from `src/index.js`. `npm.cmd exec eslint -- src` → clean.
+- F2.T5: new `server/src/test/componentAuditFailure.test.js` (7 cases: create COMMIT-once/201, rollback on rejected audit, rejected inventory, rejected CAD sync, client-handle wiring; update rollback on CAD sync, update survives rejected audit). `authController.test.js` +2 (cookie set / cleared under rejected audit). `oidcController.test.js` +1 (SSO cookie under rejected audit). `componentControllerFlows.test.js` `pool.connect` mock now returns `asClient(...)`. `CHANGELOG.md` `## [Unreleased]` gains a `### Fixed` block.
 
 ## in progress (exact stop point)
 
-none — F1 closed. F2.T1 not started.
+none — F2 closed, oracle green. F3.T1 not started.
 mid-edit files: none.
 
 ## next
 
-F2.T1 | rewrite `server/src/controllers/componentController.js:createComponent` to acquire a client, `BEGIN`, and run component insert + category lookup + required `logActivity(client,...)` + inventory insert + `syncComponentCadFiles(...,client,...)` in one txn, `COMMIT` before responding; new `server/src/test/componentAuditFailure.test.js`.
+F3.T1 | rewrite `server/src/controllers/healthController.js:readiness` to call `inspectDatabaseSchema()` once per request (drop the `SELECT 1` ping + `getAuthenticationStatus()` dependency); `valid:true` → 200, rejected query | `valid:false` → 503.
 
 ## deviations & decisions
 
-- F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC/PLAN content change beyond §T status + `planning status`.
-- §R9 confirmed applicable: the 3 existing REQUIRED sites swallow a failed statement inside a live txn, which PostgreSQL leaves unusable ∴ F2.T3 must remove those inner catches rather than log-and-continue.
+- F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC content change this session.
+- create previously answered 201 even when `syncComponentCadFiles` threw (it was `logWarn`-swallowed). Under §V7/§V8 atomicity that swallow is gone ∴ a CAD-sync failure now fails the whole create. Intended, and covered by a named regression.
+- optional-audit binding name = `activityError`, chosen because `authController.js:483` already used it ∴ house convention, ⊥ new one.
 
 ## watchouts
 
 - all prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`).
-- `componentController.createComponent` currently has ∄ transaction at all — F2.T1 is a structural rewrite, not a catch rename; expect the largest diff of F2.
+- `componentControllerFlows.test.js` + `componentAuditFailure.test.js` both mock `pool.connect`; any later controller that adopts a txn ! get the same mock or its suite throws `connect is not a function`.
 - `authenticate` becoming async (F9.T1) changes every route's first handler to an async fn; `routeAuthGuards.test.js` matches on `handle.name === 'authenticate'` ∴ keep the exported binding name.
 
 ## final verification

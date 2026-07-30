@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mockReq, mockRes, sqlDispatch } from './fixtures/controllerTestKit.js';
+import { asClient, mockReq, mockRes, sqlDispatch } from './fixtures/controllerTestKit.js';
 
 const queryMock = vi.fn();
 
+// create/update run their writes on a pooled client; the same dispatch mock
+// backs both handles so assertions still see one ordered conversation.
 vi.mock('../config/database.js', () => ({
   default: {
     query: (...args) => queryMock(...args),
-    connect: vi.fn(),
+    connect: vi.fn(async () => asClient((...args) => queryMock(...args))),
   },
 }));
 

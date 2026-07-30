@@ -178,6 +178,27 @@ describe('oidcController', () => {
       expect(res.redirect).toHaveBeenCalledWith('https://app.example.com');
     });
 
+    // Regression: the SSO audit write is optional, but a catch binding
+    // shadowing the imported `logError` used to throw over the rejection and
+    // divert the callback to /login?error=sso_failed with no session cookie.
+    it('still mints the session cookie when the SSO audit write is rejected', async () => {
+      serviceMocks.exchangeAuthorizationCode.mockResolvedValue({
+        issuer: 'https://idp.example.com', subject: 'sub-123',
+      });
+      serviceMocks.findOrCreateOidcUser.mockResolvedValue(ACTIVE_USER);
+      queryMock.mockImplementation(async (sql) => {
+        if (typeof sql === 'string' && sql.includes('activity')) throw new Error('activity_log rejected');
+        return { rows: [] };
+      });
+      const res = mockRes();
+
+      await oidcCallback(callbackReq({ oidc_state: signStateToken() }), res);
+
+      const authCookieCall = res.cookie.mock.calls.find(([name]) => name === AUTH_COOKIE_NAME);
+      expect(authCookieCall).toBeDefined();
+      expect(res.redirect).toHaveBeenCalledWith('https://app.example.com');
+    });
+
     it('routes a disabled account to a specific login error', async () => {
       serviceMocks.exchangeAuthorizationCode.mockResolvedValue({ issuer: 'i', subject: 's' });
       serviceMocks.findOrCreateOidcUser.mockRejectedValue(new Error('Account is disabled'));

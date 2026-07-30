@@ -106,8 +106,8 @@ export const login = async (req, res) => {
         activityType: 'user_login',
         details: { username: user.username, role: user.role },
       });
-    } catch (logError) {
-      logError('Auth', 'Failed to log login activity:', logError);
+    } catch (activityError) {
+      logError('Auth', 'Failed to log login activity:', activityError);
     }
 
     // Generate JWT token
@@ -182,8 +182,8 @@ export const logout = async (req, res) => {
           activityType: 'user_logout',
           details: { username: req.user.username },
         });
-      } catch (logError) {
-        logError('Auth', 'Failed to log logout activity:', logError);
+      } catch (activityError) {
+        logError('Auth', 'Failed to log logout activity:', activityError);
       }
     }
 
@@ -301,8 +301,8 @@ export const createUser = async (req, res) => {
         description: `Created user: ${username} with role: ${role}`,
         userId: req.user.userId,
       });
-    } catch (logError) {
-      logError('Auth', 'Failed to log user creation:', logError);
+    } catch (activityError) {
+      logError('Auth', 'Failed to log user creation:', activityError);
     }
 
     const shouldSendWelcomeEmail = email && role !== 'read-only';
@@ -432,8 +432,8 @@ export const updateUser = async (req, res) => {
         description: `Updated user: ${result.rows[0].username}`,
         userId: req.user.userId,
       });
-    } catch (logError) {
-      logError('Auth', 'Failed to log user update:', logError);
+    } catch (activityError) {
+      logError('Auth', 'Failed to log user update:', activityError);
     }
 
     res.json(result.rows[0]);
@@ -635,8 +635,8 @@ export const updateProfile = async (req, res) => {
         description: `User ${req.user.username} updated their profile`,
         userId: req.user.userId,
       });
-    } catch (logError) {
-      logError('Auth', 'Failed to log profile update:', logError);
+    } catch (activityError) {
+      logError('Auth', 'Failed to log profile update:', activityError);
     }
 
     res.json({
@@ -833,8 +833,8 @@ export const updateNotificationPreferences = async (req, res) => {
         description: `User ${req.user.username} updated ECO preferences`,
         userId: req.user.userId,
       });
-    } catch (logError) {
-      logError('Auth', 'Failed to log notification preferences update:', logError);
+    } catch (activityError) {
+      logError('Auth', 'Failed to log notification preferences update:', activityError);
     }
 
     res.json({

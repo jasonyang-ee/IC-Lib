@@ -116,8 +116,8 @@ export const oidcCallback = async (req, res) => {
         activityType: 'user_login',
         details: { username: user.username, role: user.role, sso: true },
       });
-    } catch (logError) {
-      logError('OIDC', 'Failed to log SSO login activity:', logError.message);
+    } catch (activityError) {
+      logError('OIDC', 'Failed to log SSO login activity:', activityError.message);
     }
 
     const token = generateToken(user);

@@ -1195,8 +1195,8 @@ export const importAllSettings = async (req, res) => {
         description: `Imported settings: ${results.users.created + results.users.updated} users, ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs`,
         userId: req.user?.userId,
       });
-    } catch (logError) {
-      logError('Settings', 'Failed to log settings import:', logError);
+    } catch (activityError) {
+      logError('Settings', 'Failed to log settings import:', activityError);
     }
 
     res.json({
@@ -1530,8 +1530,8 @@ export const importCategories = async (req, res) => {
         description: `Imported: ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs created/updated, ${results.specifications.deleted} specs deleted`,
         userId: req.user?.userId,
       });
-    } catch (logError) {
-      logError('Settings', 'Failed to log categories import:', logError);
+    } catch (activityError) {
+      logError('Settings', 'Failed to log categories import:', activityError);
     }
 
     res.json({

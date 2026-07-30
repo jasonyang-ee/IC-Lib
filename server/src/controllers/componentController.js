@@ -219,6 +219,7 @@ export const getComponentById = async (req, res, next) => {
 };
 
 export const createComponent = async (req, res, next) => {
+  let client = null;
   try {
     const {
       category_id,
@@ -265,7 +266,14 @@ export const createComponent = async (req, res, next) => {
       RETURNING *
     `;
 
-    const componentResult = await pool.query(insertQuery, [
+    // §V7/§V8: a created component must always come with its activity row,
+    // inventory row and CAD junction rows. All four writes share one
+    // transaction so a failure anywhere leaves no half-created part behind,
+    // and the 201 is only sent after COMMIT.
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const componentResult = await client.query(insertQuery, [
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
       toTextList(pcb_footprint), package_size, toTextList(schematic), toTextList(step_model), toTextList(pspice), toTextList(pad_file),
@@ -273,48 +281,43 @@ export const createComponent = async (req, res, next) => {
     ]);
 
     const component = componentResult.rows[0];
-    
-    // Log activity
-    try {
-      const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
-      await logActivity(pool, {
-        componentId: component.id,
-        userId: req.user.id,
-        partNumber: component.part_number,
-        activityType: 'added',
-        details: {
-          description: component.description,
-          category_name: categoryResult.rows[0]?.name,
-          manufacturer_pn: mfrPartNumber,
-          value: value,
-        },
-      });
-    } catch (logError) {
-      logError('Component', 'Failed to log component creation activity:', logError.message);
-    }
-    
+
+    const categoryResult = await client.query('SELECT name FROM component_categories WHERE id = $1', [validCategoryId]);
+    await logActivity(client, {
+      componentId: component.id,
+      userId: req.user.id,
+      partNumber: component.part_number,
+      activityType: 'added',
+      details: {
+        description: component.description,
+        category_name: categoryResult.rows[0]?.name,
+        manufacturer_pn: mfrPartNumber,
+        value: value,
+      },
+    });
+
     // Auto-create inventory entry (backup in case trigger doesn't exist)
-    await pool.query(`
+    await client.query(`
       INSERT INTO inventory (component_id, quantity, minimum_quantity, location)
       VALUES ($1, 0, 0, NULL)
       ON CONFLICT (component_id) DO NOTHING
     `, [component.id]);
 
     // Sync CAD files to cad_files table
-    try {
-      await cadFileService.syncComponentCadFiles(component.id, {
-        pcb_footprint: parseCadField(component.pcb_footprint),
-        schematic: parseCadField(component.schematic),
-        step_model: parseCadField(component.step_model),
-        pspice: parseCadField(component.pspice),
-        pad_file: parseCadField(component.pad_file),
-      }, pool, {
-        allowFootprintAutoLink: true,
-        allowFootprintHistoryLearning: true,
-      });
-    } catch (syncError) {
-      logWarn('ComponentController', 'Failed to sync CAD files:', syncError.message);
-    }
+    await cadFileService.syncComponentCadFiles(component.id, {
+      pcb_footprint: parseCadField(component.pcb_footprint),
+      schematic: parseCadField(component.schematic),
+      step_model: parseCadField(component.step_model),
+      pspice: parseCadField(component.pspice),
+      pad_file: parseCadField(component.pad_file),
+    }, client, {
+      allowFootprintAutoLink: true,
+      allowFootprintHistoryLearning: true,
+    });
+
+    await client.query('COMMIT');
+    client.release();
+    client = null;
 
     // Fetch the complete component with joined data
     const fullComponent = await pool.query(`
@@ -333,8 +336,17 @@ export const createComponent = async (req, res, next) => {
 
     res.status(201).json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
+    if (client) {
+      // Best-effort: the transaction may already be aborted, but the client
+      // must not go back to the pool holding an open transaction.
+      await client.query('ROLLBACK').catch(rollbackError => {
+        logError('Component', 'Failed to roll back component creation:', rollbackError.message);
+      });
+    }
     logError('Component', 'Error in createComponent:', error);
     next(error);
+  } finally {
+    if (client) client.release();
   }
 };
 
@@ -444,24 +456,22 @@ export const changeComponentCategory = async (req, res, next) => {
       WHERE id = $3
     `, [new_category_id, newPartNumber, id]);
 
-    // Log activity
-    try {
-      await logActivity(client, {
-        componentId: id,
-        userId: req.user.id,
-        partNumber: newPartNumber,
-        activityType: 'category_changed',
-        details: {
-          old_part_number: oldPartNumber,
-          new_part_number: newPartNumber,
-          old_category_id: oldCategoryId,
-          new_category_id: new_category_id,
-          new_category_name: categoryName,
-        },
-      });
-    } catch (logError) {
-      logError('Component', 'Failed to log category change activity:', logError.message);
-    }
+    // Required audit: it shares the transaction, and PostgreSQL cannot carry on
+    // past a failed statement inside one (§R9), so a rejected write aborts the
+    // category change rather than committing an unaudited rename.
+    await logActivity(client, {
+      componentId: id,
+      userId: req.user.id,
+      partNumber: newPartNumber,
+      activityType: 'category_changed',
+      details: {
+        old_part_number: oldPartNumber,
+        new_part_number: newPartNumber,
+        old_category_id: oldCategoryId,
+        new_category_id: new_category_id,
+        new_category_name: categoryName,
+      },
+    });
 
     await client.query('COMMIT');
 
@@ -499,6 +509,7 @@ export const changeComponentCategory = async (req, res, next) => {
 };
 
 export const updateComponent = async (req, res, next) => {
+  let client = null;
   try {
     const { id } = req.params;
     const {
@@ -538,8 +549,13 @@ export const updateComponent = async (req, res, next) => {
       return res.status(404).json({ error: 'Component not found' });
     }
 
+    // §V8: the TEXT CAD columns and the cad_files junction rows they derive
+    // from must move together, so the UPDATE and the sync share a transaction.
+    client = await pool.connect();
+    await client.query('BEGIN');
+
     // Update components table directly (no triggers, no category table sync)
-    const result = await pool.query(`
+    const result = await client.query(`
       UPDATE components SET
         category_id = COALESCE($1, category_id),
         part_number = COALESCE($2, part_number),
@@ -576,7 +592,22 @@ export const updateComponent = async (req, res, next) => {
       id,
     ]);
 
-    // Log activity with details
+    // Sync CAD files to junction table and regenerate TEXT columns
+    const updatedComponent = result.rows[0];
+    await cadFileService.syncComponentCadFiles(id, {
+      pcb_footprint: parseCadField(updatedComponent.pcb_footprint),
+      schematic: parseCadField(updatedComponent.schematic),
+      step_model: parseCadField(updatedComponent.step_model),
+      pspice: parseCadField(updatedComponent.pspice),
+      pad_file: parseCadField(updatedComponent.pad_file),
+    }, client);
+
+    await client.query('COMMIT');
+    client.release();
+    client = null;
+
+    // Audit is optional here: the edit is already durable, so a rejected
+    // activity write is logged and the caller still gets the saved component.
     try {
       const categoryResult = await pool.query('SELECT name FROM component_categories WHERE id = $1', [result.rows[0].category_id]);
       await logActivity(pool, {
@@ -590,22 +621,8 @@ export const updateComponent = async (req, res, next) => {
           updated_fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log component update activity:', logError.message);
-    }
-
-    // Sync CAD files to junction table and regenerate TEXT columns
-    try {
-      const updatedComponent = result.rows[0];
-      await cadFileService.syncComponentCadFiles(id, {
-        pcb_footprint: parseCadField(updatedComponent.pcb_footprint),
-        schematic: parseCadField(updatedComponent.schematic),
-        step_model: parseCadField(updatedComponent.step_model),
-        pspice: parseCadField(updatedComponent.pspice),
-        pad_file: parseCadField(updatedComponent.pad_file),
-      });
-    } catch (syncError) {
-      logWarn('ComponentController', 'Failed to sync CAD files:', syncError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log component update activity:', activityError.message);
     }
 
     // Fetch the complete component with joined data
@@ -625,8 +642,15 @@ export const updateComponent = async (req, res, next) => {
 
     res.json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(rollbackError => {
+        logError('Component', 'Failed to roll back component update:', rollbackError.message);
+      });
+    }
     logError('Component', 'Error in updateComponent:', error);
     next(error);
+  } finally {
+    if (client) client.release();
   }
 };
 
@@ -654,22 +678,19 @@ export const deleteComponent = async (req, res, next) => {
     try {
       await client.query('BEGIN');
       
-      // Log activity before deletion
-      try {
-        await logActivity(client, {
-          componentId: component.id,
-          userId: req.user.id,
-          partNumber: component.part_number,
-          activityType: 'deleted',
-          details: {
-            description: component.description,
-            category_name: component.category_name,
-          },
-        });
-      } catch (logError) {
-        logError('Component', 'Failed to log component deletion activity:', logError.message);
-      }
-      
+      // Required audit inside the delete transaction (§R9): a rejected write
+      // aborts the delete instead of losing the only record of it.
+      await logActivity(client, {
+        componentId: component.id,
+        userId: req.user.id,
+        partNumber: component.part_number,
+        activityType: 'deleted',
+        details: {
+          description: component.description,
+          category_name: component.category_name,
+        },
+      });
+
       // Delete from related tables first (foreign key constraints)
       await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
       await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
@@ -969,8 +990,8 @@ export const updateDistributorInfo = async (req, res, next) => {
           })),
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log distributor update activity:', logError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log distributor update activity:', activityError.message);
     }
 
     // Return updated distributor info
@@ -1236,8 +1257,8 @@ export const createAlternative = async (req, res, next) => {
           distributor_count: normalizedDistributors.length,
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log alternative added activity:', logError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log alternative added activity:', activityError.message);
     }
     
     res.status(201).json(result.rows[0]);
@@ -1354,8 +1375,8 @@ export const updateAlternative = async (req, res, next) => {
           distributor_count: normalizedDistributors.length,
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log alternative update activity:', logError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log alternative update activity:', activityError.message);
     }
     
     res.json(result.rows[0]);
@@ -1410,8 +1431,8 @@ export const deleteAlternative = async (req, res, next) => {
           manufacturer_pn: alternativePn,
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log alternative deletion activity:', logError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log alternative deletion activity:', activityError.message);
     }
     
     res.json({ message: 'Alternative deleted successfully' });
@@ -1504,22 +1525,18 @@ export const promoteAlternative = async (req, res, next) => {
       ]);
     }
 
-    // 3. Log activity
-    try {
-      await logActivity(client, {
-        componentId: id,
-        userId: req.user.id,
-        partNumber: comp.part_number,
-        activityType: 'alternative_promoted',
-        details: {
-          alternative_id: altId,
-          old_primary_manufacturer_pn: comp.manufacturer_pn,
-          new_primary_manufacturer_pn: altPart.manufacturer_pn,
-        },
-      });
-    } catch (logError) {
-      logError('Component', 'Failed to log alternative promotion activity:', logError.message);
-    }
+    // 3. Required audit inside the promotion transaction (§R9).
+    await logActivity(client, {
+      componentId: id,
+      userId: req.user.id,
+      partNumber: comp.part_number,
+      activityType: 'alternative_promoted',
+      details: {
+        alternative_id: altId,
+        old_primary_manufacturer_pn: comp.manufacturer_pn,
+        new_primary_manufacturer_pn: altPart.manufacturer_pn,
+      },
+    });
 
     await client.query('COMMIT');
 
@@ -2277,8 +2294,8 @@ export const updateComponentApproval = async (req, res, next) => {
           user_id: user_id,
         },
       });
-    } catch (logError) {
-      logError('Component', 'Failed to log approval activity:', logError.message);
+    } catch (activityError) {
+      logError('Component', 'Failed to log approval activity:', activityError.message);
     }
 
     // Fetch complete component with joined data

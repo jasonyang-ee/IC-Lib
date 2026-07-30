@@ -19,7 +19,12 @@ export default [
   {
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-console': 'off',
+      // Server output goes through utils/logger.js so every line carries the
+      // `[LEVEL] [Service]` prefix (§C11); bare console writes bypass that.
+      'no-console': 'error',
+      // Catch-clause bindings that shadow an imported logger silently turned
+      // `logError(...)` into a call on the caught Error - see CHANGELOG.
+      'no-shadow': 'error',
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
@@ -31,6 +36,13 @@ export default [
       'array-bracket-spacing': ['error', 'never'],
       'arrow-spacing': ['error', { before: true, after: true }],
       'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1 }],
+    },
+  },
+  {
+    // The logger is the one sanctioned console sink.
+    files: ['src/utils/logger.js'],
+    rules: {
+      'no-console': 'off',
     },
   },
   {

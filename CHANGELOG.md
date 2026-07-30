@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Login, SSO login, and logout no longer break when the activity-log write fails. Nineteen `catch (logError)` clauses across the auth, component, OIDC, and settings controllers shadowed the imported `logError` logger, so a rejected audit write turned into a `TypeError` thrown over the original error: local and SSO login returned 500 (or redirected to `/login?error=sso_failed`) without ever setting the session cookie, and logout returned 500 without clearing it. Every optional audit site now uses a distinct `activityError` binding and logs through the real logger, leaving the response untouched.
+
+- Component create is now atomic (SPEC §V7/§V8). It previously ran the component insert, activity row, inventory row, and CAD junction sync as four independent statements with the CAD sync failure swallowed, so a failed inventory or CAD write could leave a component with no stock row and no `cad_files` links while still answering 201. All four writes now share one transaction and the 201 is sent only after COMMIT. Component update likewise wraps its TEXT-column update and CAD sync in one transaction; its audit row stays optional and is written after COMMIT, so a rejected audit no longer hides a saved edit.
+
+- Audit rows that belong to an already-open transaction — category change, component delete, and alternative promotion — no longer swallow a rejected write. PostgreSQL cannot continue a transaction past a failed statement, so the old inner `catch` produced an aborted transaction that could only fail confusingly later; these sites now let the failure roll the whole operation back.
+
+- `no-shadow` and `no-console` are enabled as errors for the server (with `src/utils/logger.js` as the one sanctioned console sink), so both classes of defect fail lint instead of reappearing. Three decorative blank `console.log('')` banner writes were removed.
+
 ### Changed
 
 - Admin user removal now deactivates accounts instead of deleting rows, preserving identity links, audit history, and foreign-key references. Repeating deactivation is a no-op; SSO accounts still expose locally authoritative role/active controls but reject local-password assignment, and the UI makes clear that identity-provider role/group claims cannot restore access.

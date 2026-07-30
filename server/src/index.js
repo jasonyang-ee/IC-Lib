@@ -169,14 +169,12 @@ process.on('uncaughtException', error => onFatal('Uncaught Exception', error));
 async function startServer() {
   try {
     // Print ASCII banner
-    console.log('');
     logInfo('Server', '\x1b[33m    ,--. ,-----.    ,--.   ,--.,------.\x1b[0m');
     logInfo('Server', '\x1b[33m    |  |\'  .--./    |  |   |  ||  | ) /\x1b[0m');
     logInfo('Server', '\x1b[33m    |  ||  |        |  |   |  ||  .-. `\\\x1b[0m');
     logInfo('Server', '\x1b[33m    |  |\'  \'--\'\\    |  \'--.|  ||  \'--\' /\x1b[0m');
     logInfo('Server', '\x1b[33m    `--\' `-----\'    `-----\'`--\'`------\'\x1b[0m');
     logInfo('Server', '\x1b[36m        IC Component Library Manager\x1b[0m');
-    console.log('');
 
 
     // Initialize authentication (check/create users table)
@@ -193,7 +191,6 @@ async function startServer() {
       if (SUBDIRECTORY_PATH) {
         logInfo('Server', `Subdirectory path: ${SUBDIRECTORY_PATH}`);
       }
-      console.log('');
 
       // Run CAD file scan on startup (non-blocking).
       // Note: the cad_files.missing column is owned by the migration system

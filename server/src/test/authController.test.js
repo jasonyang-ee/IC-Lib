@@ -104,6 +104,48 @@ describe('authController cookie auth', () => {
     });
   });
 
+  // Regression: the login/logout audit writes are optional, but a catch
+  // binding shadowing the imported `logError` used to throw a TypeError over
+  // the rejection and abort the handler before the cookie work ran.
+  it('still issues the auth cookie when the login audit write is rejected', async () => {
+    compareMock.mockResolvedValue(true);
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'user-1',
+          username: 'tester',
+          password_hash: 'hashed-password',
+          role: 'admin',
+          is_active: true,
+          display_name: 'Tester',
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValue(new Error('activity_log rejected'));
+
+    const res = mockRes();
+
+    await login(mockReq({ body: { username: 'tester', password: 'secret' } }), res);
+
+    expect(res.cookie).toHaveBeenCalledWith(AUTH_COOKIE_NAME, expect.any(String), expect.any(Object));
+    expect(res.json).toHaveBeenCalledWith({
+      user: { id: 'user-1', username: 'tester', role: 'admin', displayName: 'Tester' },
+    });
+    expect(res.status).not.toHaveBeenCalledWith(500);
+  });
+
+  it('still clears the auth cookie when the logout audit write is rejected', async () => {
+    queryMock.mockRejectedValue(new Error('activity_log rejected'));
+
+    const res = mockRes();
+
+    await logout(mockReq(), res);
+
+    expect(res.clearCookie).toHaveBeenCalledWith(AUTH_COOKIE_NAME, expect.any(Object));
+    expect(res.json).toHaveBeenCalledWith({ message: 'Logged out successfully' });
+    expect(res.status).not.toHaveBeenCalledWith(500);
+  });
+
   it('clears the auth cookie on logout', async () => {
     queryMock.mockResolvedValue({ rows: [] });
 

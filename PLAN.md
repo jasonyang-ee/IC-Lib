@@ -103,35 +103,35 @@ files: `server/src/controllers/{auth,component,oidc,settings}Controller.js`, `se
 
 §T TASKS:
 
-T1|.|make create satisfy §V7/§V8 atomically
+T1|x|make create satisfy §V7/§V8 atomically
 touch: `server/src/controllers/componentController.js:createComponent`
 details: acquire client; `BEGIN`; component insert + category lookup + required `logActivity(client,...)` + inventory insert + `syncComponentCadFiles(...,client,...)`; `COMMIT`; rollback/release on any failure. response only after commit. ⊥ inner audit/CAD swallow; ⊥ row survives failed audit/inventory/CAD.
 verify: new `server/src/test/componentAuditFailure.test.js`: each audit/inventory/CAD reject → ROLLBACK + no 201; success → one COMMIT + 201.
 exit: successful create guarantees component+inventory+activity+junction truth.
 next: F2.T2
 
-T2|.|make update structural writes atomic + audit optional
+T2|x|make update structural writes atomic + audit optional
 touch: `server/src/controllers/componentController.js:updateComponent`
 details: component TEXT update + `syncComponentCadFiles(...,client,...)` share txn; sync fail rolls back; COMMIT precedes optional pool audit. audit reject logs imported `logError` + still returns committed payload.
 verify: `componentAuditFailure.test.js`: sync reject → rollback/error; audit reject after COMMIT → success + CAD sync.
 exit: §V8 holds across update.
 next: F2.T3
 
-T3|.|fix remaining 17 shadow bindings by site policy
+T3|x|fix remaining 17 shadow bindings by site policy
 touch: four controllers
 details: category change/delete/promote remove inner catch + required txn audit. remaining 14 rename catch binding (`activityError` etc.) + invoke imported logger; optional audit reject never changes response. local/SSO login still set cookie; logout still clears cookie.
 verify: auth/OIDC tests assert cookie/clear/redirect/response under rejected audit; txn tests assert required-audit rejection → rollback + error, ⊥ commit/success.
 exit: all 19 collisions functional.
 next: F2.T4
 
-T4|.|enable server recurrence guards
+T4|x|enable server recurrence guards
 touch: `server/eslint.config.js`, `server/src/index.js`
 details: add `'no-shadow':'error'`; enable `no-console:error` server-wide with narrow logger-sink override only; remove/replace 3 decorative blank console writes. ⊥ logger-specific selector; ⊥ client/scripts console sweep.
 verify: `cd server && npm.cmd exec eslint -- src`; injected shadow or bare console outside logger fails.
 exit: lint blocks recurrence classes.
 next: F2.T5
 
-T5|.|record + run exact regressions
+T5|x|record + run exact regressions
 touch: `server/src/test/authController.test.js`, `server/src/test/oidcController.test.js`, `server/src/test/componentAuditFailure.test.js`, `CHANGELOG.md`
 details: Unreleased entry names session continuity + component consistency.
 verify: `cd server && npm.cmd run test:run -- src/test/authController.test.js src/test/oidcController.test.js src/test/componentAuditFailure.test.js`; `bash ./test.sh`.
