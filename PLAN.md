@@ -282,7 +282,7 @@ verify: each required column category has fail case; valid set green.
 exit: drift cannot pass startup.
 next: F7.T3
 
-T3|.|execute disposable PostgreSQL 18 verification
+T3|x|execute disposable PostgreSQL 18 verification
 touch: temporary Docker container only; ⊥ repo/live DB mutation
 details: start named `postgres:18` container w/ loopback-only random port + `--tmpfs /var/lib/postgresql` (⊥ `/var/lib/postgresql/data` — image 18+ refuses it: "invalid mount path"/unused-mount abort; F7.T1 hit this). Git Bash ! `MSYS_NO_PATHCONV=1` on `docker run` or the mount path mangles to `C:`. upgrade DB ! load init from `6c959a0~1` (pre-migration-13), ⊥ `HEAD:database/init-schema.sql` — HEAD init already declares `last_specs_refresh_at` ∴ a HEAD-built "upgrade" DB ⊥ reproduce the real frozen-view divergence (F7.T1 proved: legacy `components_full` = 28 cols w/o that col, HEAD-built = 29 w/ it); then legacy migrations + HEAD migrations, then migration twice. fresh DB loads working-tree init + migrations. seed NULL/A/B/C + direct/alternative project lines. assert invalid class rejected, NULL retained, resolved fallback/override correct, six view old ordinal prefix unchanged + `alt_class` last, `eco_orders_full` unchanged, schema inspector valid. capture commands/results; destroy container in `finally`/manual cleanup.
 verify: `docker ps` confirms container gone; no command contains `flat.gentex.int` or live credentials.
