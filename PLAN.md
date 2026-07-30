@@ -104,21 +104,21 @@ files: `server/src/services/oidcService.js`, `server/src/controllers/oidcControl
 
 §T TASKS:
 
-T1|.|parse tenant config + carry optional continuity claims
+T1|x|parse tenant config + carry optional continuity claims
 touch: `server/src/services/oidcService.js`
 details: add CSV `getAllowedTenants()` normalization; parse issuer with `URL`, exact hostname/path check for public-cloud Entra `/common`\|`/organizations` (optional `/v2.0`), ⊥ substring. Tenant-independent issuer + empty allowlist makes SSO status disabled/config-invalid & emits one ASCII `[ERROR] [OidcService]` config log, ⊥ per-request spam. `exchangeAuthorizationCode` returns current identity/profile fields + normalized `tenantId` (`tid`) & `objectId` (`oid`) only; `roles`\|`groups`\|`wids` ⊥ returned. Nonempty allowlist requires present allowed `tid`; Entra `tid` ! GUID; rejection occurs after library token validation but before any user query.
 verify: `server/src/test/oidcService.test.js` cases `keeps a generic issuer enabled without tenant configuration`, `disables exact Entra common and organizations issuers without an allowlist and logs once`, `does not classify deceptive common substrings as Entra`, `returns optional tid and oid but ignores authorization claims`, `rejects missing malformed and unlisted tenant ids`.
 exit: generic OIDC unchanged; tenant rejection cannot provision.
 next: F3.T2
 
-T2|.|resolve continuity identity + preserve local authority
+T2|x|resolve continuity identity + preserve local authority
 touch: `server/src/services/oidcService.js`
 details: resolution order per §V29: (`issuer`,`subject`) -> (`issuer`,`tenantId`,`objectId`) -> exactly 1 non-federated local user by verified email -> JIT. Primary match backfills missing continuity fields only when the triple has no different owner; conflicting primary vs continuity owners -> reject + ERROR, ⊥ silently choose a role/account. Continuity match updates `oidc_sub` to rotated client identity in one guarded write & returns same local id/role. Verified-email link persists all identity fields; unverified email always skips link, ∄ env bypass. JIT persists all available identity fields + local `OIDC_DEFAULT_ROLE`. Every SELECT returns `role`/`is_active`; IdP authorization claims unavailable to resolver. Branch `23505` by named primary/continuity/username constraint, then re-query only the matching identity; inactive user rejects every path.
 verify: `server/src/test/oidcService.test.js` cases `backfills continuity identity without changing role`, `rejects conflicting primary and continuity owners`, `relinks a rotated sub by issuer tenant and object while preserving local id and role`, `never links unverified email`, `JIT uses only OIDC_DEFAULT_ROLE despite admin roles and groups claims`, `generic OIDC without tid or oid still resolves`, `rejects inactive continuity matches`, `resolves concurrent continuity insert safely`.
 exit: successful SSO can authenticate/link/provision but cannot authorize or activate.
 next: F3.T3
 
-T3|.|controller fail-closed regression
+T3|x|controller fail-closed regression
 touch: `server/src/controllers/oidcController.js`, `server/src/test/oidcController.test.js`
 details: preserve state/nonce/PKCE, callback error redirect, app JWT, login audit. Tenant/service failure ! skip `findOrCreateOidcUser`, `last_login`, audit, auth cookie. Keep public SSO route allowlist unchanged (§V10).
 verify: `server/src/test/oidcController.test.js` cases `rejects a tenant-policy failure before resolving a local user`, `mints the standard app JWT cookie and redirects to the SPA on success`, `routes a disabled account to a specific login error`; `server/src/test/routeAuthGuards.test.js` full suite green.

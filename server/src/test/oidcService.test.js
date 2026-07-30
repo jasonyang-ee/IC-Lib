@@ -41,6 +41,14 @@ const CLAIMS = {
   emailVerified: true,
   preferredUsername: 'jane.doe',
   displayName: 'Jane Doe',
+  tenantId: null,
+  objectId: null,
+};
+
+const CONTINUITY_CLAIMS = {
+  ...CLAIMS,
+  tenantId: '11111111-2222-3333-4444-555555555555',
+  objectId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
 };
 
 const ACTIVE_USER = {
@@ -95,6 +103,44 @@ describe('oidcService', () => {
       await expect(getOidcConfiguration()).resolves.toEqual({ issuer: 'ok' });
       await getOidcConfiguration();
       expect(discoveryMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps a generic issuer enabled without tenant configuration', () => {
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://idp.example.com/common');
+      vi.stubEnv('OIDC_ALLOWED_TENANTS', '');
+
+      expect(isOidcEnabled()).toBe(true);
+    });
+
+    it('disables exact Entra common and organizations issuers without an allowlist and logs once', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.stubEnv('OIDC_ALLOWED_TENANTS', '');
+
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://login.microsoftonline.com/common/v2.0');
+      expect(isOidcEnabled()).toBe(false);
+      expect(isOidcEnabled()).toBe(false);
+
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://login.microsoftonline.com/organizations');
+      expect(isOidcEnabled()).toBe(false);
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain('[ERROR]');
+      expect(errorSpy.mock.calls[0][0]).toContain('[OidcService]');
+      expect(errorSpy.mock.calls[0][1]).toContain('OIDC_ALLOWED_TENANTS');
+      errorSpy.mockRestore();
+    });
+
+    it('does not classify deceptive common substrings as Entra', () => {
+      vi.stubEnv('OIDC_ALLOWED_TENANTS', '');
+
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://idp.example.com/login.microsoftonline.com/common');
+      expect(isOidcEnabled()).toBe(true);
+
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://login.microsoftonline.com.evil.example/common');
+      expect(isOidcEnabled()).toBe(true);
+
+      vi.stubEnv('OIDC_ISSUER_URL', 'https://login.microsoftonline.com/tenant/common');
+      expect(isOidcEnabled()).toBe(true);
     });
   });
 
@@ -168,6 +214,70 @@ describe('oidcService', () => {
       expect(claims.emailVerified).toBe(false);
       expect(claims.email).toBeNull();
     });
+
+    it('returns optional tid and oid but ignores authorization claims', async () => {
+      const tenantId = '11111111-2222-3333-4444-555555555555';
+      const objectId = 'AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE';
+      vi.stubEnv('OIDC_ALLOWED_TENANTS', ` ${tenantId.toUpperCase()} , ${tenantId} `);
+      discoveryMock.mockResolvedValue({ issuer: 'config' });
+      authorizationCodeGrantMock.mockResolvedValue({
+        claims: () => ({
+          iss: 'https://idp.example.com',
+          sub: 'sub-123',
+          tid: tenantId.toUpperCase(),
+          oid: objectId,
+          roles: ['admin'],
+          groups: ['admins'],
+          wids: ['global-admin'],
+        }),
+      });
+
+      const claims = await exchangeAuthorizationCode(
+        'https://app.example.com/api/auth/oidc/callback?code=abc',
+        { state: 's', nonce: 'n', codeVerifier: 'v' },
+      );
+
+      expect(claims.tenantId).toBe(tenantId);
+      expect(claims.objectId).toBe(objectId.toLowerCase());
+      expect(claims).not.toHaveProperty('roles');
+      expect(claims).not.toHaveProperty('groups');
+      expect(claims).not.toHaveProperty('wids');
+    });
+
+    it('rejects missing malformed and unlisted tenant ids', async () => {
+      const allowedTenant = '11111111-2222-3333-4444-555555555555';
+      vi.stubEnv(
+        'OIDC_ISSUER_URL',
+        'https://login.microsoftonline.com/11111111-2222-3333-4444-555555555555/v2.0',
+      );
+      vi.stubEnv('OIDC_ALLOWED_TENANTS', allowedTenant);
+      discoveryMock.mockResolvedValue({ issuer: 'config' });
+      authorizationCodeGrantMock
+        .mockResolvedValueOnce({
+          claims: () => ({ iss: 'https://issuer.example.com', sub: 'missing' }),
+        })
+        .mockResolvedValueOnce({
+          claims: () => ({ iss: 'https://issuer.example.com', sub: 'malformed', tid: 'not-a-guid' }),
+        })
+        .mockResolvedValueOnce({
+          claims: () => ({
+            iss: 'https://issuer.example.com',
+            sub: 'unlisted',
+            tid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+          }),
+        });
+
+      const transaction = { state: 's', nonce: 'n', codeVerifier: 'v' };
+      await expect(exchangeAuthorizationCode('https://app.example.com/callback?code=1', transaction))
+        .rejects.toThrow('OIDC tenant claim is required');
+      await expect(exchangeAuthorizationCode('https://app.example.com/callback?code=2', transaction))
+        .rejects.toThrow('OIDC tenant claim is invalid');
+      await expect(exchangeAuthorizationCode('https://app.example.com/callback?code=3', transaction))
+        .rejects.toThrow('OIDC tenant is not allowed');
+
+      expect(authorizationCodeGrantMock).toHaveBeenCalledTimes(3);
+      expect(queryMock).not.toHaveBeenCalled();
+    });
   });
 
   describe('findOrCreateOidcUser', () => {
@@ -187,23 +297,95 @@ describe('oidcService', () => {
       await expect(findOrCreateOidcUser(CLAIMS)).rejects.toThrow('Account is disabled');
     });
 
+    it('backfills continuity identity without changing role', async () => {
+      queryMock
+        .mockResolvedValueOnce({
+          rows: [{ ...ACTIVE_USER, oidc_tenant_id: null, oidc_object_id: null }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, role: 'read-write' }] });
+
+      const user = await findOrCreateOidcUser(CONTINUITY_CLAIMS);
+
+      expect(user.id).toBe('user-1');
+      expect(user.role).toBe('read-write');
+      const [updateSql, params] = queryMock.mock.calls[2];
+      expect(updateSql).toContain('oidc_tenant_id = COALESCE');
+      expect(updateSql).not.toMatch(/SET[\s\S]*\brole\s*=/i);
+      expect(params).toEqual([
+        CONTINUITY_CLAIMS.tenantId,
+        CONTINUITY_CLAIMS.objectId,
+        'user-1',
+        CONTINUITY_CLAIMS.issuer,
+        CONTINUITY_CLAIMS.subject,
+      ]);
+    });
+
+    it('rejects conflicting primary and continuity owners', async () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      queryMock
+        .mockResolvedValueOnce({ rows: [ACTIVE_USER] })
+        .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, id: 'user-2' }] });
+
+      await expect(findOrCreateOidcUser(CONTINUITY_CLAIMS))
+        .rejects.toThrow('OIDC identity conflict');
+
+      expect(queryMock).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain('[OidcService]');
+      errorSpy.mockRestore();
+    });
+
+    it('relinks a rotated sub by issuer tenant and object while preserving local id and role', async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, oidc_sub: 'old-sub' }] })
+        .mockResolvedValueOnce({ rows: [ACTIVE_USER] });
+
+      const user = await findOrCreateOidcUser({
+        ...CONTINUITY_CLAIMS,
+        email: null,
+        emailVerified: false,
+        subject: 'rotated-sub',
+      });
+
+      expect(user.id).toBe('user-1');
+      expect(user.role).toBe('read-write');
+      const [updateSql, params] = queryMock.mock.calls[2];
+      expect(updateSql).toContain('SET oidc_sub = $1');
+      expect(updateSql).not.toMatch(/SET[\s\S]*\brole\s*=/i);
+      expect(params).toEqual([
+        'rotated-sub',
+        'user-1',
+        CONTINUITY_CLAIMS.issuer,
+        CONTINUITY_CLAIMS.tenantId,
+        CONTINUITY_CLAIMS.objectId,
+      ]);
+    });
+
     it('links a verified email to exactly one non-federated local user', async () => {
       queryMock
         .mockResolvedValueOnce({ rows: [] }) // identity lookup
         .mockResolvedValueOnce({ rows: [ACTIVE_USER] }) // email match
-        .mockResolvedValueOnce({ rows: [] }); // link update
+        .mockResolvedValueOnce({ rows: [ACTIVE_USER] }); // link update
 
       const user = await findOrCreateOidcUser(CLAIMS);
 
       expect(user).toEqual(ACTIVE_USER);
       const linkSql = queryMock.mock.calls[2][0];
-      expect(linkSql).toContain('UPDATE users SET oidc_issuer');
-      expect(queryMock.mock.calls[2][1]).toEqual(['https://idp.example.com', 'sub-123', 'user-1']);
+      expect(linkSql).toContain("auth_provider = 'oidc'");
+      expect(queryMock.mock.calls[2][1]).toEqual([
+        'https://idp.example.com',
+        'sub-123',
+        null,
+        null,
+        'user-1',
+      ]);
       const emailSql = queryMock.mock.calls[1][0];
-      expect(emailSql).toContain('oidc_sub IS NULL');
+      expect(emailSql).toContain("auth_provider = 'local'");
     });
 
-    it('never links an unverified email - JIT provisions instead', async () => {
+    it('never links unverified email', async () => {
       queryMock
         .mockResolvedValueOnce({ rows: [] }) // identity lookup
         .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, username: 'jane.doe' }] }); // insert
@@ -216,38 +398,87 @@ describe('oidcService', () => {
       expect(queryMock.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes('LOWER(email)'))).toBe(false);
     });
 
-    it('JIT-provisions with the default role and oidc provider fields', async () => {
+    it('JIT uses only OIDC_DEFAULT_ROLE despite admin roles and groups claims', async () => {
       vi.stubEnv('OIDC_DEFAULT_ROLE', 'reviewer');
       queryMock
         .mockResolvedValueOnce({ rows: [] }) // identity lookup
         .mockResolvedValueOnce({ rows: [] }) // email match (none)
         .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, role: 'reviewer' }] }); // insert
 
-      const user = await findOrCreateOidcUser(CLAIMS);
+      const user = await findOrCreateOidcUser({
+        ...CLAIMS,
+        roles: ['admin'],
+        groups: ['admins'],
+        wids: ['global-admin'],
+      });
 
       expect(user.role).toBe('reviewer');
       const [insertSql, params] = queryMock.mock.calls[2];
       expect(insertSql).toContain("'oidc'");
-      expect(params).toEqual(['jane.doe', 'reviewer', 'Jane Doe', 'jane@example.com', 'https://idp.example.com', 'sub-123']);
+      expect(insertSql).not.toMatch(/roles|groups|wids/i);
+      expect(params).toEqual([
+        'jane.doe',
+        'reviewer',
+        'Jane Doe',
+        'jane@example.com',
+        'https://idp.example.com',
+        'sub-123',
+        null,
+        null,
+      ]);
+    });
+
+    it('generic OIDC without tid or oid still resolves', async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, role: 'read-only' }] });
+
+      const user = await findOrCreateOidcUser({
+        ...CLAIMS,
+        email: null,
+        emailVerified: false,
+      });
+
+      expect(user.id).toBe('user-1');
+      const [insertSql, params] = queryMock.mock.calls[1];
+      expect(insertSql).toMatch(/oidc_tenant_id,\s*oidc_object_id/);
+      expect(params.slice(-2)).toEqual([null, null]);
+    });
+
+    it('rejects inactive continuity matches', async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, is_active: false }] });
+
+      await expect(findOrCreateOidcUser(CONTINUITY_CLAIMS))
+        .rejects.toThrow('Account is disabled');
+
+      expect(queryMock.mock.calls[1][0]).toContain('oidc_tenant_id = $2');
+      expect(queryMock).toHaveBeenCalledTimes(2);
     });
 
     it('retries with a numbered username on collision', async () => {
-      const uniqueViolation = Object.assign(new Error('duplicate key'), { code: '23505' });
+      const uniqueViolation = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'users_username_key',
+      });
       queryMock
         .mockResolvedValueOnce({ rows: [] }) // identity lookup
         .mockResolvedValueOnce({ rows: [] }) // email match (none)
         .mockRejectedValueOnce(uniqueViolation) // first insert collides
-        .mockResolvedValueOnce({ rows: [] }) // identity re-check (not concurrent)
         .mockResolvedValueOnce({ rows: [{ ...ACTIVE_USER, username: 'jane.doe2' }] }); // retry insert
 
       const user = await findOrCreateOidcUser(CLAIMS);
 
       expect(user.username).toBe('jane.doe2');
-      expect(queryMock.mock.calls[4][1][0]).toBe('jane.doe2');
+      expect(queryMock.mock.calls[3][1][0]).toBe('jane.doe2');
     });
 
     it('resolves a concurrent insert of the same identity via the re-check', async () => {
-      const uniqueViolation = Object.assign(new Error('duplicate key'), { code: '23505' });
+      const uniqueViolation = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'users_oidc_identity_unique',
+      });
       queryMock
         .mockResolvedValueOnce({ rows: [] }) // identity lookup
         .mockResolvedValueOnce({ rows: [] }) // email match (none)
@@ -257,6 +488,32 @@ describe('oidcService', () => {
       const user = await findOrCreateOidcUser(CLAIMS);
 
       expect(user).toEqual(ACTIVE_USER);
+    });
+
+    it('resolves concurrent continuity insert safely', async () => {
+      const uniqueViolation = Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint: 'users_oidc_continuity_identity_unique',
+      });
+      queryMock
+        .mockResolvedValueOnce({ rows: [] }) // primary identity lookup
+        .mockResolvedValueOnce({ rows: [] }) // continuity identity lookup
+        .mockRejectedValueOnce(uniqueViolation) // insert loses the race
+        .mockResolvedValueOnce({ rows: [ACTIVE_USER] }); // continuity re-check wins
+
+      const user = await findOrCreateOidcUser({
+        ...CONTINUITY_CLAIMS,
+        email: null,
+        emailVerified: false,
+      });
+
+      expect(user).toEqual(ACTIVE_USER);
+      expect(queryMock.mock.calls[3][0]).toContain('oidc_tenant_id = $2');
+      expect(queryMock.mock.calls[3][1]).toEqual([
+        CONTINUITY_CLAIMS.issuer,
+        CONTINUITY_CLAIMS.tenantId,
+        CONTINUITY_CLAIMS.objectId,
+      ]);
     });
 
     it('rejects claims without issuer or subject', async () => {

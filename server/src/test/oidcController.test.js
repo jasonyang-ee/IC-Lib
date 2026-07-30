@@ -137,6 +137,21 @@ describe('oidcController', () => {
       expect(serviceMocks.exchangeAuthorizationCode).not.toHaveBeenCalled();
     });
 
+    it('rejects a tenant-policy failure before resolving a local user', async () => {
+      serviceMocks.exchangeAuthorizationCode.mockRejectedValue(
+        new Error('OIDC tenant is not allowed'),
+      );
+      const res = mockRes();
+
+      await oidcCallback(callbackReq({ oidc_state: signStateToken() }), res);
+
+      expect(serviceMocks.exchangeAuthorizationCode).toHaveBeenCalledOnce();
+      expect(serviceMocks.findOrCreateOidcUser).not.toHaveBeenCalled();
+      expect(queryMock).not.toHaveBeenCalled();
+      expect(res.cookie.mock.calls.find(([name]) => name === AUTH_COOKIE_NAME)).toBeUndefined();
+      expect(res.redirect).toHaveBeenCalledWith('https://app.example.com/login?error=sso_failed');
+    });
+
     it('mints the standard app JWT cookie and redirects to the SPA on success', async () => {
       serviceMocks.exchangeAuthorizationCode.mockResolvedValue({
         issuer: 'https://idp.example.com', subject: 'sub-123', email: 'jane@example.com', emailVerified: true,
