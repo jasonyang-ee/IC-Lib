@@ -289,7 +289,7 @@ verify: `docker ps` confirms container gone; no command contains `flat.gentex.in
 exit: §C7 scratch evidence HOLD.
 next: F7.T4
 
-T4|.|add shared server domain validation
+T4|x|add shared server domain validation
 touch: `server/src/constants/alternativeClass.js` (new) + unit test
 details: normalize omitted separately from explicit NULL/blank; accept canonical A/B/C case-insensitively if desired then emit uppercase; reject other type/value 400. expose display-neutral DB value only; client owns labels.
 verify: omitted, null, blank, lowercase, A/B/C, invalid string/number corpus.
