@@ -12,48 +12,48 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch test | last commit `5fd84de380788c383aca58d743754f58e2e1a080` | tests pass 316/316 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 39 files/225 tests, scripts + lint pass)
-uncommitted: `PLAN.md` (expanded F5 decision sheet), `HANDOFF.md` (clear answer template + current stop)
+branch `test` | planning-input commit `816032bb263547f3fd5b265a19d2b95e5e8260b6` | tests pass 316/316 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 39 files/225 tests, scripts + lint pass)
+uncommitted at handoff write: `SPEC.md`, `PLAN.md`, `HANDOFF.md` — accepted-decision prep package pending session commit; ⊥ implementation files
 
 ## done this session
 
-/review-code: independent `v1.10.0`..HEAD sweep → NO-GO. reproduced 19 logger shadows; found logout, component update, 3 open-txn, §V7/§V8 atomicity, full-schema readiness, readiness disclosure, & global-limiter scope gaps; rejected absent-File-Library-guard claim. → `5fd84de`
-/prep: ingested all BACKLOG inputs; removed invented user ruling + overbroad §V58; replaced Claude package with research-first plan. → `5fd84de`
-/review-plan: primary-source gate complete (§R9 PostgreSQL, §R10 Kubernetes, §R11 Entra SCIM, §R12 Graph delta); refuted phase coupling + vague tests; rewrote to 11 phases, exact F1-F4 contracts, isolated deferred choices in F5. gate NO-GO ∵ F5 user/deployment decisions remain. → `5fd84de`
-/encode-docs: expanded F5 into Q1-Q4 choices, recommendations, impacts, + reply shortcuts. → ⊥ sha
+- `/prep`: consumed answer `Q1=A; Q2=A; L1; Q3a=A; Q3b=A; Q3c=A; Q3d=A; Q3e=B; Q3f=A; Q3g=A; Q4a=A; Q4b=A; Q4c=A`; converted every ruling into §C/§I/§V truth + executable F1-F10 tasks; ⊥ implementation.
+- research: revalidated logger/readiness/route/view/UI/auth surfaces locally; primary sources added/retained in §R13-§R14 for Entra SCIM/RFC 7644 + PostgreSQL 18 view replacement. confirmed Test Connection queries random GUID via configured matching property ∴ `objectId → externalId` works.
+- `/review-plan`: refuted phase order, dependencies, task-to-test mappings, mutation boundaries, view ordinals, SCIM threat/lifecycle semantics. result `BLOCK=0 | DIVERGENCE=0 | UNKNOWN=0 | research phases=1 (F1) | gate=GO`.
+- `/encode-docs`: updated `SPEC.md`, replaced `PLAN.md` w/ 10-phase execution package, overwrote this baton.
 
 ## in progress (exact stop point)
 
-F5.T1: awaiting user selections — Q1-Q4 decision sheet expanded; execution status remains `.`
-mid-edit files: none
+F1.T1 ready: revalidate 19 audit sites + readiness matrix before mutation.
+mid-edit files: none; planning package only.
 
 ## next
 
-F5.T1 | preconditions: user reply — record Q1, Q2+deployment facts, Q3a-g, Q4a-c; omitted codes = recommended. then /encode-docs freezes F6-F10 + rerun /review-plan.
+F1.T1 | invoke `/cook F1` (single-agent research phase recommended); verify 4 required + 15 optional audit sites and readiness cases, then proceed by PLAN pointer only after F1 gate HOLD.
 
 ## deviations & decisions
 
-Claude/pasted review: File Library pre-submit `+` toast absent → rejected; parent `FileLibrary.jsx:665-682` already guards shared single+pair submit. implementation task = regression test, ⊥ duplicate modal logic. (PLAN updated: y)
-Claude handoff: user selected helper-level §V28 parity → removed; user explicitly deferred ruling. V28 restored to pre-`d440356` wording. (SPEC/PLAN updated: y)
-Claude/pasted review: all 16 non-highlighted sites are post-commit → rejected; `componentController.js:462,669,1520` use open txn clients, `:593` skips junction sync after TEXT write, logout `:185` skips cookie clear. (PLAN updated: y)
-Claude §V58: every audit row best-effort → removed. site policy frozen: component create + category/delete/promote audit required/atomic; component update + remaining 14 optional after/outside COMMIT. (SPEC/PLAN updated: y)
-Pasted fix direction: only rename create catch + move inventory first → rejected against §V7/§V8; successful create needs component+inventory+activity+CAD junction state atomically, ⊥ reordered partial commits. (PLAN updated: y)
-Pasted readiness note: auth helper swallows error ∴ probe safe → insufficient; §V30 promises full schema, while current probe checks auth bootstrap only + leaks raw error/auth state. F3 added. (PLAN updated: y)
-Pasted global-limiter description: §V10 public reads → incomplete; actual mount is all `/api`, including authenticated traffic. numeric/default change deferred until topology/telemetry ruling. (PLAN updated: y)
-BACKLOG Class A/B/C + client lint + deprovision inputs → ingested into F4/F5/F8-F10; BACKLOG blanked only after PLAN existed.
+- `Q1=A`: §V28 = supported user-boundary behavior parity, ⊥ helper-algorithm parity. File Library parent already rejects `+` for single + pair rename ∴ add regressions, keep dotfile helper divergence, ⊥ duplicate `RenameModal` guard.
+- `Q2=A; L1`: global limiter only exact §V10 guest-read targets at `1000/15m` per IP; login owns separate per-IP limiter; change-password owns separate per-user limiter after auth. each store isolated.
+- `Q3a=A`: NULL = `Unrated`, operationally non-substitutable like A until rated. `Q3b=A`: direct edit for new parts; controlled default change through existing ECO `spec`. `Q3c=A`: advisory only, Consume All remains ungated. `Q3d=A`: BOM column available + code-default selected.
+- `Q3e=B`: interpreted “relevant external views” as six component-facing views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; append `alt_class`, preserve ordinal prefix; `eco_orders_full` unchanged.
+- `Q3f=A`: Library single + shared bulk set; Projects raw per-line override. `Q3g=A`: migration proof in disposable PostgreSQL 18 Docker temp storage only.
+- `Q4a=A`: Entra push SCIM. `Q4b=A`: only linked OIDC users; disable/delete soft-deactivate, reactivation keeps UUID; unknown POST 403/no create or link; OIDC first. `Q4c=A`: protected requests query current local active state, DB failure → generic 503.
+- prep tightened SCIM: responses/mutation bodies use `application/scim+json` (GET ⊥ require Content-Type); Add/Replace allowed fields + Remove only nullable profile fields; “immediate” = next protected request after local inactive commit, ⊥ promise Entra delivery latency.
+- prior pasted review understated impact: logout, update/CAD sync, open-txn audit, atomic create, readiness truth/disclosure, and all-API limiter scope remain planned. F2-F3 are release blockers; plan gate GO ≠ release gate.
 
 ## watchouts
 
-fast reply: `Use all F5 recommendations. Deployment: <1|multiple|unknown> app containers; <≤5|6-25|>25|unknown> simultaneous users behind one public IP; Entra can reach an IC-Lib SCIM endpoint: <yes|no|unknown>.`
-override reply: `Q1=B; Q2=A/L2; Q3a=C; Q3d=B; Q4a=D`; omitted choices use recommendation.
-Q1 = footprint behavioral parity (A) | strict helper parity (B).
-Q2 = public-only limiter (A) | all-API per-user/public-IP (B) | current all-API per-IP (C); ceiling L1 1000/15m | L2 5000/15m | L3 custom.
-Q3 = rating answers a-g: existing default, ECO, consume, BOM, ODBC, UI/bulk, scratch DB. `Q3=all recommended` accepted.
-Q4 = SCIM (A) | Graph (B) | outbound agent (C) | defer (D); lifecycle + JWT choices b-c. `Q4=all recommended; SCIM reachable=<yes|no|unknown>` accepted.
-F2 component create atomicity is deliberate §V7/§V8 enforcement, wider than a one-line shadow rename. `syncComponentCadFiles` already accepts a DB handle; use txn client.
-F2 `no-console` scope = server only, logger sink override; client/scripts intentionally retain existing console use.
-F3 readiness should call live `inspectDatabaseSchema()` defaults; ⊥ `getAuthenticationStatus`, cache, redundant ping, public missing-object/error detail.
-role-gate meta-test remains a NOTE: `routeAuthGuards.test.js` proves GET public-vs-auth two-way + names sensitive admin reads, but ⊥ generic consuming-page role mapping. no concrete route mismatch found in this review.
+- deployment assumption: checked-in compose = 1 Node process. >1 process/replica invalidates MemoryStore guarantee → select + test shared external limiter store before deployment.
+- SCIM enablement assumption: exactly 1 Entra tenant + Entra/provisioning-agent can reach HTTPS `/api/scim/v2`. If false, leave both SCIM vars absent and revise architecture; ⊥ relax bearer/tenant policy.
+- Entra incremental delivery is external/eventual (~40 min documented cadence). per-request DB check cuts access on the first protected request after IC-Lib receives/commits deactivation; urgent changes use Entra Provision on Demand or local admin deactivation.
+- existing-only SCIM intentionally cannot pass validator create-user cases and unknown assignments remain provisioning errors until first OIDC login + retry. README must state this plainly; Groups disabled; `objectId → externalId` sole matching property.
+- if product owner meant a different `Q3e=B` view set, change §C4/F7 before SQL; current six-view interpretation is exact + executable.
+- F7 ⊥ connect/write `flat.gentex.int:5434/iclib`; Docker test must compare pre-migration ordinal prefixes, apply migration twice, verify fresh init, and remove container even on failure.
+- class update semantics: omitted ≠ explicit NULL. bulk update all-or-none; ECO category replacement must copy class; direct + alternative project rows use project override then parent default.
+- §V10 consuming-page role-gate meta-test remains a non-blocking test-depth NOTE: independent review found no concrete route mismatch. F6 owns public/auth/limiter two-way enforcement, ⊥ a new whole-app role-policy manifest; revisit separately if desired.
+- cosmetic OIDC notes (`buildUsernameCandidates` singular return; UPN sanitization drops `@`) remain non-contractual + outside this cycle.
+- no remaining answer is required to start F1. Any changed assumption above requires `/prep` revision before the affected phase, not an implementation-time guess.
 
 ## final verification
 
