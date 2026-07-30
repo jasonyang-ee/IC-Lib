@@ -3,8 +3,8 @@ Session baton. Overwritten in full ∀ session. Records STATE, ⊥ intent (inten
 Sections: header | done this session | in progress (exact stop point) | next | deviations & decisions | watchouts | final verification. Empty section → `-`, ⊥ deleted.
 Header ! carry: branch | last commit sha (⊥ subject) | tests pass N/N \| FAIL: file+case + command | uncommitted files + why
 Pointers = F<n>.T<n> (phase.task → PLAN.md), ⊥ bare step numbers. "in progress" & "next" ! use them.
-"in progress" ! name current working task precisely: action, file, function. mid-edit files ! listed | `none`.
-Failing tests ! named exactly (file + case), ⊥ "some failing".
+"in progress" ! name current working task precisely: action, file, function — ⊥ "continue the phase". mid-edit files ! listed | `none`.
+Failing tests ! named exactly — file + case — ⊥ "some failing".
 final verification table ! filled only by the final verify phase; else header row alone.
 Encoding: same symbol set as SPEC.md.
 Full rules: /encode-docs skill.
@@ -12,52 +12,52 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch `test` | last commit `8d95977` | tests 291/291 pass — client 89/89 (25 files), server 202/202 (37 files), scripts dry-run import pass (`bash ./test.sh`, run from repo root)
-uncommitted: none — prep output committed in `8d95977` (`PLAN.md` F1-F6 plan; `SPEC.md` §R1-R5 + §V54-V56 + edits to §V29/§I9/§I11; `BACKLOG.md` auth request ingested → plan, ABC-rating + identity-lifecycle entries retained).
+branch `test` | last commit `8d95977` | tests 291/291 pass — client 89/89 (25 files), server 202/202 (37 files), scripts dry-run import pass (`bash ./test.sh`)
+uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `PLAN.md`/`SPEC.md`/`HANDOFF.md` reviewed auth package pending commit.
 
 ## done this session
 
-- (∄ `§T` executed — prep authored the cycle, ⊥ started it. ∀ `§T` rows = `.`)
-- prep: distilled `BACKLOG.md` + 4 user rulings → F1-F6 plan, 18 tasks, uncommitted.
-- research: Entra claim behavior confirmed against Microsoft Learn primary sources → `SPEC.md` §R1-R5.
-- review-plan: 1 embedded cycle, verdict GO; 4 BLOCKs found in the draft & fixed in place (see deviations).
+- review-plan: re-read `PLAN.md`/`SPEC.md`/`HANDOFF.md` + user-authorized `BACKLOG.md` auth section; ABC ignored.
+- research: `openid-client` `6.8.4` full ID-token claims + Entra issuer-template behavior confirmed from installed source; OIDC/Entra identity facts checked against primary docs 2026-07-29 → §R1/R2/R5/R6.
+- scratch DB: isolated PostgreSQL `18.1` @ `127.0.0.1:55432/iclib_review_plan`; fresh init + migrations `1..16` + schema inspection passed; cluster stopped, data dir retained @ `C:\Users\sami\AppData\Local\Temp\iclib-review-plan-pg18`.
+- review refuted phase order, verification contracts, §T mapping, gates, blast radius, altitude, drift; 6 BLOCK/DIVERGENCE findings fixed in `PLAN.md`/`SPEC.md` before gate.
+- baseline verification: `bash ./test.sh` green 291/291; lint client/server/scripts green.
 
 ## in progress (exact stop point)
 
-none — plan authored & reviewed, execution ⊥ begun.
+none — review complete; execution ⊥ begun.
 mid-edit files: none
 
 ## next
 
-`F1.T1` | preconditions: none. Confirm `openid-client` v6 `tokens.claims()` returns the full ID-token payload (∴ `groups`/`roles`/`tid`/`_claim_names`/`_claim_sources`/`hasgroups` reachable) & record which claim lands on ID vs access token, in `server/src/services/oidcService.js` `exchangeAuthorizationCode`. Then F1.T2 → F1.T3 → F1.T4.
-Start w/ `/cook` (single agent) or `/cater` (sub-agents). F1-F3 are strictly serial ∴ parallelism only pays from F4; `/cook` is the better fit.
+`F1.T1` | preconditions: none. Reproduce installed `openid-client` identity-claim boundary from named source lines + baseline OIDC cases; then `F1.T2` scratch preflight → `F2.T1` migration `17_oidc_identity_continuity.sql`.
+Start w/ `/cook`; phases serial & auth-sensitive ∴ single main agent preferred.
 
 ## deviations & decisions
 
-user decided (4 rulings, this session):
-1. cycle scope = auth ONLY. ABC alternative-rating deferred → stays in `BACKLOG.md`. (PLAN.md updated: y)
-2. ABC rating schema, when built: `components.alt_class` library default + `project_components.alt_class` per-BOM override, `resolved = COALESCE(bom_line, component)`. Recorded in `BACKLOG.md`, ⊥ implemented. (PLAN.md updated: n — out of scope by ruling 1)
-3. AD path = Entra OIDC + group/app-role claim mapping. ⊥ LDAP bind, ⊥ Keycloak, ⊥ new protocol. (PLAN.md updated: y)
-4. mapping storage = DB table + admin UI, ⊥ env-baked. (PLAN.md updated: y → §V54)
-5. mid-session the user appended a full architecture review to `BACKLOG.md` (12 options, since distilled). It CONFIRMS rulings 3+4 rather than overturning them: its own comparison table rates direct Entra OIDC "Low complexity / Best for one Microsoft-only app" & rates direct LDAP bind "Avoid" (sole architecture exposing AD passwords to the app); Keycloak = hard ⊥ by user requirement, removing options 1-6. Two NEW constraints extracted & landed: (a) persist Entra `oid` as `users.oidc_object_id` ∵ `sub` is pairwise per `client_id` ∴ recreating the app registration orphans every identity (§V29, F2.T5/T6, F3.T8/T11); (b) generic-OIDC parity is now an explicit ground rule — ⊥ Entra-only branches. (PLAN.md updated: y | SPEC.md updated: y → §V29)
+user decided:
+1. AD authenticates only; IC-Lib provisions local shadow users & owns role/active authorization. IdP role/group claims ⊥ authorization.
+2. AD path uses direct Entra OIDC; Keycloak ⊥ broker/federation. Generic non-AD OIDC compatibility stays.
+3. ABC classification deferred; `BACKLOG.md` entry untouched.
 
-review-plan found 4 BLOCKs in prep's own draft; ∀ fixed in `PLAN.md` before the gate closed:
-- F2.T7: draft claimed the new table would be ∉ `STARTUP_REQUIRED_TABLES`. False — `STARTUP_REQUIRED_TABLES = EXPECTED_SCHEMA_TABLES.filter(t => t !== 'schema_migrations')` (`schemaInspectionService.js:43-45`) ∴ adding it DOES make it startup-required. Safe ∵ §V4 applies migrations before inspection; plan now states the real mechanism.
-- F4.T13: draft wrote mapping audits to `activity_log`. Wrong table — that one is component-scoped (`component_id` + `part_number NOT NULL`). Now uses `logUserActivity()` → `user_activity_log` (`activityLogService.js:23-29`), and the draft's §C10 JSONB citation was dropped ∵ `user_activity_log` ∄ a `details` column.
-- F4.T14: draft placed the new tab at `client/src/components/settings/OidcRoleMappingSettings.jsx`. ∀ existing admin tab lives at `components/settings/tabs/<Name>Tab.jsx` + barrel-exported from `components/settings/index.js`; plan corrected.
-- F4.T15: draft said "register the new routes" in `routeAuthGuards.test.js`. Unnecessary — that test imports `routes/admin.js` (`routeAuthGuards.test.js:5-20`) & sweeps automatically. Real contract = routes guarded & `PUBLIC_GET_ALLOWLIST` (line 55) gains ⊥ entry.
+review corrections:
+- plan goal mapped Entra `groups`/`roles` into `users.role`, contradicting decision 1. Removed mapping table, role source, API/UI, overage logic, claim config; added §C13/§V57.
+- `OIDC_TRUST_UNVERIFIED_EMAIL` would let mutable unverified email claim an existing privileged account. Removed flag/path; verified email only (§R1/§V29).
+- `oid` without tenant/issuer uniqueness could collide & provided no executable recovery. Replaced w/ partial-unique (`oidc_issuer`,`oidc_tenant_id`,`oidc_object_id`) continuity identity + conflict-reject contract.
+- draft research claimed ∄ role ordering; `server/src/services/ecoApprovalEligibilityService.js:1-8` already ranks `lab`=`read-write`. Mapping removed ∴ precedence choice eliminated.
+- §V29 required historical user retention while `authController.js:438-475` hard-deletes & plan ignored it. F4 converts ordinary delete to audited soft deactivation; §V51 corrected.
+- draft globally forbade Keycloak while promising generic-provider compatibility. §C13 forbids Keycloak only in AD path; standards-compliant non-AD OIDC remains provider-neutral.
 
 ## watchouts
 
-- `server/node_modules` was MISSING `express-rate-limit` + `openid-client` though both are declared in `server/package.json`. `rateLimit.test.js` & `routeAuthGuards.test.js` failed to LOAD (`Cannot find package …`), ⊥ logic failure. Fixed by `cd server && npm install`; `package-lock.json` unchanged ∴ ⊥ committed. Same 2 suites red on a fresh clone|CI → run the install, ⊥ debug the tests.
-- `routeAuthGuards.test.js` is the guard F4.T15 leans on. Confirm it is GREEN before F4 starts, else the sweep proves nothing.
-- F1.T2 carries an open operator question: a user in both a `lab`-mapped & a `read-write`-mapped group. §V54 defaults to `read-write` winning (gains File Library). F1.T2 ! escalate for a ruling, ⊥ silently pick.
-- live DB `flat.gentex.int:5434/iclib` ⊥ agent-writable (§C7). Migration `17` validates on a scratch PostgreSQL 18 cluster only — F1.T4 stands that up first.
-- Entra runtime behavior ⊥ testable offline: §V56 overage can only be asserted via a synthetic `_claim_names.groups` fixture (a real >200-group tenant is unavailable) ∴ expect an `UNVERIFIABLE` row in F6 & say so rather than faking coverage.
-- `users.role_source` defaults `'manual'` in migration `17` on purpose: it pins ∀ pre-existing hand-set account so the first post-upgrade SSO login ⊥ demote a real admin. ⊥ "fix" that default to `'idp'`.
-- this cycle federates login & derives role. It ⊥ deactivate departed users — nothing sets `users.is_active` from the directory, so an AD-disabled account keeps working until an admin notices. Deferred to `BACKLOG.md` (SCIM \| Graph delta sync). ⊥ claim deprovisioning works.
-- `BACKLOG.md` now holds TWO deferred entries (ABC alt-rating + identity lifecycle) & both ! stay intact through this cycle; F6.T18 re-checks. ⊥ blank `BACKLOG.md`.
-- the raw 900-line architecture dump the user pasted was distilled down to its rulings + un-ingested lifecycle items. Full original text is recoverable from git (`git diff` on the pre-commit `BACKLOG.md`) if a decision needs re-reading.
+- Security: IdP `roles`\|`groups`\|`wids` must remain unused. `OIDC_DEFAULT_ROLE` = local provisioning policy only; default `read-only`; SSO login ⊥ overwrite existing role/active.
+- Security: primary (`iss`,`sub`) + continuity (`iss`,`tid`,`oid`) resolving to different users ! reject; ⊥ auto-merge or choose higher role.
+- Security: exact URL parsing for Entra `/common`\|`/organizations`; deceptive host/path substrings ! stay generic. Nonempty tenant allowlist + missing `tid` ! reject before DB/cookie.
+- Generic OIDC: absent `tid`\|`oid` normal when allowlist unset; verified-email link remains standard; unverified email always JIT.
+- Local lifecycle only: ∄ SCIM/Graph/AD-disable sync. Existing JWT may retain access ≤24h after directory/local disable; docs ! state limitation.
+- live DB `flat.gentex.int:5434/iclib` ⊥ writable. Scratch PG18 cluster stopped; restart port `55432` for F1/F2.
+- `BACKLOG.md` user change intentionally uncommitted; preserve both auth source text + ABC entry.
+- on next `/prep`, remove F1 — all unknowns resolved. Current F1 remains reproducible preflight for this reviewed cycle.
 
 ## final verification
 
