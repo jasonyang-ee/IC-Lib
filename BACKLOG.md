@@ -49,36 +49,29 @@ Rationale for rejecting the alternatives: component-only cannot express that the
 
 ---
 
-## Identity lifecycle & deprovisioning — deferred
+## Client `no-shadow` cleanup — 7 pre-existing violations
 
-**Status:** not started. Split out of the 2026-07-29 auth cycle. That cycle (`PLAN.md` F1-F6) covers *authentication* federation and *authorization* role derivation only. It deliberately does **not** deactivate departed users — the request below is the missing third function.
+**Status:** not started. Split out of the 2026-07-29 remediation cycle deliberately (see `PLAN.md` F2.T7) to keep a login-outage fix from dragging 7 unrelated refactors along with it.
 
-### Settled architecture (from the 2026-07-29 authentication review — do not re-litigate)
+Enabling plain `'no-shadow': 'error'` in `client/eslint.config.js` currently fails the client lint gate. None of these is logger-related — the client has no logger util, so §V58's clause is satisfied there by a narrower `no-restricted-syntax` selector instead. Verified against installed eslint v9.39.4 (see `SPEC.md` §R7):
 
-Three functions are separate and need not share a mechanism:
+- `client/src/contexts/AuthContext.jsx:47` — `user` shadows the outer declaration at line 18
+- `client/src/pages/Inventory.jsx:150` — `location` shadows line 25
+- `client/src/pages/Library.jsx:732`, `:1115`, `:1586`, `:2359` — `distributors` shadows line 515
+- `client/src/pages/Library.jsx:2419` — `response` shadows line 2365
 
-1. **Authentication** — verify the person is an AD user. → Entra ID direct OIDC. Landed/landing in the F1-F6 cycle.
-2. **Provisioning** — create/update/disable/remove the app account. → **this backlog entry.**
-3. **Authorization** — decide what they may view/edit/approve/administer. → app-local, via `oidc_role_mappings` + `role_source` (SPEC §V54) plus record-level permissions. Landing in the F1-F6 cycle.
+Fix each by renaming the inner binding, then upgrade `client/eslint.config.js` from the narrow selector to full `'no-shadow': 'error'` so all three workspaces share one rule. Low risk, no behavior change, but touches two of the largest page components — worth its own pass with the full suite green.
 
-Rulings that constrain any future work here:
+---
 
-- **Keycloak is a hard no** for the AD auth process (user requirement), which removes options 1-6 of the reviewed architectures regardless of their merits.
-- **Direct LDAP bind is rejected** — it is the only reviewed architecture that exposes AD passwords to the application, and it also forces the app to own lockout, session, password-expiry and reset behavior, and makes domain-controller availability into application availability.
-- **Generic OIDC support stays** alongside Entra, for deployments that want OIDC without AD.
-- **Identity keys must be immutable.** Never key on username or email — both change (name changes, domain migration, employee replacement). SPEC §V29 keys on (`oidc_issuer`, `oidc_sub`) and additionally persists Entra `oid` as `users.oidc_object_id`.
-- **Never delete a departed user's row.** AD disabled → app account marked inactive → all historical authorship, approvals, and audit entries stay attributable. This system is intended to preserve decades of engineering records; audit attribution outliving employment is a requirement, not a nicety.
+## Directory deprovision sync — still absent
 
-### The actual deferred request
+**Status:** not started, and explicitly out of scope per `SPEC.md` §V57 ("Directory disable/deprovision sync ∄ this cycle").
 
-Authentication alone does not make a terminated user disappear from the app database. Today nothing sets `users.is_active` from the directory — an account disabled in AD keeps working in IC-Lib until an admin notices. Options reviewed, best-first:
+The OIDC cycle landed authentication only. A user disabled in the directory keeps working until their app JWT expires (≤24h per §V1), after which IdP re-auth plus the local `is_active` check governs the next login. Closing that window needs a provisioning channel, not an auth change. Candidates, in rough order of standards-fit:
 
-- **SCIM 2.0 endpoint in IC-Lib** (`POST/PATCH/GET /scim/v2/Users`, `POST/PATCH /scim/v2/Groups`) that Entra provisions into. Most standards-based choice: gives pre-provisioning before first login, automatic profile updates, group sync, automatic deactivation, and assignment scoping — and cleanly separates provisioning from authentication. <https://learn.microsoft.com/en-us/entra/identity/app-provisioning/use-scim-to-provision-users-and-groups>
-- **Microsoft Graph delta-query sync** from a background service — more control than SCIM (custom attribute transforms, nested groups, attributes outside the SCIM schema) at the cost of custom code. <https://learn.microsoft.com/en-us/graph/delta-query-overview>
-- **On-prem AD sync agent** — only if Entra is unavailable or the app cannot reach domain controllers; outbound-only from the AD network. Custom software, so prefer SCIM.
+1. **Entra SCIM** — expose a SCIM 2.0 endpoint; Entra sends create/update/deactivate. Most standards-based, gives pre-provisioning and automatic deactivation.
+2. **Microsoft Graph delta query** — background poll for user enabled/disabled state. More control, more custom code.
+3. **Custom on-prem AD agent** — outbound-only from the AD network, calls an app provisioning API. Only if Entra is unavailable.
 
-Also still open from the same review:
-
-- Local break-glass admin policy: SPEC §V29 keeps local login working, but there is no explicit rule that at least one local admin must remain, nor a check that prevents an admin from federating the last one away.
-- Groups-overage resolution via Graph: SPEC §V56 currently fails closed for users in >200 groups (§R4). Resolving properly needs Graph `Group.Read.All` + `User.Read.All`, admin consent, and a separate token. Only worth building if a real user actually trips the limit.
-- Whether `is_active=false` should also revoke an already-issued JWT cookie (24h lifetime per §V1) or only block the next login. Today it only blocks login, so a disabled user keeps a live session for up to 24h.
+Whichever is chosen must honor §V57's retention rule: deactivate and retain the row, never `DELETE`, so historical authorship/approval/audit references survive.
