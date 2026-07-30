@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `/api/ready` now reflects the schema the app actually serves from. It previously answered 200 after a `SELECT 1` ping plus a users-table/default-admin check, so a database missing a component table, an OrCAD-CIS view, or a required column still read as ready and kept receiving traffic it could only 500 on. Readiness now runs one live, uncached full schema inspection per request — the same expectations startup verifies — and returns 200 only on a clean result. The public 503 body was also carrying the raw driver error message, the probed host's schema state, and `defaultAdminExists`; it is now just `status` and `timestamp`, with the missing table/view/column names and the underlying error kept in the server log.
 
-- `no-shadow` and `no-console` are enabled as errors for the server (with `src/utils/logger.js` as the one sanctioned console sink), so both classes of defect fail lint instead of reappearing. Three decorative blank `console.log('')` banner writes were removed.
+- `no-shadow` and `no-console` are enabled as errors for the server (with `src/utils/logger.js` as the one sanctioned console sink), so both classes of defect fail lint instead of reappearing. Three decorative blank `console.log('')` banner writes were removed. `no-shadow` is now an error on the client too; the seven pre-existing shadowed bindings it found (in `AuthContext`, `Inventory`, and `Library`) were renamed to say which value they hold, with no behaviour change.
 
 ### Changed
 

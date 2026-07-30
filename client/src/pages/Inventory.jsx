@@ -147,10 +147,10 @@ const Inventory = () => {
 
   // Update quantity mutation
   const _updateQtyMutation = useMutation({
-    mutationFn: async ({ id, quantity, location }) => {
+    mutationFn: async ({ id, quantity, location: stockLocation }) => {
       const updateData = {};
       if (quantity !== undefined) updateData.quantity = quantity;
-      if (location !== undefined) updateData.location = location;
+      if (stockLocation !== undefined) updateData.location = stockLocation;
       await api.updateInventory(id, updateData);
     },
     onSuccess: () => {

@@ -729,7 +729,7 @@ const Library = () => {
     queryKey: ['componentDetails', selectedComponent?.id],
     enabled: !!selectedComponent && !isAddMode,
     queryFn: async () => {
-      const [details, specifications, distributors, cadFiles] = await Promise.all([
+      const [details, specifications, componentDistributors, cadFiles] = await Promise.all([
         api.getComponentById(selectedComponent.id),
         api.getComponentSpecifications(selectedComponent.id),
         api.getComponentDistributors(selectedComponent.id),
@@ -738,7 +738,7 @@ const Library = () => {
       return {
         ...details.data,
         specifications: specifications.data,
-        distributors: distributors.data,
+        distributors: componentDistributors.data,
         cadFilesLinked: cadFiles.data?.files || {},
       };
     },
@@ -1112,7 +1112,7 @@ const Library = () => {
         if (!canContinue) return;
 
         // Extract specifications and distributors from editData
-        const { specifications, distributors, ...componentData } = editData;
+        const { specifications, distributors: editedDistributors, ...componentData } = editData;
         
         // Update component data with actual manufacturer ID
         componentData.manufacturer_id = manufacturerId;
@@ -1139,7 +1139,7 @@ const Library = () => {
         // Filter and update distributors (only with valid distributor_id and sku/url)
         // IMPORTANT: We send all valid distributors to the backend
         // The backend will delete entries not in this list
-        const validDistributors = distributors?.filter(dist => 
+        const validDistributors = editedDistributors?.filter(dist => 
           dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
         ).map(dist => ({
           id: dist.id, // Keep existing ID if updating
@@ -1583,7 +1583,7 @@ const Library = () => {
       // Collect all changes
       const changes = [];
       const specifications = [];
-      const distributors = [];
+      const stagedDistributors = [];
       const alternativesParts = [];
 
       // Track component field changes (including category_id for category changes via ECO)
@@ -1649,7 +1649,7 @@ const Library = () => {
           const urlChanged = (oldDist?.url || '') !== (dist.url || '');
 
           if (skuChanged || urlChanged || !oldDist) {
-            distributors.push({
+            stagedDistributors.push({
               alternative_id: null,
               distributor_id: dist.distributor_id,
               action: oldDist ? 'update' : 'add',
@@ -1671,7 +1671,7 @@ const Library = () => {
             );
 
             if (!newDist || !newDist.sku) {
-              distributors.push({
+              stagedDistributors.push({
                 alternative_id: null,
                 distributor_id: oldDist.distributor_id,
                 action: 'delete',
@@ -1822,7 +1822,7 @@ const Library = () => {
         part_number: selectedComponent.part_number,
         changes,
         specifications,
-        distributors,
+        distributors: stagedDistributors,
         alternatives: alternativesParts,
         cad_files: cadFileChanges,
         notes: ecoNotes,
@@ -2356,7 +2356,7 @@ const Library = () => {
         if (!canContinue) return;
 
         // Extract specifications and distributors from editData
-        const { specifications, distributors, ...componentData } = editData;
+        const { specifications, distributors: editedDistributors, ...componentData } = editData;
         
         // Update component data with actual manufacturer ID
         componentData.manufacturer_id = manufacturerId;
@@ -2386,7 +2386,7 @@ const Library = () => {
         }
         
         // Filter and add distributors (only with valid distributor_id and sku)
-        const validDistributors = distributors?.filter(dist => 
+        const validDistributors = editedDistributors?.filter(dist => 
           dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
         ).map(dist => ({
           distributor_id: dist.distributor_id,
@@ -2416,10 +2416,10 @@ const Library = () => {
             if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
               const newManufacturerName = altManufacturerId.substring(4);
               try {
-                const response = await createManufacturerMutation.mutateAsync({ 
+                const manufacturerResponse = await createManufacturerMutation.mutateAsync({ 
                   name: newManufacturerName 
                 });
-                altManufacturerId = response.data.id;
+                altManufacturerId = manufacturerResponse.data.id;
               } catch (error) {
                 console.error('Error creating alternative manufacturer:', error);
                 continue; // Skip this alternative if manufacturer creation fails

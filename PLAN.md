@@ -176,14 +176,14 @@ files: `client/src/contexts/AuthContext.jsx`, `client/src/pages/{Inventory,Libra
 
 §T TASKS:
 
-T1|.|rename 7 inner bindings
+T1|x|rename 7 inner bindings
 touch: listed client files
 details: `user` :47, `location` :150, `distributors` :732/:1115/:1586/:2359, `response` :2419; preserve values/control/output.
 verify: one-off client `no-shadow:error` → 0.
 exit: no violations.
 next: F4.T2
 
-T2|.|enable rule + record
+T2|x|enable rule + record
 touch: lint config/changelog
 details: add `'no-shadow':'error'`; Unreleased hardening entry.
 verify: `cd client && npm.cmd run lint`; focused AuthContext test discovered by `rg`; `bash ./test.sh`.

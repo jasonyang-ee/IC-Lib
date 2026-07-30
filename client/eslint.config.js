@@ -31,6 +31,9 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
+      // Matches the server rule: an inner binding reusing an outer name reads
+      // as the outer value and hides which one a line actually touches.
+      'no-shadow': 'error',
     },
   },
   {

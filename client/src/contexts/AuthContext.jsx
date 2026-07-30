@@ -44,10 +44,10 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.login({ username, password });
-      const { user } = response.data;
-      
+      const { user: signedInUser } = response.data;
+
       queryClient.clear();
-      setUser(user);
+      setUser(signedInUser);
       setIsAuthenticated(true);
       
       return { success: true };
