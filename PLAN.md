@@ -150,14 +150,14 @@ files: `server/src/controllers/healthController.js`, `server/src/test/healthCont
 
 §T TASKS:
 
-T1|.|use live full-schema inspection
+T1|x|use live full-schema inspection
 touch: health controller/test
 details: import `inspectDatabaseSchema`; one uncached default inspection/request. rejected query or `valid:false` → 503; `valid:true` → 200. remove auth-status dependency + redundant ping.
 verify: tests cover reject, missing table, missing view, missing column, valid; liveness inspector count 0.
 exit: readiness reflects current serving schema.
 next: F3.T2
 
-T2|.|make failure body generic + diagnostics server-only
+T2|x|make failure body generic + diagnostics server-only
 touch: health controller/test/changelog
 details: public response = stable `status`+timestamp only; logs retain error/missing names. sentinel host, exception, object names, `defaultAdminExists` absent from serialized 503. Unreleased entry names full-schema readiness + disclosure fix.
 verify: `cd server && npm.cmd run test:run -- src/test/healthController.test.js`; Dockerfile still probes `/api/ready`; `bash ./test.sh`.

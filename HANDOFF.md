@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `9c8fa49` | tests pass 326/326 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 40 files/235 tests, scripts + lint pass)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F2 §T flips + baton; F2 code committed separately
+branch `test` | last commit `c8d40a8` | tests pass 328/328 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 40 files/237 tests, scripts + lint pass)
+uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F3 §T flips + baton; F3 code committed separately
 
 ## done this session
 
@@ -22,26 +22,31 @@ uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F2 §T flips + baton; 
 - F2.T2: `updateComponent` shares one txn between the TEXT `UPDATE` and `syncComponentCadFiles(...,client)`; audit moved AFTER `COMMIT` on `pool` and stays optional.
 - F2.T3: 3 required in-txn audits (`changeComponentCategory`, `deleteComponent`, `promoteAlternative`) lost their inner `catch` per §R9. 16 optional sites renamed `logError` → `activityError` binding + call the imported logger (`authController` 6, `componentController` 6, `oidcController` 1, `settingsController` 2, plus one pre-existing `activityError` site left as-is).
 - F2.T4: `server/eslint.config.js` gains `'no-shadow':'error'` + `'no-console':'error'` with a `src/utils/logger.js`-only console override; removed 3 decorative `console.log('')` from `src/index.js`. `npm.cmd exec eslint -- src` → clean.
+- F2 (committed `c8d40a8`).
 - F2.T5: new `server/src/test/componentAuditFailure.test.js` (7 cases: create COMMIT-once/201, rollback on rejected audit, rejected inventory, rejected CAD sync, client-handle wiring; update rollback on CAD sync, update survives rejected audit). `authController.test.js` +2 (cookie set / cleared under rejected audit). `oidcController.test.js` +1 (SSO cookie under rejected audit). `componentControllerFlows.test.js` `pool.connect` mock now returns `asClient(...)`. `CHANGELOG.md` `## [Unreleased]` gains a `### Fixed` block.
+- F3.T1: `healthController.readiness` rewritten — drops `pool` `SELECT 1` + `getAuthenticationStatus()`, calls `inspectDatabaseSchema()` once per request w/ defaults; reject | `valid:false` → 503, `valid:true` → 200. `liveness` unchanged + still DB-free.
+- F3.T2: public 503/200 body reduced to `{status,timestamp}`; missing table/view/column names + driver message go to `logError('Health',...)` only. removed orphaned `getAuthenticationStatus()` from `initializationService.js` (0 remaining callers; its 3 private helpers stay used by startup). `healthController.test.js` rewritten: 6 cases = liveness zero-inspection, inspection reject, missing table, missing view, missing column, valid + exactly-one-uncached-call; every 503/200 asserts body keys `['status','timestamp']` exactly.
 
 ## in progress (exact stop point)
 
-none — F2 closed, oracle green. F3.T1 not started.
+none — F3 closed, oracle green. F4.T1 not started.
 mid-edit files: none.
 
 ## next
 
-F3.T1 | rewrite `server/src/controllers/healthController.js:readiness` to call `inspectDatabaseSchema()` once per request (drop the `SELECT 1` ping + `getAuthenticationStatus()` dependency); `valid:true` → 200, rejected query | `valid:false` → 503.
+F4.T1 | rename the 7 client shadow bindings — `client/src/contexts/AuthContext.jsx:47` `user`, `client/src/pages/Inventory.jsx:150` `location`, `client/src/pages/Library.jsx:732|1115|1586|2359` `distributors`, `client/src/pages/Library.jsx:2419` `response` — then F4.T2 adds `'no-shadow':'error'` to `client/eslint.config.js`.
 
 ## deviations & decisions
 
 - F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC content change this session.
 - create previously answered 201 even when `syncComponentCadFiles` threw (it was `logWarn`-swallowed). Under §V7/§V8 atomicity that swallow is gone ∴ a CAD-sync failure now fails the whole create. Intended, and covered by a named regression.
+- F3: `getAuthenticationStatus()` was deleted rather than left orphaned — readiness was its only caller and it duplicated a weaker subset of `inspectDatabaseSchema()`.
 - optional-audit binding name = `activityError`, chosen because `authController.js:483` already used it ∴ house convention, ⊥ new one.
 
 ## watchouts
 
 - all prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`).
+- readiness no longer reports `defaultAdminExists`; if any operator tooling parsed that field off `/api/ready`, it must move to the authenticated admin verify endpoint.
 - `componentControllerFlows.test.js` + `componentAuditFailure.test.js` both mock `pool.connect`; any later controller that adopts a txn ! get the same mock or its suite throws `connect is not a function`.
 - `authenticate` becoming async (F9.T1) changes every route's first handler to an async fn; `routeAuthGuards.test.js` matches on `handle.name === 'authenticate'` ∴ keep the exported binding name.
 

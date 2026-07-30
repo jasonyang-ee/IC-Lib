@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Audit rows that belong to an already-open transaction — category change, component delete, and alternative promotion — no longer swallow a rejected write. PostgreSQL cannot continue a transaction past a failed statement, so the old inner `catch` produced an aborted transaction that could only fail confusingly later; these sites now let the failure roll the whole operation back.
 
+- `/api/ready` now reflects the schema the app actually serves from. It previously answered 200 after a `SELECT 1` ping plus a users-table/default-admin check, so a database missing a component table, an OrCAD-CIS view, or a required column still read as ready and kept receiving traffic it could only 500 on. Readiness now runs one live, uncached full schema inspection per request — the same expectations startup verifies — and returns 200 only on a clean result. The public 503 body was also carrying the raw driver error message, the probed host's schema state, and `defaultAdminExists`; it is now just `status` and `timestamp`, with the missing table/view/column names and the underlying error kept in the server log.
+
 - `no-shadow` and `no-console` are enabled as errors for the server (with `src/utils/logger.js` as the one sanctioned console sink), so both classes of defect fail lint instead of reappearing. Three decorative blank `console.log('')` banner writes were removed.
 
 ### Changed

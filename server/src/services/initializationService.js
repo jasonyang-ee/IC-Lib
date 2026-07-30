@@ -570,28 +570,3 @@ async function checkIsBlankDatabase() {
   return false;
 }
 
-/**
- * Get authentication status for health checks
- */
-export async function getAuthenticationStatus() {
-  try {
-    const usersTableExists = await checkUsersTableExists();
-    const schemaValid = usersTableExists ? await validateUsersTableSchema() : false;
-    const adminExists = usersTableExists ? await checkDefaultAdminExists() : false;
-
-    return {
-      usersTableExists,
-      schemaValid,
-      defaultAdminExists: adminExists,
-      ready: usersTableExists && schemaValid && adminExists,
-    };
-  } catch (error) {
-    return {
-      usersTableExists: false,
-      schemaValid: false,
-      defaultAdminExists: false,
-      ready: false,
-      error: error.message,
-    };
-  }
-}
