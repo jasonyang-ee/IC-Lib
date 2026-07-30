@@ -25,6 +25,23 @@ services:
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
       # - MOUSER_API_KEY=your_api_key
 
+      # Optional: rate limiting (SPEC V32). Defaults apply when unset: three
+      # independent budgets - failed logins per client IP, failed
+      # change-password attempts per authenticated user id, and a coarse per-IP
+      # ceiling over only the public read surface plus the barcode lookup.
+      # Counters are process-local: this compose file runs ONE app container,
+      # which is what makes them authoritative. Scale the app past one process
+      # or replica and you need a shared external store first.
+      # TRUST_PROXY_HOPS is the number of proxy hops in front of Node (1 for
+      # the bundled nginx) so the limiters key on the real client address.
+      # - TRUST_PROXY_HOPS=1
+      # - RATE_LIMIT_LOGIN_MAX=10
+      # - RATE_LIMIT_LOGIN_WINDOW_MS=900000
+      # - RATE_LIMIT_CHANGE_PASSWORD_MAX=10
+      # - RATE_LIMIT_CHANGE_PASSWORD_WINDOW_MS=900000
+      # - RATE_LIMIT_GLOBAL_MAX=1000
+      # - RATE_LIMIT_GLOBAL_WINDOW_MS=900000
+
       # Optional: OIDC / SSO (enabled iff issuer + client id are set).
       # Redirect URI must be this deployment's public URL + /api/auth/oidc/callback
       # (include the subdirectory if CONFIG_SUBDIRECTORY_PATH is set).

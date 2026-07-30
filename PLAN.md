@@ -228,28 +228,28 @@ files: `server/src/constants/publicRoutes.js` (new), `server/src/middleware/rate
 
 §T TASKS:
 
-T1|.|single-source public route policy
+T1|x|single-source public route policy
 touch: new constants + `server/src/test/routeAuthGuards.test.js`
 details: export router mount map + descriptor sets for exact public GETs, deliberate public mutations, and public-global targets = public GETs + barcode POST but ⊥ login. route-auth sweep consumes same descriptors; stale descriptor + unlisted public route both fail. template matcher ! exact method/path incl `:param`, optional trailing slash; lookalike prefixes ⊥ match.
 verify: route test proves 2-way parity + matcher cases for static/param/query/lookalike/method.
 exit: runtime/test allowlists cannot drift independently.
 next: F6.T2
 
-T2|.|mount global ceiling only on §V10 targets
+T2|x|mount global ceiling only on §V10 targets
 touch: rate middleware/index/tests
 details: wrapper checks production manifest before invoking `createGlobalLimiter`; non-target calls `next` without increment. retain `RATE_LIMIT_GLOBAL_MAX=1000`, window 900000, per `req.ip`; probes remain outside.
 verify: real-listener test: repeated public catalog/barcode request → 429; interleaved private route stays unthrottled + does not consume quota; OIDC public GET limited; login excluded.
 exit: shared NAT budget scoped exactly.
 next: F6.T3
 
-T3|.|split credential limiters
+T3|x|split credential limiters
 touch: rate middleware/auth router/tests
 details: distinct `createLoginLimiter`/`createChangePasswordLimiter` calls + stores. login mounted pre-auth keyed IP; password mounted after `authenticate`, keyed `req.user.id`; both count failed only. env names `RATE_LIMIT_LOGIN_*`, `RATE_LIMIT_CHANGE_PASSWORD_*`; ⊥ shared `authLimiter` export.
 verify: one user's password failures ⊥ throttle another; login failures ⊥ throttle password; successful requests skipped; N+1 → 429.
 exit: credentials isolated.
 next: F6.T4
 
-T4|.|document deployment boundary + record
+T4|x|document deployment boundary + record
 touch: env/compose/README/changelog
 details: document defaults, fixed proxy hop, process-local reset, and shared external store requirement for >1 process/replica. ⊥ claim distributed enforcement. Unreleased entry names NAT/private isolation.
 verify: `cd server && npm.cmd run test:run -- src/test/rateLimit.test.js src/test/routeAuthGuards.test.js`; `bash ./test.sh`.

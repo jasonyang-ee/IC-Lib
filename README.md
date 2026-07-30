@@ -81,6 +81,20 @@ services:
 
   Set the reverse proxy subdirectory path if the app is not able to run with sub CNAME routing. For example, if the app is served at `https://domain.tld/anypath/`, set `CONFIG_SUBDIRECTORY_PATH=/anypath/` to ensure the frontend router and asset paths work correctly.
 
+- `RATE_LIMIT_*` / `TRUST_PROXY_HOPS`
+
+  Optional rate-limit tuning (defaults apply when unset). Three budgets are enforced independently, so exhausting one never locks out the others:
+
+  | Budget | Keyed by | Covers | Env |
+  |---|---|---|---|
+  | Login | Client IP | Failed `POST /api/auth/login` | `RATE_LIMIT_LOGIN_MAX`, `RATE_LIMIT_LOGIN_WINDOW_MS` |
+  | Change password | Authenticated user id | Failed change-password attempts | `RATE_LIMIT_CHANGE_PASSWORD_MAX`, `RATE_LIMIT_CHANGE_PASSWORD_WINDOW_MS` |
+  | Public ceiling | Client IP | Only the unauthenticated read surface plus the barcode lookup | `RATE_LIMIT_GLOBAL_MAX` (default 1000), `RATE_LIMIT_GLOBAL_WINDOW_MS` (default 15 min) |
+
+  Authenticated requests do not spend the public ceiling, so a busy signed-in user cannot throttle guest reads coming from the same office NAT address — and cannot be throttled by them. `TRUST_PROXY_HOPS` is the number of proxy hops in front of Node (1 for the bundled nginx) so the limiters key on the real client address rather than the proxy's.
+
+  The counters are held in the app process's own memory. They reset when the container restarts, and each process or replica keeps its own counts — the bundled `docker-compose.yml` runs a single app container, which is what makes these numbers authoritative. If you scale the app horizontally, configure a shared external store before treating the limits as uniformly enforced.
+
 ### Single Sign-On (OIDC)
 
 IC-Lib supports Microsoft Entra ID directly through the Node/Express server. The primary Active Directory path is:

@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
 
+const {
+  PUBLIC_GETS,
+  PUBLIC_GLOBAL_TARGETS,
+  PUBLIC_MUTATIONS,
+  ROUTER_MOUNTS,
+  resolveRouteDescriptor,
+} = await import('../constants/publicRoutes.js');
+
 const { default: adminRoutes } = await import('../routes/admin.js');
 const { default: authRoutes } = await import('../routes/auth.js');
 const { default: categoryRoutes } = await import('../routes/categories.js');
@@ -40,69 +48,11 @@ const ALL_ROUTERS = {
 
 const MUTATING_METHODS = ['post', 'put', 'patch', 'delete'];
 
-// Deliberately public state-changing routes (documented in SPEC §V10):
-// - auth POST /login: must be reachable to obtain a session
-// - inventory POST /search/barcode: mutation-shaped read (barcode lookup)
-const PUBLIC_MUTATION_ALLOWLIST = new Set([
-  'auth post /login',
-  'inventory post /search/barcode',
-]);
-
-// The exact public GET surface (documented in SPEC §V10): catalog, dashboard
-// stats, reports, settings reads, and CIS/label downloads stay public for the
-// guest read-only flow. Every GET not listed here must require authenticate.
-// Adding a new public GET is a deliberate act: extend this list AND §V10.
-const PUBLIC_GET_ALLOWLIST = new Set([
-  // OIDC/SSO flow (V29): status feeds the login page; login/callback carry
-  // the IdP redirect flow and must be reachable pre-session
-  'auth get /oidc/status',
-  'auth get /oidc/login',
-  'auth get /oidc/callback',
-  'categories get /',
-  'categories get /:id',
-  'categories get /:id/next-part-number',
-  'categories get /:id/components',
-  'components get /',
-  'components get /subcategories/suggestions',
-  'components get /field-suggestions',
-  'components get /:id',
-  'components get /:id/specifications',
-  'components get /:id/distributors',
-  'components get /:id/projects',
-  'components get /:id/alternatives',
-  'dashboard get /stats',
-  'dashboard get /recent-activities',
-  'dashboard get /category-breakdown',
-  'dashboard get /extended-stats',
-  'distributors get /',
-  'inventory get /',
-  'inventory get /:id',
-  'inventory get /component/:componentId',
-  'inventory get /alerts/low-stock',
-  'inventory get /:id/alternatives',
-  'manufacturers get /',
-  'manufacturers get /:id',
-  'projects get /',
-  'projects get /:id',
-  'reports get /component-summary',
-  'reports get /category-distribution',
-  'reports get /inventory-value',
-  'reports get /missing-footprints',
-  'reports get /manufacturers',
-  'reports get /low-stock',
-  'settings get /features',
-  'settings get /',
-  'settings get /eco',
-  'settings get /eco/logo',
-  'settings get /eco/preview',
-  'settings get /global-prefix',
-  'settings get /categories',
-  'settings get /categories/:categoryId/specifications',
-  'settings get /cis-files',
-  'settings get /cis-files/:filename',
-  'settings get /label-templates',
-  'settings get /label-templates/:filename',
-]);
+// Runtime and test read the SAME descriptors (§V10, §V27, §V32): the global
+// limiter throttles PUBLIC_GLOBAL_TARGETS, and the sweep below proves those
+// descriptors still describe the live routers in both directions.
+const PUBLIC_MUTATION_ALLOWLIST = PUBLIC_MUTATIONS;
+const PUBLIC_GET_ALLOWLIST = PUBLIC_GETS;
 
 const getRouteHandlers = (router, method, routePath) => {
   const layer = router.stack.find((stackLayer) => stackLayer.route
@@ -241,5 +191,50 @@ describe('route auth guards', () => {
     expect(getRouteHandlers(dashboardRoutes, 'delete', '/activities/all')).toEqual(['authenticate', 'isAdmin', 'clearAllActivities']);
     expect(getRouteHandlers(settingsRoutes, 'post', '/database/clear')).toEqual(['authenticate', 'isAdmin', 'clearDatabase']);
     expect(getRouteHandlers(settingsRoutes, 'post', '/database/reset')).toEqual(['authenticate', 'isAdmin', 'resetDatabase']);
+  });
+});
+
+describe('public route descriptors (§V10, §V32)', () => {
+  it('declares a mount for every router the app sweeps', () => {
+    expect(Object.keys(ROUTER_MOUNTS).sort()).toEqual(Object.keys(ALL_ROUTERS).sort());
+  });
+
+  it('names only routers that exist, in every descriptor set', () => {
+    const routerNames = new Set(Object.keys(ROUTER_MOUNTS));
+    const allKeys = [...PUBLIC_GETS, ...PUBLIC_MUTATIONS, ...PUBLIC_GLOBAL_TARGETS];
+
+    for (const key of allKeys) {
+      const [routerName, method] = key.split(' ');
+      expect(routerNames.has(routerName)).toBe(true);
+      expect(['get', 'post', 'put', 'patch', 'delete']).toContain(method);
+    }
+  });
+
+  it('targets exactly the public GETs plus the barcode lookup, never login', () => {
+    expect(PUBLIC_GLOBAL_TARGETS.has('inventory post /search/barcode')).toBe(true);
+    expect(PUBLIC_GLOBAL_TARGETS.has('auth post /login')).toBe(false);
+    for (const key of PUBLIC_GETS) expect(PUBLIC_GLOBAL_TARGETS.has(key)).toBe(true);
+    expect(PUBLIC_GLOBAL_TARGETS.size).toBe(PUBLIC_GETS.size + 1);
+  });
+
+  it('resolves live request paths to descriptors, exactly', () => {
+    const resolve = (method, url) => resolveRouteDescriptor(method, url, PUBLIC_GLOBAL_TARGETS);
+
+    // static, :param, query string, trailing slash, and method casing
+    expect(resolve('GET', '/api/components')).toBe('components get /');
+    expect(resolve('GET', '/api/components/abc-123')).toBe('components get /:id');
+    expect(resolve('GET', '/api/components?search=res')).toBe('components get /');
+    expect(resolve('GET', '/api/components/')).toBe('components get /');
+    expect(resolve('get', '/api/auth/oidc/status')).toBe('auth get /oidc/status');
+    expect(resolve('POST', '/api/inventory/search/barcode')).toBe('inventory post /search/barcode');
+
+    // wrong method, private route, unmounted prefix, and lookalike paths
+    expect(resolve('POST', '/api/components')).toBeNull();
+    expect(resolve('GET', '/api/eco')).toBeNull();
+    expect(resolve('GET', '/api/dashboard/db-info')).toBeNull();
+    expect(resolve('GET', '/api/scim/v2/Users')).toBeNull();
+    expect(resolve('GET', '/api/components-archive')).toBeNull();
+    expect(resolve('GET', '/api/components/abc-123/history')).toBeNull();
+    expect(resolve('POST', '/api/auth/login')).toBeNull();
   });
 });

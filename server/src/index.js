@@ -47,7 +47,7 @@ import pool from './config/database.js';
 import { gracefulShutdown } from './utils/gracefulShutdown.js';
 
 // Rate limiting (SPEC §V32): global ceiling for the public read surface
-import { globalLimiter } from './middleware/rateLimit.js';
+import { publicGlobalLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
@@ -98,7 +98,7 @@ app.get('/api/ready', readiness);
 // Global per-IP request ceiling (§V32). Mounted AFTER the probes so the
 // container HEALTHCHECK polling /api/ready is never throttled, and BEFORE the
 // API routes so it guards the public read surface (§V10) from abuse.
-app.use('/api', globalLimiter);
+app.use('/api', publicGlobalLimiter);
 
 // API Routes
 app.use('/api/auth', authRoutes);

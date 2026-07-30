@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `520cb82` | tests pass 331/331 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 40 files/237 tests, scripts + lint pass)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F5 §T flips + baton; F5 code committed separately
+branch `test` | last commit `f44d7cc` | tests pass 341/341 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 40 files/247 tests, scripts + lint pass)
+uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F6 §T flips + baton; F6 code committed separately
 
 ## done this session
 
@@ -31,21 +31,27 @@ uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F5 §T flips + baton; 
 - F4 (committed `520cb82`).
 - F4.T2: `client/eslint.config.js` gains `'no-shadow':'error'`. one-off client `no-shadow` count 0; `cd client && npm.cmd run lint` clean; `authContext.test.jsx` 3/3.
 - F5.T1: reworded the `normalizeFootprintFilename` comment in `client/src/utils/footprintFiles.js` — supported user-boundary behavioural parity, `lastIndexOf` vs server `path.extname` divergence on synthetic dotfiles named as non-contractual. ⊥ helper/algorithm change, ⊥ `RenameModal.jsx` guard duplication.
+- F5 (committed `f44d7cc`).
 - F5.T2: `client/src/test/fileLibrary.test.jsx` +3 cases (footprint single `+` reject, footprint pair `+` reject, legal pair rename succeeds). Added `mockFootprintSingleEntry`/`mockFootprintPairEntry` + `Open Footprint Rename`/`Open Footprint Pair Rename`/`Set Plus Name` buttons to the view/modal doubles, and a `rename-current-name` testid so "modal stays recoverable" is asserted. Extracted the old inline `beforeEach` body into module-level `primeMocks()` shared by both describes — without it the new describe inherited un-reset spies and false-passed.
+- F6.T1: new `server/src/constants/publicRoutes.js` — `ROUTER_MOUNTS` (16 routers), `PUBLIC_GETS` (48), `PUBLIC_MUTATIONS` (2), `PUBLIC_GLOBAL_TARGETS` (= `PUBLIC_GETS` + `inventory post /search/barcode`, ⊥ login), `resolveRouteDescriptor`, `isPublicGlobalTarget`. `routeAuthGuards.test.js` now imports them ∴ its 2-way sweep IS the drift guard for the limiter.
+- F6.T2: `createPublicGlobalLimiter` wraps `createGlobalLimiter` and calls `next()` without incrementing unless `isPublicGlobalTarget(req)`. `index.js` mounts it at `app.use('/api', publicGlobalLimiter)` (same position, after probes).
+- F6.T3: `createAuthLimiter`/`authLimiter` replaced by `createLoginLimiter` (IP) + `createChangePasswordLimiter` (`req.user.id`, IP fallback); separate stores. env `RATE_LIMIT_AUTH_*` → `RATE_LIMIT_LOGIN_*` + `RATE_LIMIT_CHANGE_PASSWORD_*`.
+- F6.T4: `.env.example`, `docker-compose.yml`, `README.md` (new env table) document the 3 budgets + process-local MemoryStore + shared-store-before-scaling requirement. `rateLimit.test.js` 9 cases (login 429, success skip, per-user password isolation, login⊥password cross-throttle, public GET throttle, barcode + OIDC status share the budget, private routes unthrottled + ⊥ spending it, login excluded, `:param` match). `routeAuthGuards.test.js` +4 (mount/router-name coverage, target-set algebra, matcher static/param/query/trailing-slash/case/lookalike/wrong-method).
 
 ## in progress (exact stop point)
 
-none — F5 closed, oracle green. F6.T1 not started.
+none — F6 closed, oracle green. F7.T1 not started.
 mid-edit files: none.
 
 ## next
 
-F6.T1 | create `server/src/constants/publicRoutes.js` holding the router mount map + the descriptor sets currently hard-coded in `server/src/test/routeAuthGuards.test.js` (48 public GET keys, 2 public mutation keys `auth post /login` + `inventory post /search/barcode`), then have that test consume them so runtime and test allowlists cannot drift.
+F7.T1 | write `database/migrations/18_alternative_class.sql` + mirror it in `database/init-schema.sql`: nullable `CHAR(1)` `components.alt_class` + `project_components.alt_class` with named CHECKs allowing only A/B/C (NULL passes), `ADD COLUMN IF NOT EXISTS` + `pg_constraint` guards, and `alt_class` appended AFTER every existing column in the six §C4 component-facing views (`eco_orders_full` untouched).
 
 ## deviations & decisions
 
 - F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC content change this session.
 - create previously answered 201 even when `syncComponentCadFiles` threw (it was `logWarn`-swallowed). Under §V7/§V8 atomicity that swallow is gone ∴ a CAD-sync failure now fails the whole create. Intended, and covered by a named regression.
+- F6: `PUBLIC_GLOBAL_TARGETS` deliberately excludes `auth post /login` — it owns a tighter per-IP limiter, and double-counting would let failed logins throttle unrelated guest reads from the same office.
 - F5: the alleged missing `+` guard was disproven in F1; F5 therefore ships evidence + a comment correction, ⊥ a behaviour change. Both rename modes go through the one `handleRenameSubmit` guard.
 - F4: `Library.jsx` ECO staging array renamed to `stagedDistributors`, but the `createECO` body key stays `distributors:` — the server contract is untouched.
 - F3: `getAuthenticationStatus()` was deleted rather than left orphaned — readiness was its only caller and it duplicated a weaker subset of `inspectDatabaseSchema()`.
@@ -54,6 +60,7 @@ F6.T1 | create `server/src/constants/publicRoutes.js` holding the router mount m
 ## watchouts
 
 - all prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`).
+- `docker-compose.yml`, `README.md`, `.env.example` are CRLF in this repo while `.js`/`.jsx`/`.md` cycle files are LF — match the file you are editing.
 - ⊥ edit repo files with a Python text-mode write on this Windows host: it rewrites LF→CRLF and produces a whole-file diff. Read/write binary and normalize, or use the editor tools.
 - readiness no longer reports `defaultAdminExists`; if any operator tooling parsed that field off `/api/ready`, it must move to the authenticated admin verify endpoint.
 - `componentControllerFlows.test.js` + `componentAuditFailure.test.js` both mock `pool.connect`; any later controller that adopts a txn ! get the same mock or its suite throws `connect is not a function`.
