@@ -196,32 +196,76 @@ goal: capture tomorrow's product/deployment rulings; rewrite F6-F10 to exact, un
 inputs: §V1, §V10, §V28, §V32, §V55, §V57; §R8, §R11, §R12; ingested BACKLOG contract.
 files: read-only local consumer maps + official sources; PLAN/HANDOFF/SPEC only via /encode-docs.
 
+reply shortcut: `Use all F5 recommendations. Deployment: <1|multiple|unknown> app containers; <≤5|6-25|>25|unknown> simultaneous users behind one public IP; Entra can reach an IC-Lib SCIM endpoint: <yes|no|unknown>.`
+override format: `Q1=B; Q2=A/L2; Q3a=C; Q3d=B; Q4a=D` — omitted answers use recommendation.
+
 §T TASKS:
 
 T1|.|resolve §V28 scope
 touch: user ruling
-details: HOLD = `FileLibrary.jsx:665-682` already blocks `+` for shared single+pair submit. decide “exact parity” = boundary normalization/error outputs only | helper-level dotfile+whitespace behavior too. decide canonical `.psm`, whitespace, trailing-dot semantics if helper-level. ⊥ duplicate guard in `RenameModal.jsx`.
+question: Q1 — what must “client mirror exact parity” mean?
+choices:
+- Q1=A (recommended): user-visible behavior parity. ∀ real upload/rename/finalize boundary → same normalized filename, `+` rejection/toast, collision result. internal extension helpers may differ on synthetic/invalid inputs such as `.psm` alone or outer whitespace. amend §V28 to say behavioral parity; retain independent implementations.
+- Q1=B: strict helper parity. server `footprintFiles.js` + client `footprintFiles.js` + client `cadFileTypes.js` use one canonical algorithm. canonical edge behavior: trim outer whitespace; `.psm` alone recognized as extension token; `name.` stays non-footprint; every shared corpus output identical.
+impact: A = least code/risk; current real behavior already matches. B = stronger maintenance rule + utility refactor, but changes edge behavior with ∄ known user impact.
+fixed regardless: `FileLibrary.jsx:665-682` already blocks `+` for single+pair; add regression test; ⊥ duplicate guard in `RenameModal.jsx`.
 verify: ruling + consumer map + corpus written into F6.
 exit: F6 unconditional.
 next: F5.T2
 
 T2|.|resolve global limiter deployment policy
 touch: user/deployment ruling
-details: current limiter covers all `/api`, keyed IP, process-local. capture expected users behind one NAT, request telemetry, Node replica count. choose protected scope = public §V10 only | all API; choose per-IP/per-user strategy + shared store if replicas>1; choose ceiling from evidence. credential limiter split remains required regardless.
+question: Q2 — which traffic should share one request budget?
+facts needed: app containers = `1|multiple|unknown`; simultaneous users behind same public IP = `≤5|6-25|>25|unknown`.
+choices:
+- Q2=A (recommended): global limiter only on exact §V10 public endpoint allowlist, keyed by client IP. authenticated-only APIs ⊥ consume shared NAT budget. login = separate IP limiter; change-password = separate per-user limiter.
+- Q2=B: all `/api`, but authenticated requests keyed per user + public requests keyed per IP. stronger blanket protection; requires optional-auth identity resolution before global limiter.
+- Q2=C: keep current all-`/api` per-IP policy. smallest change; one noisy user/shared NAT may throttle whole office.
+ceiling:
+- L1 (recommended): keep `1000/15m` initially, document env override + observe 429s before tuning.
+- L2: use `5000/15m` for a known large shared NAT.
+- L3: user-supplied `<count>/<window>` from traffic telemetry.
+store derived from deployment: 1 container → MemoryStore; multiple → shared external store required for consistent enforcement. user chooses existing Redis | PostgreSQL capability if multiple.
+fixed regardless: login + change-password use separate limiter instances; change-password key = `req.user.userId`.
 verify: topology + scope + store + numeric/env policy written into F7; ⊥ arbitrary ceiling.
 exit: F7 unconditional.
 next: F5.T3
 
 T3|.|resolve Class A/B/C contract
 touch: user ruling
-details: settled storage = `components.alt_class` default + `project_components.alt_class` override; resolved = `COALESCE(line,component)`. decide: NULL vs fail-safe A; ECO/change-control + pipeline tag; consume enforcement vs advisory; BOM column/default; CIS/ODBC view exposure; single+bulk edit surfaces. also provide disposable migration-test DB method/authority.
-verify: 6 product decisions + scratch command; exact server/client/test file map replaces F8-F9 abstraction.
+fixed storage: `components.alt_class` = library default; `project_components.alt_class` = BOM-line override; resolved class = line override else component default.
+questions:
+- Q3a existing/unrated data — A (recommended): store NULL/display `Unrated`; treat Unrated as non-substitutable like Class A until engineer rates it. B: migrate/default every part to A. C: existing stays NULL, but new parts require A/B/C.
+- Q3b change control — A (recommended): direct edit while part `new`; controlled part class changes use existing ECO `spec` tag. B: same, but add dedicated `alt_class` pipeline tag/stage routing. C: class always direct-editable.
+- Q3c Inventory `Consume All` — A (recommended): informational this cycle; show class but do not block consume because current flow consumes specified rows, ⊥ choose substitutes. B: add approval/override gate for Class A + Unrated before consume. C: rating absent from Inventory.
+- Q3d BOM CSV — A (recommended): `Alternative Class` available + selected by default. B: available but off by default. C: omit.
+- Q3e OrCAD/CIS/ODBC views — A (recommended): leave locked views unchanged; project override has no meaning in component-only views. B: add component default class column to existing views. C: add separate opt-in view, preserve existing columns.
+- Q3f editing UI — A (recommended): Library add/edit/detail + Library multi-select bulk-set + Projects per-line override. B: Library single-part edit + Projects override, ⊥ bulk. C: component default only, ⊥ project override UI.
+- Q3g migration test — A (recommended): agent may start throwaway PostgreSQL 18 Docker container w/ temporary storage, then destroy it. B: user supplies disposable `TEST_DATABASE_URL`. C: no live migration execution (rejected by §C7; plan remains NO-GO).
+answer shortcut: `Q3=all recommended` | override individual code, e.g. `Q3d=B`.
+verify: 7 decisions + scratch method; exact server/client/test file map replaces F8-F9 abstraction.
 exit: F8-F9 unconditional + durable invariant draft.
 next: F5.T4
 
 T4|.|select directory deprovision architecture
 touch: user/security ruling
-details: recommend Entra SCIM push when tenant/app provisioning + reachable endpoint are available (§R11); Graph delta = polling fallback w/ app `User.Read.All` + durable deltaLink (§R12); outbound agent only for network constraint. choose channel, credential/tenant boundary, assignment scope, reactivation/delete policy, replay/idempotency, issued-JWT behavior (≤24h | immediate DB active check | token-version revocation).
+question: Q4 — how should directory disable reach IC-Lib + end access?
+channel:
+- Q4a=A (recommended when reachable): Entra SCIM push. handles app assignment/out-of-scope disable directly; needs Entra/provisioning-agent HTTPS reachability to IC-Lib endpoint.
+- Q4a=B (recommended when inbound reachability unavailable): IC-Lib polls Microsoft Graph delta outbound. handles tenant account disable/delete; app-unassignment tracking needs extra Graph scope/work beyond user delta.
+- Q4a=C: custom outbound on-prem agent calls narrow IC-Lib provisioning API. choose only when Entra SCIM + Graph unavailable.
+- Q4a=D: defer directory deprovision; retain current local-admin disable + JWT ≤24h behavior.
+local account lifecycle:
+- Q4b=A (recommended): only update existing linked users. directory disable/unassign → local inactive; re-enable/reassign → reactivate same row; directory hard delete → remain inactive/retained; unknown user logged + ignored; OIDC JIT still owns first creation.
+- Q4b=B: full pre-provisioning may create unknown users at default role, plus deactivate/reactivate.
+- Q4b=C: deactivate only; reactivation requires local admin.
+existing JWT:
+- Q4c=A (recommended): `authenticate` checks local `is_active` on every protected request → immediate cutoff; +1 DB lookup/request.
+- Q4c=B: cache active state ≤5m → lower DB load, ≤5m cutoff delay.
+- Q4c=C: keep stateless JWT valid ≤24h → no request overhead, longest cutoff delay.
+- Q4c=D: add per-user token-version revocation. most complex; still needs DB/cache comparison.
+fixed regardless if Q4a≠D: tenant/credential validation, least privilege, idempotent replay, audit, retained history, ⊥ IdP role overwrite, ⊥ secret recorded in docs.
+answer shortcut: `Q4=all recommended; SCIM reachable=yes|no|unknown`.
 verify: dated sources + threat model + exact interface/files/tests replace F10 conditionals; ⊥ secrets recorded.
 exit: F10 unconditional + §I/§V draft.
 next: /review-plan

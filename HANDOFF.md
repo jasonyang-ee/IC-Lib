@@ -12,23 +12,24 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch test | last commit `d440356d39265f9eb9104f3eef5d8287d46dfcb3` | tests pass 316/316 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 39 files/225 tests, scripts + lint pass)
-uncommitted: `SPEC.md` (restore unresolved §V28, remove fabricated §V58, add §R9-§R12), `PLAN.md` (11-phase replacement), `HANDOFF.md` (this baton), `BACKLOG.md` (prep ingested + blanked)
+branch test | last commit `5fd84de380788c383aca58d743754f58e2e1a080` | tests pass 316/316 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 39 files/225 tests, scripts + lint pass)
+uncommitted: `PLAN.md` (expanded F5 decision sheet), `HANDOFF.md` (clear answer template + current stop)
 
 ## done this session
 
-/review-code: independent `v1.10.0`..HEAD sweep → NO-GO. reproduced 19 logger shadows; found logout, component update, 3 open-txn, §V7/§V8 atomicity, full-schema readiness, readiness disclosure, & global-limiter scope gaps; rejected absent-File-Library-guard claim. → ⊥ sha
-/prep: ingested all BACKLOG inputs; removed invented user ruling + overbroad §V58; replaced Claude package with research-first plan. → ⊥ sha
-/review-plan: primary-source gate complete (§R9 PostgreSQL, §R10 Kubernetes, §R11 Entra SCIM, §R12 Graph delta); refuted phase coupling + vague tests; rewrote to 11 phases, exact F1-F4 contracts, isolated deferred choices in F5. gate NO-GO ∵ F5 user/deployment decisions remain. → ⊥ sha
+/review-code: independent `v1.10.0`..HEAD sweep → NO-GO. reproduced 19 logger shadows; found logout, component update, 3 open-txn, §V7/§V8 atomicity, full-schema readiness, readiness disclosure, & global-limiter scope gaps; rejected absent-File-Library-guard claim. → `5fd84de`
+/prep: ingested all BACKLOG inputs; removed invented user ruling + overbroad §V58; replaced Claude package with research-first plan. → `5fd84de`
+/review-plan: primary-source gate complete (§R9 PostgreSQL, §R10 Kubernetes, §R11 Entra SCIM, §R12 Graph delta); refuted phase coupling + vague tests; rewrote to 11 phases, exact F1-F4 contracts, isolated deferred choices in F5. gate NO-GO ∵ F5 user/deployment decisions remain. → `5fd84de`
+/encode-docs: expanded F5 into Q1-Q4 choices, recommendations, impacts, + reply shortcuts. → ⊥ sha
 
 ## in progress (exact stop point)
 
-F1.T1: ⊥ started by cook/cater — review-plan froze 19-site audit policy; execution status remains `.` by skill ownership
+F5.T1: awaiting user selections — Q1-Q4 decision sheet expanded; execution status remains `.`
 mid-edit files: none
 
 ## next
 
-F1.T1 | preconditions: /review-plan GO after F5 answers — verify 4 required + 15 optional site matrix from PLAN, then F1.T2. F2-F3 contracts are otherwise concrete.
+F5.T1 | preconditions: user reply — record Q1, Q2+deployment facts, Q3a-g, Q4a-c; omitted codes = recommended. then /encode-docs freezes F6-F10 + rerun /review-plan.
 
 ## deviations & decisions
 
@@ -43,10 +44,12 @@ BACKLOG Class A/B/C + client lint + deprovision inputs → ingested into F4/F5/F
 
 ## watchouts
 
-blocking §V28 question: does “exact parity” promise boundary normalization/errors only, or identical helper dotfile/whitespace behavior? if helper-level: choose canonical `.psm`, whitespace, trailing-dot outputs.
-blocking limiter questions: expected users behind one NAT; Node replica count; request telemetry; global ceiling scope public §V10 only | all `/api`; process-local MemoryStore acceptable | shared store.
-blocking rating questions: NULL/unrated | fail-safe A; ECO + tag; consume advisory | enforce; BOM header/default; CIS/ODBC views; single + bulk edit surfaces. migration phase also needs an approved disposable PostgreSQL method; live `flat.gentex.int:5434/iclib` ⊥ writes.
-blocking deprovision questions: SCIM (recommended if reachable/available) | Graph delta | outbound agent; assignment/reactivation/delete policy; existing JWT ≤24h | DB active check | token-version revocation.
+fast reply: `Use all F5 recommendations. Deployment: <1|multiple|unknown> app containers; <≤5|6-25|>25|unknown> simultaneous users behind one public IP; Entra can reach an IC-Lib SCIM endpoint: <yes|no|unknown>.`
+override reply: `Q1=B; Q2=A/L2; Q3a=C; Q3d=B; Q4a=D`; omitted choices use recommendation.
+Q1 = footprint behavioral parity (A) | strict helper parity (B).
+Q2 = public-only limiter (A) | all-API per-user/public-IP (B) | current all-API per-IP (C); ceiling L1 1000/15m | L2 5000/15m | L3 custom.
+Q3 = rating answers a-g: existing default, ECO, consume, BOM, ODBC, UI/bulk, scratch DB. `Q3=all recommended` accepted.
+Q4 = SCIM (A) | Graph (B) | outbound agent (C) | defer (D); lifecycle + JWT choices b-c. `Q4=all recommended; SCIM reachable=<yes|no|unknown>` accepted.
 F2 component create atomicity is deliberate §V7/§V8 enforcement, wider than a one-line shadow rename. `syncComponentCadFiles` already accepts a DB handle; use txn client.
 F2 `no-console` scope = server only, logger sink override; client/scripts intentionally retain existing console use.
 F3 readiness should call live `inspectDatabaseSchema()` defaults; ⊥ `getAuthenticationStatus`, cache, redundant ping, public missing-object/error detail.
