@@ -12,31 +12,35 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-29
 
-branch `test` | last commit `9113e7a` | tests 2/2 pass — `oidcService.test.js` identity-claim cases (`npm.cmd run test:run -- src/test/oidcService.test.js -t "validates the transaction artifacts and maps identity claims|treats a missing email_verified claim as unverified"`); scratch init true + migrations 1..16
+branch `test` | last commit `0a051c2` | tests 294/294 pass — client 89/89 (25 files), server 205/205 (38 files), scripts dry-run import pass (`bash ./test.sh`); scratch fresh init true + migrations 1..17
 uncommitted: `BACKLOG.md` user-auth input + deferred ABC request; `HANDOFF.md` phase baton pending commit.
 
 ## done this session
 
 - `F1.T1`: installed `openid-client` `6.8.4` confirms parsed ID-token claims, grant-owned state/nonce/PKCE validation, Entra issuer-template substitution; app authorization claims absent → `9113e7a`.
 - `F1.T2`: fresh isolated PostgreSQL `18.1` boot ran init files + migrations `1..16` + settings + schema inspection; `initializeAuthentication=true`, query returned exact `1..16` → `9113e7a`.
+- `F2.T1`: migration `17` + `init-users.sql` add optional (`oidc_issuer`,`oidc_tenant_id`,`oidc_object_id`) continuity uniqueness; apply + no-op + `\d users` green → `0a051c2`.
+- `F2.T2`: startup inspection requires continuity columns; blank PG18 boot through migrations `1..17` + full 294-test oracle green → `0a051c2`.
 
 ## in progress (exact stop point)
 
-none — F1 complete & committed.
+none — F2 complete & committed.
 mid-edit files: none
 
 ## next
 
-`F2.T1` | preconditions: F1 green. Add `database/migrations/17_oidc_identity_continuity.sql` + fresh-init parity in `database/init-users.sql`; write named schema tests first; validate apply + no-op + `users` parity on scratch PG18.
+`F3.T1` | preconditions: F2 green. In `server/src/services/oidcService.js`, add normalized `OIDC_ALLOWED_TENANTS`, exact Entra tenant-independent issuer classification, config-disable/log-once behavior, optional `tid`/`oid` output, & pre-DB tenant rejection; write 5 named service cases first.
 
 ## deviations & decisions
 
-- plan followed; F1 research-only ∴ `CHANGELOG.md` deferred to shipped implementation behavior.
+- plan followed; F1 research-only ∴ changelog began with F2 shipped schema behavior.
 
 ## watchouts
 
 - source evidence: `openid-client/build/index.d.ts:1111-1121,1716-1757,1809`; `oauth4webapi/build/index.d.ts:1742-1762`; `openid-client/build/index.js:174-179,286-298,490-494`.
 - scratch cluster running @ `127.0.0.1:55432/iclib_review_plan`; data @ `C:\Users\sami\AppData\Local\Temp\iclib-review-plan-pg18`. live DB `flat.gentex.int:5434/iclib` untouched & ⊥ writable.
+- `database/init-users.sql` tracked CRLF; phase diff checks need `git -c core.whitespace=cr-at-eol diff --check` when that file has additions.
+- F3 security: tenant check after library token validation but before any user query; exact URL hostname/path only; `roles`\|`groups`\|`wids` stay unavailable to resolver.
 - PowerShell blocks `npm.ps1`; use `npm.cmd` or repo `bash ./test.sh`.
 - preserve uncommitted `BACKLOG.md`; ⊥ read or stage.
 
