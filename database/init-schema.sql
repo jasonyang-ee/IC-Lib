@@ -86,9 +86,14 @@ CREATE TABLE IF NOT EXISTS components (
     
     -- Only updated_at is needed (created_at extracted from uuidv7)
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
+    -- Alternative criticality class: library default, NULL = "Unrated" (SPEC V59).
+    -- Exposure on the external views is owned by migration 18, not by this file.
+    alt_class CHAR(1),
+
     -- Constraints
-    CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'production', 'archived', 'reviewing', 'prototype'))
+    CONSTRAINT check_approval_status CHECK (approval_status IN ('new', 'production', 'archived', 'reviewing', 'prototype')),
+    CONSTRAINT check_components_alt_class CHECK (alt_class IN ('A', 'B', 'C'))
 );
 
 -- ============================================================================
@@ -364,9 +369,38 @@ ON CONFLICT (component_id) DO NOTHING;
 
 -- View: components_full
 -- Components with joined category, manufacturer, and distributor info
+-- Columns are listed explicitly rather than via `c.*`. Postgres freezes a `*`
+-- expansion at creation time, so a later ALTER TABLE ... ADD COLUMN reaches a
+-- fresh install's view but never an upgraded one, which is how this view came
+-- to expose different columns on the two paths (see migration 13 vs 18).
+-- Listing them keeps both paths identical. alt_class is deliberately absent
+-- here: migration 18 appends it last on every path, so it is the single owner
+-- of that column's ordinal.
 CREATE OR REPLACE VIEW components_full AS
-SELECT 
-    c.*,
+SELECT
+    c.id,
+    c.category_id,
+    c.part_number,
+    c.manufacturer_id,
+    c.manufacturer_pn,
+    c.description,
+    c.value,
+    c.pcb_footprint,
+    c.package_size,
+    c.sub_category1,
+    c.sub_category2,
+    c.sub_category3,
+    c.sub_category4,
+    c.schematic,
+    c.step_model,
+    c.pspice,
+    c.pad_file,
+    c.datasheet_url,
+    c.approval_status,
+    c.approval_user_id,
+    c.approval_date,
+    c.last_specs_refresh_at,
+    c.updated_at,
     cat.name as category_name,
     cat.prefix as category_prefix,
     m.name as manufacturer_name,
@@ -566,11 +600,14 @@ CREATE TABLE IF NOT EXISTS project_components (
     quantity INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Per-BOM-line override of the component default; NULL = use the default
+    alt_class CHAR(1),
     -- Ensure only one of component_id or alternative_id is set
     CHECK (
         (component_id IS NOT NULL AND alternative_id IS NULL) OR
         (component_id IS NULL AND alternative_id IS NOT NULL)
-    )
+    ),
+    CONSTRAINT check_project_components_alt_class CHECK (alt_class IN ('A', 'B', 'C'))
 );
 
 -- Indexes for faster queries
