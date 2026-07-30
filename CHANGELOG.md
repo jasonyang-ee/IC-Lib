@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The File Library footprint rename flow's rejection of `+` (illegal in OrCAD footprint names) is now covered by regressions for both the single-file and the `.psm`/`.dra` pair path, including a legal-rename case proving the guard is not blanket. The client footprint helper's comment no longer claims exact algorithmic parity with the server: what is guaranteed is identical behaviour at every supported user input boundary (SPEC §V28). The helpers themselves are unchanged.
+
 - Admin user removal now deactivates accounts instead of deleting rows, preserving identity links, audit history, and foreign-key references. Repeating deactivation is a no-op; SSO accounts still expose locally authoritative role/active controls but reject local-password assignment, and the UI makes clear that identity-provider role/group claims cannot restore access.
 
 - Migrated the repo's AI-workflow files to the current agent-skeleton: `AGENTS.md` (new) is now the canonical work-rules file, `CLAUDE.md` is a one-line `@AGENTS.md` import, and `SPEC.md` was rewritten onto the baked-header, pipe-table format (`§G/§C/§I/§V`, ids preserved verbatim from the old spec). The old `§U` operator-UX section (~40 lines) was folded into new invariants `§V35`-`§V53`; the completed `§T`/`§B` task and bug logs were dropped (fully preserved in git history and this changelog). `plan.md`, `REVIEW.md`, and `FORMAT.md` were deleted — superseded by `PLAN.md`/`HANDOFF.md` cycle files and the `encode-docs`/`review-code` skills. `PLAN.md` and `HANDOFF.md` were added as blank cycle-file templates (no cycle currently in progress).

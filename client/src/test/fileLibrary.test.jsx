@@ -78,19 +78,57 @@ vi.mock('../contexts/FeatureFlagsContext', () => ({
   useFeatureFlags: () => featureFlagState,
 }));
 
+const mockFootprintSingleEntry = {
+  key: 'file:soic8.psm',
+  kind: 'single',
+  displayName: 'soic8.psm',
+  file_type: 'footprint',
+  fileNames: ['soic8.psm'],
+  files: [{ file_name: 'soic8.psm' }],
+  componentCount: 1,
+  canDelete: false,
+  searchText: 'soic8.psm',
+};
+
+const mockFootprintPairEntry = {
+  key: 'pair:soic8',
+  kind: 'pair',
+  displayName: 'soic8 (.psm/.dra)',
+  file_type: 'footprint',
+  fileNames: ['soic8.psm', 'soic8.dra'],
+  files: [{ file_name: 'soic8.psm' }, { file_name: 'soic8.dra' }],
+  componentCount: 1,
+  canDelete: false,
+  searchText: 'soic8',
+};
+
 vi.mock('../components/fileLibrary', () => ({
   FileTypesView: ({ onOpenRename }) => (
-    <button onClick={() => onOpenRename(mockRenameEntry, 'schematic')}>
-      Open Rename
-    </button>
+    <div>
+      <button onClick={() => onOpenRename(mockRenameEntry, 'schematic')}>
+        Open Rename
+      </button>
+      <button onClick={() => onOpenRename(mockFootprintSingleEntry, 'footprint')}>
+        Open Footprint Rename
+      </button>
+      <button onClick={() => onOpenRename(mockFootprintPairEntry, 'footprint')}>
+        Open Footprint Pair Rename
+      </button>
+    </div>
   ),
   CategoryView: () => <div>Category View</div>,
-  RenameModal: ({ setRenameData, onSubmit, isPending }) => (
+  RenameModal: ({ renameData, setRenameData, onSubmit, isPending }) => (
     <div>
+      <div data-testid="rename-current-name">{renameData?.newName}</div>
       <button
         onClick={() => setRenameData((previous) => ({ ...previous, newName: 'renamed-symbol.olb' }))}
       >
         Set New Name
+      </button>
+      <button
+        onClick={() => setRenameData((previous) => ({ ...previous, newName: 'so+ic8' }))}
+      >
+        Set Plus Name
       </button>
       <button onClick={onSubmit} disabled={isPending}>
         Submit Rename
@@ -102,6 +140,7 @@ vi.mock('../components/fileLibrary', () => ({
 }));
 
 import FileLibrary from '../pages/FileLibrary';
+import { FOOTPRINT_PLUS_ERROR_MESSAGE } from '../utils/footprintFiles';
 
 const renderComponent = () => {
   const queryClient = new QueryClient({
@@ -121,49 +160,54 @@ const renderComponent = () => {
   );
 };
 
+/** Reset every api/notification double and re-prime the default happy path. */
+const primeMocks = () => {
+  featureFlagState.ecoEnabled = true;
+
+  getFileTypeStatsMock.mockReset();
+  getCISFilesMock.mockReset();
+  getFileStoragePathMock.mockReset();
+  getFilesByTypeMock.mockReset();
+  getOrphanFilesMock.mockReset();
+  searchFilesMock.mockReset();
+  getComponentsByFileMock.mockReset();
+  getCategoriesMock.mockReset();
+  getComponentsByCategoryForFilesMock.mockReset();
+  getCadFilesForComponentMock.mockReset();
+  getSharingComponentsMock.mockReset();
+  renamePhysicalFileMock.mockReset();
+  renameFootprintGroupMock.mockReset();
+  linkFootprintRelatedFilesMock.mockReset();
+  unlinkFootprintRelatedFilesMock.mockReset();
+  showSuccessMock.mockReset();
+  showErrorMock.mockReset();
+
+  getFileTypeStatsMock.mockResolvedValue({ data: { schematic: 1, footprint: 0, pad: 0, step: 0, pspice: 0 } });
+  getCISFilesMock.mockResolvedValue({ data: [] });
+  getFileStoragePathMock.mockResolvedValue({ data: { path: 'C:\\Library' } });
+  getFilesByTypeMock.mockResolvedValue({ data: { files: [] } });
+  getOrphanFilesMock.mockResolvedValue({ data: { orphans: [] } });
+  searchFilesMock.mockResolvedValue({ data: { results: [] } });
+  getCategoriesMock.mockResolvedValue({ data: [] });
+  getComponentsByCategoryForFilesMock.mockResolvedValue({ data: { components: [] } });
+  getCadFilesForComponentMock.mockResolvedValue({ data: { files: {} } });
+  getSharingComponentsMock.mockResolvedValue({ data: { components: [] } });
+  renameFootprintGroupMock.mockResolvedValue({ data: { success: true } });
+  linkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
+  unlinkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
+  renamePhysicalFileMock.mockResolvedValue({
+    data: {
+      success: true,
+      newFileName: 'renamed-symbol.olb',
+      updatedCount: 2,
+    },
+  });
+};
+
 describe('FileLibrary shared rename flow', () => {
   beforeEach(() => {
+    primeMocks();
     authState.user = { role: 'read-write' };
-    featureFlagState.ecoEnabled = true;
-
-    getFileTypeStatsMock.mockReset();
-    getCISFilesMock.mockReset();
-    getFileStoragePathMock.mockReset();
-    getFilesByTypeMock.mockReset();
-    getOrphanFilesMock.mockReset();
-    searchFilesMock.mockReset();
-    getComponentsByFileMock.mockReset();
-    getCategoriesMock.mockReset();
-    getComponentsByCategoryForFilesMock.mockReset();
-    getCadFilesForComponentMock.mockReset();
-    getSharingComponentsMock.mockReset();
-    renamePhysicalFileMock.mockReset();
-    renameFootprintGroupMock.mockReset();
-    linkFootprintRelatedFilesMock.mockReset();
-    unlinkFootprintRelatedFilesMock.mockReset();
-    showSuccessMock.mockReset();
-    showErrorMock.mockReset();
-
-    getFileTypeStatsMock.mockResolvedValue({ data: { schematic: 1, footprint: 0, pad: 0, step: 0, pspice: 0 } });
-    getCISFilesMock.mockResolvedValue({ data: [] });
-    getFileStoragePathMock.mockResolvedValue({ data: { path: 'C:\\Library' } });
-    getFilesByTypeMock.mockResolvedValue({ data: { files: [] } });
-    getOrphanFilesMock.mockResolvedValue({ data: { orphans: [] } });
-    searchFilesMock.mockResolvedValue({ data: { results: [] } });
-    getCategoriesMock.mockResolvedValue({ data: [] });
-    getComponentsByCategoryForFilesMock.mockResolvedValue({ data: { components: [] } });
-    getCadFilesForComponentMock.mockResolvedValue({ data: { files: {} } });
-    getSharingComponentsMock.mockResolvedValue({ data: { components: [] } });
-    renameFootprintGroupMock.mockResolvedValue({ data: { success: true } });
-    linkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
-    unlinkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
-    renamePhysicalFileMock.mockResolvedValue({
-      data: {
-        success: true,
-        newFileName: 'renamed-symbol.olb',
-        updatedCount: 2,
-      },
-    });
   });
 
   it('warns non-admin users before creating a shared rename ECO', async () => {
@@ -249,5 +293,57 @@ describe('FileLibrary shared rename flow', () => {
 
     expect(getComponentsByFileMock).not.toHaveBeenCalled();
     expect(screen.queryByText('Create Shared Rename ECO')).not.toBeInTheDocument();
+  });
+});
+
+describe('FileLibrary footprint "+" rejection (V28)', () => {
+  beforeEach(() => {
+    primeMocks();
+    authState.user = { role: 'admin' };
+    getComponentsByFileMock.mockResolvedValue({ data: { components: [] } });
+  });
+
+  // §V28: "+" is OrCAD-illegal in footprint names and must be rejected, never
+  // silently stripped. Admin is used so no shared-rename ECO warning can
+  // intercept the submit before the name check runs.
+  it('rejects a "+" in a footprint single rename and never calls the API', async () => {
+    renderComponent();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Plus Name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
+
+    expect(showErrorMock).toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
+    expect(renamePhysicalFileMock).not.toHaveBeenCalled();
+    expect(renameFootprintGroupMock).not.toHaveBeenCalled();
+
+    // The modal stays open on the rejected value so the operator can fix it.
+    expect(screen.getByTestId('rename-current-name')).toHaveTextContent('so+ic8');
+  });
+
+  it('rejects a "+" in a footprint pair rename and never calls the API', async () => {
+    renderComponent();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Pair Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Plus Name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
+
+    expect(showErrorMock).toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
+    expect(renameFootprintGroupMock).not.toHaveBeenCalled();
+    expect(renamePhysicalFileMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('rename-current-name')).toHaveTextContent('so+ic8');
+  });
+
+  it('accepts a legal footprint pair rename, proving the guard is not blanket', async () => {
+    renderComponent();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Pair Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
+
+    await waitFor(() => {
+      expect(renameFootprintGroupMock).toHaveBeenCalled();
+    });
+    expect(showErrorMock).not.toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
   });
 });

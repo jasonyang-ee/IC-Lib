@@ -202,14 +202,14 @@ files: `client/src/utils/footprintFiles.js`, `client/src/test/fileLibrary.test.j
 
 §T TASKS:
 
-T1|.|clarify client mirror comment
+T1|x|clarify client mirror comment
 touch: `client/src/utils/footprintFiles.js`
 details: replace “exact helper parity” wording with supported user-boundary behavioral parity; retain current `lastIndexOf` implementation. ⊥ change server `path.extname`; ⊥ duplicate validation inside `RenameModal.jsx`.
 verify: existing server/client footprint corpora remain green, including known dotfile divergence as non-contract input.
 exit: code comment agrees §V28.
 next: F5.T2
 
-T2|.|lock single + pair rename rejection
+T2|x|lock single + pair rename rejection
 touch: `client/src/test/fileLibrary.test.jsx`
 details: render footprint single + pair rename flows, enter a `+` name, submit; assert exact `FOOTPRINT_PLUS_ERROR_MESSAGE`, no `renamePhysicalFile`/`renameFootprintGroup`, modal stays recoverable. include both view entry modes if handlers differ.
 verify: `cd client && npm.cmd run test:run -- src/test/fileLibrary.test.jsx src/test/footprintFiles.test.js`; `bash ./test.sh`.

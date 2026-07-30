@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `db1586f` | tests pass 328/328 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 40 files/237 tests, scripts + lint pass)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F4 §T flips + baton; F4 code committed separately
+branch `test` | last commit `520cb82` | tests pass 331/331 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 40 files/237 tests, scripts + lint pass)
+uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F5 §T flips + baton; F5 code committed separately
 
 ## done this session
 
@@ -28,21 +28,25 @@ uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F4 §T flips + baton; 
 - F3 (committed `db1586f`).
 - F3.T2: public 503/200 body reduced to `{status,timestamp}`; missing table/view/column names + driver message go to `logError('Health',...)` only. removed orphaned `getAuthenticationStatus()` from `initializationService.js` (0 remaining callers; its 3 private helpers stay used by startup). `healthController.test.js` rewritten: 6 cases = liveness zero-inspection, inspection reject, missing table, missing view, missing column, valid + exactly-one-uncached-call; every 503/200 asserts body keys `['status','timestamp']` exactly.
 - F4.T1: renamed the 7 client shadows — `AuthContext.jsx` `user`→`signedInUser`; `Inventory.jsx` `location`→`stockLocation` (destructure alias); `Library.jsx` `distributors`→`componentDistributors` (detail query), →`editedDistributors` (save + add destructures, 2 sites), →`stagedDistributors` (ECO change collector, incl. its 2 `.push` + the `createECO` payload key), `response`→`manufacturerResponse`. behaviour + payload keys unchanged.
+- F4 (committed `520cb82`).
 - F4.T2: `client/eslint.config.js` gains `'no-shadow':'error'`. one-off client `no-shadow` count 0; `cd client && npm.cmd run lint` clean; `authContext.test.jsx` 3/3.
+- F5.T1: reworded the `normalizeFootprintFilename` comment in `client/src/utils/footprintFiles.js` — supported user-boundary behavioural parity, `lastIndexOf` vs server `path.extname` divergence on synthetic dotfiles named as non-contractual. ⊥ helper/algorithm change, ⊥ `RenameModal.jsx` guard duplication.
+- F5.T2: `client/src/test/fileLibrary.test.jsx` +3 cases (footprint single `+` reject, footprint pair `+` reject, legal pair rename succeeds). Added `mockFootprintSingleEntry`/`mockFootprintPairEntry` + `Open Footprint Rename`/`Open Footprint Pair Rename`/`Set Plus Name` buttons to the view/modal doubles, and a `rename-current-name` testid so "modal stays recoverable" is asserted. Extracted the old inline `beforeEach` body into module-level `primeMocks()` shared by both describes — without it the new describe inherited un-reset spies and false-passed.
 
 ## in progress (exact stop point)
 
-none — F4 closed, oracle green. F5.T1 not started.
+none — F5 closed, oracle green. F6.T1 not started.
 mid-edit files: none.
 
 ## next
 
-F5.T1 | reword the "exact parity" comment above `normalizeFootprintFilename` in `client/src/utils/footprintFiles.js` to supported user-boundary behavioural parity (keep the `lastIndexOf` implementation), then F5.T2 adds the single + pair `+` rename regressions to `client/src/test/fileLibrary.test.jsx`.
+F6.T1 | create `server/src/constants/publicRoutes.js` holding the router mount map + the descriptor sets currently hard-coded in `server/src/test/routeAuthGuards.test.js` (48 public GET keys, 2 public mutation keys `auth post /login` + `inventory post /search/barcode`), then have that test consume them so runtime and test allowlists cannot drift.
 
 ## deviations & decisions
 
 - F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC content change this session.
 - create previously answered 201 even when `syncComponentCadFiles` threw (it was `logWarn`-swallowed). Under §V7/§V8 atomicity that swallow is gone ∴ a CAD-sync failure now fails the whole create. Intended, and covered by a named regression.
+- F5: the alleged missing `+` guard was disproven in F1; F5 therefore ships evidence + a comment correction, ⊥ a behaviour change. Both rename modes go through the one `handleRenameSubmit` guard.
 - F4: `Library.jsx` ECO staging array renamed to `stagedDistributors`, but the `createECO` body key stays `distributors:` — the server contract is untouched.
 - F3: `getAuthenticationStatus()` was deleted rather than left orphaned — readiness was its only caller and it duplicated a weaker subset of `inspectDatabaseSchema()`.
 - optional-audit binding name = `activityError`, chosen because `authController.js:483` already used it ∴ house convention, ⊥ new one.

@@ -28,10 +28,15 @@ export const isFootprintPairFile = (fileName) => FOOTPRINT_PAIR_EXTENSIONS.inclu
 export const FOOTPRINT_PLUS_ERROR_MESSAGE = '"+" is not allowed in OrCAD footprint names';
 
 /**
- * Footprint filename rules (mirror of server `utils/footprintFiles.js` — keep
- * exact parity): whole name lowercase, base has no dots (extension = the
- * last-dot segment, every other dot silently dropped). Non-footprint
- * extensions only get the lowercase extension.
+ * Footprint filename rules (mirror of server `utils/footprintFiles.js`): whole
+ * name lowercase, base has no dots (extension = the last-dot segment, every
+ * other dot silently dropped). Non-footprint extensions only get the lowercase
+ * extension.
+ *
+ * What must match the server is the behaviour at every supported user input
+ * boundary (§V28), not the helper algorithm: this uses `lastIndexOf` while the
+ * server uses `path.extname`, so the two can differ on synthetic inputs such as
+ * a leading-dot name with no extension. Those are not reachable inputs.
  */
 export const normalizeFootprintFilename = (fileName) => {
   const extension = getCadFileExtension(fileName);
