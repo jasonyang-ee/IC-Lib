@@ -65,7 +65,9 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'users', column: 'oidc_tenant_id' },
   { table: 'users', column: 'oidc_object_id' },
   { table: 'cad_files', column: 'missing' },
+  { table: 'components', column: 'alt_class' },
   { table: 'components', column: 'last_specs_refresh_at' },
+  { table: 'project_components', column: 'alt_class' },
   { table: 'distributor_info', column: 'last_vendor_sync_at' },
   { table: 'project_components', column: 'notes' },
   { table: 'admin_settings', column: 'eco_logo_filename' },
@@ -80,12 +82,30 @@ export const REPAIRABLE_SCHEMA_COLUMNS = [
   { table: 'eco_alternative_parts', column: 'manufacturer_name' },
 ];
 
+// Columns the external OrCAD-CIS/ODBC views must expose (SPEC C4). View
+// existence alone is not enough: migration 18 appends alt_class to these six,
+// and a database whose views predate it would still pass a name-only check
+// while serving external tooling a column short. eco_orders_full is
+// deliberately absent — it carries no component default.
+export const REQUIRED_VIEW_COLUMNS = [
+  { table: 'components_full', column: 'alt_class' },
+  { table: 'component_specifications_view', column: 'alt_class' },
+  { table: 'production_parts', column: 'alt_class' },
+  { table: 'prototype_parts', column: 'alt_class' },
+  { table: 'archived_parts', column: 'alt_class' },
+  { table: 'alternative_parts', column: 'alt_class' },
+];
+
 export async function inspectDatabaseSchema({
   expectedTables = STARTUP_REQUIRED_TABLES,
   expectedViews = EXPECTED_SCHEMA_VIEWS,
   requiredColumns = REPAIRABLE_SCHEMA_COLUMNS,
+  requiredViewColumns = REQUIRED_VIEW_COLUMNS,
 } = {}) {
-  const tablesWithRequiredColumns = [...new Set(requiredColumns.map(({ table }) => table))];
+  // information_schema.columns covers views as well as base tables, so both
+  // sets resolve through one query and report as one missingColumns list.
+  const allRequiredColumns = [...requiredColumns, ...requiredViewColumns];
+  const tablesWithRequiredColumns = [...new Set(allRequiredColumns.map(({ table }) => table))];
 
   const [tablesResult, viewsResult, columnsResult] = await Promise.all([
     pool.query(`
@@ -116,7 +136,7 @@ export async function inspectDatabaseSchema({
 
   const missingTables = expectedTables.filter(tableName => !existingTables.has(tableName));
   const missingViews = expectedViews.filter(viewName => !existingViews.has(viewName));
-  const missingColumns = requiredColumns.filter(
+  const missingColumns = allRequiredColumns.filter(
     ({ table, column }) => !existingColumns.has(`${table}.${column}`),
   );
 

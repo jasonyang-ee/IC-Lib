@@ -275,7 +275,7 @@ verify: SQL review catches unnamed/duplicate constraints, reordered/dropped view
 exit: DB contract exact.
 next: F7.T2
 
-T2|.|extend startup schema inspection
+T2|x|extend startup schema inspection
 touch: `server/src/services/schemaInspectionService.js`, `server/src/test/schemaInspectionService.test.js`, `server/src/test/initializationService.test.js`
 details: require both table columns + six view columns via information_schema; retain seven-view existence checks. missing any base/view class column → invalid startup/readiness.
 verify: each required column category has fail case; valid set green.
