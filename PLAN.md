@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -60,14 +60,14 @@ files: read-only — `server/src/services/oidcService.js`, `server/node_modules/
 
 §T TASKS:
 
-T1|.|confirm validated identity-claim boundary
+T1|x|confirm validated identity-claim boundary
 touch: read-only files above
 details: confirm `TokenEndpointResponseHelpers.claims()` returns ID-token payload; `authorizationCodeGrant(..., { idTokenExpected:true, expectedState, expectedNonce, pkceCodeVerifier })` owns token validation; `roles`\|`groups`\|`wids` need no extraction. Confirm exact Entra tenant-independent issuer handling remains in installed `6.8.4`. Record file:line evidence; ⊥ web-memory inference.
 verify: `server/src/test/oidcService.test.js` cases `validates the transaction artifacts and maps identity claims` & `treats a missing email_verified claim as unverified` green before edits.
 exit: F3 uses only `iss`\|`sub` + optional `tid`\|`oid`; authorization claims absent from design.
 next: F1.T2
 
-T2|.|reproduce scratch PostgreSQL 18 baseline
+T2|x|reproduce scratch PostgreSQL 18 baseline
 touch: isolated temp cluster only; ⊥ live DB
 details: use `C:\Users\sami\AppData\Local\Temp\iclib-review-plan-pg18`, port `55432`, DB `iclib_review_plan`; run `initializeAuthentication()` w/ `DB_HOST=127.0.0.1`, `DB_PORT=55432`, `DB_USER=postgres`, empty password. Fresh boot ! apply `database/init-users.sql`, `database/init-schema.sql`, migrations `1..16`, settings seed, schema inspection.
 verify: `SELECT sequence_number,filename FROM schema_migrations ORDER BY sequence_number` returns exactly `1..16`; initialization prints `initializeAuthentication=true`.
