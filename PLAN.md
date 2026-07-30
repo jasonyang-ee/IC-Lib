@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: work-in-progress
+planning status: done
 -->
 
 # PLAN
@@ -177,7 +177,7 @@ files: `HANDOFF.md`, `PLAN.md`, `SPEC.md` only when evidence requires drift corr
 
 §T TASKS:
 
-T1|.|full verification + drift ruling
+T1|x|full verification + drift ruling
 touch: `HANDOFF.md`, `PLAN.md`, `SPEC.md` only via `/encode-docs`
 details: run `bash ./test.sh`; classify §C13/§I2/§I11/§V1/V10/V27/V29/V51/V55/V57 `HOLD|VIOLATE|UNVERIFIABLE` w/ file+named-test evidence. Diff-sweep security: issuer parsing, tenant rejection before DB, SQL parameters, unique-race handling, password-null invariant, row retention, authorization-claim non-use, no Keycloak/LDAP code/dependency. Confirm `BACKLOG.md` ABC entry untouched. Live Entra remains `UNVERIFIABLE` offline; name synthetic coverage, ⊥ claim live proof.
 verify: `bash ./test.sh` green w/ counts; `HANDOFF.md` result table complete; ∄ unresolved `VIOLATE`; `git diff --check` clean.
