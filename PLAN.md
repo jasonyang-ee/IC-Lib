@@ -133,14 +133,14 @@ files: `server/src/controllers/authController.js`, `server/src/test/authControll
 
 §T TASKS:
 
-T1|.|harden admin updates + soft deactivation
+T1|x|harden admin updates + soft deactivation
 touch: `server/src/controllers/authController.js`, `server/src/test/authController.test.js`
 details: `updateUser` loads `auth_provider`; role/is_active edits remain allowed for local + OIDC users. Reject nonempty password for `auth_provider='oidc'` with 400 before bcrypt/UPDATE, preserving NULL password. Ordinary `deleteUser` becomes audited soft deactivation (`is_active=false`), retains identity + references, remains self-protected; repeat deactivate idempotent. Explicit full-reset flows untouched.
 verify: `server/src/test/authController.test.js` cases `admin changes an OIDC user's local role and active state without changing identity`, `admin password set for an OIDC user returns 400 without bcrypt`, `delete user deactivates and retains the row`, `local user password update remains supported`.
 exit: API is sole local authority & ordinary row delete absent.
 next: F4.T2
 
-T2|.|make local authority clear in User Management
+T2|x|make local authority clear in User Management
 touch: `client/src/components/settings/UserManagement.jsx`, `client/src/test/userManagement.test.jsx`
 details: keep SSO badge + password-hidden behavior; role + active controls stay editable. Replace destructive `Delete User` language/action with `Deactivate User`; explain history retention and IdP claims ⊥ restore role/access. Hide deactivate action for already inactive users or make state explicit. Reuse existing update/deactivate API conventions.
 verify: `client/src/test/userManagement.test.jsx` cases `labels SSO users and allows local role and active edits without password controls`, `deactivate confirmation retains the user row`, `offers the lab role in the create-user form`.

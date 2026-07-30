@@ -346,7 +346,7 @@ export const updateUser = async (req, res) => {
 
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id, username FROM users WHERE id = $1',
+      'SELECT id, username, auth_provider FROM users WHERE id = $1',
       [id],
     );
 
@@ -372,6 +372,16 @@ export const updateUser = async (req, res) => {
       }
       updates.push(`username = $${paramCount++}`);
       values.push(username);
+    }
+
+    if (
+      password !== undefined
+      && password.length > 0
+      && existingUser.rows[0].auth_provider === 'oidc'
+    ) {
+      return res.status(400).json({
+        error: 'Single sign-on users cannot have a local password',
+      });
     }
 
     if (password !== undefined && password.length > 0) {
@@ -410,7 +420,8 @@ export const updateUser = async (req, res) => {
       `UPDATE users 
        SET ${updates.join(', ')}
        WHERE id = $${paramCount}
-       RETURNING id, username, role, is_active, created_at(id) as created_at, last_login`,
+       RETURNING id, username, role, is_active, auth_provider,
+                 created_at(id) as created_at, last_login`,
       values,
     );
 
@@ -433,22 +444,22 @@ export const updateUser = async (req, res) => {
 };
 
 /**
- * Delete user (Admin only)
+ * Deactivate user (Admin only)
  */
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Prevent self-deletion
+    // Prevent self-deactivation
     if (id === req.user.userId) {
       return res.status(400).json({ 
-        error: 'Cannot delete your own account', 
+        error: 'Cannot deactivate your own account',
       });
     }
 
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT username FROM users WHERE id = $1',
+      'SELECT username, is_active FROM users WHERE id = $1',
       [id],
     );
 
@@ -456,26 +467,27 @@ export const deleteUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const username = existingUser.rows[0].username;
+    const user = existingUser.rows[0];
 
-    // Delete user
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    if (user.is_active) {
+      await pool.query('UPDATE users SET is_active = false WHERE id = $1', [id]);
 
-    // Log activity
-    try {
-      await logUserActivity(pool, {
-        typeName: 'user_deleted',
-        description: `Deleted user: ${username}`,
-        userId: req.user.userId,
-      });
-    } catch (logError) {
-      logError('Auth', 'Failed to log user deletion:', logError);
+      // Log the state transition once; repeating deactivation is a no-op.
+      try {
+        await logUserActivity(pool, {
+          typeName: 'user_deactivated',
+          description: `Deactivated user: ${user.username}`,
+          userId: req.user.userId,
+        });
+      } catch (activityError) {
+        logError('Auth', 'Failed to log user deactivation:', activityError);
+      }
     }
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: 'User deactivated successfully' });
   } catch (error) {
-    logError('Auth', 'Delete user error:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    logError('Auth', 'Deactivate user error:', error);
+    res.status(500).json({ error: 'Failed to deactivate user' });
   }
 };
 

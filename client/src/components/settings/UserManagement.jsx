@@ -20,7 +20,7 @@ const UserManagement = () => {
   const modalBackdropClass = 'fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4';
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
@@ -85,20 +85,20 @@ const UserManagement = () => {
     },
   });
 
-  // Delete user mutation
-  const deleteUserMutation = useMutation({
+  // Deactivate user mutation (the API route retains the historical user row)
+  const deactivateUserMutation = useMutation({
     mutationFn: async (id) => {
       await api.deleteUser(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
-      setShowDeleteConfirm(null);
+      setShowDeactivateConfirm(null);
       closeEditModal();
-      showSuccess('User deleted successfully!');
+      showSuccess('User deactivated successfully!');
     },
     onError: (error) => {
       const errorMsg = error.response?.data?.error || error.message;
-      showError(`Error deleting user: ${errorMsg}`);
+      showError(`Error deactivating user: ${errorMsg}`);
     },
   });
 
@@ -462,9 +462,12 @@ const UserManagement = () => {
               </div>
 
               {selectedUser.auth_provider === 'oidc' ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  This account signs in through single sign-on and has no local password.
-                </p>
+                <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p>This account signs in through single sign-on and has no local password.</p>
+                  <p>
+                    Roles and access are managed locally. Identity-provider role or group claims do not restore access.
+                  </p>
+                </div>
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -510,12 +513,18 @@ const UserManagement = () => {
             </div>
 
             <div className="flex justify-between items-center gap-2 mt-6">
-              <button
-                onClick={() => setShowDeleteConfirm(selectedUser)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
-              >
-                Delete User
-              </button>
+              {selectedUser.is_active ? (
+                <button
+                  onClick={() => setShowDeactivateConfirm(selectedUser)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold"
+                >
+                  Deactivate User
+                </button>
+              ) : (
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  Account is already inactive.
+                </span>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={closeEditModal}
@@ -536,11 +545,11 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
+      {/* Deactivation Confirmation Modal */}
+      {showDeactivateConfirm && (
         <div
           className={modalBackdropClass}
-          onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(null)}
+          onClick={(e) => e.target === e.currentTarget && setShowDeactivateConfirm(null)}
         >
           <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-6 max-w-md w-full border border-gray-200 dark:border-[#3a3a3a]">
             <div className="flex items-center gap-3 mb-4">
@@ -548,25 +557,25 @@ const UserManagement = () => {
                 <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Delete User
+                Deactivate User
               </h3>
             </div>
             <p className="text-gray-700 dark:text-gray-300 mb-6">
-              Are you sure you want to delete user <strong>{showDeleteConfirm.username}</strong>? This action cannot be undone.
+              Deactivating <strong>{showDeactivateConfirm.username}</strong> disables sign-in but retains the user and audit history. Identity-provider role or group claims do not restore access. You can reactivate this account later.
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowDeleteConfirm(null)}
+                onClick={() => setShowDeactivateConfirm(null)}
                 className="btn-secondary"
               >
                 Cancel
               </button>
               <button
-                onClick={() => deleteUserMutation.mutate(showDeleteConfirm.id)}
-                disabled={deleteUserMutation.isPending}
+                onClick={() => deactivateUserMutation.mutate(showDeactivateConfirm.id)}
+                disabled={deactivateUserMutation.isPending}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-400"
               >
-                {deleteUserMutation.isPending ? 'Deleting...' : 'Delete User'}
+                {deactivateUserMutation.isPending ? 'Deactivating...' : 'Deactivate User'}
               </button>
             </div>
           </div>

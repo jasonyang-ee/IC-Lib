@@ -5,6 +5,7 @@ vi.stubEnv('NODE_ENV', 'test');
 
 const queryMock = vi.fn();
 const compareMock = vi.fn();
+const hashMock = vi.fn();
 
 vi.mock('../config/database.js', () => ({
   default: {
@@ -15,7 +16,7 @@ vi.mock('../config/database.js', () => ({
 vi.mock('bcryptjs', () => ({
   default: {
     compare: (...args) => compareMock(...args),
-    hash: vi.fn(),
+    hash: (...args) => hashMock(...args),
   },
 }));
 
@@ -28,7 +29,13 @@ vi.mock('../services/ecoApprovalEligibilityService.js', () => ({
 }));
 
 const { AUTH_COOKIE_NAME } = await import('../middleware/auth.js');
-const { login, logout, changePassword } = await import('../controllers/authController.js');
+const {
+  login,
+  logout,
+  changePassword,
+  updateUser,
+  deleteUser,
+} = await import('../controllers/authController.js');
 
 const mockReq = (overrides = {}) => ({
   body: {},
@@ -153,5 +160,142 @@ describe('authController cookie auth', () => {
     expect(res.json).toHaveBeenCalledWith({
       error: 'This account signs in through single sign-on and has no local password',
     });
+  });
+});
+
+describe('authController local user authority', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("admin changes an OIDC user's local role and active state without changing identity", async () => {
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: 'oidc-user', username: 'sso.user', auth_provider: 'oidc' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'oidc-user',
+          username: 'sso.user',
+          role: 'approver',
+          is_active: false,
+          auth_provider: 'oidc',
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({
+      params: { id: 'oidc-user' },
+      body: { role: 'approver', is_active: false },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    const [updateSql, updateValues] = queryMock.mock.calls[1];
+    expect(updateSql).toContain('role = $1');
+    expect(updateSql).toContain('is_active = $2');
+    expect(updateSql).not.toMatch(/oidc_(?:issuer|sub|tenant_id|object_id)\s*=/);
+    expect(updateSql).not.toContain('password_hash =');
+    expect(updateValues).toEqual(['approver', false, 'oidc-user']);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'oidc-user',
+      role: 'approver',
+      is_active: false,
+      auth_provider: 'oidc',
+    }));
+  });
+
+  it('admin password set for an OIDC user returns 400 without bcrypt', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ id: 'oidc-user', username: 'sso.user', auth_provider: 'oidc' }],
+    });
+
+    const req = mockReq({
+      params: { id: 'oidc-user' },
+      body: { password: 'new-password' },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    expect(hashMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Single sign-on users cannot have a local password',
+    });
+  });
+
+  it('delete user deactivates and retains the row', async () => {
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ username: 'former.user', is_active: true }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({ params: { id: 'former-user' } });
+    const res = mockRes();
+
+    await deleteUser(req, res);
+
+    expect(queryMock.mock.calls.some(([sql]) => /DELETE\s+FROM\s+users/i.test(sql))).toBe(false);
+    expect(queryMock.mock.calls[1]).toEqual([
+      'UPDATE users SET is_active = false WHERE id = $1',
+      ['former-user'],
+    ]);
+    expect(queryMock.mock.calls[2][1]).toEqual([
+      'user_deactivated',
+      'Deactivated user: former.user',
+      'user-1',
+    ]);
+    expect(res.json).toHaveBeenCalledWith({ message: 'User deactivated successfully' });
+  });
+
+  it('repeating deactivation for an inactive user is a successful no-op', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ username: 'former.user', is_active: false }],
+    });
+
+    const req = mockReq({ params: { id: 'former-user' } });
+    const res = mockRes();
+
+    await deleteUser(req, res);
+
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(res.json).toHaveBeenCalledWith({ message: 'User deactivated successfully' });
+  });
+
+  it('local user password update remains supported', async () => {
+    hashMock.mockResolvedValue('new-password-hash');
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: 'local-user', username: 'local.user', auth_provider: 'local' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: 'local-user',
+          username: 'local.user',
+          role: 'read-write',
+          is_active: true,
+          auth_provider: 'local',
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({
+      params: { id: 'local-user' },
+      body: { password: 'new-password' },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    expect(hashMock).toHaveBeenCalledWith('new-password', 10);
+    expect(queryMock.mock.calls[1][0]).toContain('password_hash = $1');
+    expect(queryMock.mock.calls[1][1]).toEqual(['new-password-hash', 'local-user']);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 'local-user' }));
   });
 });
