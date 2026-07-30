@@ -10,50 +10,38 @@ Encoding: same symbol set as SPEC.md.
 Full rules: /encode-docs skill.
 -->
 
-# HANDOFF 2026-07-29
+# HANDOFF 2026-07-30
 
-branch `test` | planning-input commit `816032bb263547f3fd5b265a19d2b95e5e8260b6` | tests pass 316/316 (`bash ./test.sh` → exit 0: client 25 files/91 tests, server 39 files/225 tests, scripts + lint pass)
-uncommitted at handoff write: `SPEC.md`, `PLAN.md`, `HANDOFF.md` — accepted-decision prep package pending session commit; ⊥ implementation files
+branch `test` | last commit `2cb139d` | tests pass 316/316 (last full `bash ./test.sh` @ planning head; F1 = read-only, ⊥ code change)
+uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — F1 §T flips + baton; ⊥ implementation files
 
 ## done this session
 
-- `/prep`: consumed answer `Q1=A; Q2=A; L1; Q3a=A; Q3b=A; Q3c=A; Q3d=A; Q3e=B; Q3f=A; Q3g=A; Q4a=A; Q4b=A; Q4c=A`; converted every ruling into §C/§I/§V truth + executable F1-F10 tasks; ⊥ implementation.
-- research: revalidated logger/readiness/route/view/UI/auth surfaces locally; primary sources added/retained in §R13-§R14 for Entra SCIM/RFC 7644 + PostgreSQL 18 view replacement. confirmed Test Connection queries random GUID via configured matching property ∴ `objectId → externalId` works.
-- `/review-plan`: refuted phase order, dependencies, task-to-test mappings, mutation boundaries, view ordinals, SCIM threat/lifecycle semantics. result `BLOCK=0 | DIVERGENCE=0 | UNKNOWN=0 | research phases=1 (F1) | gate=GO`.
-- `/encode-docs`: updated `SPEC.md`, replaced `PLAN.md` w/ 10-phase execution package, overwrote this baton.
+- `/cook`: flipped `planning status` `new` → `work-in-progress`.
+- F1.T1: re-ran one-off `no-shadow:error` on `server/src` → exactly 19 errors, exact sites match §R7 (`authController` 109/185/304/435/638/836; `componentController` 292/462/593/669/972/1239/1357/1413/1520/2280; `oidcController` 119; `settingsController` 1198/1533). classified each: REQUIRED (audit joins live txn via `client`) = `componentController.changeCategory:462`, `deleteComponent:669`, `promoteAlternative:1520`, + `createComponent:292` once F2.T1 wraps create in a txn → 4. OPTIONAL (audit on `pool`, outside txn) = remaining 15. 4+15=19 ✓. readiness matrix: `healthController.readiness` currently = `SELECT 1` ping + `getAuthenticationStatus()`, leaks `error.message` + `authentication` object in 503 body; `inspectDatabaseSchema()` (default `STARTUP_REQUIRED_TABLES`/`EXPECTED_SCHEMA_VIEWS`/`REPAIRABLE_SCHEMA_COLUMNS`) is the live full-schema oracle F3 must call; `liveness` already DB-free.
+- F1.T2: `+` guard confirmed live @ `client/src/pages/FileLibrary.jsx:674-677` inside `handleRenameSubmit`, which serves BOTH single + pair rename (`renameData.mode`) ∴ F5 = comment fix + regression only. helper divergence confirmed = server `path.extname` vs client `lastIndexOf`, supported-boundary output identical. limiter map: `app.use('/api', globalLimiter)` @ `index.js:101` (all API); single shared `authLimiter` used by BOTH `POST /login` + `POST /change-password` @ `routes/auth.js:11,22`. exact §V10 manifest extracted from `routeAuthGuards.test.js`: 48 public GET keys + 2 public mutation keys (`auth post /login`, `inventory post /search/barcode`).
+- F1.T3: `alt_class` ∄ anywhere in `database/`, `server/src`, `client/src` → fully greenfield. next migration int = `18` (`17_oidc_identity_continuity.sql` is highest). all six §C4 component-facing views + `eco_orders_full` confirmed in `database/init-schema.sql:367,389,458,476,494,513,845`. `inspectDatabaseSchema` column check queries `information_schema.columns` ∴ view columns are addable to `REPAIRABLE_SCHEMA_COLUMNS` without new query shape.
+- F1.T4: `authenticate` @ `server/src/middleware/auth.js:60-105` is synchronous, cookie-then-Bearer, attaches `{...decoded, id: decoded.userId}` and never re-reads the DB → F9.T1 must convert it to async + one `is_active` query. `users` schema carries `is_active`, `auth_provider`, `oidc_issuer|sub|tenant_id|object_id` ∴ SCIM needs ⊥ new user columns.
 
 ## in progress (exact stop point)
 
-F1.T1 ready: revalidate 19 audit sites + readiness matrix before mutation.
-mid-edit files: none; planning package only.
+none — F1 closed. F2.T1 not started.
+mid-edit files: none.
 
 ## next
 
-F1.T1 | invoke `/cook F1` (single-agent research phase recommended); verify 4 required + 15 optional audit sites and readiness cases, then proceed by PLAN pointer only after F1 gate HOLD.
+F2.T1 | rewrite `server/src/controllers/componentController.js:createComponent` to acquire a client, `BEGIN`, and run component insert + category lookup + required `logActivity(client,...)` + inventory insert + `syncComponentCadFiles(...,client,...)` in one txn, `COMMIT` before responding; new `server/src/test/componentAuditFailure.test.js`.
 
 ## deviations & decisions
 
-- `Q1=A`: §V28 = supported user-boundary behavior parity, ⊥ helper-algorithm parity. File Library parent already rejects `+` for single + pair rename ∴ add regressions, keep dotfile helper divergence, ⊥ duplicate `RenameModal` guard.
-- `Q2=A; L1`: global limiter only exact §V10 guest-read targets at `1000/15m` per IP; login owns separate per-IP limiter; change-password owns separate per-user limiter after auth. each store isolated.
-- `Q3a=A`: NULL = `Unrated`, operationally non-substitutable like A until rated. `Q3b=A`: direct edit for new parts; controlled default change through existing ECO `spec`. `Q3c=A`: advisory only, Consume All remains ungated. `Q3d=A`: BOM column available + code-default selected.
-- `Q3e=B`: interpreted “relevant external views” as six component-facing views: `components_full`, `component_specifications_view`, `production_parts`, `prototype_parts`, `archived_parts`, `alternative_parts`; append `alt_class`, preserve ordinal prefix; `eco_orders_full` unchanged.
-- `Q3f=A`: Library single + shared bulk set; Projects raw per-line override. `Q3g=A`: migration proof in disposable PostgreSQL 18 Docker temp storage only.
-- `Q4a=A`: Entra push SCIM. `Q4b=A`: only linked OIDC users; disable/delete soft-deactivate, reactivation keeps UUID; unknown POST 403/no create or link; OIDC first. `Q4c=A`: protected requests query current local active state, DB failure → generic 503.
-- prep tightened SCIM: responses/mutation bodies use `application/scim+json` (GET ⊥ require Content-Type); Add/Replace allowed fields + Remove only nullable profile fields; “immediate” = next protected request after local inactive commit, ⊥ promise Entra delivery latency.
-- prior pasted review understated impact: logout, update/CAD sync, open-txn audit, atomic create, readiness truth/disclosure, and all-API limiter scope remain planned. F2-F3 are release blockers; plan gate GO ≠ release gate.
+- F1 refuted nothing in §R7-§R14 or §V; ⊥ SPEC/PLAN content change beyond §T status + `planning status`.
+- §R9 confirmed applicable: the 3 existing REQUIRED sites swallow a failed statement inside a live txn, which PostgreSQL leaves unusable ∴ F2.T3 must remove those inner catches rather than log-and-continue.
 
 ## watchouts
 
-- deployment assumption: checked-in compose = 1 Node process. >1 process/replica invalidates MemoryStore guarantee → select + test shared external limiter store before deployment.
-- SCIM enablement assumption: exactly 1 Entra tenant + Entra/provisioning-agent can reach HTTPS `/api/scim/v2`. If false, leave both SCIM vars absent and revise architecture; ⊥ relax bearer/tenant policy.
-- Entra incremental delivery is external/eventual (~40 min documented cadence). per-request DB check cuts access on the first protected request after IC-Lib receives/commits deactivation; urgent changes use Entra Provision on Demand or local admin deactivation.
-- existing-only SCIM intentionally cannot pass validator create-user cases and unknown assignments remain provisioning errors until first OIDC login + retry. README must state this plainly; Groups disabled; `objectId → externalId` sole matching property.
-- if product owner meant a different `Q3e=B` view set, change §C4/F7 before SQL; current six-view interpretation is exact + executable.
-- F7 ⊥ connect/write `flat.gentex.int:5434/iclib`; Docker test must compare pre-migration ordinal prefixes, apply migration twice, verify fresh init, and remove container even on failure.
-- class update semantics: omitted ≠ explicit NULL. bulk update all-or-none; ECO category replacement must copy class; direct + alternative project rows use project override then parent default.
-- §V10 consuming-page role-gate meta-test remains a non-blocking test-depth NOTE: independent review found no concrete route mismatch. F6 owns public/auth/limiter two-way enforcement, ⊥ a new whole-app role-policy manifest; revisit separately if desired.
-- cosmetic OIDC notes (`buildUsernameCandidates` singular return; UPN sanitization drops `@`) remain non-contractual + outside this cycle.
-- no remaining answer is required to start F1. Any changed assumption above requires `/prep` revision before the affected phase, not an implementation-time guess.
+- all prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`).
+- `componentController.createComponent` currently has ∄ transaction at all — F2.T1 is a structural rewrite, not a catch rename; expect the largest diff of F2.
+- `authenticate` becoming async (F9.T1) changes every route's first handler to an async fn; `routeAuthGuards.test.js` matches on `handle.name === 'authenticate'` ∴ keep the exported binding name.
 
 ## final verification
 

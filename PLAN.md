@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -63,28 +63,28 @@ files: read-only named controllers/services/routes/schema/client consumers + off
 
 §T TASKS:
 
-T1|.|verify 19-site audit + readiness matrices
+T1|x|verify 19-site audit + readiness matrices
 touch: read-only `server/src/controllers/{auth,component,oidc,settings}Controller.js`, health/schema services + tests
 details: map each shadow catch to function, DB handle, txn/COMMIT/response boundary. freeze policy: create = component+required audit+inventory+CAD one txn; category change/delete/promote = existing txn + required audit; update = component+CAD one txn, optional audit post-COMMIT; remaining sites optional audit outside txn. readiness = one live default `inspectDatabaseSchema()` per request; valid true only → 200; all rejection/missing categories → generic 503; liveness DB-free.
 verify: count 4 required + 15 optional = 19; trace PostgreSQL error behavior to §R9; health matrix covers query reject + missing table/view/column + valid + liveness zero-query.
 exit: F2-F3 have no semantic choice.
 next: F1.T2
 
-T2|.|verify footprint + rate contracts
+T2|x|verify footprint + rate contracts
 touch: read-only footprint utilities/File Library, route stacks, limiter/index/config/tests
 details: confirm every supported footprint input boundary still normalizes/rejects per §V28; no helper alignment. build production route descriptor map for exact §V10 GETs + barcode POST; login excluded from public-global set because it owns an IP limiter. freeze login per-IP, change-password per-user, public per-IP `1000/15m`; each limiter gets distinct store.
 verify: map runtime full paths to router template keys; prove private/authenticated routes never hit public budget; checked-in deployment = one app process.
 exit: F5-F6 unconditional.
 next: F1.T3
 
-T3|.|verify alternative-class data/consumer map
+T3|x|verify alternative-class data/consumer map
 touch: read-only DB schema/views, component/project/ECO controllers, Library/Projects/BOM/settings clients/tests
 details: domain = NULL/A/B/C; raw override + component default + resolved output names frozen. six view projections append at end; `eco_orders_full` unchanged. direct component writes obey §V15; bulk all-or-none; ECO field uses existing `spec` detection; project override accepts explicit NULL clear; Consume All advisory only; BOM code default includes class.
 verify: enumerate create/update/bulk/ECO/category-copy/project direct+alternative/BOM/admin-default consumers; confirm no substitute chooser exists.
 exit: F7-F8 exact.
 next: F1.T4
 
-T4|.|verify SCIM profile + threat contract
+T4|x|verify SCIM profile + threat contract
 touch: read-only auth/OIDC/user schema/routes/index/docs/tests; §R13 sources
 details: User-only SCIM endpoints, immutable `externalId=oidc_object_id`, env-bound tenant, static ≥32-character bearer constant-time compare, SCIM response/mutation media type, unknown-create refusal, profile field allowlist, role/OIDC-key exclusion, soft delete/reactivate, idempotency, safe logging. active JWT check queries DB every protected request + fail-closed 503 on DB failure.
 verify: enumerate Entra test-connection, lookup, existing POST replay, PATCH active/profile, DELETE, unknown, invalid token/filter/payload, DB failure, already-issued JWT cases.
