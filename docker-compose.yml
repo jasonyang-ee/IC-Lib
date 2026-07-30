@@ -29,6 +29,9 @@ services:
       # Redirect URI must be this deployment's public URL + /api/auth/oidc/callback
       # (include the subdirectory if CONFIG_SUBDIRECTORY_PATH is set).
       # Note: schema timestamps are timezone-naive; server and DB assume one site TZ.
+      # OIDC_ALLOWED_TENANTS defaults empty (no tenant-claim filter). Exact Microsoft
+      # Entra /common or /organizations issuers require a nonempty comma-separated
+      # tenant-ID allowlist; tenant-specific Entra and generic OIDC can leave it unset.
       # - OIDC_ISSUER_URL=https://idp.example.com/realms/company
       # - OIDC_CLIENT_ID=iclib
       # - OIDC_CLIENT_SECRET=your_client_secret
@@ -36,6 +39,7 @@ services:
       # - OIDC_SCOPES=openid profile email
       # - OIDC_PROVIDER_NAME=Company SSO
       # - OIDC_DEFAULT_ROLE=read-only
+      # - OIDC_ALLOWED_TENANTS=00000000-0000-0000-0000-000000000000
     volumes:
       - ./iclib/library:/app/library
       # Optional: mount a directory containing your company logo for ECO PDFs

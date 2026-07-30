@@ -155,14 +155,14 @@ files: `.env.example`, `docker-compose.yml`, `README.md`, `CHANGELOG.md`, `serve
 
 §T TASKS:
 
-T1|.|wire tenant config without provider lock-in
+T1|x|wire tenant config without provider lock-in
 touch: `.env.example`, `docker-compose.yml`, `server/src/test/oidcConfigDocs.test.js`
 details: add commented `OIDC_ALLOWED_TENANTS`; describe empty default, exact Entra `/common`\|`/organizations` requirement, tenant-specific issuer behavior. Keep existing generic vars. ⊥ `OIDC_ROLE_CLAIMS`, ⊥ `OIDC_TRUST_UNVERIFIED_EMAIL`, ⊥ Keycloak runtime config/dependency.
 verify: `server/src/test/oidcConfigDocs.test.js` case `env and compose expose the same supported OIDC variables and no authorization-claim variables`.
 exit: config surface = §I11.
 next: F5.T2
 
-T2|.|document direct Entra + generic OIDC operation
+T2|x|document direct Entra + generic OIDC operation
 touch: `README.md`, `CHANGELOG.md`
 details: README: primary AD route `Express backend -> Entra OIDC` (⊥ ASP.NET, ⊥ Keycloak); prefer tenant-specific issuer; multi-tenant allowlist; minimal `openid profile email`; local JIT/default role/admin authorization + deactivation; IdP role/group claims ignored; generic OIDC alternative; verified-email link rule; local break-glass; no SCIM/Graph/deprovision sync & ≤24h app-session caveat. `CHANGELOG.md` `## [Unreleased]`: migration `17`, tenant guard, continuity relink, local-authority and soft-deactivation behavior.
 verify: `server/src/test/oidcConfigDocs.test.js` cases `README states AD authentication only and local authorization` & `README documents generic OIDC without Keycloak dependency`; changelog entry present.
