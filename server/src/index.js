@@ -34,6 +34,7 @@ import fileLibraryRoutes from './routes/fileLibrary.js';
 
 // Import initialization service
 import { initializeAuthentication } from './services/initializationService.js';
+import { validateScimConfiguration } from './services/scimService.js';
 
 // Import health/readiness handlers (SPEC §V30: liveness != readiness)
 import { liveness, readiness } from './controllers/healthController.js';
@@ -176,6 +177,15 @@ async function startServer() {
     logInfo('Server', '\x1b[33m    `--\' `-----\'    `-----\'`--\'`------\'\x1b[0m');
     logInfo('Server', '\x1b[36m        IC Component Library Manager\x1b[0m');
 
+
+    // V60: a partial or invalid SCIM configuration stops the server. Serving
+    // a provisioning endpoint with an ambiguous credential is worse than not
+    // starting, and this is checked before anything begins listening.
+    const scimConfiguration = validateScimConfiguration();
+    if (scimConfiguration.errors.length > 0) {
+      throw new Error(`Invalid SCIM configuration: ${scimConfiguration.errors.join('; ')}`);
+    }
+    logInfo('Server', `SCIM provisioning: ${scimConfiguration.enabled ? 'enabled' : 'disabled'}`);
 
     // Initialize authentication (check/create users table)
     const initializationReady = await initializeAuthentication();

@@ -390,7 +390,7 @@ verify: cookie + Bearer active; inactive, missing, expired, invalid, DB reject; 
 exit: §V1 immediate cutoff green.
 next: F9.T2
 
-T2|.|add strict optional SCIM config + bearer gate
+T2|x|add strict optional SCIM config + bearer gate
 touch: `server/src/services/scimService.js`, `server/src/middleware/scimAuth.js`, startup hook/index, tests
 details: disabled only when both vars absent; exactly one missing, invalid GUID, or token <32 chars → startup failure. compare `Authorization: Bearer` token with equal-length `crypto.timingSafeEqual`; no cookie fallback; invalid/disabled return generic SCIM 401/404 policy; add `WWW-Authenticate`; never log value.
 verify: enabled/disabled/partial/GUID/length; missing/wrong/equal token; length mismatch; logs contain no sentinel token.
