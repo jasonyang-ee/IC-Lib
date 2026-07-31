@@ -15,6 +15,9 @@ export const SCIM_BASE_PATH = '/api/scim/v2';
 export const SCIM_CONTENT_TYPE = 'application/scim+json';
 export const MIN_SCIM_TOKEN_LENGTH = 32;
 
+export const SCIM_USER_SCHEMA = 'urn:ietf:params:scim:schemas:core:2.0:User';
+const SCIM_LIST_RESPONSE_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:ListResponse';
+
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const readSetting = (name) => {
@@ -57,4 +60,70 @@ export const validateScimConfiguration = () => {
   }
 
   return { enabled: errors.length === 0, errors };
+};
+
+/** Local `users.id` values are UUIDs; anything else can never name a row. */
+export const isUuid = (value) => typeof value === 'string' && GUID_PATTERN.test(value);
+
+/**
+ * §V60: the SCIM representation of a linked user. `id` is the retained local
+ * `users.id` and `externalId` is the immutable Entra `objectId` - the sole
+ * matching property. Role, password and OIDC keys are local concerns and are
+ * deliberately absent from the wire format. A deactivated user is still a user:
+ * it is returned with `active: false`, never hidden.
+ */
+export const toScimUser = (row) => {
+  const user = {
+    schemas: [SCIM_USER_SCHEMA],
+    id: row.id,
+    externalId: row.oidc_object_id,
+    userName: row.username,
+    active: row.is_active !== false,
+    meta: {
+      resourceType: 'User',
+      location: `${SCIM_BASE_PATH}/Users/${row.id}`,
+    },
+  };
+
+  if (row.display_name) {
+    user.displayName = row.display_name;
+    user.name = { formatted: row.display_name };
+  }
+
+  if (row.email) {
+    user.emails = [{ value: row.email, type: 'work', primary: true }];
+  }
+
+  return user;
+};
+
+export const toScimListResponse = (resources) => ({
+  schemas: [SCIM_LIST_RESPONSE_SCHEMA],
+  totalResults: resources.length,
+  itemsPerPage: resources.length,
+  startIndex: 1,
+  Resources: resources,
+});
+
+const EXTERNAL_ID_FILTER = /^externalId\s+eq\s+"([^"]*)"$/i;
+
+/**
+ * Entra's user lookup is always `externalId eq "<objectId>"`, and that is the
+ * only filter this provider claims to support. Anything else - another
+ * attribute, another operator, a missing filter - is refused rather than
+ * silently widened into a query that could enumerate users.
+ *
+ * @returns {{externalId: string}|{error: string}}
+ */
+export const parseUserFilter = (filter) => {
+  if (typeof filter !== 'string' || filter.trim() === '') {
+    return { error: 'A filter is required: externalId eq "<objectId>"' };
+  }
+
+  const match = EXTERNAL_ID_FILTER.exec(filter.trim());
+  if (!match) {
+    return { error: 'Only the filter externalId eq "<objectId>" is supported' };
+  }
+
+  return { externalId: match[1] };
 };

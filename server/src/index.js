@@ -31,10 +31,11 @@ import ecoRoutes from './routes/eco.js';
 import smtpRoutes from './routes/smtp.js';
 import fileUploadRoutes from './routes/fileUpload.js';
 import fileLibraryRoutes from './routes/fileLibrary.js';
+import scimRoutes from './routes/scim.js';
 
 // Import initialization service
 import { initializeAuthentication } from './services/initializationService.js';
-import { validateScimConfiguration } from './services/scimService.js';
+import { SCIM_BASE_PATH, validateScimConfiguration } from './services/scimService.js';
 
 // Import health/readiness handlers (SPEC §V30: liveness != readiness)
 import { liveness, readiness } from './controllers/healthController.js';
@@ -118,6 +119,11 @@ app.use('/api/eco', ecoRoutes);
 app.use('/api/smtp', smtpRoutes);
 app.use('/api/files', fileUploadRoutes);
 app.use('/api/file-library', fileLibraryRoutes);
+
+// Entra SCIM provisioning (§I12/§V60). Bearer-authenticated service traffic, so
+// it carries its own gate and stays outside the §V10 public per-IP budget; the
+// router answers 404 while the feature is disabled.
+app.use(SCIM_BASE_PATH, scimRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {

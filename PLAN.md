@@ -397,7 +397,7 @@ verify: enabled/disabled/partial/GUID/length; missing/wrong/equal token; length 
 exit: credential/tenant boundary closed.
 next: F9.T3
 
-T3|.|implement User-only SCIM discovery + representation
+T3|x|implement User-only SCIM discovery + representation
 touch: new controller/router/service, `server/src/index.js`
 details: mount `/api/scim/v2`; parse mutation bodies as `application/scim+json`; GETs do not require a Content-Type. bearer-protect `GET /ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`, `/Users`, `/Users/:id`; responses type SCIM. config reports patch/filter true, bulk/changePassword/sort/etag false, User only. filter accepts exact `externalId eq "GUID"`; query tenant+object id; list always SCIM `ListResponse`; local UUID = id, object id = externalId, local username/display/email/active returned.
 verify: Test Connection random GUID → 200 empty; linked inactive still returned active false; wrong tenant excluded; invalid/unsupported filter → 400 `invalidFilter`; unknown id 404; discovery self-consistent.
