@@ -1,3 +1,5 @@
+import { formatAlternativeClass } from './alternativeClass';
+
 const formatDateValue = (value) => {
   if (!value) {
     return '';
@@ -39,6 +41,7 @@ export const BOM_COLUMN_DEFINITIONS = Object.freeze([
   { id: 'sub_category2', label: 'Sub Category 2', group: 'Metadata', getValue: (component) => component.sub_category2 || '' },
   { id: 'sub_category3', label: 'Sub Category 3', group: 'Metadata', getValue: (component) => component.sub_category3 || '' },
   { id: 'sub_category4', label: 'Sub Category 4', group: 'Metadata', getValue: (component) => component.sub_category4 || '' },
+  { id: 'alternative_class', label: 'Alternative Class', group: 'Metadata', getValue: (component) => formatAlternativeClass(component.alternative_class) },
   { id: 'notes', label: 'Project Notes', group: 'Metadata', getValue: (component) => component.notes || '' },
   { id: 'created_at', label: 'Created At', group: 'Metadata', getValue: (component) => formatDateValue(component.created_at) },
   { id: 'pcb_footprint', label: 'PCB Footprint', group: 'CAD Files', getValue: (component) => formatCadValue(component.pcb_footprint) },
@@ -65,6 +68,7 @@ export const DEFAULT_BOM_COLUMN_IDS = Object.freeze([
   'available_quantity',
   'location',
   'approval_status',
+  'alternative_class',
   'distributors',
 ]);
 

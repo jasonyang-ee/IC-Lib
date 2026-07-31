@@ -428,6 +428,8 @@ const Projects = () => {
             sub_category2: componentDetails?.sub_category2 || '',
             sub_category3: componentDetails?.sub_category3 || '',
             sub_category4: componentDetails?.sub_category4 || '',
+            // §V59: the resolved class the server computed for this line.
+            alternative_class: projectComponent.resolved_alt_class || null,
             notes: projectComponent.notes || '',
             created_at: componentDetails?.created_at || '',
             pcb_footprint: componentDetails?.pcb_footprint || [],

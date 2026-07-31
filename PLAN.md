@@ -357,7 +357,7 @@ verify: add/update/bulk/clear payloads; fallback display; advisory shown but con
 exit: `Q3c/f=A` complete.
 next: F8.T5
 
-T5|.|add BOM column + defaults
+T5|x|add BOM column + defaults
 touch: `client/src/utils/bomExport.js`, `client/src/test/bomExport.test.js`, `client/src/pages/Projects.jsx`, `client/src/components/settings/BOMSettings.jsx`, `server/src/controllers/settingsController.js`, related settings tests
 details: add `alternative_class` definition label `Alternative Class`, value = `Class X` or `Unrated`; include in client + server code defaults. project export uses `resolved_alt_class`; explicit previously-saved admin choices remain unchanged.
 verify: default ids include column; header/value direct fallback/override/Unrated; invalid saved selection fallback; admin options include it.

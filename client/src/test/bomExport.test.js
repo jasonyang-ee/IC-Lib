@@ -73,4 +73,32 @@ describe('bomExport', () => {
       'LMV358IDR',
     ]);
   });
+
+  // §V59/§Q3d: the resolved class ships in the code default so a BOM says
+  // what may be substituted; an admin who saved a selection keeps theirs.
+  describe('alternative class column', () => {
+    it('is selected in the code default', () => {
+      expect(DEFAULT_BOM_COLUMN_IDS).toContain('alternative_class');
+    });
+
+    it('exports the resolved class, and Unrated when nothing is rated', () => {
+      const { headers, rows } = buildBomExportData({
+        project: { name: 'Power Board', status: 'active' },
+        selectedColumnIds: ['part_number', 'alternative_class'],
+        components: [
+          { part_number: 'IC-00001', alternative_class: 'B' },
+          { part_number: 'IC-00002', alternative_class: null },
+        ],
+      });
+
+      expect(headers).toEqual(['Part Number', 'Alternative Class']);
+      expect(rows[0]).toEqual(['IC-00001', 'Class B']);
+      expect(rows[1]).toEqual(['IC-00002', 'Unrated']);
+    });
+
+    it('keeps an explicitly saved admin selection that omits it', () => {
+      expect(sanitizeBomColumnIds(['part_number', 'quantity']))
+        .toEqual(['part_number', 'quantity']);
+    });
+  });
 });

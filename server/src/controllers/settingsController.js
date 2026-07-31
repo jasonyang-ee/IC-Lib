@@ -30,7 +30,7 @@ const __dirname = path.dirname(__filename);
 const SETTINGS_FILE = path.join(__dirname, '../../../config/settings.json');
 
 // Default settings structure
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   partNumberConfigs: {},
   bomDefaults: {
     columnIds: [
@@ -44,6 +44,10 @@ const DEFAULT_SETTINGS = {
       'available_quantity',
       'location',
       'approval_status',
+      // §V59: mirrors DEFAULT_BOM_COLUMN_IDS in client/src/utils/bomExport.js.
+      // Only the code default changes - an admin's saved selection is left
+      // exactly as they saved it.
+      'alternative_class',
       'distributors',
     ],
   },
