@@ -12,47 +12,40 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `d2f9a07` | tests pass 375/375 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 41 files/281 tests, scripts + lint pass)
+branch `test` | last commit `c6695f0` | tests pass 397/397 (`bash ./test.sh` → exit 0: client 25 files/94 tests, server 42 files/303 tests, scripts + lint pass)
 uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
 
 ## done this session
 
-- F7.T1 (`38bd2e2`): new `database/migrations/18_alternative_class.sql` + `database/init-schema.sql`. nullable `CHAR(1)` `components.alt_class` + `project_components.alt_class`; named CHECKs `check_components_alt_class` / `check_project_components_alt_class` allow only A/B/C (NULL passes); `ADD COLUMN IF NOT EXISTS` + `pg_constraint` guards. `alt_class` appended LAST on the 6 §C4 component-facing views; `eco_orders_full` untouched. `components_full` rebuilt by a guarded `DO $$` reading the CURRENT stored view col list from `information_schema.columns ORDER BY ordinal_position`, re-emitting it + `c.alt_class`. `init-schema.sql` `components_full` converted `SELECT c.*` → explicit 23-col projection.
-- F7.T2 (`2cd3765`): `server/src/services/schemaInspectionService.js` — `{components,alt_class}` + `{project_components,alt_class}` added to `REPAIRABLE_SCHEMA_COLUMNS`; new exported `REQUIRED_VIEW_COLUMNS` (6 views, `eco_orders_full` excluded); new `requiredViewColumns` param defaulting to it; internal `allRequiredColumns` merge feeds both the single `information_schema` query + `missingColumns`. result shape UNCHANGED ∴ `healthController` / `settingsController` / `initializationService` logging pick it up w/ ⊥ edit. `schemaInspectionService.test.js` 2 → 15 tests.
-- F7.T3 (`e1a5916`): §T flip + evidence only, ⊥ repo code. 50 checks green on disposable `postgres:18` (18.4).
-- F7.T4 (`d2f9a07`): new `server/src/constants/alternativeClass.js` (`ALTERNATIVE_CLASSES`, `ALTERNATIVE_CLASS_ERROR_MESSAGE`, `normalizeAlternativeClass`) mirroring `projectStatus.js`. returns `{ok,provided,value}` | `{ok:false,message}`; `provided` separates omitted from explicit clear. new `server/src/test/alternativeClass.test.js` 21 cases.
-- `CHANGELOG.md` `## [Unreleased]` `### Added` carries ONE consolidated migration-18 bullet covering T1+T2+T4. F7.T7 ! EXTEND it, ⊥ duplicate.
+- F7.T5 (`c6695f0`): `server/src/controllers/componentController.js` — `createComponent`/`updateComponent` destructure `alt_class` + run `normalizeAlternativeClass` BEFORE any query ∴ invalid → 400 w/ 0 DB calls. create appends `alt_class` as INSERT col 19. update writes `alt_class = CASE WHEN $22::boolean THEN $23::char(1) ELSE alt_class END` (`$22`=`provided`, `$23`=`value`) ∴ omitted preserves, explicit `null`|`''` clears; note param numbering intentionally non-sequential (`WHERE id = $21` precedes 22/23 in text).
+- F7.T5 new exported `bulkSetAlternativeClass`: 400 ∀ omitted class | non-array ids | empty ids | malformed uuid (new `UUID_PATTERN` const) — all BEFORE `pool.connect()`. txn = `SELECT id, part_number, approval_status ... WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE` → row-count ≠ de-duped id count → ROLLBACK + 404 → `isEcoEnabled()` && ∃ row failing `canDirectEditComponentInEcoMode` → ROLLBACK + 403 (body carries blocked `component_ids`) → single `UPDATE ... WHERE id = ANY` → per-row `logActivity(client,...)` INSIDE txn → COMMIT → `{updated, component_ids, alt_class}`.
+- F7.T5 `server/src/routes/components.js`: `router.put('/bulk/alternative-class', authenticate, canWrite, ...)` placed w/ the other `/bulk/*` routes, ahead of `/:id`. deliberately ⊥ `canDirectEditComponent` — that guard is single-id & cannot express an all-or-none batch policy ∴ controller owns it.
+- F7.T5 new `server/src/test/componentAlternativeClass.test.js` 22 tests (create 3, update 5, bulk 13, route-shape 1). ! `vi.stubEnv('JWT_SECRET', ...)` before importing `../routes/components.js` or `auth.js` calls `process.exit(1)` during collection.
+- mutation-tested the ECO batch guard: `if (isEcoEnabled())` → `if (false)` turns exactly `rejects a non-admin batch containing a controlled part when ECO is on` red.
 
 ## in progress (exact stop point)
 
-none — F7.T4 closed, oracle green, tree clean. F7.T5 ⊥ started; stopped at a clean task boundary on context budget rather than risk stopping mid-edit inside T5.
+none — F7.T5 closed, oracle green, tree clean apart from this baton. F7.T6 ⊥ started.
 mid-edit files: none.
 
 ## next
 
-F7.T5 | wire component CRUD + atomic bulk-set. `create`/`update` read/write `alt_class` via `normalizeAlternativeClass` (omitted preserves on update, explicit NULL clears). add `PUT /api/components/bulk/alternative-class` BEFORE `/:id` in `server/src/routes/components.js`, body `{component_ids,alt_class}`; de-dupe ids, require nonempty; txn locks all targets; missing id | unauthorized status rejects the ENTIRE batch; ECO off → `canWrite` all, ECO on → admin all / non-admin only all-`new`, controlled non-admin → 403 + 0 updates; update + per-component audit atomic; return updated count/ids/class.
-preconditions: none (T1-T4 landed).
+F7.T6 | wire project override + resolution in `server/src/controllers/projectController.js` + tests. add/update project-component accept nullable `alt_class` override via `normalizeAlternativeClass` (omitted preserves on update, explicit NULL clears). project detail rows ! return `alt_class` (line override), `component_alt_class` (parent default), `resolved_alt_class = COALESCE(line, parent)` for BOTH primary + alternative rows. audit details include the changed override; Consume All behavior unchanged.
+preconditions: none (T1-T5 landed). reuse `server/src/constants/alternativeClass.js`; ⊥ re-derive the domain.
 
 ## deviations & decisions
 
-- PLAN.md F7.T1 details CORRECTED before any SQL was written (plan assumed one hard-coded projection for all 6 views). cause: `components_full` was `SELECT c.*` & PostgreSQL freezes `*` @ creation; migration 13 added `components.last_specs_refresh_at` w/o replacing the view. PROVEN on scratch DBs: genuine pre-migration-13 legacy `components_full` = 28 cols WITHOUT that col, fresh = 29 WITH it ∴ paths differ in col MEMBERSHIP, ⊥ only order ∴ ∄ single fixed projection correct on both (§R14 also rejects mid-list insertion).
-- NEW, plan ⊥ anticipate: **migration 18 is the SOLE owner of `alt_class` on the views; `init-schema.sql` declares only the 2 table cols.** ∵ (a) `database/migrations/1_legacy_schema_repairs.sql:149` recreates `alternative_parts` WITHOUT `alt_class` → on a fresh DB init-schema's version collided → `ERROR: cannot drop columns from view`; (b) fresh `c.*` put `alt_class` @ ordinal 24 (before the join cols) while upgraded put it last → divergent external contract. single ownership fixes both. migrations always run after init-schema (§V4) ∴ final shape identical ∀ path.
-- `init-schema.sql` `components_full` now lists its 23 components cols explicitly ≠ `c.*` — required so migration 18 can append `alt_class` last on the fresh path, & stops this frozen-`*` divergence class recurring.
-- PLAN.md F7.T3 details CORRECTED: `--tmpfs /var/lib/postgresql` (⊥ `/var/lib/postgresql/data` — `postgres:18` aborts "invalid mount path" / unused-mount); Git Bash ! `MSYS_NO_PATHCONV=1` on `docker run`; upgrade DB ! built from `6c959a0~1` init, ⊥ `HEAD:database/init-schema.sql` (HEAD already declares `last_specs_refresh_at` ∴ cannot reproduce the real divergence).
-- F7.T2 kept `REQUIRED_VIEW_COLUMNS` SEPARATE from `REPAIRABLE_SCHEMA_COLUMNS` so the admin repair surface keeps describing only cols a migration can actually add; view cols still merge into `missingColumns` ∴ `valid`, startup boot-fail & `/api/ready` cover them w/ 0 consumer edits.
-- F7.T2 did ⊥ change `initializationService.js` | `initializationService.test.js` (plan listed the test as touched): startup omits `requiredViewColumns` ∴ inherits the default & boot-fails on a missing view class col, reported by the existing `Missing columns` log; the test mocks `inspectDatabaseSchema` wholesale ∴ ∄ edit needed. both verified green.
-- F7.T3 verification script deliberately ⊥ committed — T3 scope = "temporary Docker container only; ⊥ repo mutation". script was `<scratchpad>/f7t3_verify.sh`.
-- mutation-tested the T2 guard: reverting `allRequiredColumns` → `requiredColumns` in the `missingColumns` filter turns exactly the 6 per-view cases red.
+- F7.T5 did ⊥ touch `CHANGELOG.md`: PLAN.md assigns the ONE consolidated `## [Unreleased]` entry to F7.T7, and the existing migration-18 bullet ! be EXTENDED there, ⊥ duplicated. F7.T7 ! now also cover the component CRUD + bulk endpoint.
+- F7.T5 bulk handler rejects an OMITTED `alt_class` (400) even though `normalizeAlternativeClass` treats omitted as legal-but-unprovided: a bulk *set* with no target class is meaningless, and silently clearing a whole selection would be the dangerous reading.
+- F7.T5 added a local `UUID_PATTERN` regex ∵ a malformed id reaching `ANY($1::uuid[])` would surface as a 500 instead of a 400; repo had no existing uuid-shape validator (`normalizeUuidInput` only trims).
+- ∀ F7.T1-T4 deviations from the prior baton still stand (migration 18 SOLE owner of `alt_class` on the views; `init-schema.sql` `components_full` explicit 23-col projection; F7.T3 docker flags; `REQUIRED_VIEW_COLUMNS` kept separate from `REPAIRABLE_SCHEMA_COLUMNS`; F7.T3 script ⊥ committed).
 
 ## watchouts
 
-- ∀ prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`, CRLF vs LF per-file, ⊥ Python text-mode repo writes, readiness ⊥ reports `defaultAdminExists`, `pool.connect` mock contagion across `componentControllerFlows`/`componentAuditFailure`, keep exported `authenticate` binding name for `routeAuthGuards.test.js`).
-- `database/init-schema.sql` is CRLF ∴ `git diff --check` flags EVERY added line as trailing whitespace (the `\r`). FALSE POSITIVE — F10.T1 ⊥ treat as a finding. `database/migrations/*.sql` are LF.
-- fresh vs legacy `components_full` still differ by ONE pre-existing col: legacy lacks `last_specs_refresh_at` (view froze before migration 13). F7 ⊥ introduce & cannot fix — inserting it mid-list is exactly what §R14 forbids. both paths DO have `alt_class` last. F10 ! classify as known accepted pre-existing divergence in the external CIS contract.
-- `server/src/controllers/settingsController.js:342` echoes `requiredColumns: REPAIRABLE_SCHEMA_COLUMNS` while its `missingColumns` can now include VIEW cols ∴ the admin verify report may list a missing col absent from the echoed expected list. cosmetic; outside T2 touch list. candidate cleanup F7.T7 | F10.
-- pre-existing lint WARNING (⊥ error): `server/src/test/componentAuditFailure.test.js:2` `'asClient' is defined but never used`. left as-is, out of scope.
-- `vitest/no-conditional-expect` is an ERROR here — ⊥ put `expect` inside `if`/loop guard in new server tests (cost 1 lint round-trip this session).
-- migration 18 nests dollar-quoting (`DO $$ ... EXECUTE format($rebuild$ ... $rebuild$)`); runner executes each migration file whole in 1 txn (`server/src/services/initializationService.js:110-115`) ∴ fine — but keep the inner tag distinct if the block is edited.
+- ∀ prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`, CRLF vs LF per-file, ⊥ Python text-mode repo writes, readiness ⊥ reports `defaultAdminExists`, `pool.connect` mock contagion across `componentControllerFlows`/`componentAuditFailure`, keep exported `authenticate` binding name for `routeAuthGuards.test.js`, `database/init-schema.sql` CRLF → `git diff --check` false positives for F10.T1, legacy vs fresh `components_full` differ by pre-existing `last_specs_refresh_at`, `settingsController.js:342` echoes `REPAIRABLE_SCHEMA_COLUMNS` while `missingColumns` may hold view cols, pre-existing `componentAuditFailure.test.js:2` unused-`asClient` lint warning, `vitest/no-conditional-expect` is an ERROR, migration 18 nested dollar-quoting).
+- `sqlDispatch` in `server/src/test/fixtures/controllerTestKit.js` matches by FIRST substring hit in declaration order — `'UPDATE components SET alt_class'` ! stay listed before any broader `'UPDATE components SET'` needle in the same route table.
+- `bash ./test.sh` runs `lint:fix` first ∴ it can silently rewrite working-tree files; re-check `git status` after a run before assuming the tree is clean.
+- `authenticate` still ⊥ re-check `users.is_active` (F9.T1 owns that). The new bulk route inherits whatever F9.T1 lands; ⊥ duplicate the check in the controller.
 
 ## final verification
 
