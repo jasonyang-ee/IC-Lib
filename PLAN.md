@@ -411,7 +411,7 @@ verify: disable/reactivate same UUID; hard delete retained; profile lengths/null
 exit: `Q4b=A` exact.
 next: F9.T5
 
-T5|.|integrate route-security sweep
+T5|x|integrate route-security sweep
 touch: `server/src/constants/publicRoutes.js`, `server/src/test/routeAuthGuards.test.js`, SCIM route tests
 details: register SCIM router in complete sweep. mutation auditor recognizes `authenticateScim` only for SCIM router; SCIM GETs count guarded, ⊥ §V10 public/global list; adding unguarded SCIM route fails. public limiter bypasses SCIM because service auth owns boundary.
 verify: full route sweep + explicit first-handler assertions for POST/PATCH/DELETE.

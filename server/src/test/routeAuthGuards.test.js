@@ -1,3 +1,4 @@
+import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
@@ -7,6 +8,7 @@ const {
   PUBLIC_GLOBAL_TARGETS,
   PUBLIC_MUTATIONS,
   ROUTER_MOUNTS,
+  isPublicGlobalTarget,
   resolveRouteDescriptor,
 } = await import('../constants/publicRoutes.js');
 
@@ -23,6 +25,7 @@ const { default: inventoryRoutes } = await import('../routes/inventory.js');
 const { default: manufacturerRoutes } = await import('../routes/manufacturers.js');
 const { default: projectRoutes } = await import('../routes/projects.js');
 const { default: reportsRoutes } = await import('../routes/reports.js');
+const { default: scimRoutes } = await import('../routes/scim.js');
 const { default: searchRoutes } = await import('../routes/search.js');
 const { default: settingsRoutes } = await import('../routes/settings.js');
 const { default: smtpRoutes } = await import('../routes/smtp.js');
@@ -41,12 +44,21 @@ const ALL_ROUTERS = {
   manufacturers: manufacturerRoutes,
   projects: projectRoutes,
   reports: reportsRoutes,
+  scim: scimRoutes,
   search: searchRoutes,
   settings: settingsRoutes,
   smtp: smtpRoutes,
 };
 
 const MUTATING_METHODS = ['post', 'put', 'patch', 'delete'];
+
+/**
+ * The guard each router's routes must start with. `/api/scim/v2` is service
+ * traffic from Entra, not an app session, so its boundary is `authenticateScim`
+ * (§V27/§V60) - and that guard counts nowhere else.
+ */
+const AUTH_GUARDS = { scim: 'authenticateScim' };
+const guardFor = (routerName) => AUTH_GUARDS[routerName] || 'authenticate';
 
 // Runtime and test read the SAME descriptors (§V10, §V27, §V32): the global
 // limiter throttles PUBLIC_GLOBAL_TARGETS, and the sweep below proves those
@@ -69,11 +81,12 @@ const getRouteHandlers = (router, method, routePath) => {
  */
 const findUnguardedMutations = (routerName, router) => {
   const unguarded = [];
+  const guard = guardFor(routerName);
   let routerAuthActive = false;
 
   for (const layer of router.stack) {
     if (!layer.route) {
-      if (layer.handle.name === 'authenticate') routerAuthActive = true;
+      if (layer.handle.name === guard) routerAuthActive = true;
       continue;
     }
 
@@ -85,7 +98,7 @@ const findUnguardedMutations = (routerName, router) => {
       if (PUBLIC_MUTATION_ALLOWLIST.has(key)) continue;
 
       const firstHandler = layer.route.stack[0]?.handle.name;
-      if (!routerAuthActive && firstHandler !== 'authenticate') {
+      if (!routerAuthActive && firstHandler !== guard) {
         unguarded.push(key);
       }
     }
@@ -102,11 +115,12 @@ const findUnguardedMutations = (routerName, router) => {
 const auditGetRoutes = (routerName, router) => {
   const publicUnlisted = [];
   const guardedButListed = [];
+  const guard = guardFor(routerName);
   let routerAuthActive = false;
 
   for (const layer of router.stack) {
     if (!layer.route) {
-      if (layer.handle.name === 'authenticate') routerAuthActive = true;
+      if (layer.handle.name === guard) routerAuthActive = true;
       continue;
     }
 
@@ -114,7 +128,7 @@ const auditGetRoutes = (routerName, router) => {
 
     const key = `${routerName} get ${layer.route.path}`;
     const firstHandler = layer.route.stack[0]?.handle.name;
-    const guarded = routerAuthActive || firstHandler === 'authenticate';
+    const guarded = routerAuthActive || firstHandler === guard;
 
     if (!guarded && !PUBLIC_GET_ALLOWLIST.has(key)) publicUnlisted.push(key);
     if (guarded && PUBLIC_GET_ALLOWLIST.has(key)) guardedButListed.push(key);
@@ -185,6 +199,31 @@ describe('route auth guards', () => {
     expect(getRouteHandlers(settingsRoutes, 'get', '/database/verify')).toEqual(['authenticate', 'isAdmin', 'verifyDatabase']);
   });
 
+  it('gates every SCIM route on authenticateScim, and only the SCIM router (§V60)', () => {
+    for (const method of ['post', 'patch', 'delete']) {
+      const path = method === 'post' ? '/Users' : '/Users/:id';
+      expect(getRouteHandlers(scimRoutes, method, path)[0]).toBe('authenticateScim');
+    }
+    expect(getRouteHandlers(scimRoutes, 'get', '/Users')[0]).toBe('authenticateScim');
+    expect(getRouteHandlers(scimRoutes, 'get', '/ServiceProviderConfig')[0]).toBe('authenticateScim');
+
+    // The SCIM guard is not an app-session guard: it counts on no other router.
+    const authenticateScim = (_req, _res, next) => next();
+    const strayRouter = express.Router();
+    strayRouter.post('/anything', authenticateScim, (_req, res) => res.end());
+
+    expect(findUnguardedMutations('components', strayRouter)).toEqual(['components post /anything']);
+  });
+
+  it('fails when a SCIM route is added without its guard', () => {
+    const unguarded = express.Router();
+    unguarded.post('/Users', (_req, res) => res.end());
+    unguarded.get('/Users', (_req, res) => res.end());
+
+    expect(findUnguardedMutations('scim', unguarded)).toEqual(['scim post /Users']);
+    expect(auditGetRoutes('scim', unguarded).publicUnlisted).toEqual(['scim get /Users']);
+  });
+
   it('keeps destructive admin surfaces admin-gated', () => {
     expect(getRouteHandlers(adminRoutes, 'post', '/init')).toEqual(['authenticate', 'isAdmin', 'initializeDatabase']);
     expect(getRouteHandlers(adminRoutes, 'post', '/reset')).toEqual(['authenticate', 'isAdmin', 'resetDatabase']);
@@ -236,5 +275,16 @@ describe('public route descriptors (§V10, §V32)', () => {
     expect(resolve('GET', '/api/components-archive')).toBeNull();
     expect(resolve('GET', '/api/components/abc-123/history')).toBeNull();
     expect(resolve('POST', '/api/auth/login')).toBeNull();
+  });
+
+  it('leaves the SCIM surface outside the public and global-ceiling sets (§V60)', () => {
+    for (const key of [...PUBLIC_GETS, ...PUBLIC_MUTATIONS, ...PUBLIC_GLOBAL_TARGETS]) {
+      expect(key.startsWith('scim ')).toBe(false);
+    }
+
+    // Service auth owns this boundary, so the guest per-IP budget skips it.
+    for (const [method, url] of [['GET', '/api/scim/v2/Users'], ['PATCH', '/api/scim/v2/Users/abc']]) {
+      expect(isPublicGlobalTarget({ method, originalUrl: url })).toBe(false);
+    }
   });
 });
