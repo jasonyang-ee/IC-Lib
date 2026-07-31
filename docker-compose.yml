@@ -57,6 +57,15 @@ services:
       # - OIDC_PROVIDER_NAME=Company SSO
       # - OIDC_DEFAULT_ROLE=read-only
       # - OIDC_ALLOWED_TENANTS=00000000-0000-0000-0000-000000000000
+
+      # Optional: Entra SCIM provisioning (enabled iff BOTH variables are set;
+      # a partial or invalid setting stops the server). The Tenant URL you give
+      # Entra is this deployment's HTTPS public URL + /api/scim/v2, and the
+      # Secret Token is SCIM_BEARER_TOKEN - generate one per deployment, at
+      # least 32 characters. SCIM only updates users an OIDC login already
+      # created; it never creates one.
+      # - SCIM_TENANT_ID=00000000-0000-0000-0000-000000000000
+      # - SCIM_BEARER_TOKEN=generate_a_random_secret_of_at_least_32_characters
     volumes:
       - ./iclib/library:/app/library
       # Optional: mount a directory containing your company logo for ECO PDFs

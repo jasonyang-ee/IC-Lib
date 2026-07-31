@@ -126,7 +126,29 @@ A generic OIDC provider is also supported: set the same variables with that prov
 
 On first sign-in, just-in-time provisioning assigns only `OIDC_DEFAULT_ROLE`; an IC-Lib admin then owns role changes, activation, and deactivation. A verified email links to a local account only when exactly one account matches; an unverified or ambiguous email never links. Local accounts remain available for break-glass access.
 
-There is no SCIM, Microsoft Graph, or automatic deprovisioning sync. Disabling a user at the identity provider does not deactivate the IC-Lib row, and deactivating an IC-Lib user does not revoke an already issued app session; that session may remain valid for up to 24 hours. Administrators must deactivate access locally and account for that session window.
+Deactivating an IC-Lib user now ends that user's existing session: every protected request re-checks the account's active state, so an already-issued token stops working on its next request instead of lasting out the remainder of its lifetime.
+
+### Entra SCIM provisioning (optional)
+
+IC-Lib can accept user lifecycle updates from Entra ID over SCIM 2.0. It is off unless both variables are set, and a partial or invalid configuration stops the server rather than serving provisioning behind an ambiguous credential:
+
+```env
+SCIM_TENANT_ID=<tenant-guid>
+SCIM_BEARER_TOKEN=<random secret, at least 32 characters>
+```
+
+In the Entra enterprise application, under Provisioning:
+
+- **Tenant URL**: `https://iclib.example.com/api/scim/v2` — HTTPS, reachable from Entra or your provisioning agent.
+- **Secret Token**: the value of `SCIM_BEARER_TOKEN`. Generate one per deployment and rotate it by changing it in both places; it is never written to a log or a response.
+- Leave **Groups** unmapped — only the User resource is supported — and scope provisioning to assigned users.
+- The only matching property is `externalId` mapped from the Entra `objectId`. It is immutable; do not map `userName` or `mail` as a matching property, because those change.
+
+**SSO comes first.** SCIM never creates or links an account: the local row is created by the user's first OIDC sign-in. Provisioning an identity that has never signed in returns 403 with an explanatory message, and the fix is one SSO login followed by *Provision on demand* or the next cycle. Test Connection succeeds regardless — Entra probes with a random object id, which correctly returns an empty result.
+
+What SCIM may change is deliberately narrow: username, display name, email, and active state. Roles stay local — an IC-Lib admin owns them, and no identity-provider claim can grant or restore access. Disabling, unassigning, or deleting the user in Entra deactivates the IC-Lib row and keeps it, so authorship, approvals, and audit history keep resolving; re-enabling reactivates the same row with the same id. A deactivation takes effect on that user's next request once Entra has delivered it — Entra's provisioning cycle is incremental and eventual (typically within 40 minutes), and that delivery cadence is outside IC-Lib's control. For an immediate cutoff, deactivate the user in IC-Lib as well.
+
+This is a single-tenant integration: requests carrying an object id from any other tenant see nothing.
 
 ### Docker Image
 - Docker Hub

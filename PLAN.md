@@ -418,7 +418,7 @@ verify: full route sweep + explicit first-handler assertions for POST/PATCH/DELE
 exit: §V27 remains true.
 next: F9.T6
 
-T6|.|document Entra operation + assumptions
+T6|x|document Entra operation + assumptions
 touch: `.env.example`, `docker-compose.yml`, `README.md`, `CHANGELOG.md`
 details: placeholders only. document HTTPS Tenant URL, Secret Token, disable Groups, assigned-user scope, `objectId -> externalId` as sole matching property, OIDC first-login then Provision on Demand/retry, unknown-create 403, local role ownership, next-request cutoff after the local write, Entra incremental delivery remains external/eventual, token rotation, single-tenant/reachability, no secret in docs. Unreleased entry names SCIM lifecycle + per-request active check.
 verify: doc commands/paths match router; secret grep clean; `cd server && npm.cmd run test:run -- src/test/auth.test.js src/test/scim*.test.js src/test/routeAuthGuards.test.js`; `bash ./test.sh`.
