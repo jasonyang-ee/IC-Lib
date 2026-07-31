@@ -48,9 +48,27 @@ import { syncCategorySpecification } from '../services/specificationService.js';
 import { logActivity } from '../services/activityLogService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import { VALID_COMPONENT_FIELDS } from '../constants/ecoFields.js';
+import {
+  ALTERNATIVE_CLASS_ERROR_MESSAGE,
+  normalizeAlternativeClass,
+} from '../constants/alternativeClass.js';
 import { logError } from '../utils/logger.js';
 
 const userDisplayNameSql = (alias) => `NULLIF(BTRIM(${alias}.display_name), '')`;
+
+/**
+ * §V59: eco_changes stores every staged value as text, so a cleared class
+ * arrives as '' or NULL rather than a JSON null. Normalize on the way in and
+ * again on the way out - staging an out-of-domain letter must fail when the
+ * ECO is written, not silently at COMMIT against the DB CHECK.
+ */
+const ecoAlternativeClassValue = (rawValue) => {
+  const result = normalizeAlternativeClass(rawValue ?? null);
+  if (!result.ok) {
+    throw new Error(ALTERNATIVE_CLASS_ERROR_MESSAGE);
+  }
+  return result.value;
+};
 
 // Whitelist of valid component field names to prevent SQL injection
 // Helper function to log ECO activities
@@ -1308,6 +1326,11 @@ export const createECO = async (req, res) => {
         if (!VALID_COMPONENT_FIELDS.includes(change.field_name)) {
           throw new Error(`Invalid field name: ${change.field_name}`);
         }
+        if (change.field_name === 'alt_class') {
+          // Reject before the ECO row exists, so nothing unappliable is staged.
+          ecoAlternativeClassValue(change.old_value);
+          ecoAlternativeClassValue(change.new_value);
+        }
         await client.query(`
           INSERT INTO eco_changes (eco_id, field_name, old_value, new_value)
           VALUES ($1, $2, $3, $4)
@@ -1488,8 +1511,8 @@ const applyECOChanges = async (client, eco, id) => {
           description, value, pcb_footprint, package_size,
           sub_category1, sub_category2, sub_category3, sub_category4,
           schematic, step_model, pspice, pad_file,
-          datasheet_url, approval_status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          datasheet_url, approval_status, alt_class
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         RETURNING *
       `, [
         categoryChange.new_value,
@@ -1507,6 +1530,11 @@ const applyECOChanges = async (client, eco, id) => {
         overrides.pad_file || old.pad_file,
         overrides.datasheet_url || old.datasheet_url,
         statusProposal ? statusProposal.new_value : old.approval_status,
+        // §V59: the class follows the part into its new category. `||` would
+        // lose a deliberate clear, so branch on whether it was staged at all.
+        Object.hasOwn(overrides, 'alt_class')
+          ? ecoAlternativeClassValue(overrides.alt_class)
+          : old.alt_class,
       ]);
       newComponentId = newCompResult.rows[0].id;
 
@@ -1623,6 +1651,10 @@ const applyECOChanges = async (client, eco, id) => {
       // Handle manufacturer_id: find-or-create if value is a "NEW:" prefixed name
       if (change.field_name === 'manufacturer_id' && typeof value === 'string' && value.startsWith('NEW:')) {
         value = await getOrCreateManufacturer(client, value.substring(4));
+      }
+
+      if (change.field_name === 'alt_class') {
+        value = ecoAlternativeClassValue(value);
       }
 
       updateFields.push(`${change.field_name} = $${paramIndex}`);

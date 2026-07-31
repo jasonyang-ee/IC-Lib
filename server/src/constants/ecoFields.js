@@ -16,5 +16,6 @@ export const VALID_COMPONENT_FIELDS = Object.freeze([
   'manufacturer_id',
   'manufacturer_pn',
   'category_id',
+  'alt_class',
   '_status_proposal',
 ]);

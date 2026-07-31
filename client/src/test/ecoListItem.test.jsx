@@ -62,4 +62,53 @@ describe('ECOListItem', () => {
       screen.queryByText((content, node) => node?.tagName === 'TD' && content === 'Category'),
     ).not.toBeInTheDocument();
   });
+
+  // §V59: a staged class change reads in the operator's words, and clearing a
+  // class shows "Unrated" - a real state - rather than the "empty" placeholder.
+  it('labels a staged alternative-class change and names both classes', () => {
+    render(
+      <ECOListItem
+        eco={{
+          id: 'eco-2',
+          eco_number: 'ECO-2',
+          status: 'pending',
+          component_part_number: 'IC-00003',
+        }}
+        expandedECO="eco-2"
+        ecoDetails={{
+          status: 'pending',
+          part_number: 'IC-00003',
+          changes: [
+            { field_name: 'alt_class', old_value: 'C', new_value: 'A' },
+            { field_name: 'alt_class', old_value: 'B', new_value: '' },
+          ],
+          specifications: [],
+          alternatives: [],
+          distributors: [],
+          cad_files: [],
+          stages: [],
+          approvals: [],
+          rejection_history: [],
+        }}
+        isLoadingDetails={false}
+        canApprove={false}
+        currentUserCanAct={false}
+        approvalComments=""
+        onApprovalCommentsChange={vi.fn()}
+        onToggleExpanded={vi.fn()}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onDownloadPDF={vi.fn()}
+        approvePending={false}
+        rejectPending={false}
+      />,
+    );
+
+    expect(screen.getAllByText('Alternative Class')).toHaveLength(2);
+    expect(screen.getByText('Class C')).toBeInTheDocument();
+    expect(screen.getByText('Class A')).toBeInTheDocument();
+    expect(screen.getByText('Class B')).toBeInTheDocument();
+    expect(screen.getByText('Unrated')).toBeInTheDocument();
+    expect(screen.queryByText('Alt Class')).not.toBeInTheDocument();
+  });
 });

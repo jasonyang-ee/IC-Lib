@@ -7,7 +7,7 @@ describe('ECO Field Validation', () => {
       'description', 'value', 'pcb_footprint', 'package_size', 'datasheet_url',
       'approval_status', 'manufacturer_id', 'manufacturer_pn', 'category_id',
       'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
-      'schematic', 'step_model', 'pspice', 'pad_file', '_status_proposal',
+      'schematic', 'step_model', 'pspice', 'pad_file', 'alt_class', '_status_proposal',
     ];
     expected.forEach(field => {
       expect(VALID_COMPONENT_FIELDS).toContain(field);
@@ -42,8 +42,8 @@ describe('ECO Field Validation', () => {
     expect(VALID_COMPONENT_FIELDS).toContain('_status_proposal');
   });
 
-  it('should have exactly 18 allowed fields', () => {
-    expect(VALID_COMPONENT_FIELDS).toHaveLength(18);
+  it('should have exactly 19 allowed fields', () => {
+    expect(VALID_COMPONENT_FIELDS).toHaveLength(19);
   });
 });
 

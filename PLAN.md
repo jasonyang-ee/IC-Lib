@@ -343,7 +343,7 @@ verify: add/edit NULL/A/B/C payload; bulk selected ids/class; cancel/no selectio
 exit: `Q3f=A` Library path complete.
 next: F8.T3
 
-T3|.|stage/apply controlled class via existing ECO `spec`
+T3|x|stage/apply controlled class via existing ECO `spec`
 touch: `client/src/pages/Library.jsx`, `server/src/constants/ecoFields.js`, `server/src/controllers/ecoController.js`, ECO pipeline/controller/client tests
 details: add `alt_class` to tracked/whitelisted fields; validate staged old/new values before ECO insert + before apply. generic non-CAD field detection yields existing `spec` tag only, ⊥ new pipeline tag. retry restores NULL/value. regular approval updates same component; category-change replacement copies effective new/old `alt_class` into new row. summaries show “Alternative Class” labels.
 verify: C→A produces `pipeline_types=['spec']`; invalid rejected pre-write; approval/retry/category-copy/null cases; existing ECO field protections green.

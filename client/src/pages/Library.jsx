@@ -1617,7 +1617,7 @@ const Library = () => {
         'description', 'value', 'pcb_footprint', 'package_size',
         'sub_category1', 'sub_category2', 'sub_category3', 'sub_category4',
         'schematic', 'step_model', 'pspice', 'pad_file', 'datasheet_url',
-        'manufacturer_id', 'manufacturer_pn', 'category_id'
+        'manufacturer_id', 'manufacturer_pn', 'category_id', 'alt_class'
       ];
 
       for (const field of fieldsToTrack) {

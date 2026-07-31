@@ -1,5 +1,6 @@
 import { CheckCircle, XCircle, Clock, FileText, User, Calendar, Link2, Unlink2, Download } from 'lucide-react';
 import { PIPELINE_TYPE_COLORS, PIPELINE_TYPE_LABELS, getEcoPipelineTypes } from '../../utils/ecoPipelineTypes';
+import { formatAlternativeClass } from '../../utils/alternativeClass';
 
 const getStatusBadge = (status) => {
   const styles = {
@@ -494,6 +495,11 @@ const ECOListItem = ({
                                 </span>
                               );
                             }
+                            // §V59: an empty class is "Unrated", a real state,
+                            // not an empty field - so this precedes the blank check.
+                            if (field === 'alt_class') {
+                              return formatAlternativeClass(value);
+                            }
                             if (!value) return <span className="italic text-gray-400">empty</span>;
 
                             // Show category name for category_id field
@@ -516,6 +522,7 @@ const ECOListItem = ({
                             if (field === 'category_id') return 'Category';
                             if (field === 'manufacturer_id') return 'Manufacturer';
                             if (field === '_status_proposal') return 'Status Change';
+                            if (field === 'alt_class') return 'Alternative Class';
                             return field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                           };
 
