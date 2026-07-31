@@ -14,6 +14,15 @@ export const canDirectEditLibraryComponents = (role, approvalStatus) => (
   role === 'admin' || (approvalStatus === 'new' && fullNavigationRoles.includes(role))
 );
 
+// §V15/§V59: which parts a write role may include in a bulk alternative-class
+// change. With ECO off, direct editing is unrestricted for write roles (the
+// button itself is already gated on canWrite). With ECO on, only parts that
+// role could direct-edit qualify; the rest go through an ECO. The server
+// enforces the same rule and rejects the whole batch if it disagrees.
+export const canBulkSetAlternativeClass = (role, approvalStatus, ecoEnabled) => (
+  !ecoEnabled || canDirectEditLibraryComponents(role, approvalStatus)
+);
+
 export const getDefaultRouteForRole = (role, ecoEnabled) => {
   if (isLimitedNavigationRole(role)) {
     return ecoEnabled ? '/eco' : '/library';

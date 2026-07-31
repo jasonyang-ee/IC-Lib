@@ -336,7 +336,7 @@ verify: option/label/payload corpus + accessible label keyboard behavior.
 exit: UI strings/values single-sourced.
 next: F8.T2
 
-T2|.|add Library single + bulk flows
+T2|x|add Library single + bulk flows
 touch: `client/src/pages/Library.jsx`, `client/src/components/library/{ComponentEditForm,ComponentDetailView}.jsx`, API util, new modal/component tests
 details: add/edit dropdown; detail + list badge. consolidate current delete selection into one bulk-action mode/set or another single-source selection implementation; add “Set Alternative Class” mode + modal. call bulk endpoint once. ECO on: admin may select all; non-admin controlled rows disabled/excluded with explicit “use ECO” message, only new rows submit; server remains authority. invalidate list/detail after save.
 verify: add/edit NULL/A/B/C payload; bulk selected ids/class; cancel/no selection; mixed controlled non-admin no API; admin allowed; existing delete mode unchanged.

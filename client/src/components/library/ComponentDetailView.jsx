@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import ApprovalSection from './ApprovalSection';
+import AlternativeClassBadge from '../common/AlternativeClassBadge';
 
 /**
  * Helper component for a copyable text field with an aligned label.
@@ -93,6 +94,12 @@ const ComponentDetailView = ({
       <CopyableField label="Part Type" value={componentDetails.part_type || componentDetails.category_name} onCopy={onCopy} />
       <CopyableField label="Value" value={componentDetails.value} onCopy={onCopy} />
       <CopyableField label="Package" value={componentDetails.package_size} onCopy={onCopy} />
+      {/* §V59: a badge rather than a copyable field - the stored letter is not
+          what an operator would paste anywhere, the rule behind it is. */}
+      <div className="flex items-baseline gap-2 pb-2">
+        <span className="text-xs text-gray-500 dark:text-gray-400 w-28 shrink-0 text-right">Alternative Class:</span>
+        <AlternativeClassBadge value={componentDetails.alt_class} />
+      </div>
 
       {/* Alternative Parts Selection */}
       {alternatives && alternatives.length > 0 && (

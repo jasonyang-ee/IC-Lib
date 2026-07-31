@@ -1,4 +1,5 @@
 import { ChevronDown, Plus } from 'lucide-react';
+import AlternativeClassSelect from '../common/AlternativeClassSelect';
 import CadFieldSection from './CadFieldSection';
 import ComponentFiles from './ComponentFiles';
 import SubCategoryInputs from './SubCategoryInputs';
@@ -145,7 +146,16 @@ const ComponentEditForm = ({
       </div>
     </div>
 
-    {/* ROW 3: Manufacturer, MFG Part Number */}
+    {/* §V59 library default; project BOM lines may override it per line. */}
+    <AlternativeClassSelect
+      value={editData.alt_class}
+      onChange={(value) => onFieldChange('alt_class', value)}
+      labelClassName="block text-gray-600 dark:text-gray-400 mb-1"
+    />
+    {/* keeps the two-column grid aligned for the row below */}
+    <div />
+
+    {/* ROW 4: Manufacturer, MFG Part Number */}
     <div ref={manufacturerRef} className="relative">
       <label className="block text-gray-600 dark:text-gray-400 mb-1">
         Manufacturer <span className="text-red-500">*</span>

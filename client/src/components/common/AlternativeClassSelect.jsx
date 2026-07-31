@@ -17,6 +17,8 @@ const AlternativeClassSelect = ({
   unratedLabel,
   disabled = false,
   className = '',
+  // Library's edit grid labels its fields more quietly than the app default.
+  labelClassName = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1',
   id,
 }) => {
   const generatedId = useId();
@@ -24,10 +26,7 @@ const AlternativeClassSelect = ({
 
   return (
     <div className={className}>
-      <label
-        htmlFor={selectId}
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-      >
+      <label htmlFor={selectId} className={labelClassName}>
         {label}
       </label>
       <select
