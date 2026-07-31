@@ -8,3 +8,5 @@ export { default as FilterSelect } from './FilterSelect';
 export { default as SearchInput } from './SearchInput';
 export { default as SortControls } from './SortControls';
 export { default as VendorBarcodeScanPanel } from './VendorBarcodeScanPanel';
+export { default as AlternativeClassSelect } from './AlternativeClassSelect';
+export { default as AlternativeClassBadge } from './AlternativeClassBadge';

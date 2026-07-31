@@ -329,7 +329,7 @@ files: Library/ECO/Projects/BOM/settings client + ECO/settings server + focused 
 
 §T TASKS:
 
-T1|.|add shared client labels/control
+T1|x|add shared client labels/control
 touch: `client/src/utils/alternativeClass.js` + reusable selector/badge components + tests
 details: options = Unrated(NULL), Class A/B/C with exact §V59 descriptions. formatter resolves NULL/unknown safely to Unrated; payload mapper emits NULL not empty string.
 verify: option/label/payload corpus + accessible label keyboard behavior.
