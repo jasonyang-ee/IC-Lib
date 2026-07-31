@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `662d0ee` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass; `componentAuditFailure.test.js:2` unused-`asClient` warning pre-existing)
+branch `test` | last commit `69beb99` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass; `componentAuditFailure.test.js:2` unused-`asClient` warning pre-existing)
 uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
 
 ## done this session
