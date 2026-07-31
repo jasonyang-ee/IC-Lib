@@ -128,6 +128,15 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(res.status).toBe(404);
     });
 
+    it('answers an unsupported resource in the SCIM error shape', async () => {
+      const res = await get('/Groups');
+      const body = await res.json();
+
+      expect(res.status).toBe(404);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect(body.schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
+    });
+
     it('mounts authenticateScim as the first handler of every route', () => {
       const routes = scimRoutes.stack.filter(layer => layer.route);
 

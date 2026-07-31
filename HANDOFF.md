@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `4a865ae` | tests pass 516/516 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass; `componentAuditFailure.test.js:2` unused-`asClient` warning pre-existing)
+branch `test` | last commit `662d0ee` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass; `componentAuditFailure.test.js:2` unused-`asClient` warning pre-existing)
 uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
 
 ## done this session
@@ -20,18 +20,18 @@ uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ imp
 - F9.T3 (`3176da9`): new `server/src/routes/scim.js` + `server/src/controllers/scimController.js`; representation (`toScimUser`, `toScimListResponse`) + `parseUserFilter` + `isUuid` in `server/src/services/scimService.js`; `app.use(SCIM_BASE_PATH, scimRoutes)` in `server/src/index.js`. router owns `express.json({ type: 'application/scim+json', limit: '64kb' })`; `authenticateScim` = FIRST handler ∀ route; `GET /Users?filter=externalId eq "<GUID>"` only; unknown GUID → 200 empty `ListResponse`. new `server/src/test/scimRoutes.test.js`.
 - F9.T4 (`73f2873`): `POST /Users`, `PATCH /Users/:id`, `DELETE /Users/:id`; `parseScimResource` + `parseScimPatch` in `scimService.js`. writable set = `username|display_name|email|is_active` ONLY; `id|externalId|meta|role|roles|password|authProvider|oidc*` → 400 `mutability`|`invalidValue`; unrecognized attrs IGNORED; Remove ⊥ `userName|active`; PG `23505` → 409 `uniqueness`; unlinked identity → 403 + warn + audit, ⊥ insert; DELETE → `is_active = false` + 204; lifecycle audit post-commit, best-effort.
 - F9.T5 (`0858757`): `scim` added to `ROUTER_MOUNTS` (`server/src/constants/publicRoutes.js`) + `ALL_ROUTERS` (`server/src/test/routeAuthGuards.test.js`); sweep guard now per-router (`AUTH_GUARDS = { scim: 'authenticateScim' }`); SCIM ∉ ∀ public descriptor set ∴ §V32 ceiling skips it.
+- F10.T1-T3 CLOSED: oracle green; ∀ adversarial matrix row has a named regression; SPEC/PLAN/CHANGELOG audited. ONE divergence found + fixed: `/api/scim/v2/Groups|Bulk|<typo>` fell through to the app's generic JSON 404 ∴ `server/src/routes/scim.js` gained a constant SCIM-shaped 404 catch-all (+1 test). `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO.
 - F9.T6 (`4a865ae`): `.env.example` + `docker-compose.yml` placeholders + README "Entra SCIM provisioning" section; README's FALSE "no SCIM … up to 24 hours" paragraph REPLACED; `oidcConfigDocs.test.js` +3 SCIM cases (var parity, doc content, placeholder-only token); CHANGELOG `## [Unreleased]` gained SCIM lifecycle + deactivation-cutoff entries.
 
 ## in progress (exact stop point)
 
-none — F9 CLOSED (T1-T6 all `x`), oracle green, tree clean apart from this baton.
+none — cycle COMPLETE: F1-F10 ∀ §T rows `x`, `planning status: done`, oracle green, tree clean apart from this baton.
 mid-edit files: none.
 
 ## next
 
-F10.T1 | run the full static + test oracle, READ-ONLY: `bash ./test.sh`; explicit one-off server + client `no-shadow` and server `no-console` runs; `git diff --check`; scan for `.only`/`.skip`, generated artifacts, secrets, unexpected snapshots. record exact file/test counts.
-preconditions: none.
-then F10.T2 (replay adversarial matrices) → F10.T3 (code/docs/scope audit + close). F10 = final-verify phase ∴ it fills the final verification table below.
+`/garnish` — ONLY after the user accepts the completed cycle. ⊥ push, ⊥ tag, ⊥ release without an explicit ask.
+preconditions: user acceptance. deployment enablement of SCIM still needs the declared external reachability (Entra HTTPS → `/api/scim/v2` + 1 tenant GUID).
 
 ## deviations & decisions
 
@@ -53,3 +53,19 @@ then F10.T2 (replay adversarial matrices) → F10.T3 (code/docs/scope audit + cl
 ## final verification
 
 item|status|evidence|decision
+|---|---|---|---|
+§V1|HOLD|`server/src/test/auth.test.js` (6 active-state cases incl fail-closed 503)|code
+§V7/§V8|HOLD|`server/src/test/componentAuditFailure.test.js` (7)|code
+§V10/§V27|HOLD|`server/src/test/routeAuthGuards.test.js` (16, incl SCIM guard + synthetic negative)|code
+§V15/§V41|HOLD|`componentAlternativeClass.test.js`, `ecoAlternativeClass.test.js`, `client/src/test/libraryAlternativeClass.test.jsx`|code
+§V17/§V48|HOLD|`projectAlternativeClass.test.js`, `client/src/test/{projectsAlternativeClass.test.jsx,bomExport.test.js}`|code
+§V28|HOLD|`client/src/test/{fileLibrary.test.jsx,footprintFiles.test.js}`|code
+§V30|HOLD|`server/src/test/healthController.test.js` (6, incl body-key allowlist)|code
+§V31|HOLD|`server/src/test/gracefulShutdown.test.js`|code
+§V32|HOLD|`server/src/test/rateLimit.test.js` (9)|code
+§V57/§V60|HOLD|`server/src/test/{scimAuth.test.js,scimRoutes.test.js}` (13+28)|code
+§V59|HOLD|`server/src/test/alternativeClass.test.js` + F7.T3 disposable-Postgres run|code
+§C4/§C7|HOLD|`server/src/test/schemaInspectionService.test.js` + F7.T3 evidence (CHANGELOG migration-18 entry)|code
+§I2/§I3/§I8/§I11/§I12|HOLD|`server/src/test/oidcConfigDocs.test.js`, `server/src/routes/scim.js`, route sweep|code
+static oracle|HOLD|`bash ./test.sh` exit 0; one-off `no-shadow` 0 both sides; `no-console` 0 outside `server/src/utils/logger.js`; ⊥ `.only`/`.skip`; ⊥ secret literal|-
+classification|GO|`BLOCK=0 DIVERGENCE=0 UNKNOWN=0` (the 1 divergence found was fixed in-phase, see done-this-session)|-

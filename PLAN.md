@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: work-in-progress
+planning status: done
 -->
 
 # PLAN
@@ -437,21 +437,21 @@ files: read-only verification; docs only if evidence demands correction.
 
 §T TASKS:
 
-T1|.|run full static + test oracle
+T1|x|run full static + test oracle
 touch: read-only
 details: run `bash ./test.sh`; explicit server/client `no-shadow` + server `no-console`; `git diff --check`; verify no focused `.only`/`.skip`, generated artifact, secret, or unexpected snapshot.
 verify: all exit 0; record exact file/test counts.
 exit: automated oracle green.
 next: F10.T2
 
-T2|.|replay adversarial matrices
+T2|x|replay adversarial matrices
 touch: read-only
 details: audit reject session/create/update/txn; readiness rejection/disclosure; File Library +; private/public/credential budget isolation; class invalid/NULL/fallback/override/ECO/category-copy/views/BOM/consume advisory; SCIM wrong token/tenant/unknown/disable/reactivate/delete/audit reject + existing JWT cutoff.
 verify: every row has named regression or disposable-DB assertion; reverted critical branch would fail.
 exit: behavior evidence complete.
 next: F10.T3
 
-T3|.|audit code/docs/scope + close
+T3|x|audit code/docs/scope + close
 touch: SPEC/PLAN/HANDOFF/CHANGELOG through skills only if needed
 details: compare live routes/env/schema/view ordinals/UI semantics to §C4, §I2-§I3, §I8, §I11-§I12, §V1, §V7-§V8, §V10, §V27-§V32, §V41, §V48, §V57, §V59-§V60. ensure all §T done; unrelated user work preserved; worktree expected only intentional phase artifacts before commit. invoke `/handoff`; mark done only after every task + verify HOLD.
 verify: `git status --short`, `git diff --stat`, `git log -n 10 --oneline`; classify `BLOCK/DIVERGENCE/UNKNOWN` all 0 or gate NO-GO with exact owner.

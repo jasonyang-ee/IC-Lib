@@ -1,6 +1,6 @@
 import express from 'express';
 import * as scimController from '../controllers/scimController.js';
-import { authenticateScim } from '../middleware/scimAuth.js';
+import { authenticateScim, scimError } from '../middleware/scimAuth.js';
 import { SCIM_CONTENT_TYPE } from '../services/scimService.js';
 
 const router = express.Router();
@@ -22,5 +22,11 @@ router.get('/Users/:id', authenticateScim, scimController.getUserById);
 router.post('/Users', authenticateScim, scimController.createUser);
 router.patch('/Users/:id', authenticateScim, scimController.updateUser);
 router.delete('/Users/:id', authenticateScim, scimController.deleteUser);
+
+// Anything else under /api/scim/v2 - /Groups, /Bulk, a mistyped resource - is
+// unsupported (§V60) and must still answer in SCIM's error shape rather than
+// falling through to the app's generic JSON 404. The reply is constant, so it
+// reveals nothing about what does exist.
+router.use((_req, res) => scimError(res, 404, 'Unsupported SCIM resource'));
 
 export default router;
