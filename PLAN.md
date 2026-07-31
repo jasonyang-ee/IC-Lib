@@ -364,7 +364,7 @@ verify: default ids include column; header/value direct fallback/override/Unrate
 exit: `Q3d=A` complete.
 next: F8.T6
 
-T6|.|record + run UI/ECO oracle
+T6|x|record + run UI/ECO oracle
 touch: `CHANGELOG.md`
 details: Unreleased entry names class meanings, component/bulk/project/ECO/BOM behavior; explicitly advisory only.
 verify: focused client/server tests; `bash ./test.sh`.
