@@ -12,46 +12,53 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `fe6df22` | tests pass 464/464 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 45 files/323 tests, scripts + lint pass)
+branch `test` | last commit `71721fc` | tests pass 483/483 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 46 files/342 tests, scripts + lint pass)
 uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
 
 ## done this session
 
-- F7.T6 (`be0834a`) + F7.T7 (`4fda33b`) → F7 CLOSED. project override + resolution + consolidated CHANGELOG. detail SELECT gained `pc.alt_class`, `base_component.alt_class as component_alt_class`, `COALESCE(...) as resolved_alt_class`; ONE COALESCE serves direct + alternative rows ∵ `base_component` joins `COALESCE(pc.component_id, a.component_id)`.
-- F8.T1 (`e665672`): `client/src/utils/alternativeClass.js` (options + `formatAlternativeClass` + `describeAlternativeClass` + `toAlternativeClassValue` + `toAlternativeClassPayload`) + `client/src/components/common/{AlternativeClassSelect,AlternativeClassBadge}.jsx` + 15 tests. select value `''` ⟺ Unrated ∵ a `<select>` ⊥ hold null; `toAlternativeClassPayload` maps back to `null`. `unratedLabel` prop renames ONLY the null option (Projects needs "Use library default").
-- F8.T2 (`1341ddb`): Library field/badge/list-column + bulk mode. CONSOLIDATED `bulkDeleteMode`+`selectedForDelete` → `bulkActionMode` ∈ {null,'delete','alt-class'} + `selectedForBulk`. new `canBulkSetAlternativeClass(role, status, ecoEnabled)` in `client/src/utils/accessControl.js` (extracted so it is testable, ⊥ inline in the page). new `client/src/components/library/BulkAlternativeClassModal.jsx`. new `api.bulkSetComponentAlternativeClass`.
-- F8.T3 (`6f0ebb6`): `alt_class` ∈ `VALID_COMPONENT_FIELDS` (now 19). `server/src/controllers/ecoController.js` new module-private `ecoAlternativeClassValue()` applied @ 3 sites: createECO pre-insert (old + new), regular-apply UPDATE, category-change replacement INSERT (col 19, `Object.hasOwn(overrides,'alt_class')` ⊥ `||` ∵ `||` loses a deliberate clear). `ECOListItem.jsx` labels `Alternative Class` + formats values; the alt_class branch PRECEDES the `!value → empty` check ∵ blank = `Unrated`, a real state.
-- F8.T4 (`049b432`): project override picker in add/update modal + ∀ bulk-import row; resolved badge + `(override)` marker on rows; Consume All advisory via new `countRestrictedLines()`.
-- F8.T5 (`a4f6bfb`): `alternative_class` BOM column + BOTH code defaults; `DEFAULT_SETTINGS` now EXPORTED from `settingsController.js` purely for `server/src/test/bomDefaultColumns.test.js`.
-- F8.T6 (`fe6df22`) → F8 CLOSED. changelog only.
+- F7 CLOSED (`be0834a`, `4fda33b`): project override + `resolved_alt_class = COALESCE(pc.alt_class, base_component.alt_class)` in project detail; consolidated CHANGELOG.
+- F8 CLOSED (`e665672`, `1341ddb`, `6f0ebb6`, `049b432`, `a4f6bfb`, `fe6df22`): shared client labels/select/badge; Library field+badge+list column+bulk mode w/ ONE consolidated selection (`bulkActionMode` ∈ {null,'delete','alt-class'} + `selectedForBulk`); ECO staging of `alt_class` under the EXISTING `spec` tag (`VALID_COMPONENT_FIELDS` now 19); Projects per-line override + resolved badge + Consume-All advisory; BOM `alternative_class` column in BOTH code defaults.
+- F9.T1 (`3b350a0`): `server/src/middleware/auth.js` `authenticate` is now `async` + runs `SELECT is_active FROM users WHERE id = $1` after JWT verify. inactive|missing row → 401 w/ the SAME body a bad token gets (⊥ account-existence oracle) + ⊥ `req.user` + ⊥ `next()`. query REJECT → 503 fail-closed. no-token/bad-token paths short-circuit BEFORE any DB call. `server/src/test/auth.test.js` +6 cases (now 24).
+- F9.T2 (`71721fc`): new `server/src/services/scimService.js` (`SCIM_BASE_PATH`, `SCIM_CONTENT_TYPE`, `MIN_SCIM_TOKEN_LENGTH=32`, `isScimEnabled`, `validateScimConfiguration`) + new `server/src/middleware/scimAuth.js` (`authenticateScim`, exported `scimError(res,status,detail,scimType)`). `server/src/index.js` `startServer()` THROWS on `validateScimConfiguration().errors.length > 0` BEFORE `app.listen`. new `server/src/test/scimAuth.test.js` 13 tests.
 
 ## in progress (exact stop point)
 
-none — F8 closed, full oracle green, tree clean apart from this baton. F9.T1 ⊥ started.
+none — F9.T2 closed, oracle green, tree clean apart from this baton. STOPPED here on context budget, ⊥ on a blocker. F9.T3 ⊥ started.
 mid-edit files: none.
 
 ## next
 
-F9.T1 | `server/src/middleware/auth.js` `authenticate`: after the JWT verifies, `await pool.query('SELECT is_active FROM users WHERE id = $1', [...])`. missing row | `is_active=false` → generic 401, ⊥ `req.user`, ⊥ `next()`. active → attach the EXISTING JWT claims/id then `next()`. a REJECTED query → logged generic 503, ⊥ 401 and ⊥ `next()` (fail closed). cookie/Bearer extraction + role semantics otherwise unchanged. tests in `server/src/test/auth.test.js`: cookie+Bearer active, inactive, missing, expired, invalid, DB reject, downstream role guard never runs after failure, EXACTLY one DB query per valid JWT.
-preconditions: none (F1.T4 froze the contract).
+F9.T3 | build the User-only SCIM discovery + read surface. new `server/src/controllers/scimController.js` + `server/src/routes/scim.js`, mounted at `SCIM_BASE_PATH` (`/api/scim/v2`) in `server/src/index.js`.
+- bearer-protect ALL of `GET /ServiceProviderConfig|/ResourceTypes|/Schemas|/Users|/Users/:id` with `authenticateScim` as the FIRST handler; ∀ responses `.type(SCIM_CONTENT_TYPE)`.
+- mutation bodies ! parse as `application/scim+json` (`express.json({ type: [...] })` scoped to the SCIM router — the global json parser ⊥ accept that type); GETs ! ⊥ require a Content-Type.
+- ServiceProviderConfig reports patch true, filter true, bulk|changePassword|sort|etag FALSE, User only.
+- `GET /Users?filter=externalId eq "<GUID>"` ONLY; query by env tenant + object id; ALWAYS a SCIM `ListResponse` (empty `Resources` + `totalResults: 0` for an unknown GUID — Entra's Test Connection sends a random GUID and expects 200). unsupported|malformed filter → 400 `invalidFilter`. unknown local id → 404.
+- representation: local `users.id` = SCIM `id`; `oidc_object_id` = `externalId`; return `userName`, display name, work email, `active`. a LINKED-but-inactive user is still RETURNED, with `active: false`.
+preconditions: none. reuse `scimError` + `SCIM_CONTENT_TYPE`; ⊥ re-derive either.
+then F9.T4 (POST/PATCH/DELETE lifecycle), F9.T5 (route sweep), F9.T6 (docs + `.env.example` + compose + README + CHANGELOG), then F10.T1-T3.
 
 ## deviations & decisions
 
-- F8.T2 changed select-all to operate on `sortedComponents` (what the operator sees) ⊥ `components` (whole unfiltered query result). this ALSO changes the pre-existing delete mode. justified: a bulk write reaching off-screen rows is the dangerous reading; the old behavior was a latent bug, ⊥ a contract.
-- F8.T2 left `client/src/components/library/{ComponentList,ActionButtons}.jsx` UNTOUCHED: both are DEAD CODE (⊥ imported anywhere — verified by grep) and still reference the old `bulkDeleteMode`/`selectedForDelete` prop names. ⊥ in F8.T2 scope; F10.T3 ! decide delete-or-revive.
-- F8.T3 test asserts `alt_class` yields the SAME pipeline types as `description`, ⊥ literally `['spec']`: any controlled part also carries its lifecycle tag (`proto_status_change`/`prod_status_change`), so `['spec']` alone is only true for a status the plan did not name. the comparison proves the real claim — the field adds NO new tag.
-- F8.T4 left `quantity`/`notes` on their existing `COALESCE` semantics in `updateProjectComponent` even though `alt_class` distinguishes omitted from null; changing them is out of scope + a silent behavior change.
-- F8.T5 EXPORTED `DEFAULT_SETTINGS` (was module-private) so the cross-package default-drift test can read it; ⊥ other behavior change.
-- ∀ F7 deviations from prior batons still stand.
+- F9.T2 `constantTimeEquals` compares SHA-256 DIGESTS, ⊥ raw buffers: `crypto.timingSafeEqual` THROWS on a length mismatch, and the throw itself would leak length. digests are fixed-width ∴ one code path ∀ inputs.
+- F9.T2 `authenticateScim` returns 404 (⊥ 401) while the feature is DISABLED, so a disabled deployment ⊥ advertise the endpoint's existence.
+- F9.T1 reused the EXACT bad-token 401 body for inactive/deleted users: distinguishing them would hand an unauthenticated caller an account-existence oracle.
+- F8.T2 select-all now covers `sortedComponents` (visible rows), ⊥ `components` (whole unfiltered result). this ALSO changed the pre-existing delete mode; the old behavior let a bulk write reach off-screen rows and was a latent bug, ⊥ a contract.
+- F8.T2 left `client/src/components/library/{ComponentList,ActionButtons}.jsx` untouched: BOTH are DEAD CODE (⊥ imported anywhere) still naming the old `bulkDeleteMode`/`selectedForDelete` props. F10.T3 ! decide delete-or-revive.
+- F8.T3 pipeline test asserts `alt_class` yields the SAME types as `description` ⊥ literally `['spec']`: a controlled part always also carries its lifecycle tag (`proto_status_change`|`prod_status_change`).
+- F8.T5 EXPORTED the previously module-private `DEFAULT_SETTINGS` from `settingsController.js` solely so the default-drift test can read it.
+- F7/F8 CHANGELOG work all EXTENDED the single migration-18 `## [Unreleased]` bullet; ⊥ a second or third alternative-class entry. F9.T6 ! add its OWN entry (SCIM is a different subject).
 
 ## watchouts
 
-- ∀ prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, F7 ⊥ touching `flat.gentex.int:5434/iclib`, ⊥ Python text-mode repo writes, readiness ⊥ reports `defaultAdminExists`, `pool.connect` mock contagion, keep exported `authenticate` binding name for `routeAuthGuards.test.js`, `database/init-schema.sql` CRLF → `git diff --check` false positives, legacy vs fresh `components_full` differ by `last_specs_refresh_at`, `settingsController.js` echoes `REPAIRABLE_SCHEMA_COLUMNS`, pre-existing `componentAuditFailure.test.js:2` unused-`asClient` lint warning, `vitest/no-conditional-expect` is an ERROR, migration 18 nested dollar-quoting, `sqlDispatch` first-substring-hit ordering).
-- MOST client sources are CRLF ∴ a Python `str.replace` with `\n` patterns silently matches NOTHING. convert the needle with `.replace('\n','\r\n')` and ASSERT the hit, or use the Edit tool.
-- `bash ./test.sh` ! run from the REPO ROOT and it runs `lint:fix` FIRST ∴ it can rewrite working-tree files; re-check `git status` after a run.
-- client lint enforces `testing-library/no-node-access` (⊥ `.closest()`) and `render-result-naming-convention` (a helper named `render*` ! ⊥ return a non-view value — name it `mountX`). `@testing-library/user-event` is ⊥ INSTALLED; use `fireEvent`.
-- `ComponentEditForm` embeds `ComponentFiles`, which needs a QueryClient + notifications ∴ unit tests `vi.mock` it away.
-- F9.T1 will make `authenticate` hit the DB on EVERY protected request — existing suites that mock `pool` for route tests may now need an `is_active` row; expect fallout in `routeAuthGuards.test.js` and any controller test that exercises real middleware.
+- ∀ prior-session watchouts stand (deployment 1-process basis, SCIM tenant reachability, `Q3e=B` six-view interpretation, ⊥ writes to `flat.gentex.int:5434/iclib`, readiness ⊥ reports `defaultAdminExists`, `pool.connect` mock contagion, keep the exported `authenticate` binding name for `routeAuthGuards.test.js`, `database/init-schema.sql` CRLF → `git diff --check` false positives, legacy vs fresh `components_full` differ by `last_specs_refresh_at`, pre-existing `componentAuditFailure.test.js:2` unused-`asClient` lint warning, `vitest/no-conditional-expect` is an ERROR, migration 18 nested dollar-quoting, `sqlDispatch` first-substring-hit ordering).
+- `authenticate` is now ASYNC and hits the DB on EVERY protected request. any NEW test that exercises it ! mock `../config/database.js` and answer `{ rows: [{ is_active: true }] }`, and ! `await` the call. `routeAuthGuards.test.js` was unaffected (it inspects route stacks, ⊥ executes them).
+- MOST client sources + several server files are CRLF ∴ a Python `str.replace` with `\n` needles silently matches NOTHING. convert with `.replace('\n','\r\n')` and ASSERT the hit, or use the Edit tool. ⊥ Python text-mode writes (use `newline=''`).
+- a bash heredoc containing a large JS/Python payload has repeatedly failed to parse in this shell; write the script to the scratchpad with the Write tool and run it by path.
+- `bash ./test.sh` ! run from the REPO ROOT and runs `lint:fix` FIRST ∴ it can rewrite working-tree files; re-check `git status` after a run.
+- client lint: `testing-library/no-node-access` forbids `.closest()`; `render-result-naming-convention` forbids a helper named `render*` returning a non-view (name it `mountX`). `@testing-library/user-event` is ⊥ INSTALLED — use `fireEvent`.
+- `ComponentEditForm` embeds `ComponentFiles` (needs QueryClient + notifications) ∴ unit tests `vi.mock` it away.
+- F9.T3 ! give the SCIM router its OWN `express.json({ type: 'application/scim+json' })`: the app-level parser is registered for `application/json` only, so a SCIM mutation body would otherwise arrive as an empty object.
 
 ## final verification
 
