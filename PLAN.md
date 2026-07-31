@@ -303,7 +303,7 @@ verify: create/update/null/invalid; mixed missing/status rollback; admin/new pol
 exit: Library server surface complete.
 next: F7.T6
 
-T6|.|wire project override + resolution
+T6|x|wire project override + resolution
 touch: project controller/tests
 details: add/update accept nullable override; omitted update preserves, explicit NULL clears. detail returns `alt_class` (line override), `component_alt_class`, `resolved_alt_class=COALESCE(line,parent)` for primary + alternative rows. audit details include changed override; Consume All behavior unchanged.
 verify: direct/alternative fallback, A/B/C override, clear/preserve, invalid 400, DB CHECK defense.

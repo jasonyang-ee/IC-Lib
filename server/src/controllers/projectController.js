@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 import { logActivity } from '../services/activityLogService.js';
 import { logError } from '../utils/logger.js';
 import { PROJECT_STATUSES, isValidProjectStatus } from '../constants/projectStatus.js';
+import { normalizeAlternativeClass } from '../constants/alternativeClass.js';
 
 const INVALID_STATUS_ERROR = `Invalid status. Must be one of: ${PROJECT_STATUSES.join(', ')}`;
 
@@ -87,6 +88,12 @@ export const getProjectById = async (req, res) => {
           WHEN pc.component_id IS NOT NULL THEN 'component'
           ELSE 'alternative'
         END as type,
+        -- §V59: raw per-line override, the parent component default, and the
+        -- resolved class. base_component is the parent for both direct and
+        -- alternative lines, so one COALESCE covers each row type.
+        pc.alt_class,
+        base_component.alt_class as component_alt_class,
+        COALESCE(pc.alt_class, base_component.alt_class) as resolved_alt_class,
         -- Shared component details
         base_component.part_number,
         CASE WHEN pc.component_id IS NOT NULL THEN base_component.manufacturer_pn ELSE NULL END as manufacturer_pn,
@@ -278,15 +285,23 @@ export const deleteProject = async (req, res) => {
 export const addComponentToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { component_id, alternative_id, quantity, notes } = req.body;
-    
+    const { component_id, alternative_id, quantity, notes, alt_class } = req.body;
+
     // Validate that only one of component_id or alternative_id is provided
     if ((component_id && alternative_id) || (!component_id && !alternative_id)) {
-      return res.status(400).json({ 
-        error: 'Must provide exactly one of component_id or alternative_id', 
+      return res.status(400).json({
+        error: 'Must provide exactly one of component_id or alternative_id',
       });
     }
-    
+
+    // §V59: reject out-of-domain overrides at the API boundary; the DB CHECK
+    // constraint is the backstop. An omitted override stores NULL, which
+    // resolves to the parent component default.
+    const altClass = normalizeAlternativeClass(alt_class);
+    if (!altClass.ok) {
+      return res.status(400).json({ error: altClass.message });
+    }
+
     // Check if component already exists in this project
     const existingCheck = await pool.query(
       `SELECT id FROM project_components 
@@ -302,10 +317,10 @@ export const addComponentToProject = async (req, res) => {
     }
     
     const result = await pool.query(
-      `INSERT INTO project_components (project_id, component_id, alternative_id, quantity, notes)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO project_components (project_id, component_id, alternative_id, quantity, notes, alt_class)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null],
+      [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null, altClass.value],
     );
     
     const projectComponent = result.rows[0];
@@ -339,6 +354,7 @@ export const addComponentToProject = async (req, res) => {
         alternative_id: alternative_id,
         quantity: quantity || 1,
         part_number: componentInfo?.rows[0]?.part_number,
+        alt_class: projectComponent.alt_class,
       },
     });
     
@@ -353,15 +369,23 @@ export const addComponentToProject = async (req, res) => {
 export const updateProjectComponent = async (req, res) => {
   try {
     const { projectId, componentId } = req.params;
-    const { quantity, notes } = req.body;
-    
+    const { quantity, notes, alt_class } = req.body;
+
+    // §V59: an omitted alt_class preserves the stored override; an explicit
+    // null (or an emptied form control) clears it back to the parent default.
+    const altClass = normalizeAlternativeClass(alt_class);
+    if (!altClass.ok) {
+      return res.status(400).json({ error: altClass.message });
+    }
+
     const result = await pool.query(
-      `UPDATE project_components 
+      `UPDATE project_components
        SET quantity = COALESCE($1, quantity),
-           notes = COALESCE($2, notes)
+           notes = COALESCE($2, notes),
+           alt_class = CASE WHEN $5::boolean THEN $6::char(1) ELSE alt_class END
        WHERE project_id = $3 AND id = $4
        RETURNING *`,
-      [quantity, notes, projectId, componentId],
+      [quantity, notes, projectId, componentId, altClass.provided, altClass.value],
     );
     
     if (result.rows.length === 0) {
@@ -385,6 +409,9 @@ export const updateProjectComponent = async (req, res) => {
         component_id: projectComponent.component_id,
         alternative_id: projectComponent.alternative_id,
         quantity: projectComponent.quantity,
+        // Only report the override when this request actually set it, so the
+        // log distinguishes a deliberate change from an untouched field.
+        ...(altClass.provided ? { alt_class: projectComponent.alt_class } : {}),
       },
     });
     
