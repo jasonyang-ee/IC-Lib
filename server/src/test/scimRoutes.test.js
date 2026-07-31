@@ -16,8 +16,15 @@ vi.mock('../config/database.js', () => ({
 }));
 
 const logErrorMock = vi.fn();
+const logWarnMock = vi.fn();
 vi.mock('../utils/logger.js', () => ({
   logError: (...args) => logErrorMock(...args),
+  logWarn: (...args) => logWarnMock(...args),
+}));
+
+const logUserActivityMock = vi.fn();
+vi.mock('../services/activityLogService.js', () => ({
+  logUserActivity: (...args) => logUserActivityMock(...args),
 }));
 
 const scimRoutes = (await import('../routes/scim.js')).default;
@@ -63,6 +70,23 @@ describe('SCIM discovery and lookup (§V60)', () => {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 
+  const send = (method, path, body) => fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      'Content-Type': 'application/scim+json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  /** SELECT of the linked row, then the UPDATE the handler may issue. */
+  const stubUser = (row = linkedRow(), updated = row) => {
+    queryMock.mockResolvedValueOnce({ rows: [row] });
+    queryMock.mockResolvedValueOnce({ rows: [updated] });
+  };
+
+  const updateCall = () => queryMock.mock.calls.find(([sql]) => sql.includes('UPDATE users'));
+
   describe('authentication', () => {
     const paths = ['/ServiceProviderConfig', '/ResourceTypes', '/Schemas', `/Users?filter=externalId eq "${OBJECT_ID}"`, `/Users/${LOCAL_ID}`];
 
@@ -71,6 +95,19 @@ describe('SCIM discovery and lookup (§V60)', () => {
         const res = await get(path, null);
         expect(res.status).toBe(401);
         expect(res.headers.get('www-authenticate')).toBe('Bearer realm="scim"');
+      }
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
+    it('refuses every mutation without a bearer token', async () => {
+      const mutations = [
+        fetch(`${baseUrl}/Users`, { method: 'POST', body: '{}' }),
+        fetch(`${baseUrl}/Users/${LOCAL_ID}`, { method: 'PATCH', body: '{}' }),
+        fetch(`${baseUrl}/Users/${LOCAL_ID}`, { method: 'DELETE' }),
+      ];
+
+      for (const res of await Promise.all(mutations)) {
+        expect(res.status).toBe(401);
       }
       expect(queryMock).not.toHaveBeenCalled();
     });
@@ -94,7 +131,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
     it('mounts authenticateScim as the first handler of every route', () => {
       const routes = scimRoutes.stack.filter(layer => layer.route);
 
-      expect(routes).toHaveLength(5);
+      expect(routes).toHaveLength(8);
       for (const layer of routes) {
         expect(layer.route.stack[0].handle.name).toBe('authenticateScim');
       }
@@ -150,9 +187,9 @@ describe('SCIM discovery and lookup (§V60)', () => {
       const body = await (await get(filterFor(OBJECT_ID))).json();
 
       const [sql, params] = queryMock.mock.calls[0];
-      expect(sql).toContain('oidc_tenant_id = $1');
-      expect(sql).toContain('oidc_object_id = $2');
-      expect(params).toEqual([TENANT, OBJECT_ID]);
+      expect(sql).toContain('oidc_object_id = $1');
+      expect(sql).toContain('oidc_tenant_id = $2');
+      expect(params).toEqual([OBJECT_ID, TENANT]);
       expect(body.Resources[0]).toMatchObject({
         id: LOCAL_ID,
         externalId: OBJECT_ID,
@@ -219,6 +256,175 @@ describe('SCIM discovery and lookup (§V60)', () => {
 
       expect((await get('/Users/not-a-uuid')).status).toBe(404);
       expect(queryMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('POST /Users', () => {
+    const postBody = (extra = {}) => ({
+      schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+      externalId: OBJECT_ID,
+      userName: 'jsmith@contoso.com',
+      active: true,
+      ...extra,
+    });
+
+    it('refuses an unknown identity with 403 and creates nothing', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      const res = await send('POST', '/Users', postBody());
+
+      expect(res.status).toBe(403);
+      expect(queryMock.mock.calls.every(([sql]) => sql.includes('SELECT'))).toBe(true);
+      expect(logWarnMock).toHaveBeenCalled();
+      expect(logUserActivityMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ typeName: 'scim_provisioning', userId: null }),
+      );
+    });
+
+    it('updates and returns the already-linked user instead of creating one', async () => {
+      stubUser(linkedRow({ display_name: 'Old Name' }), linkedRow({ display_name: 'J Smith' }));
+
+      const res = await send('POST', '/Users', postBody({ displayName: 'J Smith' }));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.id).toBe(LOCAL_ID);
+      expect(body.displayName).toBe('J Smith');
+      expect(updateCall()[0]).toContain('display_name = $1');
+      expect(updateCall()[1]).toEqual(['J Smith', LOCAL_ID]);
+    });
+
+    it('is idempotent: a replay of the stored state writes nothing', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+
+      const res = await send('POST', '/Users', postBody({
+        displayName: 'J Smith',
+        emails: [{ value: 'jsmith@contoso.com', type: 'work', primary: true }],
+      }));
+
+      expect(res.status).toBe(200);
+      expect(updateCall()).toBeUndefined();
+    });
+
+    it('requires a GUID externalId and refuses locally owned attributes', async () => {
+      expect((await send('POST', '/Users', postBody({ externalId: 'jsmith' }))).status).toBe(400);
+
+      const roleAttempt = await send('POST', '/Users', postBody({ role: 'admin' }));
+      expect(roleAttempt.status).toBe(400);
+      expect((await roleAttempt.json()).scimType).toBe('invalidValue');
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
+    it('maps a duplicate username to 409 uniqueness', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+      queryMock.mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' }));
+
+      const res = await send('POST', '/Users', postBody({ userName: 'taken' }));
+
+      expect(res.status).toBe(409);
+      expect((await res.json()).scimType).toBe('uniqueness');
+    });
+  });
+
+  describe('PATCH /Users/:id', () => {
+    const patch = (operations) => send('PATCH', `/Users/${LOCAL_ID}`, {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: operations,
+    });
+
+    it('deactivates on a case-insensitive Replace and logs the lifecycle change', async () => {
+      stubUser(linkedRow(), linkedRow({ is_active: false }));
+
+      const body = await (await patch([{ op: 'Replace', path: 'active', value: false }])).json();
+
+      expect(body.active).toBe(false);
+      expect(updateCall()[1]).toEqual([false, LOCAL_ID]);
+      expect(logUserActivityMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ userId: LOCAL_ID }),
+      );
+    });
+
+    it('reactivates the same row, accepting Entra string booleans', async () => {
+      stubUser(linkedRow({ is_active: false }), linkedRow({ is_active: true }));
+
+      const body = await (await patch([{ op: 'replace', path: 'active', value: 'True' }])).json();
+
+      expect(body.id).toBe(LOCAL_ID);
+      expect(body.active).toBe(true);
+    });
+
+    it('accepts the pathless object form and a filtered email path', async () => {
+      stubUser(linkedRow(), linkedRow({ display_name: 'New', email: 'new@contoso.com' }));
+
+      await patch([
+        { op: 'Add', value: { displayName: 'New' } },
+        { op: 'replace', path: 'emails[type eq "work"].value', value: 'new@contoso.com' },
+      ]);
+
+      expect(updateCall()[0]).toContain('display_name');
+      expect(updateCall()[0]).toContain('email');
+      expect(updateCall()[1]).toEqual(['New', 'new@contoso.com', LOCAL_ID]);
+    });
+
+    it('clears a nullable profile field on Remove but refuses the required ones', async () => {
+      stubUser(linkedRow(), linkedRow({ display_name: null }));
+      const cleared = await (await patch([{ op: 'remove', path: 'displayName' }])).json();
+      expect(cleared.displayName).toBeUndefined();
+      expect(updateCall()[1]).toEqual([null, LOCAL_ID]);
+
+      for (const path of ['userName', 'active']) {
+        const res = await patch([{ op: 'remove', path }]);
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('refuses to move the identity keys or the local role', async () => {
+      const attempts = [
+        { op: 'replace', path: 'externalId', value: OBJECT_ID, scimType: 'mutability' },
+        { op: 'replace', path: 'oidc_sub', value: 'x', scimType: 'invalidValue' },
+        { op: 'replace', path: 'roles', value: ['admin'], scimType: 'invalidValue' },
+      ];
+
+      for (const { scimType, ...operation } of attempts) {
+        const res = await patch([operation]);
+        expect(res.status).toBe(400);
+        expect((await res.json()).scimType).toBe(scimType);
+      }
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for an unknown user and still succeeds when the audit write fails', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      expect((await patch([{ op: 'replace', path: 'active', value: false }])).status).toBe(404);
+
+      stubUser(linkedRow(), linkedRow({ is_active: false }));
+      logUserActivityMock.mockRejectedValueOnce(new Error('audit table is read-only'));
+
+      const res = await patch([{ op: 'replace', path: 'active', value: false }]);
+
+      expect(res.status).toBe(200);
+      expect(logErrorMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE /Users/:id', () => {
+    it('deactivates the row rather than deleting it, and repeats as 204', async () => {
+      queryMock.mockResolvedValue({ rows: [{ id: LOCAL_ID, username: 'jsmith@contoso.com' }] });
+
+      expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(204);
+      expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(204);
+
+      const [sql] = queryMock.mock.calls[0];
+      expect(sql).toContain('is_active = false');
+      expect(sql).not.toContain('DELETE');
+    });
+
+    it('answers 404 for a user this tenant cannot see', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(404);
     });
   });
 });

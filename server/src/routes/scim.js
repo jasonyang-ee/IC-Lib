@@ -19,5 +19,8 @@ router.get('/ResourceTypes', authenticateScim, scimController.getResourceTypes);
 router.get('/Schemas', authenticateScim, scimController.getSchemas);
 router.get('/Users', authenticateScim, scimController.listUsers);
 router.get('/Users/:id', authenticateScim, scimController.getUserById);
+router.post('/Users', authenticateScim, scimController.createUser);
+router.patch('/Users/:id', authenticateScim, scimController.updateUser);
+router.delete('/Users/:id', authenticateScim, scimController.deleteUser);
 
 export default router;

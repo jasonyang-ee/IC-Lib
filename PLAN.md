@@ -404,7 +404,7 @@ verify: Test Connection random GUID → 200 empty; linked inactive still returne
 exit: Entra discovery/lookup works without mutable-key matching.
 next: F9.T4
 
-T4|.|implement existing-linked mutation lifecycle
+T4|x|implement existing-linked mutation lifecycle
 touch: SCIM service/controller/tests
 details: POST requires GUID externalId; lookup exact env tenant+object. linked row → idempotently apply allowed `userName`, `displayName`/formatted name, primary work email, boolean active + return existing representation 200; absent → safe warning/audit + 403 SCIM error, ⊥ insert/link. PATCH op names case-insensitive; support Replace/Add for allowed profile/active paths incl pathless object form; support Remove only for nullable display-name/email paths, setting NULL; reject Remove for required username/active. externalId/id/role/OIDC/password changes reject `mutability`/invalidValue. uniqueness → 409 `uniqueness`. DELETE known → set inactive + 204; repeat known inactive = 204; unknown PATCH/DELETE = 404. DB update commits before best-effort lifecycle audit so audit failure ⊥ delay cutoff.
 verify: disable/reactivate same UUID; hard delete retained; profile lengths/null handling; role/OIDC keys unchanged; replay; unknown no insert/update; audit reject still lifecycle success; DB reject SCIM 500 w/o internals.

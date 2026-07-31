@@ -1,5 +1,6 @@
 import pool from '../config/database.js';
-import { logError } from '../utils/logger.js';
+import { logError, logWarn } from '../utils/logger.js';
+import { logUserActivity } from '../services/activityLogService.js';
 import { scimError } from '../middleware/scimAuth.js';
 import {
   SCIM_BASE_PATH,
@@ -7,6 +8,8 @@ import {
   SCIM_USER_SCHEMA,
   getScimTenantId,
   isUuid,
+  parseScimPatch,
+  parseScimResource,
   parseUserFilter,
   toScimListResponse,
   toScimUser,
@@ -20,14 +23,30 @@ import {
  * Two rules shape the queries below:
  *  - a user is visible to SCIM only when the row carries BOTH the configured
  *    tenant id and an object id, so an unlinked or foreign-tenant account can
- *    never be read or (in F9.T4) written through this endpoint;
+ *    never be read or written through this endpoint;
  *  - an unknown identity is an empty result, not an error. Entra's Test
  *    Connection probes with a random GUID and expects 200.
+ *
+ * The mutation half never creates or links an account: local rows come from
+ * OIDC first login (§V57). SCIM may only update the profile and the active
+ * flag of a row that already exists, and removal is deactivation, so audit and
+ * approval history keep resolving.
  */
 
 const SELECT_USER_FIELDS = 'id, username, display_name, email, is_active, oidc_object_id';
 
 const scimJson = (res, status, body) => res.status(status).type(SCIM_CONTENT_TYPE).json(body);
+
+/**
+ * Every read and write goes through this predicate: the row must carry the
+ * configured tenant and an object id, so an unlinked or foreign-tenant account
+ * is invisible to SCIM.
+ */
+const findLinkedUser = (where, params) => pool.query(
+  `SELECT ${SELECT_USER_FIELDS} FROM users
+   WHERE ${where} AND oidc_tenant_id = $${params.length + 1} AND oidc_object_id IS NOT NULL`,
+  [...params, getScimTenantId()],
+);
 
 /** Any driver failure is a generic SCIM 500; the cause goes to the log only. */
 const queryFailed = (res, context, error) => {
@@ -115,11 +134,7 @@ export const listUsers = async (req, res) => {
 
   let result;
   try {
-    result = await pool.query(
-      `SELECT ${SELECT_USER_FIELDS} FROM users
-       WHERE oidc_tenant_id = $1 AND oidc_object_id = $2`,
-      [getScimTenantId(), filter.externalId],
-    );
+    result = await findLinkedUser('oidc_object_id = $1', [filter.externalId]);
   } catch (error) {
     return queryFailed(res, 'User lookup by externalId', error);
   }
@@ -136,11 +151,7 @@ export const getUserById = async (req, res) => {
 
   let result;
   try {
-    result = await pool.query(
-      `SELECT ${SELECT_USER_FIELDS} FROM users
-       WHERE id = $1 AND oidc_tenant_id = $2 AND oidc_object_id IS NOT NULL`,
-      [id, getScimTenantId()],
-    );
+    result = await findLinkedUser('id = $1', [id]);
   } catch (error) {
     return queryFailed(res, 'User lookup by id', error);
   }
@@ -150,4 +161,158 @@ export const getUserById = async (req, res) => {
   }
 
   return scimJson(res, 200, toScimUser(result.rows[0]));
+};
+
+/**
+ * The lifecycle audit row is written after the user row is already committed
+ * and can never fail the operation: cutoff must not wait on the audit table
+ * (§V1 stops the session on the next protected request either way).
+ */
+const recordLifecycle = async (description, userId = null) => {
+  try {
+    await logUserActivity(pool, { typeName: 'scim_provisioning', description, userId });
+  } catch (activityError) {
+    logError('SCIM', 'Failed to log provisioning activity:', activityError.message);
+  }
+};
+
+/**
+ * Apply the parsed changes, skipping columns already at the requested value so
+ * a replayed request is a genuine no-op. Column names come from the service's
+ * fixed writable map, never from the payload.
+ */
+const applyChanges = async (row, changes) => {
+  const entries = Object.entries(changes).filter(([column, value]) => row[column] !== value);
+  if (entries.length === 0) {
+    return row;
+  }
+
+  const assignments = entries.map(([column], index) => `${column} = $${index + 1}`);
+  const values = entries.map(([, value]) => value);
+  const result = await pool.query(
+    `UPDATE users SET ${assignments.join(', ')} WHERE id = $${values.length + 1}
+     RETURNING ${SELECT_USER_FIELDS}`,
+    [...values, row.id],
+  );
+
+  return result.rows[0];
+};
+
+/** A duplicate username is the caller's conflict to resolve, not a 500. */
+const writeFailed = (res, context, error) => {
+  if (error.code === '23505') {
+    return scimError(res, 409, 'userName is already in use', 'uniqueness');
+  }
+  return queryFailed(res, context, error);
+};
+
+export const createUser = async (req, res) => {
+  const { externalId, ...attributes } = req.body ?? {};
+
+  if (!isUuid(externalId)) {
+    return scimError(res, 400, 'externalId must be the Entra objectId', 'invalidValue');
+  }
+
+  const parsed = parseScimResource(attributes);
+  if (parsed.error) {
+    return scimError(res, 400, parsed.error.detail, parsed.error.scimType);
+  }
+
+  let existing;
+  try {
+    existing = await findLinkedUser('oidc_object_id = $1', [externalId]);
+  } catch (error) {
+    return queryFailed(res, 'User lookup for create', error);
+  }
+
+  // §V60: this endpoint never creates or links an account. An unknown identity
+  // means the person has not signed in through SSO yet; the operator's fix is
+  // one OIDC login followed by a provisioning retry, so the refusal is visible
+  // rather than a silent no-op.
+  if (existing.rows.length === 0) {
+    logWarn('SCIM', `Provisioning refused for unlinked identity ${externalId}`);
+    await recordLifecycle(`SCIM create refused for unlinked identity ${externalId}`);
+    return scimError(
+      res,
+      403,
+      'This endpoint does not create users. The user must sign in with SSO first.',
+    );
+  }
+
+  let updated;
+  try {
+    updated = await applyChanges(existing.rows[0], parsed.changes);
+  } catch (error) {
+    return writeFailed(res, 'User create-as-update', error);
+  }
+
+  await recordLifecycle(`SCIM provisioned existing user ${updated.username}`, updated.id);
+  return scimJson(res, 200, toScimUser(updated));
+};
+
+export const updateUser = async (req, res) => {
+  const { id } = req.params;
+  if (!isUuid(id)) {
+    return scimError(res, 404, 'User not found');
+  }
+
+  const parsed = parseScimPatch(req.body);
+  if (parsed.error) {
+    return scimError(res, 400, parsed.error.detail, parsed.error.scimType);
+  }
+
+  let existing;
+  try {
+    existing = await findLinkedUser('id = $1', [id]);
+  } catch (error) {
+    return queryFailed(res, 'User lookup for patch', error);
+  }
+
+  if (existing.rows.length === 0) {
+    return scimError(res, 404, 'User not found');
+  }
+
+  let updated;
+  try {
+    updated = await applyChanges(existing.rows[0], parsed.changes);
+  } catch (error) {
+    return writeFailed(res, 'User patch', error);
+  }
+
+  if (updated.is_active !== existing.rows[0].is_active) {
+    await recordLifecycle(
+      `SCIM set user ${updated.username} ${updated.is_active ? 'active' : 'inactive'}`,
+      updated.id,
+    );
+  }
+
+  return scimJson(res, 200, toScimUser(updated));
+};
+
+export const deleteUser = async (req, res) => {
+  const { id } = req.params;
+  if (!isUuid(id)) {
+    return scimError(res, 404, 'User not found');
+  }
+
+  // §V57: removal deactivates and retains the row so historical authorship,
+  // approvals and audit references survive. Repeating it stays a 204.
+  let result;
+  try {
+    result = await pool.query(
+      `UPDATE users SET is_active = false
+       WHERE id = $1 AND oidc_tenant_id = $2 AND oidc_object_id IS NOT NULL
+       RETURNING id, username`,
+      [id, getScimTenantId()],
+    );
+  } catch (error) {
+    return queryFailed(res, 'User deactivation', error);
+  }
+
+  if (result.rows.length === 0) {
+    return scimError(res, 404, 'User not found');
+  }
+
+  await recordLifecycle(`SCIM deactivated user ${result.rows[0].username}`, result.rows[0].id);
+  return res.status(204).end();
 };

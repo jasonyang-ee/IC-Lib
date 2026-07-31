@@ -127,3 +127,160 @@ export const parseUserFilter = (filter) => {
 
   return { externalId: match[1] };
 };
+
+/**
+ * The only four columns SCIM may write (§V57/§V60). Role, password, auth
+ * provider and the OIDC keys are locally owned and are refused rather than
+ * ignored, so a mis-mapped attribute in Entra fails loudly instead of silently
+ * doing nothing.
+ */
+const WRITABLE = new Map([
+  ['username', 'username'],
+  ['displayname', 'display_name'],
+  ['name.formatted', 'display_name'],
+  ['emails', 'email'],
+  ['emails.value', 'email'],
+  ['active', 'is_active'],
+]);
+
+const REFUSED = new Map([
+  ['id', 'mutability'],
+  ['externalid', 'mutability'],
+  ['meta', 'mutability'],
+  ['role', 'invalidValue'],
+  ['roles', 'invalidValue'],
+  ['password', 'invalidValue'],
+  ['authprovider', 'invalidValue'],
+]);
+
+const MAX_LENGTH = { username: 50, display_name: 100, email: 255 };
+
+/** `emails[type eq "work"].value` and `emails.value` name the same column. */
+const normalizeAttributePath = (path) => String(path).trim().replace(/\[[^\]]*\]/g, '').toLowerCase();
+
+const refuse = (detail, scimType = 'invalidValue') => ({ error: { detail, scimType } });
+
+const firstEmailValue = (value) => {
+  if (!Array.isArray(value)) return value;
+  const primary = value.find(entry => entry?.primary) || value.find(entry => entry?.value);
+  return primary ? primary.value : null;
+};
+
+/**
+ * Coerce one attribute into its column value, or explain why it cannot be.
+ * `active` accepts Entra's string booleans; the nullable profile columns accept
+ * an explicit null (that is how Remove clears them), and `username`/`active`
+ * never may be null because the local row cannot serve without them.
+ */
+const coerce = (column, rawValue) => {
+  const value = column === 'email' ? firstEmailValue(rawValue) : rawValue;
+
+  if (column === 'is_active') {
+    if (typeof value === 'boolean') return { value };
+    if (typeof value === 'string' && /^(true|false)$/i.test(value.trim())) {
+      return { value: value.trim().toLowerCase() === 'true' };
+    }
+    return refuse('active must be a boolean');
+  }
+
+  if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+    if (column === 'username') return refuse('userName is required and cannot be cleared');
+    return { value: null };
+  }
+
+  if (typeof value !== 'string') return refuse(`${column} must be a string`);
+
+  const trimmed = value.trim();
+  if (trimmed.length > MAX_LENGTH[column]) {
+    return refuse(`${column} exceeds ${MAX_LENGTH[column]} characters`);
+  }
+
+  return { value: trimmed };
+};
+
+const assign = (changes, path, rawValue) => {
+  const attribute = normalizeAttributePath(path);
+
+  if (attribute.startsWith('oidc')) {
+    return refuse('OIDC identity keys are owned by the application', 'invalidValue');
+  }
+
+  const refusedType = REFUSED.get(attribute);
+  if (refusedType) {
+    return refuse(`${path} is not writable through SCIM`, refusedType);
+  }
+
+  const column = WRITABLE.get(attribute);
+  // Anything else is an attribute this provider does not store. Ignoring it
+  // keeps Entra's default (broader) user mapping working; it can never reach a
+  // column, because only WRITABLE names one.
+  if (!column) return { changes };
+
+  const coerced = coerce(column, rawValue);
+  if (coerced.error) return coerced;
+
+  return { changes: { ...changes, [column]: coerced.value } };
+};
+
+/** Attributes of a SCIM User resource (POST body) -> column changes. */
+export const parseScimResource = (resource) => {
+  if (!resource || typeof resource !== 'object') {
+    return refuse('A SCIM User resource is required');
+  }
+
+  let changes = {};
+  for (const [attribute, value] of Object.entries(resource)) {
+    if (attribute === 'schemas') continue;
+    const step = assign(changes, attribute, value);
+    if (step.error) return step;
+    changes = step.changes;
+  }
+
+  return { changes };
+};
+
+/**
+ * A PATCH body -> column changes. Operation names are case-insensitive, Add and
+ * Replace behave identically on these single-valued attributes, and a pathless
+ * operation carries an object of attributes. Remove clears a nullable profile
+ * column and is refused for the required ones.
+ */
+export const parseScimPatch = (body) => {
+  const operations = body?.Operations ?? body?.operations;
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return refuse('A PATCH body must carry at least one operation', 'invalidSyntax');
+  }
+
+  let changes = {};
+  for (const operation of operations) {
+    const op = String(operation?.op ?? '').trim().toLowerCase();
+    if (!['add', 'replace', 'remove'].includes(op)) {
+      return refuse(`Unsupported PATCH operation "${operation?.op}"`, 'invalidSyntax');
+    }
+
+    if (op === 'remove') {
+      if (!operation.path) return refuse('Remove requires a path', 'invalidSyntax');
+      const attribute = normalizeAttributePath(operation.path);
+      if (attribute === 'username' || attribute === 'active') {
+        return refuse(`${operation.path} is required and cannot be removed`);
+      }
+      const step = assign(changes, operation.path, null);
+      if (step.error) return step;
+      changes = step.changes;
+      continue;
+    }
+
+    if (!operation.path) {
+      const step = parseScimResource(operation.value);
+      if (step.error) return step;
+      changes = { ...changes, ...step.changes };
+      continue;
+    }
+
+    const step = assign(changes, operation.path, operation.value);
+    if (step.error) return step;
+    changes = step.changes;
+  }
+
+  return { changes };
+};
