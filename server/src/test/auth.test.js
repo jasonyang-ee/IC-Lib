@@ -3,6 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
 vi.stubEnv('NODE_ENV', 'test');
 
+// V1: authenticate now reads the current active state on every protected
+// request, so every case here has to answer that one query.
+const queryMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../config/database.js', () => ({
+  default: { query: (...args) => queryMock(...args) },
+}));
+
+const activeUser = () => queryMock.mockResolvedValue({ rows: [{ is_active: true }] });
+
 const {
   canAccessFileLibrary,
   canDeleteLibraryFiles,
@@ -60,14 +70,15 @@ describe('Auth Middleware', () => {
   });
 
   describe('authenticate', () => {
-    it('should extract Bearer token from Authorization header', () => {
+    it('should extract Bearer token from Authorization header', async () => {
+      activeUser();
       const user = { id: 'user-1', username: 'test', role: 'read-write' };
       const token = generateToken(user);
       const req = mockReq({ headers: { authorization: `Bearer ${token}` } });
       const res = mockRes();
       const next = vi.fn();
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.user).toBeDefined();
@@ -75,42 +86,136 @@ describe('Auth Middleware', () => {
       expect(req.user.username).toBe('test');
     });
 
-    it('should extract token from cookie as fallback', () => {
+    it('should extract token from cookie as fallback', async () => {
+      activeUser();
       const user = { id: 'user-2', username: 'cookie', role: 'admin' };
       const token = generateToken(user);
       const req = mockReq({ cookies: { token } });
       const res = mockRes();
       const next = vi.fn();
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(req.user.id).toBe('user-2');
     });
 
-    it('should return 401 when no token is provided', () => {
+    it('should return 401 when no token is provided', async () => {
       const req = mockReq();
       const res = mockRes();
       const next = vi.fn();
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'No token provided' }),
       );
+      expect(queryMock).not.toHaveBeenCalled();
     });
 
-    it('should return 401 for an invalid token', () => {
+    it('should return 401 for an invalid token', async () => {
       const req = mockReq({ headers: { authorization: 'Bearer bad-token' } });
       const res = mockRes();
       const next = vi.fn();
 
-      authenticate(req, res, next);
+      await authenticate(req, res, next);
 
       expect(next).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(401);
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // V1: deactivating an account stops an already-issued JWT on its next
+  // protected request. The token itself stays cryptographically valid, so
+  // only the live check can end the session.
+  describe('authenticate active-state check', () => {
+    const requestWithValidToken = () => {
+      const token = generateToken({ id: 'user-9', username: 'gone', role: 'admin' });
+      return mockReq({ headers: { authorization: `Bearer ${token}` } });
+    };
+
+    it('reads the current active state exactly once per valid token', async () => {
+      activeUser();
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(requestWithValidToken(), res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(queryMock).toHaveBeenCalledTimes(1);
+      expect(queryMock).toHaveBeenCalledWith(
+        'SELECT is_active FROM users WHERE id = $1',
+        ['user-9'],
+      );
+    });
+
+    it('rejects a deactivated user and never populates req.user', async () => {
+      queryMock.mockResolvedValue({ rows: [{ is_active: false }] });
+      const req = requestWithValidToken();
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(req.user).toBeUndefined();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it('rejects a token whose user row no longer exists', async () => {
+      queryMock.mockResolvedValue({ rows: [] });
+      const req = requestWithValidToken();
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(req.user).toBeUndefined();
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it('says nothing about why: a disabled account looks like a bad token', async () => {
+      queryMock.mockResolvedValue({ rows: [{ is_active: false }] });
+      const res = mockRes();
+
+      await authenticate(requestWithValidToken(), res, vi.fn());
+
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Authentication failed',
+        message: 'Invalid or expired token',
+      });
+    });
+
+    it('fails closed with 503 when the active check cannot run', async () => {
+      queryMock.mockRejectedValue(new Error('connection terminated'));
+      const req = requestWithValidToken();
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(req.user).toBeUndefined();
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.status).not.toHaveBeenCalledWith(401);
+    });
+
+    it('leaves a downstream role guard unreachable once authenticate fails', async () => {
+      queryMock.mockResolvedValue({ rows: [{ is_active: false }] });
+      const req = requestWithValidToken();
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+
+      // The guard only runs via next(); prove it is never reached and that
+      // the request was left without an identity for it to trust.
+      expect(next).not.toHaveBeenCalled();
+      expect(req.user).toBeUndefined();
     });
   });
 

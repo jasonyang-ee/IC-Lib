@@ -383,7 +383,7 @@ files: auth middleware; new SCIM config/auth/service/controller/router; index/ro
 
 §T TASKS:
 
-T1|.|make app authentication re-check active state
+T1|x|make app authentication re-check active state
 touch: `server/src/middleware/auth.js`, `server/src/test/auth.test.js`
 details: after valid JWT, await `SELECT is_active FROM users WHERE id=$1`; missing/inactive → generic 401 + no `req.user`/next; active attaches existing JWT claims/id then next. query reject → logged generic 503, ⊥ 401/next. keep cookie/Bearer extraction + role semantics otherwise unchanged.
 verify: cookie + Bearer active; inactive, missing, expired, invalid, DB reject; downstream role guard never runs after failure; exactly one DB query/valid JWT.

@@ -57,7 +57,7 @@ export const verifyToken = (token) => {
  * Authentication middleware - verifies JWT token
  * Adds user info to req.user if token is valid
  */
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   try {
     // Get token from cookie or Authorization header
     let token = null;
@@ -86,6 +86,34 @@ export const authenticate = (req, res, next) => {
       return res.status(401).json({ 
         error: 'Authentication failed',
         message: 'Invalid or expired token', 
+      });
+    }
+
+    // §V1: a valid JWT is not enough. Deactivating an account - locally or
+    // through SCIM (§V60) - must stop an already-issued token on its very next
+    // protected request, so the current active state is read every time.
+    let activeResult;
+    try {
+      activeResult = await pool.query(
+        'SELECT is_active FROM users WHERE id = $1',
+        [decoded.userId],
+      );
+    } catch (error) {
+      // Fail closed: an unreachable users table must not be read as "active".
+      logError('Auth', 'Active-user check failed:', error);
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Unable to verify the session at this time',
+      });
+    }
+
+    if (activeResult.rows.length === 0 || activeResult.rows[0].is_active === false) {
+      // Deliberately the same body a bad token gets: whether an account
+      // exists or is disabled is not something an unauthenticated caller
+      // should be able to probe.
+      return res.status(401).json({
+        error: 'Authentication failed',
+        message: 'Invalid or expired token',
       });
     }
 
