@@ -296,7 +296,7 @@ verify: omitted, null, blank, lowercase, A/B/C, invalid string/number corpus.
 exit: controllers share one validator.
 next: F7.T5
 
-T5|.|wire component CRUD + atomic bulk-set
+T5|x|wire component CRUD + atomic bulk-set
 touch: component controller/routes/tests
 details: create/update read/write `alt_class`; explicit NULL clears, omitted preserves on update. add `PUT /api/components/bulk/alternative-class` before `/:id`, body `{component_ids,alt_class}`; de-dupe ids, require nonempty. txn locks all targets; missing id or unauthorized status rejects entire batch. ECO off → canWrite all; ECO on → admin all, non-admin only all-`new`; controlled non-admin → 403 + no updates. update + per-component audit atomic; return updated count/ids/class.
 verify: create/update/null/invalid; mixed missing/status rollback; admin/new policy; audit reject rollback; route guard exact.

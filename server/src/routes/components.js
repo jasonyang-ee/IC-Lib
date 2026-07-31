@@ -27,6 +27,11 @@ router.post('/bulk/update-specifications', authenticate, canWrite, componentCont
 // Bulk update distributors for all components (MUST be before /:id routes)
 router.post('/bulk/update-distributors', authenticate, canWrite, componentController.bulkUpdateDistributors);
 
+// Bulk set the component-default alternative class (MUST be before /:id routes).
+// The ECO direct-edit policy is enforced per batch inside the controller, so
+// there is no per-component canDirectEditComponent guard here.
+router.put('/bulk/alternative-class', authenticate, canWrite, componentController.bulkSetAlternativeClass);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 

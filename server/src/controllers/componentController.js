@@ -4,6 +4,12 @@ import * as mouserService from '../services/mouserService.js';
 import cadFileService from '../services/cadFileService.js';
 import { getComponentCategoryId, syncCategorySpecification } from '../services/specificationService.js';
 import { logActivity } from '../services/activityLogService.js';
+import {
+  ALTERNATIVE_CLASS_ERROR_MESSAGE,
+  normalizeAlternativeClass,
+} from '../constants/alternativeClass.js';
+import { isEcoEnabled } from '../utils/featureFlags.js';
+import { canDirectEditComponentInEcoMode } from '../services/componentLifecycleService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import { logError, logInfo, logWarn } from '../utils/logger.js';
 
@@ -21,6 +27,8 @@ const toTextList = (val) => {
  * Parse a comma-separated TEXT field into an array for API responses.
  */
 const parseCadField = (val) => val ? val.split(',').filter(Boolean) : [];
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const normalizeUuidInput = (value) => {
   if (value == null) return null;
@@ -241,8 +249,16 @@ export const createComponent = async (req, res, next) => {
       pad_file,
       datasheet_url,
       approval_status,
+      alt_class,
     } = req.body;
-    
+
+    // §V59: reject out-of-domain classes at the API boundary; the DB CHECK
+    // constraint is the backstop, not the first line of defence.
+    const altClass = normalizeAlternativeClass(alt_class);
+    if (!altClass.ok) {
+      return res.status(400).json({ error: altClass.message });
+    }
+
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
     const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
 
@@ -261,8 +277,8 @@ export const createComponent = async (req, res, next) => {
         category_id, part_number, manufacturer_id, manufacturer_pn,
         description, value, sub_category1, sub_category2, sub_category3, sub_category4,
         pcb_footprint, package_size, schematic, step_model, pspice, pad_file,
-        datasheet_url, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        datasheet_url, approval_status, alt_class
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `;
 
@@ -277,7 +293,7 @@ export const createComponent = async (req, res, next) => {
       validCategoryId, part_number, validManufacturerId, mfrPartNumber,
       description, value, sub_category1, sub_category2, sub_category3, sub_category4,
       toTextList(pcb_footprint), package_size, toTextList(schematic), toTextList(step_model), toTextList(pspice), toTextList(pad_file),
-      datasheet_url, approval_status || 'new',
+      datasheet_url, approval_status || 'new', altClass.value,
     ]);
 
     const component = componentResult.rows[0];
@@ -534,7 +550,15 @@ export const updateComponent = async (req, res, next) => {
       approval_status,
       approval_user_id,
       approval_date,
+      alt_class,
     } = req.body;
+
+    // §V59: an omitted alt_class preserves the stored value; an explicit null
+    // (or an emptied form control) clears it back to Unrated.
+    const altClass = normalizeAlternativeClass(alt_class);
+    if (!altClass.ok) {
+      return res.status(400).json({ error: altClass.message });
+    }
 
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
     const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
@@ -577,6 +601,7 @@ export const updateComponent = async (req, res, next) => {
         approval_status = COALESCE($18, approval_status),
         approval_user_id = $19,
         approval_date = $20,
+        alt_class = CASE WHEN $22::boolean THEN $23::char(1) ELSE alt_class END,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $21
       RETURNING *
@@ -589,7 +614,7 @@ export const updateComponent = async (req, res, next) => {
       pspice != null ? toTextList(pspice) : null,
       pad_file != null ? toTextList(pad_file) : null,
       datasheet_url, approval_status, approval_user_id, approval_date,
-      id,
+      id, altClass.provided, altClass.value,
     ]);
 
     // Sync CAD files to junction table and regenerate TEXT columns
@@ -648,6 +673,105 @@ export const updateComponent = async (req, res, next) => {
       });
     }
     logError('Component', 'Error in updateComponent:', error);
+    next(error);
+  } finally {
+    if (client) client.release();
+  }
+};
+
+/**
+ * Set the component-default alternative class on many components at once.
+ *
+ * All-or-none by design (§V59): an unknown id or a component the caller may
+ * not direct-edit rejects the whole batch, so the operator never has to guess
+ * which half of a bulk selection was applied.
+ */
+export const bulkSetAlternativeClass = async (req, res, next) => {
+  let client = null;
+  try {
+    const { component_ids: componentIds, alt_class } = req.body;
+
+    const altClass = normalizeAlternativeClass(alt_class);
+    if (!altClass.ok || !altClass.provided) {
+      return res.status(400).json({ error: ALTERNATIVE_CLASS_ERROR_MESSAGE });
+    }
+
+    if (!Array.isArray(componentIds) || componentIds.some(id => !UUID_PATTERN.test(String(id ?? '').trim()))) {
+      return res.status(400).json({ error: 'component_ids must be an array of component ids' });
+    }
+
+    const uniqueIds = [...new Set(componentIds.map(id => String(id).trim()))];
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ error: 'component_ids must not be empty' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    // Lock every target in a stable order so concurrent bulk sets cannot
+    // deadlock, and so the policy check below reads committed statuses.
+    const targets = await client.query(
+      'SELECT id, part_number, approval_status FROM components WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+      [uniqueIds],
+    );
+
+    if (targets.rows.length !== uniqueIds.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'One or more components were not found' });
+    }
+
+    // §V15: with ECO on, a non-admin may only direct-edit parts still in
+    // `new`; anything controlled has to go through an ECO instead.
+    if (isEcoEnabled()) {
+      const blocked = targets.rows.filter(row => !canDirectEditComponentInEcoMode({
+        role: req.user?.role,
+        currentApprovalStatus: row.approval_status,
+      }));
+
+      if (blocked.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'Access denied',
+          message: 'Direct edits require ECO approval unless the part is still in new status',
+          component_ids: blocked.map(row => row.id),
+        });
+      }
+    }
+
+    await client.query(
+      'UPDATE components SET alt_class = $1, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($2::uuid[])',
+      [altClass.value, uniqueIds],
+    );
+
+    // The audit rows share the transaction: a rejected activity write must not
+    // leave a silent class change behind.
+    for (const row of targets.rows) {
+      await logActivity(client, {
+        componentId: row.id,
+        userId: req.user.id,
+        partNumber: row.part_number,
+        activityType: 'updated',
+        details: {
+          updated_fields: ['alt_class'],
+          alt_class: altClass.value,
+        },
+      });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      updated: targets.rows.length,
+      component_ids: targets.rows.map(row => row.id),
+      alt_class: altClass.value,
+    });
+  } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(rollbackError => {
+        logError('Component', 'Failed to roll back bulk alternative class update:', rollbackError.message);
+      });
+    }
+    logError('Component', 'Error in bulkSetAlternativeClass:', error);
     next(error);
   } finally {
     if (client) client.release();
