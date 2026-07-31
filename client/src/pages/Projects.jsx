@@ -13,6 +13,7 @@ import {
   DEFAULT_BOM_COLUMN_IDS,
   sanitizeBomColumnIds,
 } from '../utils/bomExport';
+import { countRestrictedLines } from '../utils/alternativeClass';
 
 const getResponseData = async (request, fallbackValue) => {
   try {
@@ -40,6 +41,9 @@ const Projects = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showQuantityInput, setShowQuantityInput] = useState(null);
   const [quantityValue, setQuantityValue] = useState('1');
+  // §V59: the per-line override. null means "use the library default", which
+  // is what an unset line stores.
+  const [altClassValue, setAltClassValue] = useState(null);
   const [showBomModal, setShowBomModal] = useState(false);
   const [selectedBomColumnIds, setSelectedBomColumnIds] = useState([...DEFAULT_BOM_COLUMN_IDS]);
   const [isGeneratingBom, setIsGeneratingBom] = useState(false);
@@ -143,8 +147,8 @@ const Projects = () => {
 
   // Add component to project
   const addComponentMutation = useMutation({
-    mutationFn: async ({ projectId, component_id, quantity }) => {
-      await api.addComponentToProject(projectId, { component_id, quantity });
+    mutationFn: async ({ projectId, component_id, quantity, alt_class }) => {
+      await api.addComponentToProject(projectId, { component_id, quantity, alt_class });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
@@ -170,8 +174,8 @@ const Projects = () => {
 
   // Update project component quantity
   const updateComponentQuantityMutation = useMutation({
-    mutationFn: async ({ projectId, componentId, quantity }) => {
-      await api.updateProjectComponent(projectId, componentId, { quantity });
+    mutationFn: async ({ projectId, componentId, quantity, alt_class }) => {
+      await api.updateProjectComponent(projectId, componentId, { quantity, alt_class });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['project', selectedProject?.id]);
@@ -236,6 +240,7 @@ const Projects = () => {
       mode: 'add',
     });
     setQuantityValue('1');
+    setAltClassValue(null);
   };
 
   const confirmQuantityInput = () => {
@@ -247,17 +252,20 @@ const Projects = () => {
           projectId: selectedProject.id,
           componentId: showQuantityInput.id,
           quantity: qty,
+          alt_class: altClassValue,
         });
       } else {
         addComponentMutation.mutate({
           projectId: selectedProject.id,
           component_id: showQuantityInput.id,
-          quantity: qty
+          quantity: qty,
+          alt_class: altClassValue,
         });
       }
 
       setShowQuantityInput(null);
       setQuantityValue('1');
+      setAltClassValue(null);
     } else {
       showError('Please enter a valid quantity');
     }
@@ -329,7 +337,8 @@ const Projects = () => {
         try {
           await api.addComponentToProject(selectedProject.id, {
             component_id: item.component.id,
-            quantity: item.quantity
+            quantity: item.quantity,
+            alt_class: item.altClass ?? null,
           });
           successCount++;
         } catch (error) {
@@ -468,12 +477,19 @@ const Projects = () => {
     setBulkImportResults(updated);
   };
 
+  const updateBulkImportAltClass = (index, altClass) => {
+    const updated = [...bulkImportResults];
+    updated[index] = { ...updated[index], altClass };
+    setBulkImportResults(updated);
+  };
+
   const handleUpdateQuantity = (projectComponent) => {
     setShowQuantityInput({
       ...projectComponent,
       mode: 'update',
     });
     setQuantityValue(projectComponent.quantity.toString());
+    setAltClassValue(projectComponent.alt_class ?? null);
   };
 
   const handleRemoveComponent = (projectComponent) => {
@@ -490,11 +506,18 @@ const Projects = () => {
   const handleConsumeAll = () => {
     if (!selectedProject) return;
 
+    // §V59: purely advisory. The count tells the operator which lines cannot
+    // be substituted without approval; it never blocks or alters the consume.
+    const restrictedCount = countRestrictedLines(projectDetails?.components);
+    const advisory = restrictedCount > 0
+      ? ` ${restrictedCount} line${restrictedCount === 1 ? '' : 's'} resolve to Class A or Unrated, which cannot be substituted without approval - this is advisory only and does not change what is consumed.`
+      : '';
+
     setConfirmAction({
       type: 'consume-all',
       payload: selectedProject,
       title: 'Consume All Components',
-      message: `This will consume all components for project "${selectedProject.name}" from inventory. Continue?`,
+      message: `This will consume all components for project "${selectedProject.name}" from inventory.${advisory} Continue?`,
       confirmText: 'Consume All',
       confirmStyle: 'primary',
     });
@@ -552,6 +575,7 @@ const Projects = () => {
   const handleCancelQuantityInput = () => {
     setShowQuantityInput(null);
     setQuantityValue('1');
+    setAltClassValue(null);
   };
 
   if (isLoading) {
@@ -611,12 +635,15 @@ const Projects = () => {
         onBulkImportAdd={handleBulkImportAdd}
         onAddComponent={handleAddComponent}
         updateBulkImportQuantity={updateBulkImportQuantity}
+        updateBulkImportAltClass={updateBulkImportAltClass}
         onCloseAddComponentModal={handleCloseAddComponentModal}
         showDeleteConfirm={showDeleteConfirm}
         onConfirmDelete={confirmDelete}
         onCancelDelete={() => setShowDeleteConfirm(null)}
         showQuantityInput={showQuantityInput}
         quantityValue={quantityValue}
+        altClassValue={altClassValue}
+        setAltClassValue={setAltClassValue}
         setQuantityValue={setQuantityValue}
         onConfirmQuantityInput={confirmQuantityInput}
         onCancelQuantityInput={handleCancelQuantityInput}

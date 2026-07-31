@@ -350,7 +350,7 @@ verify: C→A produces `pipeline_types=['spec']`; invalid rejected pre-write; ap
 exit: `Q3b=A` + §V15 HOLD.
 next: F8.T4
 
-T4|.|add Projects override + advisory
+T4|x|add Projects override + advisory
 touch: `client/src/pages/Projects.jsx`, `client/src/components/projects/{ProjectDetails,ProjectModals}.jsx`, tests
 details: single add/update modal + bulk-import row select blank “Use library default” or A/B/C; send raw override. row shows resolved badge + source when overridden. Consume All confirmation includes count of resolved A + Unrated and says advisory/no substitute selection; confirm path remains ungated.
 verify: add/update/bulk/clear payloads; fallback display; advisory shown but confirm still calls consume once.

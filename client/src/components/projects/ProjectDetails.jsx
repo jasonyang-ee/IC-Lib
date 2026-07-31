@@ -1,5 +1,6 @@
 import { FolderKanban, Plus, Edit, Download, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AlternativeClassBadge from '../common/AlternativeClassBadge';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -165,6 +166,12 @@ const ProjectDetails = ({
                       <span className="text-sm px-2 py-0.5 bg-gray-100 dark:bg-[#333333] rounded">
                         {pc.category_name}
                       </span>
+                      {/* §V59: the resolved class, flagged when this line
+                          overrides the component's library default. */}
+                      <AlternativeClassBadge
+                        value={pc.resolved_alt_class}
+                        overridden={Boolean(pc.alt_class)}
+                      />
                     </div>
                   </div>
 

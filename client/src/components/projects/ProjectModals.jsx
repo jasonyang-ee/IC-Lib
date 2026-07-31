@@ -1,4 +1,5 @@
 import { Search, FileText, X, AlertTriangle } from 'lucide-react';
+import AlternativeClassSelect from '../common/AlternativeClassSelect';
 
 const ProjectModals = ({
   // Create modal
@@ -28,6 +29,7 @@ const ProjectModals = ({
   onBulkImportAdd,
   onAddComponent,
   updateBulkImportQuantity,
+  updateBulkImportAltClass,
   onCloseAddComponentModal,
   // Delete confirmation modal
   showDeleteConfirm,
@@ -37,6 +39,8 @@ const ProjectModals = ({
   showQuantityInput,
   quantityValue,
   setQuantityValue,
+  altClassValue,
+  setAltClassValue,
   onConfirmQuantityInput,
   onCancelQuantityInput,
   // BOM modal
@@ -335,6 +339,14 @@ const ProjectModals = ({
                                 onChange={(e) => updateBulkImportQuantity(index, e.target.value)}
                                 className="w-20 px-2 py-1 border border-gray-300 dark:border-[#444444] rounded text-center focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
                               />
+                              <AlternativeClassSelect
+                                className="w-44"
+                                id={`bulk-alt-class-${index}`}
+                                label="Class"
+                                unratedLabel="Use library default"
+                                value={result.altClass ?? null}
+                                onChange={(value) => updateBulkImportAltClass(index, value)}
+                              />
                             </div>
                           </div>
                         ) : (
@@ -440,6 +452,14 @@ const ProjectModals = ({
                 }}
                 autoFocus
                 className="w-full px-4 py-2 border border-gray-300 dark:border-[#444444] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#2a2a2a] dark:text-gray-100"
+              />
+              {/* §V59: blank keeps the component's library default. */}
+              <AlternativeClassSelect
+                className="mt-4"
+                label="Alternative Class Override"
+                unratedLabel="Use library default"
+                value={altClassValue}
+                onChange={setAltClassValue}
               />
             </div>
             <div className="flex justify-end gap-2">

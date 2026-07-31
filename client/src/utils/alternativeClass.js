@@ -51,3 +51,12 @@ export const toAlternativeClassValue = (value) => optionFor(value)?.value ?? '';
 
 /** API payload for a form value: null clears the class, never an empty string. */
 export const toAlternativeClassPayload = (value) => toAlternativeClassValue(value) || null;
+
+/**
+ * How many BOM lines resolve to a class that may not be substituted without
+ * approval - Class A, plus Unrated, which is operationally treated as A until
+ * someone rates it. Advisory only: nothing in the app blocks on this count.
+ */
+export const countRestrictedLines = (components = []) => components.filter(
+  (component) => !['B', 'C'].includes(toAlternativeClassValue(component?.resolved_alt_class)),
+).length;

@@ -6,6 +6,7 @@ import {
   describeAlternativeClass,
   formatAlternativeClass,
   toAlternativeClassPayload,
+  countRestrictedLines,
   toAlternativeClassValue,
 } from '../utils/alternativeClass';
 import AlternativeClassSelect from '../components/common/AlternativeClassSelect';
@@ -63,6 +64,27 @@ describe('alternative-class payload mapping (§V59)', () => {
   it('maps a stored class onto a form value a select can hold', () => {
     expect(toAlternativeClassValue(null)).toBe('');
     expect(toAlternativeClassValue('C')).toBe('C');
+  });
+});
+
+describe('countRestrictedLines (§V48/§V59)', () => {
+  const line = (resolved) => ({ resolved_alt_class: resolved });
+
+  it('counts Class A and Unrated lines, which need approval to substitute', () => {
+    expect(countRestrictedLines([line('A'), line(null), line('B'), line('C')])).toBe(2);
+  });
+
+  it('counts nothing when every line is freely substitutable', () => {
+    expect(countRestrictedLines([line('B'), line('C')])).toBe(0);
+  });
+
+  it('treats an unrecognised stored class as restricted, not as substitutable', () => {
+    expect(countRestrictedLines([line('D')])).toBe(1);
+  });
+
+  it('handles an absent component list', () => {
+    expect(countRestrictedLines()).toBe(0);
+    expect(countRestrictedLines([])).toBe(0);
   });
 });
 
