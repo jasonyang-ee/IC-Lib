@@ -12,60 +12,51 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-07-30
 
-branch `test` | last commit `69beb99` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass; `componentAuditFailure.test.js:2` unused-`asClient` warning pre-existing)
-uncommitted at handoff write: `HANDOFF.md` — session-close baton only; ⊥ implementation files
+branch `test` | last commit `01df17e` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass)
+uncommitted at handoff write: `SPEC.md` (§C11 line-ending clause, §V1 live-role clause, §V27 sweep-derivation clause), `PLAN.md` (fresh F1-F6 cycle), `HANDOFF.md` (this baton) — planning artifacts only, ⊥ implementation files. ⊥ mid-edit.
 
 ## done this session
 
-- F9.T3 (`3176da9`): new `server/src/routes/scim.js` + `server/src/controllers/scimController.js`; representation (`toScimUser`, `toScimListResponse`) + `parseUserFilter` + `isUuid` in `server/src/services/scimService.js`; `app.use(SCIM_BASE_PATH, scimRoutes)` in `server/src/index.js`. router owns `express.json({ type: 'application/scim+json', limit: '64kb' })`; `authenticateScim` = FIRST handler ∀ route; `GET /Users?filter=externalId eq "<GUID>"` only; unknown GUID → 200 empty `ListResponse`. new `server/src/test/scimRoutes.test.js`.
-- F9.T4 (`73f2873`): `POST /Users`, `PATCH /Users/:id`, `DELETE /Users/:id`; `parseScimResource` + `parseScimPatch` in `scimService.js`. writable set = `username|display_name|email|is_active` ONLY; `id|externalId|meta|role|roles|password|authProvider|oidc*` → 400 `mutability`|`invalidValue`; unrecognized attrs IGNORED; Remove ⊥ `userName|active`; PG `23505` → 409 `uniqueness`; unlinked identity → 403 + warn + audit, ⊥ insert; DELETE → `is_active = false` + 204; lifecycle audit post-commit, best-effort.
-- F9.T5 (`0858757`): `scim` added to `ROUTER_MOUNTS` (`server/src/constants/publicRoutes.js`) + `ALL_ROUTERS` (`server/src/test/routeAuthGuards.test.js`); sweep guard now per-router (`AUTH_GUARDS = { scim: 'authenticateScim' }`); SCIM ∉ ∀ public descriptor set ∴ §V32 ceiling skips it.
-- F10.T1-T3 CLOSED: oracle green; ∀ adversarial matrix row has a named regression; SPEC/PLAN/CHANGELOG audited. ONE divergence found + fixed: `/api/scim/v2/Groups|Bulk|<typo>` fell through to the app's generic JSON 404 ∴ `server/src/routes/scim.js` gained a constant SCIM-shaped 404 catch-all (+1 test). `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO.
-- F9.T6 (`4a865ae`): `.env.example` + `docker-compose.yml` placeholders + README "Entra SCIM provisioning" section; README's FALSE "no SCIM … up to 24 hours" paragraph REPLACED; `oidcConfigDocs.test.js` +3 SCIM cases (var parity, doc content, placeholder-only token); CHANGELOG `## [Unreleased]` gained SCIM lifecycle + deactivation-cutoff entries.
+- `/review-code` sweep, baseline `v1.10.0` (`88fe3ce`) → head `01df17e`: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0`, gate **GO**. `HARDEN=4`, `NOTE=2`. ⊥ code written. Oracle green.
+- user accepted ∀ 4 HARDEN items → this cycle.
+- `/prep`: new `PLAN.md` F1-F6, `planning status: new`. Embedded `/review-plan` pass → gate **GO** (0 BLOCK, 0 DIVERGENCE, 0 blocking `?`; 1 research phase remains by design).
+- `SPEC.md` amended (3 rows EDITED, 0 added, `next:` counter untouched): §C11 gained the line-ending contract; §V1 gained the live-DB-role clause; §V27 gained the sweep-derivation clause.
+- ⊥ commits this session. HEAD unmoved @ `01df17e`.
 
 ## in progress (exact stop point)
 
-none — cycle COMPLETE: F1-F10 ∀ §T rows `x`, `planning status: done`, oracle green, tree clean apart from this baton.
+none. Cycle prepped, ⊥ started — `planning status: new`, ∀ §T row `.`.
 mid-edit files: none.
 
 ## next
 
-`/garnish` — ONLY after the user accepts the completed cycle. ⊥ push, ⊥ tag, ⊥ release without an explicit ask.
-preconditions: user acceptance. deployment enablement of SCIM still needs the declared external reachability (Entra HTTPS → `/api/scim/v2` + 1 tenant GUID).
+`F1.T1` — confirm the line-ending blast radius + binary set. Read-only: enumerate ∀ tracked blob carrying `\r` (`git ls-files` + `git show <blob> | od -c`), classify text vs binary by REAL BYTES ⊥ by extension, confirm `docker/repair`'s CRLF shebang + `Dockerfile:63-64` copy/chmod, confirm `library/template/CIS/odbc_example.reg` is UTF-16LE, then freeze the exact `.gitattributes` rule set for `F2.T1`. Cite primary sources for `execve(2)` interpreter-line handling + git `text=auto`/`eol` semantics → new §R rows via `/encode-docs` only if they carry a citation.
+preconditions: none. `/cook` (or `/cater`) flips `planning status` `new` → `work-in-progress` at start; `prep` ⊥ pre-flip it.
+first commit gate: `F2.T2` (the renormalize) ! be its OWN mechanical commit — commit the planning artifacts above BEFORE it so the renormalize diff stays separable.
 
 ## deviations & decisions
 
-- F9.T3-T6 §T status flips written with the Edit tool, ⊥ via a separate `/encode-docs` invocation — one-character `.`→`x` flips, format unchanged.
-- SCIM ACCEPTS + IGNORES unrecognized profile attributes (Entra's stock mapping sends `givenName`/`surname`/…) while REFUSING the locally-owned ones. strict rejection of ∀ unknown attribute would break Entra's default user mapping, and ∄ unknown attribute can reach a column ∵ only the fixed writable map names one.
-- `GET /Users` with NO filter → 400 `invalidFilter`, ⊥ a full list: an unfiltered list would enumerate users.
-- ∀ SCIM route (mutations included) answers 404 while the feature is DISABLED — inherited from F9.T2, so a disabled deployment ⊥ advertise the endpoint.
-- `applyChanges` skips columns already at the requested value ∴ a replayed POST/PATCH issues NO `UPDATE` at all.
-- CHANGELOG got ONE consolidated SCIM entry + ONE cutoff entry, both at F9.T6; F9.T1/T2 deliberately wrote none.
+- user ruling: **live DB `role` wins over the JWT claim** (chosen over "mismatch forces re-login" & "document only"). ∴ §V1 amended; `F4` implements it. JWT `role` claim stays minted but informational.
+- user ruling: ∀ 4 HARDEN items in scope, incl. the repo-wide `.gitattributes` normalization.
+- `/review-code` classified H2 as hygiene. **CORRECTED during `/prep` research** → H2 also fixes a live operator defect (see watchouts). PLAN.md `F2` carries the corrected framing; `SPEC.md` §C11 + §I10 are the durable record.
+- `SPEC.md` amended by EDITING 3 existing rows, ⊥ adding new ones — keeps the spec lean per the add-bar. `next: C14 I13 R15 V61` unchanged.
+- the 2 carried NOTEs (raw error object → `logError` @ `server/src/middleware/auth.js:103`; SCIM accepting `application/json` bodies) — the first is folded into `F4.T2`, the second is DELIBERATELY unscheduled & needs a new ruling to change.
 
 ## watchouts
 
-- ∀ prior-session watchouts stand (see `HANDOFF.md` git history): 1-process deployment basis, SCIM tenant reachability, ⊥ writes to `flat.gentex.int:5434/iclib`, `pool.connect` mock contagion, CRLF → `git diff --check` false positives on `server/src/index.js` + `database/init-schema.sql`, `vitest/no-conditional-expect` is an ERROR, `testing-library/no-node-access` forbids `.closest()`, `@testing-library/user-event` ⊥ installed (use `fireEvent`), `bash ./test.sh` runs `lint:fix` FIRST ∴ re-check `git status` after, heredoc payloads fail in this shell (write scripts to the scratchpad + run by path), `authenticate` is ASYNC + hits the DB ∴ any new test exercising it ! mock `../config/database.js`.
-- `server/src/constants/publicRoutes.js` now IMPORTS `SCIM_BASE_PATH` from `../services/scimService.js`; a new import cycle there would break the rate limiter.
-- `ROUTER_MOUNTS` keys ! stay identical to `ALL_ROUTERS` keys in `routeAuthGuards.test.js`; adding a router to one alone FAILS the parity test.
+- **`docker/repair` is BROKEN in the container today.** Blob = `#!/bin/sh\r\n`; `Dockerfile:63-64` copies it to `/usr/local/bin/repair` + `chmod +x`. Linux reads the interpreter as `/bin/sh\r` → `not found` ∴ the §I10 break-glass admin-password reset does ⊥ work from the image. `F2` fixes it via renormalize; `F2.T3` owes it a regression.
+- **CORRECTION to the prior baton**: it recorded the CRLF `git diff --check` warnings as "false positives on `server/src/index.js` + `database/init-schema.sql`". They are REAL `\r` bytes in the blobs — 1867 warnings across 57 files, and ~10600 of the 22852 diff insertions vs `v1.10.0` are pure CR churn. ⊥ dismiss them again.
+- `server/src/index.js` calls `startServer()` @ `:234` and `export default app` @ `:236` ∴ importing it from a test BOOTS a listener + hits the DB. `F1.T2` ! settle the sweep-derivation mechanism around this; ⊥ naively `import app` in `routeAuthGuards.test.js`.
+- mount ORDER in `index.js` is load-bearing: `publicGlobalLimiter` on `/api` @ `:103` BEFORE the routers, SCIM router LAST @ `:126`. `F3.T1` ! preserve paths + order byte-identical.
+- `server/src/constants/publicRoutes.js` IMPORTS `SCIM_BASE_PATH` from `../services/scimService.js`; a new import cycle there breaks the rate limiter.
+- `authenticate` is ASYNC + hits the DB ∴ any new test exercising it ! mock `../config/database.js`.
 - `scimRoutes.test.js` mocks `../utils/logger.js` with `logError` + `logWarn` ONLY — importing another logger fn into `scimController.js` breaks that suite.
-- F10 ! NOT re-run the F7.T3 disposable-Postgres evidence: recorded in the CHANGELOG migration-18 entry + prior handoffs.
+- `bash ./test.sh` runs `lint:fix` FIRST ∴ re-check `git status` after — matters most around `F2`, where a stray rewrite would contaminate the mechanical commit.
+- heredoc payloads fail in this shell (write scripts to the scratchpad + run by path). `vitest/no-conditional-expect` is an ERROR; `testing-library/no-node-access` forbids `.closest()`; `@testing-library/user-event` ⊥ installed (use `fireEvent`).
+- ⊥ writes to live DB `flat.gentex.int:5434/iclib`. ⊥ push, ⊥ tag without an explicit ask.
+- `F2` renormalizes every tracked text file on branch `test`; expect a noisy rebase/merge against `main` afterwards. `git merge -X renormalize` (or re-running normalization on the target branch) is the escape hatch.
 
 ## final verification
 
 item|status|evidence|decision
 |---|---|---|---|
-§V1|HOLD|`server/src/test/auth.test.js` (6 active-state cases incl fail-closed 503)|code
-§V7/§V8|HOLD|`server/src/test/componentAuditFailure.test.js` (7)|code
-§V10/§V27|HOLD|`server/src/test/routeAuthGuards.test.js` (16, incl SCIM guard + synthetic negative)|code
-§V15/§V41|HOLD|`componentAlternativeClass.test.js`, `ecoAlternativeClass.test.js`, `client/src/test/libraryAlternativeClass.test.jsx`|code
-§V17/§V48|HOLD|`projectAlternativeClass.test.js`, `client/src/test/{projectsAlternativeClass.test.jsx,bomExport.test.js}`|code
-§V28|HOLD|`client/src/test/{fileLibrary.test.jsx,footprintFiles.test.js}`|code
-§V30|HOLD|`server/src/test/healthController.test.js` (6, incl body-key allowlist)|code
-§V31|HOLD|`server/src/test/gracefulShutdown.test.js`|code
-§V32|HOLD|`server/src/test/rateLimit.test.js` (9)|code
-§V57/§V60|HOLD|`server/src/test/{scimAuth.test.js,scimRoutes.test.js}` (13+28)|code
-§V59|HOLD|`server/src/test/alternativeClass.test.js` + F7.T3 disposable-Postgres run|code
-§C4/§C7|HOLD|`server/src/test/schemaInspectionService.test.js` + F7.T3 evidence (CHANGELOG migration-18 entry)|code
-§I2/§I3/§I8/§I11/§I12|HOLD|`server/src/test/oidcConfigDocs.test.js`, `server/src/routes/scim.js`, route sweep|code
-static oracle|HOLD|`bash ./test.sh` exit 0; one-off `no-shadow` 0 both sides; `no-console` 0 outside `server/src/utils/logger.js`; ⊥ `.only`/`.skip`; ⊥ secret literal|-
-classification|GO|`BLOCK=0 DIVERGENCE=0 UNKNOWN=0` (the 1 divergence found was fixed in-phase, see done-this-session)|-
