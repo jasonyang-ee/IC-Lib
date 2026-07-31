@@ -310,7 +310,7 @@ verify: direct/alternative fallback, A/B/C override, clear/preserve, invalid 400
 exit: §V59 server resolution rule green.
 next: F7.T7
 
-T7|.|record + run server oracle
+T7|x|record + run server oracle
 touch: `CHANGELOG.md`; tests `alternativeClass.test.js`, `componentAlternativeClass.test.js`, `projectAlternativeClass.test.js`, schema tests
 details: Unreleased entry names nullable safe default, per-line override, six external views.
 verify: focused server tests + `bash ./test.sh`.
