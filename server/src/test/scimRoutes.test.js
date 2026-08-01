@@ -1,5 +1,6 @@
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { appBodyParsers } from '../middleware/bodyParsers.js';
 
 // §V60/§I12: the SCIM read surface. Every route is bearer-only, answers
 // `application/scim+json`, and can see a user only through the configured
@@ -48,6 +49,7 @@ const linkedRow = (overrides = {}) => ({
 describe('SCIM discovery and lookup (§V60)', () => {
   let server;
   let baseUrl;
+  let origin;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,8 +57,12 @@ describe('SCIM discovery and lookup (§V60)', () => {
     process.env.SCIM_BEARER_TOKEN = TOKEN;
 
     const app = express();
+    app.use(appBodyParsers);
+    app.post('/parser-probe', (req, res) => res.json({ body: req.body ?? null }));
+    app.post(`${SCIM_BASE_PATH}/parser-probe`, (req, res) => res.json({ body: req.body ?? null }));
     app.use(SCIM_BASE_PATH, scimRoutes);
     server = app.listen(0);
+    origin = `http://127.0.0.1:${server.address().port}`;
     baseUrl = `http://127.0.0.1:${server.address().port}${SCIM_BASE_PATH}`;
   });
 
@@ -112,11 +118,38 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(queryMock).not.toHaveBeenCalled();
     });
 
+    it('rejects unauthenticated malformed, oversized, JSON, and form bodies before parsing', async () => {
+      const requests = [
+        ['application/scim+json', '{'],
+        ['application/scim+json', 'x'.repeat(70 * 1024)],
+        ['application/json', '{}'],
+        ['application/x-www-form-urlencoded', 'active=true'],
+      ].map(([contentType, body]) => fetch(`${baseUrl}/Groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': contentType },
+        body,
+      }));
+
+      for (const res of await Promise.all(requests)) {
+        expect(res.status).toBe(401);
+        expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      }
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
     it('refuses a wrong bearer token', async () => {
       const res = await get('/ServiceProviderConfig', 'c'.repeat(48));
 
       expect(res.status).toBe(401);
       expect(await res.text()).not.toContain(TOKEN);
+    });
+
+    it('accepts the Bearer scheme case-insensitively', async () => {
+      const res = await fetch(`${baseUrl}/ServiceProviderConfig`, {
+        headers: { Authorization: `bearer ${TOKEN}` },
+      });
+
+      expect(res.status).toBe(200);
     });
 
     it('hides the whole surface while the feature is disabled', async () => {
@@ -137,13 +170,43 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(body.schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
     });
 
-    it('mounts authenticateScim as the first handler of every route', () => {
+    it('mounts authenticateScim as the router-wide first handler', () => {
       const routes = scimRoutes.stack.filter(layer => layer.route);
 
       expect(routes).toHaveLength(8);
-      for (const layer of routes) {
-        expect(layer.route.stack[0].handle.name).toBe('authenticateScim');
-      }
+      expect(scimRoutes.stack[0].handle.name).toBe('authenticateScim');
+    });
+  });
+
+  describe('ingress body boundary', () => {
+    it('skips generic JSON and form parsing only for the SCIM subtree', async () => {
+      const json = await fetch(`${origin}/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      });
+      expect((await json.json()).body).toEqual({ active: true });
+
+      const form = await fetch(`${origin}/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'active=true',
+      });
+      expect((await form.json()).body).toEqual({ active: 'true' });
+
+      const scimJson = await fetch(`${origin}${SCIM_BASE_PATH}/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      });
+      expect((await scimJson.json()).body).toBeNull();
+
+      const scimForm = await fetch(`${origin}${SCIM_BASE_PATH}/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'active=true',
+      });
+      expect((await scimForm.json()).body).toBeNull();
     });
   });
 
@@ -322,6 +385,34 @@ describe('SCIM discovery and lookup (§V60)', () => {
       const roleAttempt = await send('POST', '/Users', postBody({ role: 'admin' }));
       expect(roleAttempt.status).toBe(400);
       expect((await roleAttempt.json()).scimType).toBe('invalidValue');
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
+    it('requires SCIM media, maps malformed JSON to 400, and caps the body at 64kb', async () => {
+      const wrongMedia = await fetch(`${baseUrl}/Users`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      expect(wrongMedia.status).toBe(415);
+      expect((await wrongMedia.json()).schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
+
+      const malformed = await fetch(`${baseUrl}/Users`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': SCIM_CONTENT_TYPE },
+        body: '{',
+      });
+      expect(malformed.status).toBe(400);
+      expect((await malformed.json()).scimType).toBe('invalidSyntax');
+      expect(queryMock).not.toHaveBeenCalled();
+
+      const oversized = await fetch(`${baseUrl}/Users`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': SCIM_CONTENT_TYPE },
+        body: JSON.stringify({ externalId: OBJECT_ID, userName: 'x'.repeat(70 * 1024) }),
+      });
+      expect(oversized.status).toBe(413);
+      expect((await oversized.json()).schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
       expect(queryMock).not.toHaveBeenCalled();
     });
 

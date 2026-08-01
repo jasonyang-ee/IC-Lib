@@ -29,9 +29,8 @@ export const authenticateScim = (req, res, next) => {
   }
 
   const header = req.headers.authorization;
-  const presented = typeof header === 'string' && header.startsWith('Bearer ')
-    ? header.substring(7)
-    : null;
+  const match = typeof header === 'string' ? /^Bearer (.+)$/i.exec(header) : null;
+  const presented = match?.[1] || null;
 
   if (!presented || !constantTimeEquals(presented, getScimBearerToken())) {
     res.set('WWW-Authenticate', 'Bearer realm="scim"');

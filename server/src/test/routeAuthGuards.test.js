@@ -185,12 +185,8 @@ describe('route auth guards', () => {
   });
 
   it('gates every SCIM route on authenticateScim, and only the SCIM router (§V60)', () => {
-    for (const method of ['post', 'patch', 'delete']) {
-      const routePath = method === 'post' ? '/Users' : '/Users/:id';
-      expect(getRouteHandlers(scimRoutes, method, routePath)[0]).toBe('authenticateScim');
-    }
-    expect(getRouteHandlers(scimRoutes, 'get', '/Users')[0]).toBe('authenticateScim');
-    expect(getRouteHandlers(scimRoutes, 'get', '/ServiceProviderConfig')[0]).toBe('authenticateScim');
+    expect(scimRoutes.stack[0].handle.name).toBe('authenticateScim');
+    expect(findUnguardedMutations([{ name: 'scim', router: scimRoutes }])).toEqual([]);
 
     // The SCIM guard is not an app-session guard: it counts on no other router.
     const authenticateScim = (_req, _res, next) => next();

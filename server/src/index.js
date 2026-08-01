@@ -30,6 +30,7 @@ import pool from './config/database.js';
 import { gracefulShutdown } from './utils/gracefulShutdown.js';
 import { parseTrustProxyHops } from './config/trustProxy.js';
 import { mountApiRoutes } from './routes/registry.js';
+import { appBodyParsers } from './middleware/bodyParsers.js';
 
 // Rate limiting (SPEC §V32): global ceiling for the public read surface
 import { publicGlobalLimiter } from './middleware/rateLimit.js';
@@ -68,8 +69,7 @@ app.use(morgan('dev', {
   },
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(appBodyParsers);
 app.use(cookieParser());
 
 // Liveness probe (silent - no logging). Cheap, DB-free: 200 while the process

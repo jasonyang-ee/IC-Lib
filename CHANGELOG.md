@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SCIM requests now authenticate before any body parsing, skip the generic app JSON/form parsers, enforce `application/scim+json` for POST/PATCH, cap JSON at 64kb, and return SCIM-shaped 400/413 parser errors. Bearer scheme matching is case-insensitive while token comparison remains exact and constant-time; unsupported paths stay behind the same gate.
+
 - Direct Node deployments now default `TRUST_PROXY_HOPS` to `0` instead of trusting caller-supplied `X-Forwarded-For`; invalid, negative, fractional, and unsafe hop counts fail startup. The bundled nginx image and Compose deployment explicitly set `1`, with parser and real-listener rate-limit regressions covering forged and proxy-appended headers.
 
 - SSO accounts now own their credentials exclusively: verified-email linking clears any legacy local hash, local login and password changes reject every non-local provider before bcrypt, and migration `19_oidc_password_ownership.sql` purges existing OIDC hashes before adding a named database CHECK. Fresh admin/guest seeds preserve SSO ownership on username conflicts. The migration is irreversible for those hashes; operators must confirm SSO login and take a recoverable backup before applying it.

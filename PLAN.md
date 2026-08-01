@@ -214,17 +214,17 @@ files: new `server/src/middleware/bodyParsers.js`, `server/src/index.js`, `serve
 
 §T TASKS:
 
-T1|.|exclude SCIM from generic app body parsers
+T1|x|exclude SCIM from generic app body parsers
 touch: `bodyParsers.js`, `index.js`
 details: exported production middleware skips BOTH generic JSON + urlencoded parsing for exact `SCIM_BASE_PATH` subtree; other routes retain current parser behavior/order. Tests import this middleware, ⊥ duplicate a test-only approximation.
 verify: ordinary JSON/form SCIM payload reaches router unparsed; non-SCIM JSON remains parsed.
 
-T2|.|make SCIM router auth-first + media-strict
+T2|x|make SCIM router auth-first + media-strict
 touch: `scim.js`, `scimAuth.js`
 details: router-wide `authenticateScim` first, covering discovery/users/unsupported fallback; auth scheme comparison case-insensitive, token bytes still exact/constant-time. After auth: POST/PATCH require `req.is(SCIM_CONTENT_TYPE)` else SCIM 415; 64kb SCIM JSON parser; scoped parser error middleware maps malformed → 400 `invalidSyntax`, oversized → 413, all `application/scim+json`. DELETE/GET need no body type.
 verify: F7.T3.
 
-T3|.|lock production-order adversarial matrix
+T3|x|lock production-order adversarial matrix
 touch: named SCIM/route tests
 details: unauthenticated `/Groups`, malformed, oversized, JSON, form all stop at 401 before parser/DB; authenticated unsupported → SCIM 404; wrong mutation media → SCIM 415; malformed → SCIM 400; oversized → SCIM 413; lowercase `bearer` accepted; correct media reaches handler; non-SCIM app JSON unchanged. Sweep understands router-wide gate.
 verify: focused SCIM + route suites via real listener; reverting order/skip/fallback auth fails; `bash ./test.sh` exit 0.
