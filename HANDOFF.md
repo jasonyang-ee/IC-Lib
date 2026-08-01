@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `fcb1cac` | tests pass 537/537 (bash ./test.sh exit 0: client 28 files/141 tests, server 50 files/396 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+branch `test` | last commit at handoff write `1385c23` | tests pass 540/540 (bash ./test.sh exit 0: client 28 files/143 tests, server 50 files/397 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
 uncommitted at handoff write: none.
 
 ## done this session
@@ -29,13 +29,14 @@ uncommitted at handoff write: none.
 - `F6.T1-T2` ordered 17-router runtime registry + registry-derived public mounts + full-router auth sweep -> `5d69e0b`: index mounts once, SCIM remains last/outside the guest limiter, and synthetic unguarded registry entries fail the sweep.
 - `F7.T1-T3` SCIM parser exclusion, router-wide auth-first media gate, case-insensitive Bearer, bounded parser, and SCIM-shaped ingress errors -> `a2e548f`; focused 62/62 plus full oracle.
 - `F8.T1-T4` canonical SCIM GUIDs, operation-specific attribute ownership, stable 201 Location responses, and retrievable User ResourceType/Schema metadata -> `fcb1cac`; focused 65/65 plus full oracle.
+- `F9.T1-T2` pre-DB ECO alternative-class validation and visible/eligible bulk-mutation snapshots -> `1385c23`; focused 25/25 plus full oracle.
 
 ## in progress (exact stop point)
-none. F8 committed and self-reviewed; no mid-edit files.
+none. F9 committed and self-reviewed; no mid-edit files.
 mid-edit files: none.
 
 ## next
-`F9.T1` | preconditions: F8 committed; preserve SCIM boundary and existing alternative-class API contracts.
+`F10.T1` | preconditions: F9 committed; verification is read-only except encoded closure documents.
 
 ## deviations & decisions
 
@@ -52,6 +53,7 @@ mid-edit files: none.
 - Direct Node now defaults `TRUST_PROXY_HOPS=0`; only the bundled nginx path sets `1`. Any deployment with a different proxy topology must set the exact hop count explicitly.
 - F7 owns the SCIM ingress boundary: generic body parsers skip the exact subtree, service auth runs first, and POST/PATCH parsing/errors stay SCIM-shaped.
 - F8 owns canonical SCIM GUIDs, operation-specific attribute ownership, and stable discovery/resource response contracts.
+- F9 owns pre-DB alternative-class domain rejection and visible/eligible ID snapshots at every Library bulk mutation boundary.
 - F6 owns the sole runtime API mount path and the registry-backed auth sweep. F7 must keep SCIM auth-first and preserve its position outside the generic public body/rate-limit boundary.
 
 ## watchouts
