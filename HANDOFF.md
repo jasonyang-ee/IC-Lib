@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `5d69e0b` | tests pass 530/530 (bash ./test.sh exit 0: client 28 files/141 tests, server 50 files/389 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+branch `test` | last commit at handoff write `a2e548f` | tests pass 534/534 (bash ./test.sh exit 0: client 28 files/141 tests, server 50 files/393 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
 uncommitted at handoff write: none.
 
 ## done this session
@@ -27,15 +27,14 @@ uncommitted at handoff write: none.
 - `F3.T1-T2` live database role override + demotion/elevation matrix → `6bcb540`; no JWT or response-shape changes.
 - `F5.T1-T2` explicit trusted-proxy parser + real-listener forged-XFF matrix → `574e491`: direct Node defaults to 0 trusted hops; invalid/negative/fractional/unsafe values fail; Docker/Compose explicitly set the single nginx hop.
 - `F6.T1-T2` ordered 17-router runtime registry + registry-derived public mounts + full-router auth sweep -> `5d69e0b`: index mounts once, SCIM remains last/outside the guest limiter, and synthetic unguarded registry entries fail the sweep.
+- `F7.T1-T3` SCIM parser exclusion, router-wide auth-first media gate, case-insensitive Bearer, bounded parser, and SCIM-shaped ingress errors -> `a2e548f`; focused 62/62 plus full oracle.
 
 ## in progress (exact stop point)
-
-none. F6 committed and self-reviewed; no mid-edit files.
+none. F7 committed and self-reviewed; no mid-edit files.
 mid-edit files: none.
 
 ## next
-
-`F7.T1` | preconditions: F6 committed; preserve registry order and use the existing SCIM mount; no index import from tests.
+`F8.T1` | preconditions: F7 committed; preserve router-wide auth-first ordering and SCIM media/error boundary.
 
 ## deviations & decisions
 
@@ -50,6 +49,7 @@ mid-edit files: none.
 - Full oracle retains one pre-existing non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`; no unrelated files changed.
 - Server Vitest file parallelism is disabled because real-listener suites share process-wide environment/mock boundaries; this keeps the full 50-file oracle deterministic with F4's scratch cluster and F5's listener matrix.
 - Direct Node now defaults `TRUST_PROXY_HOPS=0`; only the bundled nginx path sets `1`. Any deployment with a different proxy topology must set the exact hop count explicitly.
+- F7 owns the SCIM ingress boundary: generic body parsers skip the exact subtree, service auth runs first, and POST/PATCH parsing/errors stay SCIM-shaped.
 - F6 owns the sole runtime API mount path and the registry-backed auth sweep. F7 must keep SCIM auth-first and preserve its position outside the generic public body/rate-limit boundary.
 
 ## watchouts
