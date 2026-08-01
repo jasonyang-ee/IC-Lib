@@ -14,28 +14,9 @@ const __dirname = path.dirname(__filename);
 // Load .env from project root (two directories up from src/index.js)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// Import routes
-import authRoutes from './routes/auth.js';
-import componentRoutes from './routes/components.js';
-import categoryRoutes from './routes/categories.js';
-import distributorRoutes from './routes/distributors.js';
-import manufacturerRoutes from './routes/manufacturers.js';
-import inventoryRoutes from './routes/inventory.js';
-import searchRoutes from './routes/search.js';
-import reportsRoutes from './routes/reports.js';
-import dashboardRoutes from './routes/dashboard.js';
-import settingsRoutes from './routes/settings.js';
-import adminRoutes from './routes/admin.js';
-import projectRoutes from './routes/projects.js';
-import ecoRoutes from './routes/eco.js';
-import smtpRoutes from './routes/smtp.js';
-import fileUploadRoutes from './routes/fileUpload.js';
-import fileLibraryRoutes from './routes/fileLibrary.js';
-import scimRoutes from './routes/scim.js';
-
 // Import initialization service
 import { initializeAuthentication } from './services/initializationService.js';
-import { SCIM_BASE_PATH, validateScimConfiguration } from './services/scimService.js';
+import { validateScimConfiguration } from './services/scimService.js';
 
 // Import health/readiness handlers (SPEC §V30: liveness != readiness)
 import { liveness, readiness } from './controllers/healthController.js';
@@ -48,6 +29,7 @@ import { logError, logFatal, logInfo, logWarn } from './utils/logger.js';
 import pool from './config/database.js';
 import { gracefulShutdown } from './utils/gracefulShutdown.js';
 import { parseTrustProxyHops } from './config/trustProxy.js';
+import { mountApiRoutes } from './routes/registry.js';
 
 // Rate limiting (SPEC §V32): global ceiling for the public read surface
 import { publicGlobalLimiter } from './middleware/rateLimit.js';
@@ -104,28 +86,8 @@ app.get('/api/ready', readiness);
 // API routes so it guards the public read surface (§V10) from abuse.
 app.use('/api', publicGlobalLimiter);
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/components', componentRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/distributors', distributorRoutes);
-app.use('/api/manufacturers', manufacturerRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/search', searchRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/eco', ecoRoutes);
-app.use('/api/smtp', smtpRoutes);
-app.use('/api/files', fileUploadRoutes);
-app.use('/api/file-library', fileLibraryRoutes);
-
-// Entra SCIM provisioning (§I12/§V60). Bearer-authenticated service traffic, so
-// it carries its own gate and stays outside the §V10 public per-IP budget; the
-// router answers 404 while the feature is disabled.
-app.use(SCIM_BASE_PATH, scimRoutes);
+// API routes, including SCIM, mount once from the ordered registry.
+mountApiRoutes(app);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {

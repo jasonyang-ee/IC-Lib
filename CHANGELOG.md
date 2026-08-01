@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Runtime API mounts, public-path resolution, and the full-router auth sweep now consume one ordered 17-router registry. SCIM remains the final mount outside the guest limiter, and registry-based negative tests fail when a mounted router is added without its guard coverage.
+
 - Server Vitest now runs test files serially so real-listener suites with process-wide environment and mock state cannot race one another; the full repository gate remains deterministic while the isolated PostgreSQL migration replay runs.
 
 - Tracked repository text now follows the checked-in LF policy, while verified binary families remain unnormalized. The Docker repair entrypoint has an LF shebang again, preventing Linux from trying to execute `/bin/sh\r`; a repository-byte regression test guards the policy and executable entrypoints.

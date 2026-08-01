@@ -1,4 +1,7 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
@@ -11,44 +14,22 @@ const {
   isPublicGlobalTarget,
   resolveRouteDescriptor,
 } = await import('../constants/publicRoutes.js');
-
-const { default: adminRoutes } = await import('../routes/admin.js');
-const { default: authRoutes } = await import('../routes/auth.js');
-const { default: categoryRoutes } = await import('../routes/categories.js');
-const { default: componentRoutes } = await import('../routes/components.js');
-const { default: dashboardRoutes } = await import('../routes/dashboard.js');
-const { default: distributorRoutes } = await import('../routes/distributors.js');
-const { default: ecoRoutes } = await import('../routes/eco.js');
-const { default: fileLibraryRoutes } = await import('../routes/fileLibrary.js');
-const { default: fileUploadRoutes } = await import('../routes/fileUpload.js');
-const { default: inventoryRoutes } = await import('../routes/inventory.js');
-const { default: manufacturerRoutes } = await import('../routes/manufacturers.js');
-const { default: projectRoutes } = await import('../routes/projects.js');
-const { default: reportsRoutes } = await import('../routes/reports.js');
-const { default: scimRoutes } = await import('../routes/scim.js');
-const { default: searchRoutes } = await import('../routes/search.js');
-const { default: settingsRoutes } = await import('../routes/settings.js');
-const { default: smtpRoutes } = await import('../routes/smtp.js');
-
-const ALL_ROUTERS = {
+const { ROUTE_MOUNTS } = await import('../constants/routeMounts.js');
+const { ROUTER_REGISTRY } = await import('../routes/registry.js');
+const ROUTERS = Object.fromEntries(ROUTER_REGISTRY.map(({ name, router }) => [name, router]));
+const {
   admin: adminRoutes,
-  auth: authRoutes,
   categories: categoryRoutes,
   components: componentRoutes,
   dashboard: dashboardRoutes,
-  distributors: distributorRoutes,
-  eco: ecoRoutes,
-  fileLibrary: fileLibraryRoutes,
-  fileUpload: fileUploadRoutes,
   inventory: inventoryRoutes,
   manufacturers: manufacturerRoutes,
   projects: projectRoutes,
-  reports: reportsRoutes,
   scim: scimRoutes,
-  search: searchRoutes,
   settings: settingsRoutes,
-  smtp: smtpRoutes,
-};
+} = ROUTERS;
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const MUTATING_METHODS = ['post', 'put', 'patch', 'delete'];
 
@@ -79,7 +60,7 @@ const getRouteHandlers = (router, method, routePath) => {
  * router-level `router.use(authenticate)` was registered before it, or its own
  * handler chain starts with `authenticate`.
  */
-const findUnguardedMutations = (routerName, router) => {
+const findUnguardedRouterMutations = (routerName, router) => {
   const unguarded = [];
   const guard = guardFor(routerName);
   let routerAuthActive = false;
@@ -107,12 +88,15 @@ const findUnguardedMutations = (routerName, router) => {
   return unguarded;
 };
 
+export const findUnguardedMutations = (registry) => registry
+  .flatMap(({ name, router }) => findUnguardedRouterMutations(name, router));
+
 /**
  * Same registration-order walk for GET routes: everything is either on the
  * explicit public allowlist or behind authenticate. Reports both directions of
  * drift — an unlisted public GET and a stale allowlist entry.
  */
-const auditGetRoutes = (routerName, router) => {
+const auditRouterGets = (routerName, router) => {
   const publicUnlisted = [];
   const guardedButListed = [];
   const guard = guardFor(routerName);
@@ -137,10 +121,12 @@ const auditGetRoutes = (routerName, router) => {
   return { publicUnlisted, guardedButListed };
 };
 
+export const auditGetRoutes = (registry) => registry
+  .map(({ name, router }) => auditRouterGets(name, router));
+
 describe('route auth guards', () => {
   it('no state-changing route in any router is reachable without authenticate (V27)', () => {
-    const unguarded = Object.entries(ALL_ROUTERS)
-      .flatMap(([name, router]) => findUnguardedMutations(name, router));
+    const unguarded = findUnguardedMutations(ROUTER_REGISTRY);
 
     expect(unguarded).toEqual([]);
   });
@@ -185,8 +171,7 @@ describe('route auth guards', () => {
   });
 
   it('every GET route is either on the documented public allowlist or authenticated (V10)', () => {
-    const audits = Object.entries(ALL_ROUTERS)
-      .map(([name, router]) => auditGetRoutes(name, router));
+    const audits = auditGetRoutes(ROUTER_REGISTRY);
 
     expect(audits.flatMap((audit) => audit.publicUnlisted)).toEqual([]);
     expect(audits.flatMap((audit) => audit.guardedButListed)).toEqual([]);
@@ -201,8 +186,8 @@ describe('route auth guards', () => {
 
   it('gates every SCIM route on authenticateScim, and only the SCIM router (§V60)', () => {
     for (const method of ['post', 'patch', 'delete']) {
-      const path = method === 'post' ? '/Users' : '/Users/:id';
-      expect(getRouteHandlers(scimRoutes, method, path)[0]).toBe('authenticateScim');
+      const routePath = method === 'post' ? '/Users' : '/Users/:id';
+      expect(getRouteHandlers(scimRoutes, method, routePath)[0]).toBe('authenticateScim');
     }
     expect(getRouteHandlers(scimRoutes, 'get', '/Users')[0]).toBe('authenticateScim');
     expect(getRouteHandlers(scimRoutes, 'get', '/ServiceProviderConfig')[0]).toBe('authenticateScim');
@@ -212,7 +197,8 @@ describe('route auth guards', () => {
     const strayRouter = express.Router();
     strayRouter.post('/anything', authenticateScim, (_req, res) => res.end());
 
-    expect(findUnguardedMutations('components', strayRouter)).toEqual(['components post /anything']);
+    expect(findUnguardedMutations([{ name: 'components', router: strayRouter }]))
+      .toEqual(['components post /anything']);
   });
 
   it('fails when a SCIM route is added without its guard', () => {
@@ -220,8 +206,9 @@ describe('route auth guards', () => {
     unguarded.post('/Users', (_req, res) => res.end());
     unguarded.get('/Users', (_req, res) => res.end());
 
-    expect(findUnguardedMutations('scim', unguarded)).toEqual(['scim post /Users']);
-    expect(auditGetRoutes('scim', unguarded).publicUnlisted).toEqual(['scim get /Users']);
+    const syntheticRegistry = [{ name: 'scim', router: unguarded }];
+    expect(findUnguardedMutations(syntheticRegistry)).toEqual(['scim post /Users']);
+    expect(auditGetRoutes(syntheticRegistry)[0].publicUnlisted).toEqual(['scim get /Users']);
   });
 
   it('keeps destructive admin surfaces admin-gated', () => {
@@ -234,8 +221,37 @@ describe('route auth guards', () => {
 });
 
 describe('public route descriptors (§V10, §V32)', () => {
+  it('keeps ordered mount descriptors, bindings, and index wiring in parity', () => {
+    expect(ROUTE_MOUNTS.map(({ name, path: mount }) => `${name} ${mount}`)).toEqual([
+      'auth /api/auth',
+      'components /api/components',
+      'categories /api/categories',
+      'distributors /api/distributors',
+      'manufacturers /api/manufacturers',
+      'inventory /api/inventory',
+      'search /api/search',
+      'reports /api/reports',
+      'dashboard /api/dashboard',
+      'settings /api/settings',
+      'admin /api/admin',
+      'projects /api/projects',
+      'eco /api/eco',
+      'smtp /api/smtp',
+      'fileUpload /api/files',
+      'fileLibrary /api/file-library',
+      'scim /api/scim/v2',
+    ]);
+    expect(ROUTER_REGISTRY.map(({ name, path: mount }) => `${name} ${mount}`))
+      .toEqual(ROUTE_MOUNTS.map(({ name, path: mount }) => `${name} ${mount}`));
+    expect(ROUTER_REGISTRY.every(({ router }) => router)).toBe(true);
+
+    const indexSource = fs.readFileSync(path.join(repoRoot, 'server/src/index.js'), 'utf8');
+    expect(indexSource.match(/mountApiRoutes\(app\)/g) || []).toHaveLength(1);
+    expect(indexSource.match(/app\.use\(['"]\/api\//g) || []).toHaveLength(0);
+  });
+
   it('declares a mount for every router the app sweeps', () => {
-    expect(Object.keys(ROUTER_MOUNTS).sort()).toEqual(Object.keys(ALL_ROUTERS).sort());
+    expect(Object.keys(ROUTER_MOUNTS).sort()).toEqual(ROUTER_REGISTRY.map(({ name }) => name).sort());
   });
 
   it('names only routers that exist, in every descriptor set', () => {

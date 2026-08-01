@@ -1,4 +1,4 @@
-import { SCIM_BASE_PATH } from '../services/scimService.js';
+import { ROUTE_MOUNTS } from './routeMounts.js';
 
 /**
  * Single source of truth for the public request surface (SPEC §V10, §V27, §V32).
@@ -16,31 +16,15 @@ import { SCIM_BASE_PATH } from '../services/scimService.js';
  */
 
 /**
- * Router name -> mount path. Must mirror the `app.use('/api/...')` calls.
+ * Router name -> mount path, derived from the ordered runtime descriptors.
  *
  * `scim` is mounted like any other router so the guard sweep covers it, but it
- * appears in no descriptor set below: its routes are service-authenticated
+ * appears in no public descriptor set below: its routes are service-authenticated
  * (§V60) and therefore neither public nor subject to the per-IP guest ceiling.
  */
-export const ROUTER_MOUNTS = {
-  admin: '/api/admin',
-  auth: '/api/auth',
-  categories: '/api/categories',
-  components: '/api/components',
-  dashboard: '/api/dashboard',
-  distributors: '/api/distributors',
-  eco: '/api/eco',
-  fileLibrary: '/api/file-library',
-  fileUpload: '/api/files',
-  inventory: '/api/inventory',
-  manufacturers: '/api/manufacturers',
-  projects: '/api/projects',
-  reports: '/api/reports',
-  scim: SCIM_BASE_PATH,
-  search: '/api/search',
-  settings: '/api/settings',
-  smtp: '/api/smtp',
-};
+export const ROUTER_MOUNTS = Object.freeze(Object.fromEntries(
+  ROUTE_MOUNTS.map(({ name, path }) => [name, path]),
+));
 
 /**
  * Deliberately public state-changing routes (§V27).

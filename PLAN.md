@@ -192,12 +192,12 @@ files: new `server/src/constants/routeMounts.js`, new `server/src/routes/registr
 
 §T TASKS:
 
-T1|.|create ordered runtime registry without import cycle
+T1|x|create ordered runtime registry without import cycle
 touch: `routeMounts.js`, `registry.js`, `index.js`, `publicRoutes.js`
 details: ordered descriptors own router name + exact mount path; registry binds each descriptor to its router and asserts exact name parity; exported mount fn is index’s sole API-router mounting path. `publicRoutes.js` derives mounts from descriptors. Preserve all 17 paths, public limiter before app routers, SCIM last/outside public budget. Dependency edge remains registry → auth route → rateLimit → publicRoutes → descriptor leaf; ⊥ edge back to registry.
 verify: paths/order byte-identical to `c215724`; `node --check`; no direct route import/mount list remains in index.
 
-T2|.|derive sweep + prove drift failure
+T2|x|derive sweep + prove drift failure
 touch: `routeAuthGuards.test.js`
 details: delete `ALL_ROUTERS`; audit registry routers directly, retaining per-router guard policy. Export audit helper accepting a registry; append synthetic mounted unguarded router → audit fails automatically. Assert descriptor↔binding exact parity and index uses mount fn once.
 verify: focused route suite; synthetic negative proves mounted-but-unswept impossible through supported mount path; `bash ./test.sh` exit 0.
