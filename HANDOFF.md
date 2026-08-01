@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `1385c23` | tests pass 540/540 (bash ./test.sh exit 0: client 28 files/143 tests, server 50 files/397 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+branch `test` | last commit at handoff write `8419928` | tests pass 540/540 (bash ./test.sh exit 0: client 28 files/143 tests, server 50 files/397 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
 uncommitted at handoff write: none.
 
 ## done this session
@@ -30,13 +30,14 @@ uncommitted at handoff write: none.
 - `F7.T1-T3` SCIM parser exclusion, router-wide auth-first media gate, case-insensitive Bearer, bounded parser, and SCIM-shaped ingress errors -> `a2e548f`; focused 62/62 plus full oracle.
 - `F8.T1-T4` canonical SCIM GUIDs, operation-specific attribute ownership, stable 201 Location responses, and retrievable User ResourceType/Schema metadata -> `fcb1cac`; focused 65/65 plus full oracle.
 - `F9.T1-T2` pre-DB ECO alternative-class validation and visible/eligible bulk-mutation snapshots -> `1385c23`; focused 25/25 plus full oracle.
+- `F10.T1-T3` full oracle, adversarial matrix replay, scope audit, and final closure -> `8419928`; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0`.
 
 ## in progress (exact stop point)
-none. F9 committed and self-reviewed; no mid-edit files.
+none. F10 verification complete; no mid-edit files.
 mid-edit files: none.
 
 ## next
-`F10.T1` | preconditions: F9 committed; verification is read-only except encoded closure documents.
+-
 
 ## deviations & decisions
 
@@ -54,6 +55,8 @@ mid-edit files: none.
 - F7 owns the SCIM ingress boundary: generic body parsers skip the exact subtree, service auth runs first, and POST/PATCH parsing/errors stay SCIM-shaped.
 - F8 owns canonical SCIM GUIDs, operation-specific attribute ownership, and stable discovery/resource response contracts.
 - F9 owns pre-DB alternative-class domain rejection and visible/eligible ID snapshots at every Library bulk mutation boundary.
+- F10 accepted the known raw baseline-wide `git diff --check` legacy trailing-space receipts because F2 deliberately preserves content-neutral normalization scope; current-tree and post-F2 scoped checks are clean.
+- F10 removed the one new blank-EOF receipt in `server/src/middleware/bodyParsers.js`; no behavior changed.
 - F6 owns the sole runtime API mount path and the registry-backed auth sweep. F7 must keep SCIM auth-first and preserve its position outside the generic public body/rate-limit boundary.
 
 ## watchouts
@@ -69,3 +72,15 @@ mid-edit files: none.
 
 item|status|evidence|decision
 |---|---|---|---|
+repository text/shebang policy|pass|`repositoryTextPolicy.test.js`; F2 commits `375165d`, `9a7ab7f`, `bb3fb05`|GO
+live-role authorization|pass|`auth.test.js` demotion/elevation matrix; F3 `6bcb540`|GO
+OIDC credential ownership|pass|`oidcPasswordOwnershipSchema.test.js` scratch PostgreSQL replay plus auth/OIDC suites; F4 `b5b637c`|GO
+proxy/IP trust|pass|`trustProxy.test.js` and `rateLimit.test.js`; F5 `574e491`|GO
+runtime route registry|pass|`routeAuthGuards.test.js` synthetic unguarded-router negative; F6 `5d69e0b`|GO
+SCIM ingress boundary|pass|`scimAuth.test.js` + `scimRoutes.test.js` unauthenticated/body/media/error matrix; F7 `a2e548f`|GO
+SCIM identity/operation/discovery|pass|`scimRoutes.test.js` 35 tests covering GUID, attribute, Entra, 201 Location, Schema/ResourceType replay; F8 `fcb1cac`|GO
+ECO and visible bulk safety|pass|`ecoAlternativeClass.test.js` 7 tests + `libraryAlternativeClass.test.jsx` 18 tests; F9 `1385c23`|GO
+full static/test oracle|pass|`bash ./test.sh`: client 28 files/143 tests, server 50 files/397 tests, scripts dry-run; configured lint passes; only known warning at `server/src/test/componentAuditFailure.test.js:2`|GO
+scope/traceability|pass|PLAN `§T` all `x`, current tree clean, no dependency/generated/snapshot changes, numeric migrations 1-19, log and phase receipts reviewed|GO
+baseline diff hygiene|note|raw `git diff --check d49f3b..HEAD` retains legacy trailing-space receipts; current-tree and `git diff --check bb3fb05..HEAD` exit 0|accepted
+final classification|pass|`BLOCK=0 DIVERGENCE=0 UNKNOWN=0`; no push/tag|GO
