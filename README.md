@@ -91,7 +91,7 @@ services:
   | Change password | Authenticated user id | Failed change-password attempts | `RATE_LIMIT_CHANGE_PASSWORD_MAX`, `RATE_LIMIT_CHANGE_PASSWORD_WINDOW_MS` |
   | Public ceiling | Client IP | Only the unauthenticated read surface plus the barcode lookup | `RATE_LIMIT_GLOBAL_MAX` (default 1000), `RATE_LIMIT_GLOBAL_WINDOW_MS` (default 15 min) |
 
-  Authenticated requests do not spend the public ceiling, so a busy signed-in user cannot throttle guest reads coming from the same office NAT address — and cannot be throttled by them. `TRUST_PROXY_HOPS` is the number of proxy hops in front of Node (1 for the bundled nginx) so the limiters key on the real client address rather than the proxy's.
+  Authenticated requests do not spend the public ceiling, so a busy signed-in user cannot throttle guest reads coming from the same office NAT address — and cannot be throttled by them. `TRUST_PROXY_HOPS` is the number of proxy hops in front of Node: direct Node defaults to `0`, while the bundled nginx image sets `1`. Match it to the actual topology so the limiters key on the real client address rather than an untrusted forwarded header.
 
   The counters are held in the app process's own memory. They reset when the container restarts, and each process or replica keeps its own counts — the bundled `docker-compose.yml` runs a single app container, which is what makes these numbers authoritative. If you scale the app horizontally, configure a shared external store before treating the limits as uniformly enforced.
 

@@ -170,12 +170,12 @@ files: new `server/src/config/trustProxy.js`, `server/src/index.js`, `Dockerfile
 
 §T TASKS:
 
-T1|.|parse a secure explicit proxy contract
+T1|x|parse a secure explicit proxy contract
 touch: `trustProxy.js`, `index.js`, deployment docs/config
 details: missing `TRUST_PROXY_HOPS` → 0; accept only integer ≥0; preserve literal 0; invalid/negative/fractional → startup configuration error. `app.set('trust proxy', hops)`. Bundled Docker image explicitly sets 1 because nginx is the only exposed hop; docs say direct Node stays 0 and proxy topology must match.
 verify: parser unit matrix + Docker/config-doc parity.
 
-T2|.|replay IP spoof/control through real listener
+T2|x|replay IP spoof/control through real listener
 touch: `trustProxy.test.js`
 details: limit 2 direct/default + four distinct forged XFF → `[401,401,429,429]`; explicit one-hop + proxy-overwritten XFF distinguishes real clients; literal 0 regression; invalid configs fail before listen.
 verify: real listener closes in `finally`; reverting `|| 1` behavior fails; focused rate-limit + trust-proxy suites; `bash ./test.sh` exit 0.

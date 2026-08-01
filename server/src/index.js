@@ -47,6 +47,7 @@ import { logError, logFatal, logInfo, logWarn } from './utils/logger.js';
 // Process resilience (SPEC §V31): pool handle for drain, shutdown sequencer
 import pool from './config/database.js';
 import { gracefulShutdown } from './utils/gracefulShutdown.js';
+import { parseTrustProxyHops } from './config/trustProxy.js';
 
 // Rate limiting (SPEC §V32): global ceiling for the public read surface
 import { publicGlobalLimiter } from './middleware/rateLimit.js';
@@ -58,10 +59,11 @@ const PORT = process.env.PORT || 3500;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const SUBDIRECTORY_PATH = process.env.CONFIG_SUBDIRECTORY_PATH || process.env.BASE_URL || '';
 
-// Trust the single nginx reverse-proxy hop so req.ip reflects the real client
-// (X-Forwarded-For) - required for per-IP rate limiting (§V32) to key correctly
-// in production. A fixed hop count (not `true`) keeps clients from spoofing IPs.
-app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
+// Direct Node defaults to no trusted proxy. In the bundled image nginx is the
+// single trusted hop, so req.ip reflects the real client for per-IP rate
+// limiting (§V32). A fixed parsed count (not `true`) blocks direct spoofing.
+const trustProxyHops = parseTrustProxyHops();
+app.set('trust proxy', trustProxyHops);
 
 // Middleware
 app.use(helmet());

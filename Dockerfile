@@ -65,7 +65,8 @@ RUN chmod +x /app/start.sh /usr/local/bin/repair
 
 # Production environment variables (can be overridden at runtime)
 ENV NODE_ENV=production \
-	PORT=3500
+	PORT=3500 \
+	TRUST_PROXY_HOPS=1
 
 # Expose only port 80 (nginx handles both frontend and API proxy)
 EXPOSE 80
