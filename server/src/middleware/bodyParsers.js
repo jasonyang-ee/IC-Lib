@@ -25,4 +25,3 @@ export const appBodyParsers = (req, res, next) => {
     return urlencodedParser(req, res, next);
   });
 };
-
