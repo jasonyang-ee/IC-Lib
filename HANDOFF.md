@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `bb3fb05` | tests pass 519/519 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 48 files/378 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+branch `test` | last commit at handoff write `6bcb540` | tests pass 521/521 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 48 files/380 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
 uncommitted at handoff write: none.
 
 ## done this session
@@ -24,15 +24,16 @@ uncommitted at handoff write: none.
 - embedded `/review-plan`: remaining research phases `0`; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0 HARDEN=0 NOTE=1`; **GO**. NOTE = plan is executable while reviewed implementation remains release **NO-GO** until F2-F9 land.
 - preserved security-review receipt for `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`: implementation baseline `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; full oracle was green but lacks the planned regressions.
 - `F2.T1` policy-only `.gitattributes` → `375165d`; `F2.T2` content-neutral normalization of 120 verified text blobs → `9a7ab7f`; `F2.T3` regression guard, three semantic whitespace fixes, changelog, and plan verification correction → `bb3fb05`.
+- `F3.T1-T2` live database role override + demotion/elevation matrix → `6bcb540`; no JWT or response-shape changes.
 
 ## in progress (exact stop point)
 
-none. F2 committed and self-reviewed; no mid-edit files.
+none. F3 committed and self-reviewed; no mid-edit files.
 mid-edit files: none.
 
 ## next
 
-`F3.T1` | preconditions: F2 committed; focused auth tests + full oracle green.
+`F4.T1` | preconditions: F3 committed; no live DB writes; isolated scratch only for migration validation.
 
 ## deviations & decisions
 
