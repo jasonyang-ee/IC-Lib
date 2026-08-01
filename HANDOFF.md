@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `6bcb540` | tests pass 521/521 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 48 files/380 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+branch `test` | last commit at handoff write `b5b637c` | tests pass 525/525 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 49 files/384 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
 uncommitted at handoff write: none.
 
 ## done this session
@@ -20,7 +20,7 @@ uncommitted at handoff write: none.
 - user chose **A purge** for F1.T2: every existing OIDC password hash is irreversibly cleared; future OIDC links clear the hash atomically; local credential paths gate on `auth_provider='local'`. B quarantine/hybrid auth removed.
 - `/prep` completed F1 (`T1-T3 x`), ingested the boilerplate-only `BACKLOG.md`, then blanked it after PLAN write. Cook flipped PLAN to `planning status: work-in-progress` before F2.
 - `/encode-docs` edited existing §V29 only: `auth_provider='oidc'` → `password_hash=NULL` via DB CHECK; linking clears the hash; provider gate wins against anomalous data. Existing §R15-§R17 + §V27/§V32/§V60 research remains current.
-- F4 collapsed to one path: migration `19_oidc_password_ownership.sql` purges exact OIDC rows + adds guarded CHECK; fresh schema mirrors it; admin/guest seed conflicts update passwords only for existing local-provider rows; committed regression + isolated PostgreSQL 18.1 replay named.
+- `F4.T1-T3` provider-owned credential gates + migration `19_oidc_password_ownership.sql` → `b5b637c`: verified-email linking clears hashes; login/change-password reject every non-local provider before bcrypt; migration purges exact OIDC rows + adds guarded CHECK; fresh schema mirrors it; admin/guest seed conflicts update passwords only for existing local-provider rows; anomalous-hash matrix + isolated PostgreSQL 18.1 replay committed.
 - embedded `/review-plan`: remaining research phases `0`; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0 HARDEN=0 NOTE=1`; **GO**. NOTE = plan is executable while reviewed implementation remains release **NO-GO** until F2-F9 land.
 - preserved security-review receipt for `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`: implementation baseline `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; full oracle was green but lacks the planned regressions.
 - `F2.T1` policy-only `.gitattributes` → `375165d`; `F2.T2` content-neutral normalization of 120 verified text blobs → `9a7ab7f`; `F2.T3` regression guard, three semantic whitespace fixes, changelog, and plan verification correction → `bb3fb05`.
@@ -28,24 +28,25 @@ uncommitted at handoff write: none.
 
 ## in progress (exact stop point)
 
-none. F3 committed and self-reviewed; no mid-edit files.
+none. F4 committed and self-reviewed; no mid-edit files.
 mid-edit files: none.
 
 ## next
 
-`F4.T1` | preconditions: F3 committed; no live DB writes; isolated scratch only for migration validation.
+`F5.T1` | preconditions: F4 committed; no live DB writes; preserve direct Node default `TRUST_PROXY_HOPS=0`.
 
 ## deviations & decisions
 
 - plan GO ≠ release GO: current code retains 8 blockers + 3 divergences; GO authorizes execution because all decisions/dependencies/tests are now closed.
 - A purge is irreversible. Added DB CHECK + fresh-schema/seed guards so cleanup cannot silently regress; this hardening implements §V29 rather than expanding product scope.
-- F4 scratch mechanism frozen from local evidence: `psql`, `initdb`, `pg_ctl` = PostgreSQL 18.1. Use isolated temp data dir/non-live port; load prior users shape, seed OIDC+local rows, apply migration twice, assert purge/constraint/local preservation; cleanup in `finally`.
+- F4 scratch mechanism: `psql`, `initdb`, `postgres`, `pg_ctl` = PostgreSQL 18.1. Use isolated temp data dir/non-live port; load prior users shape, seed OIDC+local rows, apply migration twice, assert purge/constraint/local preservation; Windows starts direct `postgres` because this runner's `pg_ctl start` restricted-token path fails; cleanup uses `pg_ctl` stop with process-kill fallback in `finally`.
 - explicit review baseline remains `d49f3b..c215724`, not a release tag. Later planning-doc commit ⊥ expands implementation scope.
 - route registry, proxy, SCIM, line-ending, role, ECO, and visible-selection mechanisms remain exactly as PLAN F2-F10; no fallback/either-or branch remains.
 
 - F2 plan verification corrected: 120-file normalization exposes legacy trailing spaces in raw full-range `git diff --check`; semantic oracle scopes `git diff --check` to F2.T3 paths. PLAN.md updated in `bb3fb05`.
 - Windows tracks shell entrypoints as `100644`; recurrence test enumerates every tracked `#!` file, not mode bits.
 - Full oracle retains one pre-existing non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`; no unrelated files changed.
+- Server Vitest file parallelism is disabled because real-listener suites share process-wide environment/mock boundaries; this keeps the full 49-file oracle deterministic with F4's scratch cluster.
 
 ## watchouts
 
