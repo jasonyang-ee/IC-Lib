@@ -126,6 +126,8 @@ A generic OIDC provider is also supported: set the same variables with that prov
 
 On first sign-in, just-in-time provisioning assigns only `OIDC_DEFAULT_ROLE`; an IC-Lib admin then owns role changes, activation, and deactivation. A verified email links to a local account only when exactly one account matches; an unverified or ambiguous email never links. Local accounts remain available for break-glass access.
 
+Before applying migration `19_oidc_password_ownership.sql`, confirm that SSO login works and take a recoverable database backup. The migration irreversibly clears every stored `password_hash` for `auth_provider='oidc'`; rolling back application code cannot restore those credentials. Existing `auth_provider='local'` break-glass accounts remain unchanged.
+
 Deactivating an IC-Lib user now ends that user's existing session: every protected request re-checks the account's active state, so an already-issued token stops working on its next request instead of lasting out the remainder of its lifetime.
 
 ### Entra SCIM provisioning (optional)

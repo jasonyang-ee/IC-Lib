@@ -68,6 +68,7 @@ describe('authController cookie auth', () => {
           role: 'admin',
           is_active: true,
           display_name: 'Tester',
+          auth_provider: 'local',
         }],
       })
       .mockResolvedValueOnce({ rows: [] })
@@ -118,6 +119,7 @@ describe('authController cookie auth', () => {
           role: 'admin',
           is_active: true,
           display_name: 'Tester',
+          auth_provider: 'local',
         }],
       })
       .mockResolvedValueOnce({ rows: [] })
@@ -175,6 +177,31 @@ describe('authController cookie auth', () => {
         role: 'read-only',
         is_active: true,
         display_name: 'SSO User',
+        auth_provider: 'oidc',
+      }],
+    });
+
+    const req = mockReq({ body: { username: 'sso.user', password: 'anything' } });
+    const res = mockRes();
+
+    await login(req, res);
+
+    expect(compareMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid username or password' });
+    expect(res.cookie).not.toHaveBeenCalled();
+  });
+
+  it('rejects local login for an anomalous SSO hash without calling bcrypt', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{
+        id: 'user-2',
+        username: 'sso.user',
+        password_hash: 'legacy-oidc-hash',
+        role: 'read-only',
+        is_active: true,
+        display_name: 'SSO User',
+        auth_provider: 'oidc',
       }],
     });
 
@@ -190,7 +217,7 @@ describe('authController cookie auth', () => {
   });
 
   it('rejects change-password for SSO-only users with a clear 400', async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ password_hash: null }] });
+    queryMock.mockResolvedValueOnce({ rows: [{ password_hash: null, auth_provider: 'oidc' }] });
 
     const req = mockReq({ body: { currentPassword: 'x', newPassword: 'longenough' } });
     const res = mockRes();
@@ -198,6 +225,22 @@ describe('authController cookie auth', () => {
     await changePassword(req, res);
 
     expect(compareMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'This account signs in through single sign-on and has no local password',
+    });
+  });
+
+  it('rejects change-password for an anomalous SSO hash without calling bcrypt', async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ password_hash: 'legacy-oidc-hash', auth_provider: 'oidc' }] });
+
+    const req = mockReq({ body: { currentPassword: 'x', newPassword: 'longenough' } });
+    const res = mockRes();
+
+    await changePassword(req, res);
+
+    expect(compareMock).not.toHaveBeenCalled();
+    expect(hashMock).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
       error: 'This account signs in through single sign-on and has no local password',

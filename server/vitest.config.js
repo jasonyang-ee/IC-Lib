@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Real-listener suites share process-wide environment and mocks; file
+    // parallelism makes their beforeEach/afterEach boundaries race.
+    fileParallelism: false,
     include: ['src/**/*.{test,spec}.{js,mjs}'],
     exclude: ['node_modules', 'dist', 'library', 'download'],
     coverage: {

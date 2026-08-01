@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SSO accounts now own their credentials exclusively: verified-email linking clears any legacy local hash, local login and password changes reject every non-local provider before bcrypt, and migration `19_oidc_password_ownership.sql` purges existing OIDC hashes before adding a named database CHECK. Fresh admin/guest seeds preserve SSO ownership on username conflicts. The migration is irreversible for those hashes; operators must confirm SSO login and take a recoverable backup before applying it.
+
 - Protected requests now use the current database role as the authorization source while retaining the existing one-query active-session check. A demoted account loses protected access on its next request, and a newly elevated account gains it without waiting for the JWT role claim to expire; token generation and response shapes are unchanged.
 
 - Login, SSO login, and logout no longer break when the activity-log write fails. Nineteen `catch (logError)` clauses across the auth, component, OIDC, and settings controllers shadowed the imported `logError` logger, so a rejected audit write turned into a `TypeError` thrown over the original error: local and SSO login returned 500 (or redirected to `/login?error=sso_failed`) without ever setting the session cookie, and logout returned 500 without clearing it. Every optional audit site now uses a distinct `activityError` binding and logs through the real logger, leaving the response untouched.
@@ -24,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `no-shadow` and `no-console` are enabled as errors for the server (with `src/utils/logger.js` as the one sanctioned console sink), so both classes of defect fail lint instead of reappearing. Three decorative blank `console.log('')` banner writes were removed. `no-shadow` is now an error on the client too; the seven pre-existing shadowed bindings it found (in `AuthContext`, `Inventory`, and `Library`) were renamed to say which value they hold, with no behaviour change.
 
 ### Changed
+
+- Server Vitest now runs test files serially so real-listener suites with process-wide environment and mock state cannot race one another; the full repository gate remains deterministic while the isolated PostgreSQL migration replay runs.
 
 - Tracked repository text now follows the checked-in LF policy, while verified binary families remain unnormalized. The Docker repair entrypoint has an LF shebang again, preventing Linux from trying to execute `/bin/sh\r`; a repository-byte regression test guards the policy and executable entrypoints.
 

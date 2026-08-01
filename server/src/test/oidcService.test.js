@@ -374,6 +374,7 @@ describe('oidcService', () => {
       expect(user).toEqual(ACTIVE_USER);
       const linkSql = queryMock.mock.calls[2][0];
       expect(linkSql).toContain("auth_provider = 'oidc'");
+      expect(linkSql).toContain('password_hash = NULL');
       expect(queryMock.mock.calls[2][1]).toEqual([
         'https://idp.example.com',
         'sub-123',

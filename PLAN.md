@@ -139,21 +139,21 @@ next: F4.T1
 
 goal: make every `auth_provider='oidc'` account SSO-only and purge every stored OIDC password hash.
 inputs: F1.T2; §V29, §V50; commit `81d3472` intent.
-files: `server/src/services/oidcService.js`, `server/src/controllers/authController.js`, `database/init-users.sql`, `database/migrations/19_oidc_password_ownership.sql`, `server/src/test/{oidcService,authController,oidcPasswordOwnershipSchema}.test.js`, `README.md`, `CHANGELOG.md`.
+files: `server/src/services/oidcService.js`, `server/src/controllers/authController.js`, `server/vitest.config.js`, `database/init-users.sql`, `database/migrations/19_oidc_password_ownership.sql`, `server/src/test/{oidcService,authController,oidcPasswordOwnershipSchema}.test.js`, `README.md`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|.|close future link + local-auth paths
+T1|x|close future link + local-auth paths
 touch: `oidcService.js`, `authController.js`
 details: verified-email link atomically sets `password_hash=NULL` with provider/OIDC keys. Login selects `auth_provider` + rejects provider ≠ `local` before bcrypt regardless hash. Change-password selects provider + hash, rejects provider ≠ `local` before bcrypt/hash/update. Admin password gate already rejects OIDC; preserve local break-glass users.
 verify: F4.T3.
 
-T2|.|purge existing OIDC password hashes
-touch: `database/migrations/19_oidc_password_ownership.sql`, `database/init-users.sql`, new `oidcPasswordOwnershipSchema.test.js`, `README.md`, `CHANGELOG.md`
+T2|x|purge existing OIDC password hashes
+touch: `database/migrations/19_oidc_password_ownership.sql`, `database/init-users.sql`, new `oidcPasswordOwnershipSchema.test.js`, `README.md`, `CHANGELOG.md`, `server/vitest.config.js`
 details: migration first runs exactly `UPDATE users SET password_hash = NULL WHERE auth_provider = 'oidc' AND password_hash IS NOT NULL`, then idempotently adds `users_oidc_password_ownership` CHECK (`auth_provider <> 'oidc' OR password_hash IS NULL`). Mirror the CHECK in fresh schema. Guard default admin/guest `ON CONFLICT` password resets with existing `auth_provider='local'` so manual init cannot restore an OIDC hash. README/changelog require confirmed SSO + backup before rollout, name irreversible invalidation, and clarify unlinked local-provider break-glass accounts remain unchanged. ⊥ live DB command.
-verify: committed test checks exact purge predicate, migration/fresh-schema constraint parity, and guarded seed conflicts. Isolated temp PostgreSQL 18.1: load prior schema shape, seed OIDC+local hashes, apply migration twice → OIDC NULL + local unchanged; non-NULL OIDC insert/update rejected; local hash update accepted. Start/stop via `initdb`/`pg_ctl` in `finally`; assert scratch host/port ≠ app/live coordinates.
+verify: committed test checks exact purge predicate, migration/fresh-schema constraint parity, and guarded seed conflicts. Isolated temp PostgreSQL 18.1: load prior schema shape, seed OIDC+local hashes, apply migration twice → OIDC NULL + local unchanged; non-NULL OIDC insert/update rejected; local hash update accepted. Start with `initdb` + direct `postgres` on Windows because this runner's PostgreSQL 18.1 `pg_ctl start` restricted-token path fails; stop via `pg_ctl` with process-kill fallback in `finally`; assert scratch host/port ≠ app/live coordinates. Server Vitest file parallelism is disabled so real-listener/global-state suites have deterministic boundaries.
 
-T3|.|lock credential matrix
+T3|x|lock credential matrix
 touch: named server tests
 details: linked local user update includes hash NULL; OIDC row with anomalous non-null legacy hash gets login 401 + change 400 with bcrypt/hash/update ⊥ called; local row still authenticates/changes; JIT remains NULL; admin cannot set OIDC password; migration proves A purge.
 verify: focused OIDC/auth/user-management suites; revert each gate fails; `bash ./test.sh` exit 0.

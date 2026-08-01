@@ -435,6 +435,7 @@ export const findOrCreateOidcUser = async (claims) => {
         const linkedResult = await pool.query(
           `UPDATE users
            SET auth_provider = 'oidc',
+               password_hash = NULL,
                oidc_issuer = $1,
                oidc_sub = $2,
                oidc_tenant_id = $3,

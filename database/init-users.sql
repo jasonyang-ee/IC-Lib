@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS users (
   oidc_issuer TEXT,
   oidc_sub TEXT,
   oidc_tenant_id TEXT,
-  oidc_object_id TEXT
+  oidc_object_id TEXT,
+  CONSTRAINT users_oidc_password_ownership
+    CHECK (auth_provider <> 'oidc' OR password_hash IS NULL)
 );
 
 -- Create index on username for faster lookups
@@ -67,14 +69,23 @@ CREATE INDEX IF NOT EXISTS idx_user_activity_log_id ON user_activity_log(id DESC
 -- This is bcrypt hash for "admin123" with salt rounds 10
 INSERT INTO users (username, password_hash, role, display_name, is_active)
 VALUES ('admin', '$2a$10$4sJM12kg1BTeko3WljHm/OocI.OG/.1v9MkGTdfOgMBtIdOIfOXKi', 'admin', 'Administrator', true)
-ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
+ON CONFLICT (username) DO UPDATE
+SET password_hash = CASE
+  WHEN users.auth_provider = 'local' THEN EXCLUDED.password_hash
+  ELSE users.password_hash
+END;
 
 -- Insert default guest user
 -- Password: guest123 (Read-only access for viewing)
 -- This is bcrypt hash for "guest123" with salt rounds 10
 INSERT INTO users (username, password_hash, role, display_name, is_active)
 VALUES ('guest', '$2a$10$G8viUMs5vl8vvm6EOLaoFutUTyqabBRcLYB4c8TcmDBe7mAmxQyra', 'read-only', 'Guest User', true)
-ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'read-only';
+ON CONFLICT (username) DO UPDATE
+SET password_hash = CASE
+      WHEN users.auth_provider = 'local' THEN EXCLUDED.password_hash
+      ELSE users.password_hash
+    END,
+    role = 'read-only';
 
 -- Add activity types for user management
 INSERT INTO activity_types (type_name, description)

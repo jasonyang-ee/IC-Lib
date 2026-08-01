@@ -54,7 +54,7 @@ export const login = async (req, res) => {
 
     // Find user by username
     const result = await pool.query(
-      'SELECT id, username, password_hash, role, is_active, display_name FROM users WHERE username = $1',
+      'SELECT id, username, password_hash, role, is_active, display_name, auth_provider FROM users WHERE username = $1',
       [username],
     );
 
@@ -70,6 +70,13 @@ export const login = async (req, res) => {
     if (!user.is_active) {
       return res.status(403).json({ 
         error: 'Account is disabled', 
+      });
+    }
+
+    // Provider ownership wins even if anomalous legacy data has a hash.
+    if (user.auth_provider !== 'local') {
+      return res.status(401).json({
+        error: 'Invalid username or password',
       });
     }
 
@@ -512,12 +519,19 @@ export const changePassword = async (req, res) => {
 
     // Get current user's password hash
     const result = await pool.query(
-      'SELECT password_hash FROM users WHERE id = $1',
+      'SELECT password_hash, auth_provider FROM users WHERE id = $1',
       [req.user.userId],
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Provider ownership wins even if anomalous legacy data has a hash.
+    if (result.rows[0].auth_provider !== 'local') {
+      return res.status(400).json({
+        error: 'This account signs in through single sign-on and has no local password',
+      });
     }
 
     // SSO-only users have no local password to change
