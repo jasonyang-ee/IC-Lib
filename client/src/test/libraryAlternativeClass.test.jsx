@@ -6,6 +6,7 @@ import BulkAlternativeClassModal from '../components/library/BulkAlternativeClas
 import ComponentEditForm from '../components/library/ComponentEditForm';
 import ComponentDetailView from '../components/library/ComponentDetailView';
 import { canBulkSetAlternativeClass } from '../utils/accessControl';
+import { getVisibleBulkIds } from '../utils/libraryUtils';
 
 // The edit form embeds the CAD file manager, which pulls in the query client,
 // notifications and upload endpoints. None of that is under test here.
@@ -32,6 +33,26 @@ describe('bulk class selection eligibility (§V15/§V59)', () => {
     expect(canBulkSetAlternativeClass('read-write', 'production', true)).toBe(false);
     expect(canBulkSetAlternativeClass('read-write', 'reviewing', true)).toBe(false);
     expect(canBulkSetAlternativeClass('read-only', 'new', true)).toBe(false);
+  });
+});
+
+describe('visible bulk mutation boundary (§V59)', () => {
+  const visibleComponents = [
+    { id: 'visible-a', approval_status: 'new' },
+    { id: 'visible-b', approval_status: 'production' },
+  ];
+
+  it('drops selected IDs that are no longer visible', () => {
+    expect(getVisibleBulkIds(new Set(['visible-a', 'hidden']), visibleComponents)).toEqual(['visible-a']);
+    expect(getVisibleBulkIds(new Set(['hidden']), visibleComponents)).toEqual([]);
+  });
+
+  it('keeps only visible eligible IDs for alternative-class mutation', () => {
+    expect(getVisibleBulkIds(
+      new Set(['visible-a', 'visible-b', 'hidden']),
+      visibleComponents,
+      (component) => component.approval_status === 'new',
+    )).toEqual(['visible-a']);
   });
 });
 

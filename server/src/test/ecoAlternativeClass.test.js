@@ -116,17 +116,34 @@ describe('createECO alternative-class staging (§V59)', () => {
       { field_name: 'alt_class', old_value: 'A', new_value: 'D' },
     ]);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'alt_class must be A, B, or C, or null to clear it',
+    });
+    expect(poolMocks.connect).not.toHaveBeenCalled();
     expect(changeInserts(query)).toHaveLength(0);
-    expect(query).toHaveBeenCalledWith('ROLLBACK');
+    expect(query).not.toHaveBeenCalled();
   });
 
-  it('rejects an out-of-domain old value too, so a bad baseline cannot be recorded', async () => {
+  it('rejects an out-of-domain old value before opening a connection', async () => {
     const { query, res } = await runCreate([
       { field_name: 'alt_class', old_value: 'Class A', new_value: 'B' },
     ]);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(poolMocks.connect).not.toHaveBeenCalled();
     expect(changeInserts(query)).toHaveLength(0);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-string values before opening a connection', async () => {
+    const { query, res } = await runCreate([
+      { field_name: 'alt_class', old_value: 'A', new_value: 1 },
+    ]);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(poolMocks.connect).not.toHaveBeenCalled();
+    expect(changeInserts(query)).toHaveLength(0);
+    expect(query).not.toHaveBeenCalled();
   });
 });

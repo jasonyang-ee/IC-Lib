@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- ECO alternative-class staging now validates every old/new value before opening a database connection and returns the stable 400 domain error for invalid input. Library delete and alternative-class bulk mutations snapshot only currently visible, eligible component IDs at their confirmation/modal boundary, so filtering cannot redirect a stale selection to hidden rows.
+
 - SCIM now canonicalizes tenant/object/local UUID boundaries to lowercase, refuses sensitive dotted/filtered attribute paths before any database query, tolerates Entra's empty `roles` array while ignoring POST `id`/`meta`, and exposes stable 201 `Location` responses plus retrievable User ResourceType/Schema metadata. `externalId` is advertised as server-unique/read-only.
 
 - SCIM requests now authenticate before any body parsing, skip the generic app JSON/form parsers, enforce `application/scim+json` for POST/PATCH, cap JSON at 64kb, and return SCIM-shaped 400/413 parser errors. Bearer scheme matching is case-insensitive while token comparison remains exact and constant-time; unsupported paths stay behind the same gate.

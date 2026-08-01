@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { buildEcoCadFileChanges } from '../utils/ecoCadUtils';
-import { parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
+import { getVisibleBulkIds, parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
 import { DeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
 import VendorDataPanel from '../components/library/VendorDataPanel';
 import SpecificationsEditor from '../components/library/SpecificationsEditor';
@@ -121,6 +121,8 @@ const Library = () => {
   // list is in ordinary browse mode.
   const [bulkActionMode, setBulkActionMode] = useState(null);
   const [selectedForBulk, setSelectedForBulk] = useState(new Set());
+  const [bulkDeleteSnapshot, setBulkDeleteSnapshot] = useState([]);
+  const [bulkClassSnapshot, setBulkClassSnapshot] = useState(null);
   const [showBulkClassModal, setShowBulkClassModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
@@ -843,6 +845,7 @@ const Library = () => {
       setSelectedComponent(null);
       setBulkActionMode(null);
       setSelectedForBulk(new Set());
+      setBulkDeleteSnapshot([]);
     },
   });
 
@@ -855,6 +858,7 @@ const Library = () => {
       queryClient.invalidateQueries(['components']);
       queryClient.invalidateQueries(['componentDetails']);
       setShowBulkClassModal(false);
+      setBulkClassSnapshot(null);
       setBulkActionMode(null);
       setSelectedForBulk(new Set());
     },
@@ -1916,11 +1920,13 @@ const Library = () => {
   };
 
   const handleBulkDelete = () => {
-    if (selectedForBulk.size > 0) {
+    const ids = getCurrentVisibleBulkIds('delete');
+    if (ids.length > 0) {
+      setBulkDeleteSnapshot(ids);
       setDeleteConfirmation({ 
         show: true, 
         type: 'bulk', 
-        count: selectedForBulk.size,
+        count: ids.length,
         componentName: '' 
       });
     }
@@ -1930,12 +1936,16 @@ const Library = () => {
     if (deleteConfirmation.type === 'single') {
       deleteMutation.mutate(selectedComponent.id);
     } else if (deleteConfirmation.type === 'bulk') {
-      deleteMutation.mutate(Array.from(selectedForBulk));
+      if (bulkDeleteSnapshot.length > 0) {
+        deleteMutation.mutate(bulkDeleteSnapshot);
+      }
     }
+    setBulkDeleteSnapshot([]);
     setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
 
   const cancelDelete = () => {
+    setBulkDeleteSnapshot([]);
     setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
 
@@ -2552,9 +2562,17 @@ const Library = () => {
   const toggleBulkActionMode = (mode) => {
     setBulkActionMode((current) => (current === mode ? null : mode));
     setSelectedForBulk(new Set());
+    setBulkDeleteSnapshot([]);
+    setBulkClassSnapshot(null);
+    setShowBulkClassModal(false);
   };
 
   const toggleSelectForBulk = (id) => {
+    if (bulkActionMode === 'alt-class') {
+      const component = sortedComponents.find((item) => item.id === id);
+      if (!component || !canBulkSetClass(component)) return;
+    }
+
     const newSet = new Set(selectedForBulk);
     if (newSet.has(id)) {
       newSet.delete(id);
@@ -2575,8 +2593,21 @@ const Library = () => {
     bulkActionMode === 'alt-class' ? list.filter(canBulkSetClass) : list
   );
 
+  const openBulkClassModal = () => {
+    const ids = getCurrentVisibleBulkIds('alt-class');
+    if (ids.length === 0) return;
+
+    setBulkClassSnapshot({
+      ids,
+      excludedCount: sortedComponents.filter((component) => !canBulkSetClass(component)).length,
+    });
+    setShowBulkClassModal(true);
+  };
+
   const applyBulkAlternativeClass = (altClass) => {
-    bulkAlternativeClassMutation.mutate({ ids: Array.from(selectedForBulk), altClass });
+    const ids = bulkClassSnapshot?.ids || [];
+    if (ids.length === 0) return;
+    bulkAlternativeClassMutation.mutate({ ids, altClass });
   };
 
   const handleFieldChange = (field, value) => {
@@ -3053,6 +3084,15 @@ const Library = () => {
     });
   }, [components, selectedApprovalStatuses, sortBy, sortOrder]);
 
+  const getCurrentVisibleBulkIds = (mode) => getVisibleBulkIds(
+    selectedForBulk,
+    sortedComponents,
+    mode === 'alt-class' ? canBulkSetClass : undefined,
+  );
+  const visibleSelectedBulkIds = getCurrentVisibleBulkIds(bulkActionMode);
+  const visibleSelectedBulkIdSet = new Set(visibleSelectedBulkIds);
+  const visibleSelectableComponents = selectableForBulk(sortedComponents);
+
   const toggleApprovalStatusFilter = (status) => {
     setSelectedApprovalStatuses((currentStatuses) => (
       currentStatuses.includes(status)
@@ -3297,20 +3337,20 @@ const Library = () => {
                   {bulkActionMode === 'delete' ? (
                     <button
                       onClick={handleBulkDelete}
-                      disabled={selectedForBulk.size === 0}
+                      disabled={visibleSelectedBulkIds.length === 0}
                       className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Delete Selected ({selectedForBulk.size})
+                      Delete Selected ({visibleSelectedBulkIds.length})
                     </button>
                   ) : (
                     <button
-                      onClick={() => setShowBulkClassModal(true)}
-                      disabled={selectedForBulk.size === 0}
+                      onClick={openBulkClassModal}
+                      disabled={visibleSelectedBulkIds.length === 0}
                       className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                     >
                       <Layers className="w-4 h-4" />
-                      Set Class ({selectedForBulk.size})
+                      Set Class ({visibleSelectedBulkIds.length})
                     </button>
                   )}
                   <button
@@ -3423,10 +3463,11 @@ const Library = () => {
                         <input
                           type="checkbox"
                           aria-label="Select all components"
-                          checked={selectedForBulk.size > 0 && selectedForBulk.size === selectableForBulk(sortedComponents).length}
+                          checked={visibleSelectedBulkIds.length > 0 && visibleSelectedBulkIds.length === visibleSelectableComponents.length}
+                          disabled={visibleSelectableComponents.length === 0}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedForBulk(new Set(selectableForBulk(sortedComponents).map(c => c.id)));
+                              setSelectedForBulk(new Set(visibleSelectableComponents.map(c => c.id)));
                             } else {
                               setSelectedForBulk(new Set());
                             }
@@ -3453,7 +3494,7 @@ const Library = () => {
                           onClick={() => !bulkActionMode && handleComponentClick(component)}
                           className={`absolute top-0 left-0 w-full flex items-center cursor-pointer border-b border-gray-100 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#333333] ${
                             selectedComponent?.id === component.id && !bulkActionMode ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                          } ${selectedForBulk.has(component.id) ? (bulkActionMode === 'delete' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-primary-50 dark:bg-primary-900/20') : ''}`}
+                          } ${visibleSelectedBulkIdSet.has(component.id) ? (bulkActionMode === 'delete' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-primary-50 dark:bg-primary-900/20') : ''}`}
                           style={{ transform: `translateY(${virtualRow.start}px)` }}
                         >
                           {bulkActionMode && (
@@ -3461,7 +3502,7 @@ const Library = () => {
                               <input
                                 type="checkbox"
                                 aria-label={`Select ${component.part_number}`}
-                                checked={selectedForBulk.has(component.id)}
+                                checked={visibleSelectedBulkIdSet.has(component.id)}
                                 disabled={bulkActionMode === 'alt-class' && !canBulkSetClass(component)}
                                 title={bulkActionMode === 'alt-class' && !canBulkSetClass(component)
                                   ? 'This part is under change control - use an ECO to change its class'
@@ -3851,10 +3892,13 @@ const Library = () => {
 
       <BulkAlternativeClassModal
         isOpen={showBulkClassModal}
-        selectedCount={selectedForBulk.size}
-        excludedCount={sortedComponents.filter((c) => !canBulkSetClass(c)).length}
+        selectedCount={bulkClassSnapshot?.ids.length || 0}
+        excludedCount={bulkClassSnapshot?.excludedCount || 0}
         onApply={applyBulkAlternativeClass}
-        onClose={() => setShowBulkClassModal(false)}
+        onClose={() => {
+          setShowBulkClassModal(false);
+          setBulkClassSnapshot(null);
+        }}
       />
 
       {fileConflictModal.show && (

@@ -70,6 +70,21 @@ const ecoAlternativeClassValue = (rawValue) => {
   return result.value;
 };
 
+const validateECOAlternativeClassChanges = (changes) => {
+  if (!Array.isArray(changes)) return;
+
+  for (const change of changes) {
+    if (change?.field_name !== 'alt_class') continue;
+
+    for (const rawValue of [change.old_value, change.new_value]) {
+      const result = normalizeAlternativeClass(rawValue);
+      if (!result.ok) {
+        throw new Error(ALTERNATIVE_CLASS_ERROR_MESSAGE);
+      }
+    }
+  }
+};
+
 // Whitelist of valid component field names to prevent SQL injection
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
@@ -1187,6 +1202,13 @@ export const getLastRejectedECOByComponent = async (req, res) => {
 
 // Create new ECO order
 export const createECO = async (req, res) => {
+  const requestBody = req.body || {};
+  try {
+    validateECOAlternativeClassChanges(requestBody.changes);
+  } catch {
+    return res.status(400).json({ error: ALTERNATIVE_CLASS_ERROR_MESSAGE });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1201,7 +1223,7 @@ export const createECO = async (req, res) => {
       cad_files,
       notes,
       parent_eco_id,
-    } = req.body;
+    } = requestBody;
 
     const hasStagedChanges = [changes, distributors, alternatives, specifications, cad_files]
       .some(group => Array.isArray(group) && group.length > 0);

@@ -1,5 +1,12 @@
 // Part number utilities for parsing and formatting component part numbers
 
+export const getVisibleBulkIds = (selectedIds, visibleComponents, isEligible = () => true) => {
+  const selected = new Set(selectedIds || []);
+  return visibleComponents
+    .filter((component) => selected.has(component.id) && isEligible(component))
+    .map((component) => component.id);
+};
+
 // Parse part number to extract prefix and number (e.g., "IC-00001" -> { prefix: "IC", number: 1, leadingZeros: 5 })
 export const parsePartNumber = (partNumber) => {
   if (!partNumber || typeof partNumber !== 'string') return null;

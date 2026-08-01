@@ -273,12 +273,12 @@ files: `server/src/controllers/ecoController.js`, `server/src/test/ecoAlternativ
 
 §T TASKS:
 
-T1|.|validate ECO alt-class before connection/transaction
+T1|x|validate ECO alt-class before connection/transaction
 touch: `ecoController.js`, `ecoAlternativeClass.test.js`
 details: destructure/validate every `alt_class` old/new input before `pool.connect()`; domain failure → 400 exact safe message, connection/BEGIN/INSERT ⊥ called. Valid clear/A/B/C flow unchanged. ⊥ broaden generic ECO error refactor.
 verify: old/new invalid tests expect 400 + zero DB calls; valid staging/apply tests unchanged.
 
-T2|.|snapshot visible IDs at every bulk mutation boundary
+T2|x|snapshot visible IDs at every bulk mutation boundary
 touch: `Library.jsx`, client regression
 details: derive current visible ID set from `sortedComponents` (+ direct-edit eligibility for alt-class). Delete confirmation and alt-class modal snapshot the exact intersected IDs; displayed count + eventual mutation use that snapshot, ⊥ mutable/stale `selectedForBulk`. Disable/no-op when intersection empty.
 verify: select row → filter it out → delete/class sends no hidden ID; mixed selection sends visible eligible subset only; confirmation/modal count matches payload; mode switching still clears; focused client suite + `bash ./test.sh` exit 0.
