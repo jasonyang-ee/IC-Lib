@@ -34,7 +34,9 @@ router.use(scimBodyParserError);
 
 router.get('/ServiceProviderConfig', scimController.getServiceProviderConfig);
 router.get('/ResourceTypes', scimController.getResourceTypes);
+router.get('/ResourceTypes/:id', scimController.getResourceTypeById);
 router.get('/Schemas', scimController.getSchemas);
+router.get('/Schemas/:id', scimController.getSchemaById);
 router.get('/Users', scimController.listUsers);
 router.get('/Users/:id', scimController.getUserById);
 router.post('/Users', scimController.createUser);

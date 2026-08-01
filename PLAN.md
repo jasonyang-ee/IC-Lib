@@ -241,22 +241,22 @@ files: `server/src/services/scimService.js`, `server/src/controllers/scimControl
 
 §T TASKS:
 
-T1|.|canonicalize GUID identity at every boundary
+T1|x|canonicalize GUID identity at every boundary
 touch: `scimService.js`, `scimController.js`
 details: one helper validates + returns lowercase GUID. Apply to configured tenant, filter `externalId`, POST externalId, and all TEXT DB predicates/log/audit values. Invalid filter GUID → `invalidFilter`; invalid POST → `invalidValue`. OIDC lowercase storage remains unchanged.
 verify: uppercase env + filter/create finds same lowercase linked row; mixed-case replay idempotent; foreign tenant remains invisible.
 
-T2|.|implement operation-specific attribute ownership
+T2|x|implement operation-specific attribute ownership
 touch: `scimService.js`
 details: normalize filter syntax then inspect first path segment before full writable lookup. Sensitive aliases = `role|roles|password|password_hash|authProvider|auth_provider|oidc*`. POST: ignore read-only `id|meta`; tolerate only `roles: []` as no-op for Entra stock body; reject nonempty roles + every other sensitive nested/dotted/filtered form; controller removes the one valid top-level `externalId`, while any leftover/nested externalId form is a mutability error. PATCH: reject `id|meta|externalId` with `mutability`; reject sensitive class `invalidValue`; keep `name.formatted|emails.value|displayName|active|userName` writable; unknown non-sensitive attrs remain ignored.
 verify: corpus in F8.T4; revert first-segment match fails dotted sensitive case.
 
-T3|.|make create/discovery response contract complete
+T3|x|make create/discovery response contract complete
 touch: `scimController.js`, `scim.js`
 details: successful `POST /Users` → 201 + `Location` equal returned `meta.location`; repeat remains state-idempotent and returns same representation/location. Factor single User ResourceType/Schema objects; add authenticated `GET /ResourceTypes/User` + `GET /Schemas/:id`; exact IDs return advertised object, unknown IDs SCIM 404. Advertise `externalId` with actual immutable/server-unique semantics. Preserve collection ListResponse shapes.
 verify: POST first/replay both 201 + stable Location; follow every emitted `meta.location` → 200 + matching object; unsupported ID → SCIM 404.
 
-T4|.|lock Entra + hostile corpora
+T4|x|lock Entra + hostile corpora
 touch: `scimRoutes.test.js`, `CHANGELOG.md`
 details: Entra create body with `meta` + `roles:[]` succeeds @ 201 + Location and idempotently updates; nonempty role never changes DB; POST/PATCH first-segment corpus; writable + unknown controls; uppercase GUID cases; discovery links. Assert no query on rejected sensitive attempt.
 verify: focused SCIM suites + `bash ./test.sh` exit 0.

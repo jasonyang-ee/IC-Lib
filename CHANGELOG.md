@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SCIM now canonicalizes tenant/object/local UUID boundaries to lowercase, refuses sensitive dotted/filtered attribute paths before any database query, tolerates Entra's empty `roles` array while ignoring POST `id`/`meta`, and exposes stable 201 `Location` responses plus retrievable User ResourceType/Schema metadata. `externalId` is advertised as server-unique/read-only.
+
 - SCIM requests now authenticate before any body parsing, skip the generic app JSON/form parsers, enforce `application/scim+json` for POST/PATCH, cap JSON at 64kb, and return SCIM-shaped 400/413 parser errors. Bearer scheme matching is case-insensitive while token comparison remains exact and constant-time; unsupported paths stay behind the same gate.
 
 - Direct Node deployments now default `TRUST_PROXY_HOPS` to `0` instead of trusting caller-supplied `X-Forwarded-For`; invalid, negative, fractional, and unsafe hop counts fail startup. The bundled nginx image and Compose deployment explicitly set `1`, with parser and real-listener rate-limit regressions covering forged and proxy-appended headers.

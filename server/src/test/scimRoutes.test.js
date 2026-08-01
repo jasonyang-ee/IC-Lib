@@ -29,7 +29,11 @@ vi.mock('../services/activityLogService.js', () => ({
 }));
 
 const scimRoutes = (await import('../routes/scim.js')).default;
-const { SCIM_BASE_PATH, SCIM_CONTENT_TYPE } = await import('../services/scimService.js');
+const {
+  SCIM_BASE_PATH,
+  SCIM_CONTENT_TYPE,
+  SCIM_USER_SCHEMA,
+} = await import('../services/scimService.js');
 
 const TENANT = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const TOKEN = 'b'.repeat(48);
@@ -173,7 +177,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
     it('mounts authenticateScim as the router-wide first handler', () => {
       const routes = scimRoutes.stack.filter(layer => layer.route);
 
-      expect(routes).toHaveLength(8);
+      expect(routes).toHaveLength(10);
       expect(scimRoutes.stack[0].handle.name).toBe('authenticateScim');
     });
   });
@@ -234,7 +238,27 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(schemas.Resources).toHaveLength(1);
       expect(schemas.Resources[0].id).toBe(types.Resources[0].schema);
       expect(schemas.Resources[0].attributes.map(a => a.name))
-        .toEqual(['userName', 'displayName', 'active', 'emails']);
+        .toEqual(['userName', 'externalId', 'displayName', 'active', 'emails']);
+    });
+
+    it('retrieves the advertised User ResourceType and Schema at their locations', async () => {
+      const types = await (await get('/ResourceTypes')).json();
+      const schemas = await (await get('/Schemas')).json();
+      const type = await (await get('/ResourceTypes/User')).json();
+      const schema = await (await get(`/Schemas/${encodeURIComponent(SCIM_USER_SCHEMA)}`)).json();
+
+      expect(type).toEqual(types.Resources[0]);
+      expect(schema).toEqual(schemas.Resources[0]);
+      const typeFollow = await fetch(`${origin}${type.meta.location}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      const schemaFollow = await fetch(`${origin}${schema.meta.location}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      expect(await typeFollow.json()).toEqual(type);
+      expect(await schemaFollow.json()).toEqual(schema);
+      expect((await get('/ResourceTypes/Group')).status).toBe(404);
+      expect((await get('/Schemas/unknown')).status).toBe(404);
     });
   });
 
@@ -274,6 +298,32 @@ describe('SCIM discovery and lookup (§V60)', () => {
       ]);
     });
 
+    it('canonicalizes uppercase tenant, filter, and replayed POST identities', async () => {
+      process.env.SCIM_TENANT_ID = TENANT.toUpperCase();
+      const post = externalId => ({
+        schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+        externalId,
+        userName: 'jsmith@contoso.com',
+        active: true,
+      });
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+
+      const first = await send('POST', '/Users', post(OBJECT_ID.toUpperCase()));
+      const firstBody = await first.json();
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+
+      const replay = await send('POST', '/Users', post(OBJECT_ID));
+      const replayBody = await replay.json();
+
+      expect(first.status).toBe(201);
+      expect(replay.status).toBe(201);
+      expect(firstBody.externalId).toBe(OBJECT_ID);
+      expect(replayBody.externalId).toBe(OBJECT_ID);
+      expect(firstBody.meta.location).toBe(replayBody.meta.location);
+      expect(queryMock.mock.calls[0][1]).toEqual([OBJECT_ID, TENANT]);
+      expect(queryMock.mock.calls[1][1]).toEqual([OBJECT_ID, TENANT]);
+    });
+
     it('returns a linked but deactivated user with active false', async () => {
       queryMock.mockResolvedValueOnce({ rows: [linkedRow({ is_active: false })] });
 
@@ -284,7 +334,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
     });
 
     it('rejects an unsupported or malformed filter without querying', async () => {
-      for (const filter of ['userName eq "jsmith"', 'externalId co "abc"', 'externalId eq abc', '']) {
+      for (const filter of ['userName eq "jsmith"', 'externalId co "abc"', 'externalId eq abc', 'externalId eq "not-a-guid"', '']) {
         const res = await fetch(`${baseUrl}/Users?filter=${encodeURIComponent(filter)}`, {
           headers: { Authorization: `Bearer ${TOKEN}` },
         });
@@ -360,11 +410,19 @@ describe('SCIM discovery and lookup (§V60)', () => {
       const res = await send('POST', '/Users', postBody({ displayName: 'J Smith' }));
       const body = await res.json();
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(201);
       expect(body.id).toBe(LOCAL_ID);
       expect(body.displayName).toBe('J Smith');
+      expect(res.headers.get('location')).toBe(body.meta.location);
       expect(updateCall()[0]).toContain('display_name = $1');
       expect(updateCall()[1]).toEqual(['J Smith', LOCAL_ID]);
+
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow({ display_name: 'J Smith' })] });
+      const followed = await fetch(`${origin}${body.meta.location}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      expect(followed.status).toBe(200);
+      expect((await followed.json()).meta.location).toBe(body.meta.location);
     });
 
     it('is idempotent: a replay of the stored state writes nothing', async () => {
@@ -374,8 +432,10 @@ describe('SCIM discovery and lookup (§V60)', () => {
         displayName: 'J Smith',
         emails: [{ value: 'jsmith@contoso.com', type: 'work', primary: true }],
       }));
+      const body = await res.json();
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(201);
+      expect(res.headers.get('location')).toBe(body.meta.location);
       expect(updateCall()).toBeUndefined();
     });
 
@@ -385,6 +445,32 @@ describe('SCIM discovery and lookup (§V60)', () => {
       const roleAttempt = await send('POST', '/Users', postBody({ role: 'admin' }));
       expect(roleAttempt.status).toBe(400);
       expect((await roleAttempt.json()).scimType).toBe('invalidValue');
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
+    it('ignores POST read-only fields and Entra empty roles, but refuses sensitive first segments', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+      const tolerated = await send('POST', '/Users', postBody({
+        id: 'ignored',
+        meta: { created: 'ignored' },
+        roles: [],
+      }));
+      expect(tolerated.status).toBe(201);
+      expect(queryMock).toHaveBeenCalledTimes(1);
+
+      queryMock.mockClear();
+      const attempts = [
+        { 'roles.value': 'admin' },
+        { 'password_hash.value': 'secret' },
+        { auth_provider: 'oidc' },
+        { 'oidc_sub.value': 'foreign' },
+        { 'externalId.value': OBJECT_ID },
+      ];
+      for (const attributes of attempts) {
+        const res = await send('POST', '/Users', postBody(attributes));
+        expect(res.status).toBe(400);
+        expect((await res.json()).scimType).toMatch(/invalidValue|mutability/);
+      }
       expect(queryMock).not.toHaveBeenCalled();
     });
 
@@ -483,7 +569,13 @@ describe('SCIM discovery and lookup (§V60)', () => {
     it('refuses to move the identity keys or the local role', async () => {
       const attempts = [
         { op: 'replace', path: 'externalId', value: OBJECT_ID, scimType: 'mutability' },
+        { op: 'replace', path: 'externalId.value', value: OBJECT_ID, scimType: 'mutability' },
+        { op: 'replace', path: 'id.value', value: 'x', scimType: 'mutability' },
+        { op: 'replace', path: 'meta.created', value: 'x', scimType: 'mutability' },
         { op: 'replace', path: 'oidc_sub', value: 'x', scimType: 'invalidValue' },
+        { op: 'replace', path: 'oidc_sub.value', value: 'x', scimType: 'invalidValue' },
+        { op: 'replace', path: 'password_hash.value', value: 'x', scimType: 'invalidValue' },
+        { op: 'replace', path: 'roles[type eq "work"].value', value: ['admin'], scimType: 'invalidValue' },
         { op: 'replace', path: 'roles', value: ['admin'], scimType: 'invalidValue' },
       ];
 

@@ -6,8 +6,8 @@ import {
   SCIM_BASE_PATH,
   SCIM_CONTENT_TYPE,
   SCIM_USER_SCHEMA,
+  canonicalizeScimGuid,
   getScimTenantId,
-  isUuid,
   parseScimPatch,
   parseScimResource,
   parseUserFilter,
@@ -74,7 +74,7 @@ export const getServiceProviderConfig = (_req, res) => scimJson(res, 200, {
   },
 });
 
-export const getResourceTypes = (_req, res) => scimJson(res, 200, toScimListResponse([{
+export const SCIM_USER_RESOURCE_TYPE = {
   schemas: ['urn:ietf:params:scim:schemas:core:2.0:ResourceType'],
   id: 'User',
   name: 'User',
@@ -82,17 +82,42 @@ export const getResourceTypes = (_req, res) => scimJson(res, 200, toScimListResp
   description: 'User Account',
   schema: SCIM_USER_SCHEMA,
   meta: { resourceType: 'ResourceType', location: `${SCIM_BASE_PATH}/ResourceTypes/User` },
-}]));
+};
 
-// Only the attributes this provider actually honours are advertised: userName
-// and active are required, displayName and emails are the optional profile
-// fields SCIM may write (§V60). Nothing here maps to role or credentials.
-export const getSchemas = (_req, res) => scimJson(res, 200, toScimListResponse([{
+export const getResourceTypes = (_req, res) => scimJson(
+  res,
+  200,
+  toScimListResponse([SCIM_USER_RESOURCE_TYPE]),
+);
+
+export const getResourceTypeById = (req, res) => {
+  if (req.params.id !== SCIM_USER_RESOURCE_TYPE.id) {
+    return scimError(res, 404, 'Resource type not found');
+  }
+  return scimJson(res, 200, SCIM_USER_RESOURCE_TYPE);
+};
+
+function attribute(name, overrides = {}) {
+  return {
+    name,
+    type: 'string',
+    multiValued: false,
+    required: false,
+    caseExact: false,
+    mutability: 'readWrite',
+    returned: 'default',
+    uniqueness: 'none',
+    ...overrides,
+  };
+}
+
+export const SCIM_USER_SCHEMA_RESOURCE = {
   id: SCIM_USER_SCHEMA,
   name: 'User',
   description: 'User Account',
   attributes: [
     attribute('userName', { required: true, uniqueness: 'server' }),
+    attribute('externalId', { caseExact: true, mutability: 'readOnly', uniqueness: 'server' }),
     attribute('displayName'),
     attribute('active', { type: 'boolean', required: true }),
     {
@@ -110,21 +135,20 @@ export const getSchemas = (_req, res) => scimJson(res, 200, toScimListResponse([
     },
   ],
   meta: { resourceType: 'Schema', location: `${SCIM_BASE_PATH}/Schemas/${SCIM_USER_SCHEMA}` },
-}]));
+};
 
-function attribute(name, overrides = {}) {
-  return {
-    name,
-    type: 'string',
-    multiValued: false,
-    required: false,
-    caseExact: false,
-    mutability: 'readWrite',
-    returned: 'default',
-    uniqueness: 'none',
-    ...overrides,
-  };
-}
+export const getSchemas = (_req, res) => scimJson(
+  res,
+  200,
+  toScimListResponse([SCIM_USER_SCHEMA_RESOURCE]),
+);
+
+export const getSchemaById = (req, res) => {
+  if (req.params.id !== SCIM_USER_SCHEMA_RESOURCE.id) {
+    return scimError(res, 404, 'Schema not found');
+  }
+  return scimJson(res, 200, SCIM_USER_SCHEMA_RESOURCE);
+};
 
 export const listUsers = async (req, res) => {
   const filter = parseUserFilter(req.query.filter);
@@ -145,13 +169,14 @@ export const listUsers = async (req, res) => {
 
 export const getUserById = async (req, res) => {
   const { id } = req.params;
-  if (!isUuid(id)) {
+  const userId = canonicalizeScimGuid(id);
+  if (!userId) {
     return scimError(res, 404, 'User not found');
   }
 
   let result;
   try {
-    result = await findLinkedUser('id = $1', [id]);
+    result = await findLinkedUser('id = $1', [userId]);
   } catch (error) {
     return queryFailed(res, 'User lookup by id', error);
   }
@@ -208,8 +233,9 @@ const writeFailed = (res, context, error) => {
 
 export const createUser = async (req, res) => {
   const { externalId, ...attributes } = req.body ?? {};
+  const canonicalExternalId = canonicalizeScimGuid(externalId);
 
-  if (!isUuid(externalId)) {
+  if (!canonicalExternalId) {
     return scimError(res, 400, 'externalId must be the Entra objectId', 'invalidValue');
   }
 
@@ -220,7 +246,7 @@ export const createUser = async (req, res) => {
 
   let existing;
   try {
-    existing = await findLinkedUser('oidc_object_id = $1', [externalId]);
+    existing = await findLinkedUser('oidc_object_id = $1', [canonicalExternalId]);
   } catch (error) {
     return queryFailed(res, 'User lookup for create', error);
   }
@@ -230,8 +256,8 @@ export const createUser = async (req, res) => {
   // one OIDC login followed by a provisioning retry, so the refusal is visible
   // rather than a silent no-op.
   if (existing.rows.length === 0) {
-    logWarn('SCIM', `Provisioning refused for unlinked identity ${externalId}`);
-    await recordLifecycle(`SCIM create refused for unlinked identity ${externalId}`);
+    logWarn('SCIM', `Provisioning refused for unlinked identity ${canonicalExternalId}`);
+    await recordLifecycle(`SCIM create refused for unlinked identity ${canonicalExternalId}`);
     return scimError(
       res,
       403,
@@ -247,12 +273,15 @@ export const createUser = async (req, res) => {
   }
 
   await recordLifecycle(`SCIM provisioned existing user ${updated.username}`, updated.id);
-  return scimJson(res, 200, toScimUser(updated));
+  const representation = toScimUser(updated);
+  return res.status(201).set('Location', representation.meta.location)
+    .type(SCIM_CONTENT_TYPE).json(representation);
 };
 
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  if (!isUuid(id)) {
+  const userId = canonicalizeScimGuid(id);
+  if (!userId) {
     return scimError(res, 404, 'User not found');
   }
 
@@ -263,7 +292,7 @@ export const updateUser = async (req, res) => {
 
   let existing;
   try {
-    existing = await findLinkedUser('id = $1', [id]);
+    existing = await findLinkedUser('id = $1', [userId]);
   } catch (error) {
     return queryFailed(res, 'User lookup for patch', error);
   }
@@ -291,7 +320,8 @@ export const updateUser = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   const { id } = req.params;
-  if (!isUuid(id)) {
+  const userId = canonicalizeScimGuid(id);
+  if (!userId) {
     return scimError(res, 404, 'User not found');
   }
 
@@ -303,7 +333,7 @@ export const deleteUser = async (req, res) => {
       `UPDATE users SET is_active = false
        WHERE id = $1 AND oidc_tenant_id = $2 AND oidc_object_id IS NOT NULL
        RETURNING id, username`,
-      [id, getScimTenantId()],
+      [userId, getScimTenantId()],
     );
   } catch (error) {
     return queryFailed(res, 'User deactivation', error);

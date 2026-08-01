@@ -20,12 +20,17 @@ const SCIM_LIST_RESPONSE_SCHEMA = 'urn:ietf:params:scim:api:messages:2.0:ListRes
 
 const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Return the canonical lowercase form, or null for a non-GUID value. */
+export const canonicalizeScimGuid = (value) => (
+  typeof value === 'string' && GUID_PATTERN.test(value) ? value.toLowerCase() : null
+);
+
 const readSetting = (name) => {
   const value = process.env[name];
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 };
 
-export const getScimTenantId = () => readSetting('SCIM_TENANT_ID');
+export const getScimTenantId = () => canonicalizeScimGuid(readSetting('SCIM_TENANT_ID'));
 export const getScimBearerToken = () => readSetting('SCIM_BEARER_TOKEN');
 
 /** True only when both settings are present. Validity is a separate question. */
@@ -38,17 +43,18 @@ export const isScimEnabled = () => Boolean(getScimTenantId() && getScimBearerTok
  *          a partial or invalid configuration, never for a disabled one.
  */
 export const validateScimConfiguration = () => {
-  const tenantId = getScimTenantId();
+  const tenantRaw = readSetting('SCIM_TENANT_ID');
+  const tenantId = canonicalizeScimGuid(tenantRaw);
   const token = getScimBearerToken();
   const errors = [];
 
-  if (!tenantId && !token) {
+  if (!tenantRaw && !token) {
     return { enabled: false, errors };
   }
 
-  if (!tenantId) {
+  if (!tenantRaw) {
     errors.push('SCIM_BEARER_TOKEN is set but SCIM_TENANT_ID is missing');
-  } else if (!GUID_PATTERN.test(tenantId)) {
+  } else if (!tenantId) {
     errors.push('SCIM_TENANT_ID must be a tenant GUID');
   }
 
@@ -63,7 +69,7 @@ export const validateScimConfiguration = () => {
 };
 
 /** Local `users.id` values are UUIDs; anything else can never name a row. */
-export const isUuid = (value) => typeof value === 'string' && GUID_PATTERN.test(value);
+export const isUuid = value => Boolean(canonicalizeScimGuid(value));
 
 /**
  * §V60: the SCIM representation of a linked user. `id` is the retained local
@@ -76,7 +82,7 @@ export const toScimUser = (row) => {
   const user = {
     schemas: [SCIM_USER_SCHEMA],
     id: row.id,
-    externalId: row.oidc_object_id,
+    externalId: canonicalizeScimGuid(row.oidc_object_id) || row.oidc_object_id,
     userName: row.username,
     active: row.is_active !== false,
     meta: {
@@ -125,7 +131,10 @@ export const parseUserFilter = (filter) => {
     return { error: 'Only the filter externalId eq "<objectId>" is supported' };
   }
 
-  return { externalId: match[1] };
+  const externalId = canonicalizeScimGuid(match[1]);
+  return externalId
+    ? { externalId }
+    : { error: 'The externalId filter must contain a GUID' };
 };
 
 /**
@@ -147,10 +156,16 @@ const REFUSED = new Map([
   ['id', 'mutability'],
   ['externalid', 'mutability'],
   ['meta', 'mutability'],
-  ['role', 'invalidValue'],
-  ['roles', 'invalidValue'],
-  ['password', 'invalidValue'],
-  ['authprovider', 'invalidValue'],
+]);
+
+const POST_READ_ONLY = new Set(['id', 'meta']);
+const SENSITIVE_FIRST_SEGMENTS = new Set([
+  'role',
+  'roles',
+  'password',
+  'password_hash',
+  'authprovider',
+  'auth_provider',
 ]);
 
 const MAX_LENGTH = { username: 50, display_name: 100, email: 255 };
@@ -198,10 +213,23 @@ const coerce = (column, rawValue) => {
   return { value: trimmed };
 };
 
-const assign = (changes, path, rawValue) => {
+const assign = (changes, path, rawValue, mode = 'patch') => {
   const attribute = normalizeAttributePath(path);
+  const firstSegment = attribute.split('.')[0];
 
-  if (attribute.startsWith('oidc')) {
+  if (mode === 'post' && POST_READ_ONLY.has(attribute)) {
+    return { changes };
+  }
+
+  if (firstSegment === 'externalid') {
+    return refuse(`${path} is not writable through SCIM`, 'mutability');
+  }
+
+  if (mode === 'patch' && POST_READ_ONLY.has(firstSegment)) {
+    return refuse(`${path} is not writable through SCIM`, 'mutability');
+  }
+
+  if (firstSegment.startsWith('oidc') || SENSITIVE_FIRST_SEGMENTS.has(firstSegment)) {
     return refuse('OIDC identity keys are owned by the application', 'invalidValue');
   }
 
@@ -223,7 +251,7 @@ const assign = (changes, path, rawValue) => {
 };
 
 /** Attributes of a SCIM User resource (POST body) -> column changes. */
-export const parseScimResource = (resource) => {
+export const parseScimResource = (resource, mode = 'post') => {
   if (!resource || typeof resource !== 'object') {
     return refuse('A SCIM User resource is required');
   }
@@ -231,7 +259,10 @@ export const parseScimResource = (resource) => {
   let changes = {};
   for (const [attribute, value] of Object.entries(resource)) {
     if (attribute === 'schemas') continue;
-    const step = assign(changes, attribute, value);
+    if (mode === 'post' && attribute.toLowerCase() === 'roles' && Array.isArray(value) && value.length === 0) {
+      continue;
+    }
+    const step = assign(changes, attribute, value, mode);
     if (step.error) return step;
     changes = step.changes;
   }
@@ -271,7 +302,7 @@ export const parseScimPatch = (body) => {
     }
 
     if (!operation.path) {
-      const step = parseScimResource(operation.value);
+      const step = parseScimResource(operation.value, 'patch');
       if (step.error) return step;
       changes = { ...changes, ...step.changes };
       continue;
