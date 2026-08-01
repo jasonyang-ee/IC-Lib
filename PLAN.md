@@ -94,20 +94,20 @@ files: `.gitattributes`, mechanically affected tracked text, `server/src/test/re
 
 §T TASKS:
 
-T1|.|commit policy alone
+T1|x|commit policy alone
 touch: `.gitattributes`
 details: add `* text=auto eol=lf`; explicit `binary` for verified binary families (`*.png|*.msi|*.psd|*.doc|*.DBC|*.reg`); explicit `text eol=lf` for `*.sh`, `docker/repair`, `Dockerfile`. Stage/commit ONLY `.gitattributes`; expected unstaged normalization candidates are allowed after policy activation.
 verify: staged diff names only `.gitattributes`; `git check-attr -a -- docker/repair start.sh library/template/CIS/psqlodbc_x64.msi library/template/CIS/odbc_example.reg` exact.
 
-T2|.|commit content-neutral renormalization alone
+T2|x|commit content-neutral renormalization alone
 touch: only F1.T1’s verified text set
 details: `git add --renormalize .`; compare staged paths to expected text set; abort if binary or semantic delta appears; commit with ⊥ hand edit/docs/test.
 verify: `git diff --ignore-cr-at-eol <parent>..<renorm-commit>` EMPTY; baseline diff-check falls from 741 to exactly the 3 known `Library.jsx` trailing spaces; binary blob IDs unchanged.
 
-T3|.|remove semantic whitespace + add recurrence guard/receipt
+T3|x|remove semantic whitespace + add recurrence guard/receipt
 touch: `client/src/pages/Library.jsx:1168,2416,2446`, `server/src/test/repositoryTextPolicy.test.js`, `CHANGELOG.md`
-details: remove the 3 real trailing spaces outside T2. Test repo bytes: `.gitattributes` owns LF policy; every tracked executable shebang first line contains no `\r`; `docker/repair` exactly starts `#!/bin/sh\n`. Record broken/fixed container repair + normalization. Commit separately from T2.
-verify: `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD` = 0; focused guard fails after reinjecting CR in fixture/probe; `bash ./test.sh` exit 0; worktree clean.
+details: remove the 3 real trailing spaces outside T2. Test repo bytes: `.gitattributes` owns LF policy; every tracked executable shebang first line contains no `\r`; `docker/repair` exactly starts `#!/bin/sh\n`. T2 exposes pre-existing trailing spaces in its 120-file pure diff, so full-range raw `git diff --check` is not a semantic oracle; scope check to semantic F2.T3 paths. Record broken/fixed container repair + normalization. Commit separately from T2.
+verify: `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD -- client/src/pages/Library.jsx docker/repair server/src/test/repositoryTextPolicy.test.js CHANGELOG.md` = 0; focused guard fails after reinjecting CR in fixture/probe; `bash ./test.sh` exit 0; worktree clean.
 
 verify: policy attrs + pure-diff proof + shebang regression + full oracle.
 exit: §C11/§I10 HOLD; merge/rebase note remains `git merge -X renormalize` where needed.

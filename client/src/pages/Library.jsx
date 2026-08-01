@@ -1165,7 +1165,7 @@ const Library = () => {
         // Filter and update distributors (only with valid distributor_id and sku/url)
         // IMPORTANT: We send all valid distributors to the backend
         // The backend will delete entries not in this list
-        const validDistributors = editedDistributors?.filter(dist => 
+        const validDistributors = editedDistributors?.filter(dist =>
           dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
         ).map(dist => ({
           id: dist.id, // Keep existing ID if updating
@@ -2413,7 +2413,7 @@ const Library = () => {
         }
         
         // Filter and add distributors (only with valid distributor_id and sku)
-        const validDistributors = editedDistributors?.filter(dist => 
+        const validDistributors = editedDistributors?.filter(dist =>
           dist.distributor_id && (dist.sku?.trim() || dist.url?.trim())
         ).map(dist => ({
           distributor_id: dist.distributor_id,
@@ -2443,7 +2443,7 @@ const Library = () => {
             if (typeof altManufacturerId === 'string' && altManufacturerId.startsWith('NEW:')) {
               const newManufacturerName = altManufacturerId.substring(4);
               try {
-                const manufacturerResponse = await createManufacturerMutation.mutateAsync({ 
+                const manufacturerResponse = await createManufacturerMutation.mutateAsync({
                   name: newManufacturerName 
                 });
                 altManufacturerId = manufacturerResponse.data.id;

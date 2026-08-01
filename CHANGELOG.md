@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Tracked repository text now follows the checked-in LF policy, while verified binary families remain unnormalized. The Docker repair entrypoint has an LF shebang again, preventing Linux from trying to execute `/bin/sh\r`; a repository-byte regression test guards the policy and executable entrypoints.
+
 - The File Library footprint rename flow's rejection of `+` (illegal in OrCAD footprint names) is now covered by regressions for both the single-file and the `.psm`/`.dra` pair path, including a legal-rename case proving the guard is not blanket. The client footprint helper's comment no longer claims exact algorithmic parity with the server: what is guaranteed is identical behaviour at every supported user input boundary (SPEC §V28). The helpers themselves are unchanged.
 
 - Admin user removal now deactivates accounts instead of deleting rows, preserving identity links, audit history, and foreign-key references. Repeating deactivation is a no-op; SSO accounts still expose locally authoritative role/active controls but reject local-password assignment, and the UI makes clear that identity-provider role/group claims cannot restore access.
