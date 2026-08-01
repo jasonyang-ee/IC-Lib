@@ -13,233 +13,303 @@ planning status: new
 
 # PLAN
 
-goal: land the four accepted post-`v1.10.0` `/review-code` HARDEN items — repo line-ending normalization (which also fixes the broken containerized `repair` entrypoint), route-sweep drift guard, live-DB role resolution, and SCIM refused-attribute path matching — each with an exact regression.
+goal: remediate every release-blocking or contract-divergent defect found by the security-first review of `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`, then replay each exploit/failure path before release.
 
 ## ground rules
 
-- baseline `v1.10.0` = `88fe3ce`; reviewed head = `01df17e`; branch `test`, tree clean at plan write.
-- source = `/review-code` sweep @ `01df17e`: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0`, gate `GO`. ∄ defect remediation owed ∴ this cycle is improvement work only.
-- accepted ruling (user, this session): **live DB `role` wins over the JWT claim** (§V1 amended). ⊥ the force-re-login variant, ⊥ document-only.
-- F2 (line endings) ! land as ONE dedicated mechanical commit, ⊥ mixed with any behavior change. It rewrites every tracked text file; interleaving it with F3-F5 would bury them.
-- ∀ behavior change → exact regression where reverting the fix fails the named test.
-- ∀ implementation phase ends: focused verification + `bash ./test.sh` exit 0 + `CHANGELOG.md` `## [Unreleased]` entry.
-- durable behavior/interface only → `SPEC.md` via `/encode-docs`. `PLAN.md`/`HANDOFF.md` only via `/encode-docs`/`/handoff`.
-- live DB `flat.gentex.int:5434/iclib` ⊥ agent-writable. ⊥ unrelated refactor, ⊥ push, ⊥ tag, ⊥ live secret in code/docs/logs.
-- SPEC already amended for this cycle (§C11 line endings, §V1 live role, §V27 sweep derivation). Later phases ! satisfy those rows, ⊥ re-amend unless research refutes them.
+- current release gate = **NO-GO**: `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; the prior `GO` + “improvement only” framing is refuted. This implementation gate remains distinct from the executable-plan gate.
+- reviewed code head = `c215724`; later planning-doc commits ⊥ expand the implementation baseline. Branch `test`; code tree clean before this prep.
+- F2 lands before behavior edits so later diffs are reviewable. It uses 3 separable commits: policy-only `.gitattributes`; content-neutral renormalization; regression + changelog. Only the middle commit may contain mass churn.
+- F3-F9 each end with focused tests + `bash ./test.sh` exit 0 + one scoped commit. Security fixes ⊥ wait until final verification to become green.
+- user selected **A purge** on 2026-08-01: ∀ `auth_provider='oidc'` hashes are irreversibly cleared by migration; future links clear the hash atomically; provider gates remain defense-in-depth. ⊥ quarantine path or live DB command.
+- exact runtime mechanisms are frozen below: secure proxy default 0; ordered shared route registry; app parsers skip SCIM; router-wide SCIM auth precedes media/parser/fallback; GUIDs canonicalize lowercase; POST/PATCH attribute rules differ per RFC 7644.
+- preserve current response shapes/statuses unless a task names the correction. Remove Claude F4 raw-`Error` logging edit: `logError` is deliberately variadic and preserving stack/context is unrelated.
+- ∀ behavior fix → a regression that fails if the fix is reverted. ∀ security regression uses a real Express listener when middleware ordering/IP derivation matters.
+- durable contract changes only → `SPEC.md` via `/encode-docs`; implementation receipts → `CHANGELOG.md` `## [Unreleased]`. `/handoff` after every phase.
+- live DB `flat.gentex.int:5434/iclib` ⊥ agent-writable. ⊥ unrelated refactor, dependency upgrade, push, tag, or live secret in code/docs/logs.
 
 ## existing assets
 
-- `bash ./test.sh` @ `01df17e` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass. 517/517.
-- `git diff --stat v1.10.0..HEAD` = 22852 ins / 13586 del; same range `--ignore-cr-at-eol` = 12257 / 2991 ∴ ~10600 ins + ~10600 del are pure CR-at-EOL churn. `server/src/controllers/{component,eco,settings}Controller.js` = 7351 ins → 514 ins once CR ignored.
-- `git diff --check v1.10.0..HEAD` = 1867 warnings across 57 files. Repo has `core.autocrlf=false` & ∄ `.gitattributes`. Endings already MIXED @ `v1.10.0` (`server/src/middleware/auth.js:1` = LF @ `v1.10.0`, CRLF @ HEAD, confirmed `od -c`). Prior handoff called these "false positives" — WRONG, the CRs are real bytes in the blobs.
-- `docker/repair` blob = `#!/bin/sh\r\n` (confirmed `od -c`). `Dockerfile:63-64` copies it to `/usr/local/bin/repair` + `chmod +x`. Linux kernel reads interpreter `/bin/sh\r` → `not found` ∴ the containerized §I10 break-glass admin-password reset is BROKEN today. F2 fixes it; this is the phase's observable regression.
-- tracked binaries = `*.png`(4), `*.msi`(2), `*.psd`(1), `*.doc`(1), `library/template/CIS/ICLIB.DBC`(1). `library/template/CIS/odbc_example.reg` = UTF-16LE (BOM `FF FE`) ∴ git NUL-detects it as binary already, but declare it explicitly.
-- `start.sh`, `test.sh`, `release.sh`, `Dockerfile` = LF today. `docker/repair` = CRLF (the outlier).
-- `server/src/test/routeAuthGuards.test.js:33-51` = hand-written `ALL_ROUTERS` map; sole parity assertion `:238` compares it to `ROUTER_MOUNTS` (`server/src/constants/publicRoutes.js:25-43`). Neither derives from `server/src/index.js:106-126` `app.use()` calls ∴ a router mounted in `index.js` & absent from both constants is swept by nothing & every test still passes.
-- `server/src/middleware/auth.js:97-100` selects `is_active` ONLY; `req.user.role` comes from the JWT minted @ `auth.js:35-43` (24h). 14 non-test `req.user.role`/`req.user?.role` read sites in `server/src`.
-- `server/src/controllers/authController.js:136-165` (`verify`) ALREADY re-queries `id, username, role, is_active, display_name` & returns the LIVE role to the client ∴ a demoted user's UI updates while server gates still honor the stale JWT role. F4 removes that disagreement + opens a de-dup opportunity.
-- `server/src/services/scimService.js:159` `normalizeAttributePath` strips `[...]` filters but KEEPS dotted paths ∴ `roles[primary eq true].value` → `roles.value`, misses `REFUSED` key `roles` (`:146-154`), falls through `WRITABLE` (`:137-144`), silently ignored @ `:217`. Defeats the file's own documented "fails loudly instead of silently doing nothing" intent for the role/credential attribute class.
-- `server/src/middleware/auth.js:103` passes the raw error OBJECT to `logError`; adjacent new code logs `error.message` (`healthController.js:33`, `scimController.js:53`, `componentController.js:359`). A pg error object can carry query text into logs. Folded into F4.
-- carried NOTE, ⊥ scheduled: SCIM mutation bodies parse as BOTH `application/scim+json` (`routes/scim.js:13`) & `application/json` (app-level `express.json()`, `index.js:87`). §V60 mandates the type on RESPONSES, which holds; input is merely lenient. ⊥ change without a new ruling.
+- explicit diff = 82 files, 6592 insertions/917 deletions; `--ignore-cr-at-eol` = 6503/828. ∄ dependency-file change. Added-line secret scan found fixtures only (`new-password`, `short-secret`).
+- `bash ./test.sh` @ `c215724` → exit 0: client 28 files/141 tests, server 47 files/376 tests, scripts dry-run; 1 non-failing pre-existing lint warning (`componentAuditFailure.test.js:2 asClient`). Existing oracle therefore misses the defects below.
+- native scratch-migration tools available: `psql`, `initdb`, `pg_ctl` = PostgreSQL 18.1. F4 must use an isolated temp data directory + non-live port; ⊥ inherited app DB coordinates.
+- no `.gitattributes`; `core.autocrlf=false`; 120 tracked text blobs contain `\r`; `git diff --check d49f3b..c215724` = 741 warnings: 738 CR-only + 3 real trailing spaces (`Library.jsx:1168,2416,2446`). `docker/repair` begins `23 21 2F 62 69 6E 2F 73 68 0D 0A` while `Dockerfile:63-64` installs it executable ∴ `/bin/sh\r` breaks §I10 repair in Linux.
+- `auth.js:98` reads only `is_active`; downstream gates consume token `role` for ≤24h. `/verify` separately returns the DB role ∴ UI and authorization can disagree.
+- verified-email OIDC linking flips `auth_provider='oidc'` without clearing `password_hash`; login/change-password gate only on hash presence ∴ a linked SSO account keeps local authentication despite §V29/§V50 and commit `81d3472`.
+- `index.js:64` uses `Number(TRUST_PROXY_HOPS) || 1`; direct default trusts caller XFF and 0 is unrepresentable. Real-listener probe, limit 2: forged XFF statuses `[401,401,401,401]`; secure direct mode 0 → `[401,401,429,429]`.
+- route paths exist in `index.js`, `ROUTER_MOUNTS`, and test `ALL_ROUTERS`; the test compares the latter 2 only. `index.js` import starts DB/listener ∴ ⊥ import it as a registry workaround.
+- app `express.json()` + `express.urlencoded()` run before SCIM; ordinary JSON/form can parse before service auth. SCIM router parser also precedes auth; fallback `/Groups|/Bulk|typo` lacks auth; parser errors fall into generic JSON errors.
+- OIDC stores tenant/object GUIDs lowercase; SCIM trims but preserves case and compares PostgreSQL TEXT exactly. Uppercase valid tenant/object input can hide the linked row.
+- RFC 7644: POST read-only `id|meta` inputs are ignored; PATCH mutation is rejected. Entra’s stock create payload includes `meta` + `roles: []`. The old F5 plan would reject both and break interoperability; it also misses dotted/filtered sensitive paths.
+- SCIM discovery publishes `/ResourceTypes/User` + `/Schemas/<urn>` locations but routes neither; successful `POST /Users` returns 200 without `Location`, not SCIM/Entra 201 + stable resource location. ECO invalid `alt_class` is tested as 500 after `BEGIN`; Library bulk selections survive filter changes and can mutate hidden rows.
+- sourced contracts = §R15 (Git/Linux text), §R16 (Express proxy), §R17 (SCIM/HTTP/Entra).
 
 ## phase order
 
 id|goal|depends|exit
 |---|---|---|---|
-F1|research + freeze the four contracts|-|∀ file/behavior/test mapping exact; ⊥ semantic `?`
-F2|normalize line endings + fix the CRLF shebang|F1|`git diff --check` clean; `repair` execs on Linux; own commit
-F3|derive the route sweep from the live app|F1|mounted-but-unswept router FAILS
-F4|resolve role from the live users row|F1|demotion binds next request; §V1 green
-F5|refuse SCIM attributes by first path segment|F1|dotted/filtered role+credential forms rejected
-F6|final verify code vs SPEC + PLAN|F2-F5|oracle green; ∀ §T + evidence classified
+F1|record SSO purge ruling + freeze receipts|-|A purge recorded; research gate HOLD; remaining research = 0
+F2|normalize tracked text without hiding code changes|F1|policy + pure renorm + regression separable; repair shebang LF
+F3|enforce live DB role|F2|demotion/elevation bind next protected request
+F4|enforce SSO credential ownership|F1,F2|OIDC hashes purged; OIDC account ⊥ local auth
+F5|secure proxy/IP limiter contract|F2|direct forged XFF ⊥ rotate limiter key; image still trusts nginx
+F6|single-source runtime route mounts + sweep|F2|registry-added unguarded router fails automatically
+F7|seal SCIM ingress/auth/media boundary|F6|auth precedes body work + fallback; all errors SCIM-shaped
+F8|fix SCIM identity, attribute, discovery semantics|F7|uppercase IDs work; Entra stock body works; sensitive writes fail
+F9|fix alternative-class API/UI edge paths|F2|invalid ECO input 400 pre-DB; hidden rows ⊥ bulk mutation
+F10|final security replay + closure|F2-F9|oracle green; `BLOCK=DIVERGENCE=UNKNOWN=0`
 
-## F1 contract revalidation
+## F1 research + decision gate
 
-goal: re-check every `/review-code` claim against live files + primary sources before mutation; freeze the exact contracts F2-F5 implement.
-inputs: §C11, §V1, §V2, §V10, §V15, §V27, §V57, §V60; the review evidence in `## existing assets`.
-files: read-only across the named server/test/docker files + `git` metadata + official `gitattributes` / `execve` docs. Docs only via `/encode-docs` if evidence refutes a frozen row.
-
-§T TASKS:
-
-T1|.|confirm the line-ending blast radius + binary set
-touch: read-only `git ls-files`, `git show <blob>`, `.gitignore`, `Dockerfile`, `docker/repair`, `start.sh`, `test.sh`, `release.sh`
-details: enumerate ∀ tracked path whose blob carries `\r`; classify text vs binary by real bytes (`od -c` / `git diff --numstat` `-` marker), ⊥ by extension alone. Confirm `docker/repair` CRLF shebang + `Dockerfile:63-64` copy/chmod. Confirm `*.reg` is UTF-16LE ∴ git already treats it binary. Decide the exact `.gitattributes` rule set: `* text=auto eol=lf` + explicit `binary` for `*.png|*.msi|*.psd|*.doc|*.DBC|*.reg` + explicit `eol=lf` for `*.sh` & `docker/repair` & `Dockerfile`.
-verify: cite the primary source for CRLF-shebang failure on Linux (`execve(2)` interpreter-line handling) & for `text=auto`/`eol` semantics (git `gitattributes` docs), with the date checked → new §R rows via `/encode-docs` if they carry a citation.
-exit: F2's rule set + expected churn are exact; ∄ binary can be corrupted.
-next: F1.T2
-
-T2|.|freeze the route-sweep derivation contract
-touch: read-only `server/src/index.js:106-126`, `server/src/constants/publicRoutes.js`, `server/src/test/routeAuthGuards.test.js`
-details: decide HOW the sweep learns the live mount set. Prefer importing the express `app` (`server/src/index.js` default-exports it) & walking its router stack over re-parsing source text — but `index.js` calls `startServer()` on import (`:234`) ∴ confirm whether importing it in a test opens a listener / hits the DB, and if so pick the alternative (export a `mountRouters(app)` fn, or a single `ROUTER_MOUNTS`-driven mount loop that `index.js` and the test BOTH consume). ⊥ leave two hand-kept lists. Preserve the existing `AUTH_GUARDS = { scim: 'authenticateScim' }` per-router guard semantics (§V27).
-verify: name the chosen mechanism + prove it cannot pass while a router is mounted-but-unswept; confirm ∄ new import cycle via `publicRoutes.js` → `scimService.js` (existing edge, see watchouts).
-exit: F3 has ⊥ design choice left.
-next: F1.T3
-
-T3|.|freeze the live-role contract
-touch: read-only `server/src/middleware/auth.js`, `server/src/controllers/authController.js:136-165`, the 14 `req.user.role` read sites, `server/src/test/auth.test.js`
-details: confirm 1 query still suffices (`SELECT is_active, role FROM users WHERE id = $1`). Freeze: `req.user.role` = row role; JWT `role` claim informational; ∀ other `decoded` claims unchanged; missing row | `is_active=false` → existing generic 401; query reject → existing 503 fail-closed. Enumerate ∀ 14 read sites + confirm none breaks when role arrives from the DB (same string domain, §C5 `VALID_ROLES`). Decide whether `verify` (`authController.js:136-165`) reuses the row the middleware already read or keeps its own query — reuse is the stated de-dup opportunity, ⊥ mandatory.
-verify: enumerate the regression matrix — demoted admin loses `isAdmin` on next request; elevated user gains it; inactive still 401; DB reject still 503; cookie + Bearer both; exactly 1 DB query per valid JWT.
-exit: F4 exact; §V1 amendment confirmed accurate or corrected via `/encode-docs`.
-next: F1.T4
-
-T4|.|freeze the SCIM refusal contract
-touch: read-only `server/src/services/scimService.js:137-223`, `server/src/test/scimRoutes.test.js`
-details: freeze first-path-segment matching: normalize, split on `.`, test segment[0] against `REFUSED` before the `WRITABLE` lookup & before the existing `startsWith('oidc')` check — keeping `name.formatted` & `emails.value` WRITABLE (their segment[0] `name`/`emails` are ⊥ refused). Confirm the existing deliberate policy stands: UNRECOGNIZED attributes stay silently ignored (Entra's stock mapping sends `givenName`/`surname`; prior-cycle ruling, `HANDOFF.md` deviations) — only the REFUSED class becomes loud. Build the corpus: `roles[primary eq true].value`, `roles.value`, `role.x`, `password.value`, `meta.location`, `externalId.x`, plus the currently-passing `name.formatted` / `emails[type eq "work"].value` to prove ∄ regression.
-verify: ∀ corpus row has an expected status + `scimType`; reverting the segment match fails ≥1 named case.
-exit: F5 exact.
-next: F2.T1
-
-verify: evidence consistent with §C11/§V1/§V27/§V60 + the frozen assets list; docs updated only if refuted. ⊥ implementation code in this phase.
-exit: research gate HOLD; remaining research phases after F1 = 0.
-next: F2.T1
-
-## F2 line-ending normalization
-
-goal: one `.gitattributes`, one renormalize, one commit — and a `repair` entrypoint that actually execs inside the container.
-inputs: F1.T1; §C11; §I10.
-files: `.gitattributes` (new), every tracked text blob (mechanical), `CHANGELOG.md`.
+goal: preserve the review receipt and encode the user-selected irreversible purge policy before code.
+inputs: explicit baseline/head; §C11, §R15-§R17, §V1, §V27, §V29, §V32, §V50, §V60.
+files: read-only review targets; `SPEC.md`, `PLAN.md`, `HANDOFF.md` via `/encode-docs`.
 
 §T TASKS:
 
-T1|.|add `.gitattributes`
+T1|x|freeze baseline, text, security, and test receipts
+touch: read-only git metadata + files named in `existing assets`
+details: verified ancestry + 82-file scope; 120 CR-bearing tracked text blobs; 738 CR-only + 3 semantic whitespace warnings; exact repair bytes; proxy exploit/control; full oracle; dependency/secret scope.
+verify: receipts reproduced @ `c215724`; no implementation write.
+
+T2|x|record user ruling: A purge
+touch: `SPEC.md`, `PLAN.md`, `HANDOFF.md`
+details: user chose **A purge**. F4 adds `database/migrations/19_oidc_password_ownership.sql` setting `password_hash=NULL` for every `auth_provider='oidc' AND password_hash IS NOT NULL`, then enforces the ownership invariant in PostgreSQL; irreversible credential invalidation matches SSO-only §V29/§V50. Future linking clears hashes atomically and every local credential flow gates on `auth_provider='local'`. B quarantine + hybrid local/SSO auth are out of scope.
+verify: A purge written verbatim in PLAN + HANDOFF; §V29 owns the durable provider/hash invariant; F4 contains no conditional path.
+
+T3|x|freeze implementation architecture + primary-source contracts
+touch: read-only Git/Express/RFC/Microsoft/Linux sources; SPEC §R15-§R17, §V27, §V32, §V60 via `/encode-docs`
+details: chose 3-commit normalization; shared ordered mount registry consumed by runtime/public resolver/sweep; proxy default 0 + Docker 1; SCIM app-parser exclusion + router-wide auth first; operation-specific SCIM attribute matrix + lowercase GUIDs + resolvable discovery locations.
+verify: ∄ later “either/or” mechanism; citations checked 2026-07-31.
+
+verify: T1-T3 evidence HOLD; user ruling + durable contract recorded.
+exit: research gate HOLD; embedded review-plan `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; remaining research phases = 0.
+next: F2.T1
+
+## F2 line-ending policy + normalization
+
+goal: make Git-stored text LF, preserve binaries, and restore executable Linux shebangs with auditable commits.
+inputs: F1; §C11, §I10, §R15.
+files: `.gitattributes`, mechanically affected tracked text, `server/src/test/repositoryTextPolicy.test.js`, `CHANGELOG.md`.
+
+§T TASKS:
+
+T1|.|commit policy alone
 touch: `.gitattributes`
-details: write the F1.T1 rule set — `* text=auto eol=lf`; explicit `binary` for `*.png`, `*.msi`, `*.psd`, `*.doc`, `*.DBC`, `*.reg`; explicit `text eol=lf` for `*.sh`, `docker/repair`, `Dockerfile`. ⊥ `eol=crlf` anywhere unless F1.T1 found a consumer that needs it.
-verify: `git check-attr -a -- docker/repair start.sh library/template/CIS/psqlodbc_x64.msi library/template/CIS/odbc_example.reg` reports the intended attrs.
-exit: policy on disk before any blob moves.
-next: F2.T2
+details: add `* text=auto eol=lf`; explicit `binary` for verified binary families (`*.png|*.msi|*.psd|*.doc|*.DBC|*.reg`); explicit `text eol=lf` for `*.sh`, `docker/repair`, `Dockerfile`. Stage/commit ONLY `.gitattributes`; expected unstaged normalization candidates are allowed after policy activation.
+verify: staged diff names only `.gitattributes`; `git check-attr -a -- docker/repair start.sh library/template/CIS/psqlodbc_x64.msi library/template/CIS/odbc_example.reg` exact.
 
-T2|.|renormalize in one mechanical commit
-touch: every tracked text file
-details: `git add --renormalize .` then commit ALONE. ⊥ any hand edit in this commit. Windows/Git Bash: verify the working tree is clean FIRST (`git status --porcelain` empty) so renormalize churn is separable; after commit re-check `git status` ∵ `bash ./test.sh` runs `lint:fix` first & may rewrite files (watchout).
-verify: `git diff --check v1.10.0..HEAD` → 0 warnings. `git show --stat HEAD` = mechanical only. `git diff --ignore-cr-at-eol HEAD~1..HEAD` → EMPTY (proves ∄ content changed).
-exit: diffs readable again; `git diff --check` clean.
-next: F2.T3
+T2|.|commit content-neutral renormalization alone
+touch: only F1.T1’s verified text set
+details: `git add --renormalize .`; compare staged paths to expected text set; abort if binary or semantic delta appears; commit with ⊥ hand edit/docs/test.
+verify: `git diff --ignore-cr-at-eol <parent>..<renorm-commit>` EMPTY; baseline diff-check falls from 741 to exactly the 3 known `Library.jsx` trailing spaces; binary blob IDs unchanged.
 
-T3|.|prove the container entrypoint execs
-touch: `docker/repair` (via renormalize), `CHANGELOG.md`, optional new test
-details: confirm `docker/repair` blob is now `#!/bin/sh\n`. This is the §I10 break-glass admin-password-reset path, so give it a real regression — prefer a cheap repo-level guard test asserting ∀ tracked file with a `#!` shebang has ⊥ `\r` in its first line (catches recurrence for `start.sh` too), over a container build. If a disposable container check is run instead, record the exact commands. `CHANGELOG.md` `## [Unreleased]`: name the broken-then-fixed containerized `repair` entrypoint as a FIX, and the normalization as a chore.
-verify: the shebang guard test fails when a `\r` is reinjected into `docker/repair`; `bash ./test.sh` exit 0.
-exit: §I10 containerized path works; §C11 line-ending clause HOLD.
+T3|.|remove semantic whitespace + add recurrence guard/receipt
+touch: `client/src/pages/Library.jsx:1168,2416,2446`, `server/src/test/repositoryTextPolicy.test.js`, `CHANGELOG.md`
+details: remove the 3 real trailing spaces outside T2. Test repo bytes: `.gitattributes` owns LF policy; every tracked executable shebang first line contains no `\r`; `docker/repair` exactly starts `#!/bin/sh\n`. Record broken/fixed container repair + normalization. Commit separately from T2.
+verify: `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD` = 0; focused guard fails after reinjecting CR in fixture/probe; `bash ./test.sh` exit 0; worktree clean.
+
+verify: policy attrs + pure-diff proof + shebang regression + full oracle.
+exit: §C11/§I10 HOLD; merge/rebase note remains `git merge -X renormalize` where needed.
 next: F3.T1
 
-verify: `git diff --check` clean + `--ignore-cr-at-eol` empty + full oracle.
-exit: F2 HOLD; commit is mechanical + standalone.
-next: F3.T1
+## F3 live DB role enforcement
 
-## F3 route-sweep drift guard
-
-goal: a router mounted in `server/src/index.js` but missing from the descriptors can no longer escape the §V10/§V27 sweep.
-inputs: F1.T2; §V10, §V27.
-files: `server/src/index.js`, `server/src/constants/publicRoutes.js`, `server/src/test/routeAuthGuards.test.js`, `CHANGELOG.md`.
+goal: make the database role authoritative on every protected request without adding a query.
+inputs: F1; §V1, §V2, §V15.
+files: `server/src/middleware/auth.js`, `server/src/test/auth.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|.|single-source the mount list
-touch: `server/src/index.js`, `server/src/constants/publicRoutes.js`
-details: apply the F1.T2 mechanism so `index.js`'s mounts and `ROUTER_MOUNTS` cannot diverge — either `index.js` mounts BY iterating the shared descriptor map, or it exports the mount list the test consumes. Preserve every current mount path verbatim (`/api/auth` … `/api/scim/v2` via `SCIM_BASE_PATH`) & their ORDER: `publicGlobalLimiter` is mounted on `/api` before the routers (`index.js:103`) and the SCIM router last (`:126`); reordering changes runtime behavior. ⊥ introduce an import cycle (`publicRoutes.js` already imports `SCIM_BASE_PATH` from `services/scimService.js`).
-verify: server boots (`node --check` + existing suites) & the live mount paths are byte-identical to `01df17e`.
-exit: one list, two consumers.
-next: F3.T2
+T1|.|override JWT role from existing active-user query
+touch: `server/src/middleware/auth.js`
+details: query `SELECT is_active, role FROM users WHERE id = $1`; set `req.user={...decoded,id:decoded.userId,role:row.role}`. Preserve JWT generation, other claims, exactly 1 DB query, missing/inactive 401, query failure 503. ⊥ alter `authController.verify`; ⊥ raw-error logging refactor.
+verify: F3.T2.
 
-T2|.|make an unswept router fail
-touch: `server/src/test/routeAuthGuards.test.js`, `CHANGELOG.md`
-details: replace the hand-kept `ALL_ROUTERS` (`:33-51`) with the derived set; keep `AUTH_GUARDS = { scim: 'authenticateScim' }` + every existing assertion. Add a synthetic negative: a router mounted but absent from the descriptors FAILS the sweep (mirrors the existing "fails when a SCIM route is added without its guard" case @ `:218`). `CHANGELOG.md` `## [Unreleased]`: name the drift guard.
-verify: `cd server && npm.cmd run test:run -- src/test/routeAuthGuards.test.js`; the synthetic negative fails when the guard is reverted; `bash ./test.sh` exit 0.
-exit: §V10/§V27 sweep derivation clause HOLD.
+T2|.|lock live-role matrix
+touch: `server/src/test/auth.test.js`, `CHANGELOG.md`
+details: cookie + Bearer; JWT admin/DB read-only denied by `isAdmin` next request; JWT read-only/DB admin allowed; inactive/missing 401; DB reject 503; downstream ⊥ called on deny; valid request query count = 1.
+verify: focused auth suite; reverting row-role override fails demotion + elevation; `bash ./test.sh` exit 0.
+
+verify: §V1 live-role clause HOLD; response shapes unchanged.
+exit: stale JWT role cannot authorize.
 next: F4.T1
 
-verify: focused + full oracle; ∀ live mount path unchanged.
-exit: F3 HOLD.
-next: F4.T1
+## F4 SSO credential ownership
 
-## F4 live-DB role resolution
-
-goal: the role the server enforces is the role in the database, not a ≤24h-old token claim.
-inputs: F1.T3; §V1 (amended), §V2, §V15; accepted ruling "live DB role wins".
-files: `server/src/middleware/auth.js`, `server/src/controllers/authController.js`, `server/src/test/auth.test.js`, `server/src/test/authController.test.js`, `CHANGELOG.md`.
+goal: make every `auth_provider='oidc'` account SSO-only and purge every stored OIDC password hash.
+inputs: F1.T2; §V29, §V50; commit `81d3472` intent.
+files: `server/src/services/oidcService.js`, `server/src/controllers/authController.js`, `database/init-users.sql`, `database/migrations/19_oidc_password_ownership.sql`, `server/src/test/{oidcService,authController,oidcPasswordOwnershipSchema}.test.js`, `README.md`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|.|read role in the existing active-check query
-touch: `server/src/middleware/auth.js:92-124`
-details: `SELECT is_active, role FROM users WHERE id = $1` — still exactly ONE query per valid JWT. `req.user = { ...decoded, id: decoded.userId, role: row.role }` so the row role OVERRIDES the claim; ∀ other claims unchanged. ⊥ touch the 401/503 branches: missing row | `is_active=false` → existing generic 401; query reject → existing 503 fail-closed (§V1). ⊥ change `generateToken` — the claim stays, informational.
-verify: covered by F4.T3.
-exit: §V1 live-role clause satisfied in the middleware.
-next: F4.T2
+T1|.|close future link + local-auth paths
+touch: `oidcService.js`, `authController.js`
+details: verified-email link atomically sets `password_hash=NULL` with provider/OIDC keys. Login selects `auth_provider` + rejects provider ≠ `local` before bcrypt regardless hash. Change-password selects provider + hash, rejects provider ≠ `local` before bcrypt/hash/update. Admin password gate already rejects OIDC; preserve local break-glass users.
+verify: F4.T3.
 
-T2|.|align `verify` + fix the raw-error log
-touch: `server/src/controllers/authController.js:136-165`, `server/src/middleware/auth.js:103`
-details: `verify` already returns the live role (`:140-157`) ∴ it now AGREES with the gates; per F1.T3 either reuse the row `authenticate` read or leave its query — take the reuse only if it does ⊥ change the response shape. Separately: `auth.js:103` `logError('Auth', 'Active-user check failed:', error)` → log `error.message`, matching `healthController.js:33` / `scimController.js:53` / `componentController.js:359`, so a pg error object cannot carry query text into logs.
-verify: covered by F4.T3; `verify` response shape byte-identical.
-exit: server + client agree on role; log hygiene consistent.
-next: F4.T3
+T2|.|purge existing OIDC password hashes
+touch: `database/migrations/19_oidc_password_ownership.sql`, `database/init-users.sql`, new `oidcPasswordOwnershipSchema.test.js`, `README.md`, `CHANGELOG.md`
+details: migration first runs exactly `UPDATE users SET password_hash = NULL WHERE auth_provider = 'oidc' AND password_hash IS NOT NULL`, then idempotently adds `users_oidc_password_ownership` CHECK (`auth_provider <> 'oidc' OR password_hash IS NULL`). Mirror the CHECK in fresh schema. Guard default admin/guest `ON CONFLICT` password resets with existing `auth_provider='local'` so manual init cannot restore an OIDC hash. README/changelog require confirmed SSO + backup before rollout, name irreversible invalidation, and clarify unlinked local-provider break-glass accounts remain unchanged. ⊥ live DB command.
+verify: committed test checks exact purge predicate, migration/fresh-schema constraint parity, and guarded seed conflicts. Isolated temp PostgreSQL 18.1: load prior schema shape, seed OIDC+local hashes, apply migration twice → OIDC NULL + local unchanged; non-NULL OIDC insert/update rejected; local hash update accepted. Start/stop via `initdb`/`pg_ctl` in `finally`; assert scratch host/port ≠ app/live coordinates.
 
-T3|.|record + run the role regressions
-touch: `server/src/test/auth.test.js`, `server/src/test/authController.test.js`, `CHANGELOG.md`
-details: add the F1.T3 matrix — demoted admin (JWT `role:'admin'`, row `role:'read-only'`) is REFUSED by `isAdmin` on the next request; elevated user (JWT `read-only`, row `admin`) is ALLOWED; inactive still 401; missing row still 401; DB reject still 503; cookie + Bearer both; exactly 1 DB query per valid JWT. `CHANGELOG.md` `## [Unreleased]`: role changes take effect on the next request instead of after ≤24h.
-verify: `cd server && npm.cmd run test:run -- src/test/auth.test.js src/test/authController.test.js`; reverting T1 fails the demoted-admin case; `bash ./test.sh` exit 0. NOTE: any new test exercising `authenticate` ! mock `../config/database.js` (it is async + hits the DB).
-exit: §V1 HOLD incl. the live-role clause.
+T3|.|lock credential matrix
+touch: named server tests
+details: linked local user update includes hash NULL; OIDC row with anomalous non-null legacy hash gets login 401 + change 400 with bcrypt/hash/update ⊥ called; local row still authenticates/changes; JIT remains NULL; admin cannot set OIDC password; migration proves A purge.
+verify: focused OIDC/auth/user-management suites; revert each gate fails; `bash ./test.sh` exit 0.
+
+verify: §V29/§V50 HOLD under A purge.
+exit: no unintended local credential path remains.
 next: F5.T1
 
-verify: focused + full oracle; query count per protected request unchanged @ 1.
-exit: F4 HOLD.
-next: F5.T1
+## F5 trusted-proxy + limiter identity
 
-## F5 SCIM refused-attribute path matching
-
-goal: a mis-mapped Entra attribute naming a locally-owned column fails loudly whatever path form it arrives in.
-inputs: F1.T4; §V57, §V60.
-files: `server/src/services/scimService.js`, `server/src/test/scimRoutes.test.js`, `CHANGELOG.md`.
+goal: prevent direct clients from choosing `req.ip` while retaining one-hop nginx behavior in the image.
+inputs: F1; §R16, §V32.
+files: new `server/src/config/trustProxy.js`, `server/src/index.js`, `Dockerfile`, `.env.example`, `docker-compose.yml`, `README.md`, new `server/src/test/trustProxy.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|.|match `REFUSED` on the first path segment
-touch: `server/src/services/scimService.js:201-223`
-details: in `assign`, after `normalizeAttributePath`, split on `.` and test `segment[0]` against `REFUSED` (`:146-154`) — so `roles[primary eq true].value` → `roles.value` → segment[0] `roles` → refused `invalidValue`, ⊥ silently dropped @ `:217`. Keep the existing `startsWith('oidc')` refusal. `WRITABLE` (`:137-144`) lookup stays on the FULL normalized path ∴ `name.formatted` + `emails.value` keep working (segment[0] `name`/`emails` ∉ `REFUSED`). Keep the deliberate prior-cycle policy: unrecognized non-refused attributes stay silently ignored (Entra's stock mapping sends `givenName`/`surname`).
-verify: covered by F5.T2.
-exit: refusal is path-form independent.
-next: F5.T2
+T1|.|parse a secure explicit proxy contract
+touch: `trustProxy.js`, `index.js`, deployment docs/config
+details: missing `TRUST_PROXY_HOPS` → 0; accept only integer ≥0; preserve literal 0; invalid/negative/fractional → startup configuration error. `app.set('trust proxy', hops)`. Bundled Docker image explicitly sets 1 because nginx is the only exposed hop; docs say direct Node stays 0 and proxy topology must match.
+verify: parser unit matrix + Docker/config-doc parity.
 
-T2|.|record + run the refusal corpus
-touch: `server/src/test/scimRoutes.test.js`, `CHANGELOG.md`
-details: add the F1.T4 corpus across BOTH `parseScimResource` (POST body) and `parseScimPatch` (Add/Replace/Remove, pathless + pathed): `roles[primary eq true].value`, `roles.value`, `role.x`, `password.value`, `meta.location`, `externalId.x` → 400 with the right `scimType` (`mutability` vs `invalidValue`); `name.formatted`, `emails[type eq "work"].value`, `displayName`, `active`, `userName` → still WRITABLE; `givenName`, `surname` → still silently ignored. `CHANGELOG.md` `## [Unreleased]`: SCIM refuses locally-owned attributes in every path form. NOTE: `scimRoutes.test.js` mocks `../utils/logger.js` with `logError` + `logWarn` ONLY — ⊥ import another logger fn into `scimController.js`.
-verify: `cd server && npm.cmd run test:run -- src/test/scimRoutes.test.js src/test/scimAuth.test.js`; reverting T1 fails ≥1 `roles`/`password` case; `bash ./test.sh` exit 0.
-exit: §V57/§V60 refusal guarantee HOLD in code, ⊥ only in prose.
+T2|.|replay IP spoof/control through real listener
+touch: `trustProxy.test.js`
+details: limit 2 direct/default + four distinct forged XFF → `[401,401,429,429]`; explicit one-hop + proxy-overwritten XFF distinguishes real clients; literal 0 regression; invalid configs fail before listen.
+verify: real listener closes in `finally`; reverting `|| 1` behavior fails; focused rate-limit + trust-proxy suites; `bash ./test.sh` exit 0.
+
+verify: §V32 HOLD; bundled nginx path + direct dev path both named.
+exit: XFF cannot bypass credential/public budgets on direct deployment.
 next: F6.T1
 
-verify: focused + full oracle; ∄ regression on the writable + ignored classes.
-exit: F5 HOLD.
-next: F6.T1
+## F6 runtime route registry + auth sweep
 
-## F6 final verification + closure handoff
-
-goal: prove every accepted item is implemented, tested, documented, and release-ready; classify remaining evidence honestly.
-inputs: F2-F5 artifacts; SPEC §C11, §I10, §V1, §V2, §V10, §V27, §V57, §V60; `CHANGELOG.md`; git history.
-files: read-only verification; docs only if evidence demands correction.
+goal: ensure the runtime mount set, public-path resolver, and full-router guard sweep consume one ordered source.
+inputs: F1; §V10, §V27, §V32.
+files: new `server/src/constants/routeMounts.js`, new `server/src/routes/registry.js`, `server/src/index.js`, `server/src/constants/publicRoutes.js`, `server/src/test/routeAuthGuards.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|.|run the full static + test oracle
+T1|.|create ordered runtime registry without import cycle
+touch: `routeMounts.js`, `registry.js`, `index.js`, `publicRoutes.js`
+details: ordered descriptors own router name + exact mount path; registry binds each descriptor to its router and asserts exact name parity; exported mount fn is index’s sole API-router mounting path. `publicRoutes.js` derives mounts from descriptors. Preserve all 17 paths, public limiter before app routers, SCIM last/outside public budget. Dependency edge remains registry → auth route → rateLimit → publicRoutes → descriptor leaf; ⊥ edge back to registry.
+verify: paths/order byte-identical to `c215724`; `node --check`; no direct route import/mount list remains in index.
+
+T2|.|derive sweep + prove drift failure
+touch: `routeAuthGuards.test.js`
+details: delete `ALL_ROUTERS`; audit registry routers directly, retaining per-router guard policy. Export audit helper accepting a registry; append synthetic mounted unguarded router → audit fails automatically. Assert descriptor↔binding exact parity and index uses mount fn once.
+verify: focused route suite; synthetic negative proves mounted-but-unswept impossible through supported mount path; `bash ./test.sh` exit 0.
+
+verify: §V10/§V27 registry clause HOLD; ∄ duplicate mount list.
+exit: route additions have one runtime path and automatic sweep coverage.
+next: F7.T1
+
+## F7 SCIM ingress/auth/media boundary
+
+goal: authenticate every SCIM request before body work and return SCIM media/errors for every ingress failure.
+inputs: F6; §R17, §V27, §V60.
+files: new `server/src/middleware/bodyParsers.js`, `server/src/index.js`, `server/src/routes/scim.js`, `server/src/middleware/scimAuth.js`, `server/src/test/{scimRoutes,scimAuth,routeAuthGuards}.test.js`, `CHANGELOG.md`.
+
+§T TASKS:
+
+T1|.|exclude SCIM from generic app body parsers
+touch: `bodyParsers.js`, `index.js`
+details: exported production middleware skips BOTH generic JSON + urlencoded parsing for exact `SCIM_BASE_PATH` subtree; other routes retain current parser behavior/order. Tests import this middleware, ⊥ duplicate a test-only approximation.
+verify: ordinary JSON/form SCIM payload reaches router unparsed; non-SCIM JSON remains parsed.
+
+T2|.|make SCIM router auth-first + media-strict
+touch: `scim.js`, `scimAuth.js`
+details: router-wide `authenticateScim` first, covering discovery/users/unsupported fallback; auth scheme comparison case-insensitive, token bytes still exact/constant-time. After auth: POST/PATCH require `req.is(SCIM_CONTENT_TYPE)` else SCIM 415; 64kb SCIM JSON parser; scoped parser error middleware maps malformed → 400 `invalidSyntax`, oversized → 413, all `application/scim+json`. DELETE/GET need no body type.
+verify: F7.T3.
+
+T3|.|lock production-order adversarial matrix
+touch: named SCIM/route tests
+details: unauthenticated `/Groups`, malformed, oversized, JSON, form all stop at 401 before parser/DB; authenticated unsupported → SCIM 404; wrong mutation media → SCIM 415; malformed → SCIM 400; oversized → SCIM 413; lowercase `bearer` accepted; correct media reaches handler; non-SCIM app JSON unchanged. Sweep understands router-wide gate.
+verify: focused SCIM + route suites via real listener; reverting order/skip/fallback auth fails; `bash ./test.sh` exit 0.
+
+verify: §V27/§V60 ingress clauses HOLD.
+exit: no SCIM path/body/error bypasses service boundary.
+next: F8.T1
+
+## F8 SCIM identity + resource semantics
+
+goal: make Entra interoperability correct without allowing SCIM to mutate local authorization/credentials.
+inputs: F7; §R17, §V57, §V60.
+files: `server/src/services/scimService.js`, `server/src/controllers/scimController.js`, `server/src/routes/scim.js`, `server/src/test/scimRoutes.test.js`, `README.md` if operator mapping changes, `CHANGELOG.md`.
+
+§T TASKS:
+
+T1|.|canonicalize GUID identity at every boundary
+touch: `scimService.js`, `scimController.js`
+details: one helper validates + returns lowercase GUID. Apply to configured tenant, filter `externalId`, POST externalId, and all TEXT DB predicates/log/audit values. Invalid filter GUID → `invalidFilter`; invalid POST → `invalidValue`. OIDC lowercase storage remains unchanged.
+verify: uppercase env + filter/create finds same lowercase linked row; mixed-case replay idempotent; foreign tenant remains invisible.
+
+T2|.|implement operation-specific attribute ownership
+touch: `scimService.js`
+details: normalize filter syntax then inspect first path segment before full writable lookup. Sensitive aliases = `role|roles|password|password_hash|authProvider|auth_provider|oidc*`. POST: ignore read-only `id|meta`; tolerate only `roles: []` as no-op for Entra stock body; reject nonempty roles + every other sensitive nested/dotted/filtered form; controller removes the one valid top-level `externalId`, while any leftover/nested externalId form is a mutability error. PATCH: reject `id|meta|externalId` with `mutability`; reject sensitive class `invalidValue`; keep `name.formatted|emails.value|displayName|active|userName` writable; unknown non-sensitive attrs remain ignored.
+verify: corpus in F8.T4; revert first-segment match fails dotted sensitive case.
+
+T3|.|make create/discovery response contract complete
+touch: `scimController.js`, `scim.js`
+details: successful `POST /Users` → 201 + `Location` equal returned `meta.location`; repeat remains state-idempotent and returns same representation/location. Factor single User ResourceType/Schema objects; add authenticated `GET /ResourceTypes/User` + `GET /Schemas/:id`; exact IDs return advertised object, unknown IDs SCIM 404. Advertise `externalId` with actual immutable/server-unique semantics. Preserve collection ListResponse shapes.
+verify: POST first/replay both 201 + stable Location; follow every emitted `meta.location` → 200 + matching object; unsupported ID → SCIM 404.
+
+T4|.|lock Entra + hostile corpora
+touch: `scimRoutes.test.js`, `CHANGELOG.md`
+details: Entra create body with `meta` + `roles:[]` succeeds @ 201 + Location and idempotently updates; nonempty role never changes DB; POST/PATCH first-segment corpus; writable + unknown controls; uppercase GUID cases; discovery links. Assert no query on rejected sensitive attempt.
+verify: focused SCIM suites + `bash ./test.sh` exit 0.
+
+verify: §V57/§V60 HOLD; RFC readOnly semantics ≠ local sensitive refusal preserved explicitly.
+exit: SCIM standard/default payload compatible and authority boundary closed.
+next: F9.T1
+
+## F9 alternative-class edge safety
+
+goal: turn invalid client input into a pre-DB 400 and prevent filter changes from expanding any bulk write beyond visible eligible rows.
+inputs: §V15, §V59; reviewed alternative-class server/client paths.
+files: `server/src/controllers/ecoController.js`, `server/src/test/ecoAlternativeClass.test.js`, `client/src/pages/Library.jsx`, `client/src/test/libraryAlternativeClass.test.jsx`, `CHANGELOG.md`.
+
+§T TASKS:
+
+T1|.|validate ECO alt-class before connection/transaction
+touch: `ecoController.js`, `ecoAlternativeClass.test.js`
+details: destructure/validate every `alt_class` old/new input before `pool.connect()`; domain failure → 400 exact safe message, connection/BEGIN/INSERT ⊥ called. Valid clear/A/B/C flow unchanged. ⊥ broaden generic ECO error refactor.
+verify: old/new invalid tests expect 400 + zero DB calls; valid staging/apply tests unchanged.
+
+T2|.|snapshot visible IDs at every bulk mutation boundary
+touch: `Library.jsx`, client regression
+details: derive current visible ID set from `sortedComponents` (+ direct-edit eligibility for alt-class). Delete confirmation and alt-class modal snapshot the exact intersected IDs; displayed count + eventual mutation use that snapshot, ⊥ mutable/stale `selectedForBulk`. Disable/no-op when intersection empty.
+verify: select row → filter it out → delete/class sends no hidden ID; mixed selection sends visible eligible subset only; confirmation/modal count matches payload; mode switching still clears; focused client suite + `bash ./test.sh` exit 0.
+
+verify: §V59 API boundary + visible-selection safety HOLD.
+exit: no 500 for domain input; no off-screen class mutation.
+next: F10.T1
+
+## F10 final verification + closure
+
+goal: prove every blocker/divergence is fixed, documented, and isolated before release.
+inputs: F2-F9 commits; §C11, §I10, §R15-§R17, §V1, §V10, §V27, §V29, §V32, §V50, §V57, §V59, §V60.
+files: read-only verification; docs only via `/encode-docs`/`/handoff` if evidence requires.
+
+§T TASKS:
+
+T1|.|run full static/test oracle
 touch: read-only
-details: `bash ./test.sh`; explicit server + client `no-shadow` and server `no-console` one-off runs; `git diff --check v1.10.0..HEAD` → MUST be 0 (it was 1867 at cycle start — this is the F2 receipt); ⊥ focused `.only`/`.skip`; ⊥ generated artifact, secret, or unexpected snapshot.
-verify: all exit 0; record exact file/test counts.
-exit: automated oracle green.
-next: F6.T2
+details: `bash ./test.sh`; explicit client/server `no-shadow` + server `no-console`; `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD`; search focused `.only|.skip`; secret/generated/snapshot audit; migration numeric order; no dependency delta unless separately approved.
+verify: all exit 0; record exact file/test counts + sole accepted warning if still present.
 
-T2|.|replay the adversarial matrices
+T2|.|replay security/correctness matrices
 touch: read-only
-details: shebang guard vs reinjected `\r`; renormalize commit content-neutral (`git diff --ignore-cr-at-eol` empty); mounted-but-unswept router; demoted/elevated/inactive/DB-reject role paths incl. cookie + Bearer; SCIM refused attributes in dotted + filtered + pathless forms vs still-writable + still-ignored classes.
-verify: every row has a named regression; reverting each fix fails ≥1 named case.
-exit: behavior evidence complete.
-next: F6.T3
+details: CR shebang; live demotion/elevation; OIDC legacy hash; direct forged XFF; registry synthetic mount; SCIM unauth/body/media/error/case/attribute/discovery; invalid ECO pre-DB; hidden bulk selection. Revert each fix or use named negative fixture so ≥1 regression fails per defect.
+verify: evidence table maps every review finding → test + code + SPEC/CHANGELOG.
 
-T3|.|audit code/docs/scope + close
-touch: SPEC/PLAN/HANDOFF/CHANGELOG through skills only if needed
-details: compare live code to §C11, §I10, §V1, §V2, §V10, §V27, §V57, §V60. Confirm the F2 commit stayed mechanical + standalone. Confirm ∀ §T `x`; unrelated user work preserved; worktree carries only intentional phase artifacts. Confirm the carried NOTE (SCIM accepts `application/json` bodies) is still deliberate + unimplemented. Invoke `/handoff`; mark `done` only after ∀ task + verify HOLD.
-verify: `git status --short`, `git diff --stat`, `git log -n 10 --oneline`; classify `BLOCK/DIVERGENCE/UNKNOWN` all 0 or gate NO-GO with an exact owner.
-exit: implementation gate GO; else truthful NO-GO.
-next: `/garnish` only after the user accepts the completed cycle.
+T3|.|audit commits, docs, scope, and close
+touch: SPEC/PLAN/HANDOFF/CHANGELOG through skills only
+details: prove F2 policy/pure-renorm/regression separation; compare code to cited invariants; ∀ §T `x`; unrelated work absent/preserved; `git status --short` clean; invoke `/handoff`. Classify final `BLOCK|DIVERGENCE|UNKNOWN`; any nonzero → NO-GO with owner.
+verify: `git log --oneline --decorate -n 15`, phase receipts, final table.
 
-verify: full oracle + adversarial evidence + docs traceability.
-exit: cycle ready for acceptance; ⊥ push, ⊥ tag.
-next: `/garnish` after acceptance.
+verify: full oracle + adversarial replay + doc/commit traceability.
+exit: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; else truthful NO-GO. ⊥ push/tag.
+next: `/garnish` only after user accepts completed cycle.

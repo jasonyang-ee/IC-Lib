@@ -10,51 +10,45 @@ Encoding: same symbol set as SPEC.md.
 Full rules: /encode-docs skill.
 -->
 
-# HANDOFF 2026-07-30
+# HANDOFF 2026-08-01
 
-branch `test` | last commit `01df17e` | tests pass 517/517 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/375 tests, scripts + lint pass)
-uncommitted at handoff write: `SPEC.md` (§C11 line-ending clause, §V1 live-role clause, §V27 sweep-derivation clause), `PLAN.md` (fresh F1-F6 cycle), `HANDOFF.md` (this baton) — planning artifacts only, ⊥ implementation files. ⊥ mid-edit.
+branch `test` | last commit at handoff write `c215724` | tests pass 518/518 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/376 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+uncommitted at handoff write: `BACKLOG.md`, `HANDOFF.md`, `PLAN.md`, `SPEC.md` — completed prep package; session close commits them together, next start expects clean status. ⊥ implementation file, ⊥ mid-edit.
 
 ## done this session
 
-- `/review-code` sweep, baseline `v1.10.0` (`88fe3ce`) → head `01df17e`: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0`, gate **GO**. `HARDEN=4`, `NOTE=2`. ⊥ code written. Oracle green.
-- user accepted ∀ 4 HARDEN items → this cycle.
-- `/prep`: new `PLAN.md` F1-F6, `planning status: new`. Embedded `/review-plan` pass → gate **GO** (0 BLOCK, 0 DIVERGENCE, 0 blocking `?`; 1 research phase remains by design).
-- `SPEC.md` amended (3 rows EDITED, 0 added, `next:` counter untouched): §C11 gained the line-ending contract; §V1 gained the live-DB-role clause; §V27 gained the sweep-derivation clause.
-- ⊥ commits this session. HEAD unmoved @ `01df17e`.
+- user chose **A purge** for F1.T2: every existing OIDC password hash is irreversibly cleared; future OIDC links clear the hash atomically; local credential paths gate on `auth_provider='local'`. B quarantine/hybrid auth removed.
+- `/prep` completed F1 (`T1-T3 x`), ingested the boilerplate-only `BACKLOG.md`, then blanked it after PLAN write. PLAN remains `planning status: new`; next executable work begins F2.
+- `/encode-docs` edited existing §V29 only: `auth_provider='oidc'` → `password_hash=NULL` via DB CHECK; linking clears the hash; provider gate wins against anomalous data. Existing §R15-§R17 + §V27/§V32/§V60 research remains current.
+- F4 collapsed to one path: migration `19_oidc_password_ownership.sql` purges exact OIDC rows + adds guarded CHECK; fresh schema mirrors it; admin/guest seed conflicts update passwords only for existing local-provider rows; committed regression + isolated PostgreSQL 18.1 replay named.
+- embedded `/review-plan`: remaining research phases `0`; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0 HARDEN=0 NOTE=1`; **GO**. NOTE = plan is executable while reviewed implementation remains release **NO-GO** until F2-F9 land.
+- preserved security-review receipt for `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`: implementation baseline `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; full oracle was green but lacks the planned regressions.
 
 ## in progress (exact stop point)
 
-none. Cycle prepped, ⊥ started — `planning status: new`, ∀ §T row `.`.
+none. Prep/review gate complete; no implementation started.
 mid-edit files: none.
 
 ## next
 
-`F1.T1` — confirm the line-ending blast radius + binary set. Read-only: enumerate ∀ tracked blob carrying `\r` (`git ls-files` + `git show <blob> | od -c`), classify text vs binary by REAL BYTES ⊥ by extension, confirm `docker/repair`'s CRLF shebang + `Dockerfile:63-64` copy/chmod, confirm `library/template/CIS/odbc_example.reg` is UTF-16LE, then freeze the exact `.gitattributes` rule set for `F2.T1`. Cite primary sources for `execve(2)` interpreter-line handling + git `text=auto`/`eol` semantics → new §R rows via `/encode-docs` only if they carry a citation.
-preconditions: none. `/cook` (or `/cater`) flips `planning status` `new` → `work-in-progress` at start; `prep` ⊥ pre-flip it.
-first commit gate: `F2.T2` (the renormalize) ! be its OWN mechanical commit — commit the planning artifacts above BEFORE it so the renormalize diff stays separable.
+`F2.T1` — invoke `/cook F2`; add policy-only `.gitattributes`, verify exact attrs for `docker/repair`, `start.sh`, `.msi`, `.reg`, then commit ONLY `.gitattributes`. Do not stage normalization candidates. Continue F2.T2 pure renormalization only after T1 commit/receipt.
 
 ## deviations & decisions
 
-- user ruling: **live DB `role` wins over the JWT claim** (chosen over "mismatch forces re-login" & "document only"). ∴ §V1 amended; `F4` implements it. JWT `role` claim stays minted but informational.
-- user ruling: ∀ 4 HARDEN items in scope, incl. the repo-wide `.gitattributes` normalization.
-- `/review-code` classified H2 as hygiene. **CORRECTED during `/prep` research** → H2 also fixes a live operator defect (see watchouts). PLAN.md `F2` carries the corrected framing; `SPEC.md` §C11 + §I10 are the durable record.
-- `SPEC.md` amended by EDITING 3 existing rows, ⊥ adding new ones — keeps the spec lean per the add-bar. `next: C14 I13 R15 V61` unchanged.
-- the 2 carried NOTEs (raw error object → `logError` @ `server/src/middleware/auth.js:103`; SCIM accepting `application/json` bodies) — the first is folded into `F4.T2`, the second is DELIBERATELY unscheduled & needs a new ruling to change.
+- plan GO ≠ release GO: current code retains 8 blockers + 3 divergences; GO authorizes execution because all decisions/dependencies/tests are now closed.
+- A purge is irreversible. Added DB CHECK + fresh-schema/seed guards so cleanup cannot silently regress; this hardening implements §V29 rather than expanding product scope.
+- F4 scratch mechanism frozen from local evidence: `psql`, `initdb`, `pg_ctl` = PostgreSQL 18.1. Use isolated temp data dir/non-live port; load prior users shape, seed OIDC+local rows, apply migration twice, assert purge/constraint/local preservation; cleanup in `finally`.
+- explicit review baseline remains `d49f3b..c215724`, not a release tag. Later planning-doc commit ⊥ expands implementation scope.
+- route registry, proxy, SCIM, line-ending, role, ECO, and visible-selection mechanisms remain exactly as PLAN F2-F10; no fallback/either-or branch remains.
 
 ## watchouts
 
-- **`docker/repair` is BROKEN in the container today.** Blob = `#!/bin/sh\r\n`; `Dockerfile:63-64` copies it to `/usr/local/bin/repair` + `chmod +x`. Linux reads the interpreter as `/bin/sh\r` → `not found` ∴ the §I10 break-glass admin-password reset does ⊥ work from the image. `F2` fixes it via renormalize; `F2.T3` owes it a regression.
-- **CORRECTION to the prior baton**: it recorded the CRLF `git diff --check` warnings as "false positives on `server/src/index.js` + `database/init-schema.sql`". They are REAL `\r` bytes in the blobs — 1867 warnings across 57 files, and ~10600 of the 22852 diff insertions vs `v1.10.0` are pure CR churn. ⊥ dismiss them again.
-- `server/src/index.js` calls `startServer()` @ `:234` and `export default app` @ `:236` ∴ importing it from a test BOOTS a listener + hits the DB. `F1.T2` ! settle the sweep-derivation mechanism around this; ⊥ naively `import app` in `routeAuthGuards.test.js`.
-- mount ORDER in `index.js` is load-bearing: `publicGlobalLimiter` on `/api` @ `:103` BEFORE the routers, SCIM router LAST @ `:126`. `F3.T1` ! preserve paths + order byte-identical.
-- `server/src/constants/publicRoutes.js` IMPORTS `SCIM_BASE_PATH` from `../services/scimService.js`; a new import cycle there breaks the rate limiter.
-- `authenticate` is ASYNC + hits the DB ∴ any new test exercising it ! mock `../config/database.js`.
-- `scimRoutes.test.js` mocks `../utils/logger.js` with `logError` + `logWarn` ONLY — importing another logger fn into `scimController.js` breaks that suite.
-- `bash ./test.sh` runs `lint:fix` FIRST ∴ re-check `git status` after — matters most around `F2`, where a stray rewrite would contaminate the mechanical commit.
-- heredoc payloads fail in this shell (write scripts to the scratchpad + run by path). `vitest/no-conditional-expect` is an ERROR; `testing-library/no-node-access` forbids `.closest()`; `@testing-library/user-event` ⊥ installed (use `fireEvent`).
-- ⊥ writes to live DB `flat.gentex.int:5434/iclib`. ⊥ push, ⊥ tag without an explicit ask.
-- `F2` renormalizes every tracked text file on branch `test`; expect a noisy rebase/merge against `main` afterwards. `git merge -X renormalize` (or re-running normalization on the target branch) is the escape hatch.
+- before deploying F4: confirm an SSO login works and take a recoverable database backup. Migration 19 destroys existing OIDC hashes; code rollback alone cannot restore them. Unlinked `auth_provider='local'` break-glass accounts stay unchanged.
+- scratch validation ⊥ inherit `.env`/app DB coordinates and ⊥ touch `flat.gentex.int:5434/iclib`. Assert host/port mismatch before SQL.
+- `docker/repair` is currently CRLF-broken. F2 keeps policy, pure renormalization, and semantic/test edits in 3 commits; binary blob ids must remain unchanged. Merge/rebase may need `git merge -X renormalize`.
+- `.gitattributes` activation may show 120 normalization candidates after F2.T1; that is expected but T1 stages only the policy file.
+- `server/src/index.js` starts on import. F6 uses the ordered descriptor/registry architecture; ⊥ import index from tests or export a second mount list.
+- `bash ./test.sh` runs lint auto-fix first ∴ inspect status after every phase, especially F2. ⊥ push/tag.
 
 ## final verification
 
