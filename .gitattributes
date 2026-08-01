@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.png binary
+*.msi binary
+*.psd binary
+*.doc binary
+*.DBC binary
+*.reg binary
+
+*.sh text eol=lf
+docker/repair text eol=lf
+Dockerfile text eol=lf
