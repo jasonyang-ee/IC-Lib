@@ -121,12 +121,12 @@ files: `server/src/middleware/auth.js`, `server/src/test/auth.test.js`, `CHANGEL
 
 §T TASKS:
 
-T1|.|override JWT role from existing active-user query
+T1|x|override JWT role from existing active-user query
 touch: `server/src/middleware/auth.js`
 details: query `SELECT is_active, role FROM users WHERE id = $1`; set `req.user={...decoded,id:decoded.userId,role:row.role}`. Preserve JWT generation, other claims, exactly 1 DB query, missing/inactive 401, query failure 503. ⊥ alter `authController.verify`; ⊥ raw-error logging refactor.
 verify: F3.T2.
 
-T2|.|lock live-role matrix
+T2|x|lock live-role matrix
 touch: `server/src/test/auth.test.js`, `CHANGELOG.md`
 details: cookie + Bearer; JWT admin/DB read-only denied by `isAdmin` next request; JWT read-only/DB admin allowed; inactive/missing 401; DB reject 503; downstream ⊥ called on deny; valid request query count = 1.
 verify: focused auth suite; reverting row-role override fails demotion + elevation; `bash ./test.sh` exit 0.

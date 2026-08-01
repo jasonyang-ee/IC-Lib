@@ -95,7 +95,7 @@ export const authenticate = async (req, res, next) => {
     let activeResult;
     try {
       activeResult = await pool.query(
-        'SELECT is_active FROM users WHERE id = $1',
+        'SELECT is_active, role FROM users WHERE id = $1',
         [decoded.userId],
       );
     } catch (error) {
@@ -121,6 +121,7 @@ export const authenticate = async (req, res, next) => {
     req.user = {
       ...decoded,
       id: decoded.userId,  // Map userId to id for compatibility
+      role: activeResult.rows[0].role,
     };
     next();
   } catch (error) {

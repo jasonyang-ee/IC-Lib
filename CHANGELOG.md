@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Protected requests now use the current database role as the authorization source while retaining the existing one-query active-session check. A demoted account loses protected access on its next request, and a newly elevated account gains it without waiting for the JWT role claim to expire; token generation and response shapes are unchanged.
+
 - Login, SSO login, and logout no longer break when the activity-log write fails. Nineteen `catch (logError)` clauses across the auth, component, OIDC, and settings controllers shadowed the imported `logError` logger, so a rejected audit write turned into a `TypeError` thrown over the original error: local and SSO login returned 500 (or redirected to `/login?error=sso_failed`) without ever setting the session cookie, and logout returned 500 without clearing it. Every optional audit site now uses a distinct `activityError` binding and logs through the real logger, leaving the response untouched.
 
 - Component create is now atomic (SPEC §V7/§V8). It previously ran the component insert, activity row, inventory row, and CAD junction sync as four independent statements with the CAD sync failure swallowed, so a failed inventory or CAD write could leave a component with no stock row and no `cad_files` links while still answering 201. All four writes now share one transaction and the 201 is sent only after COMMIT. Component update likewise wraps its TEXT-column update and CAD sync in one transaction; its audit row stays optional and is written after COMMIT, so a rejected audit no longer hides a saved edit.

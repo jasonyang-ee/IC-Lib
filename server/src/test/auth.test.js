@@ -11,7 +11,9 @@ vi.mock('../config/database.js', () => ({
   default: { query: (...args) => queryMock(...args) },
 }));
 
-const activeUser = () => queryMock.mockResolvedValue({ rows: [{ is_active: true }] });
+const activeUser = (role = 'read-write') => queryMock.mockResolvedValue({
+  rows: [{ is_active: true, role }],
+});
 
 const {
   canAccessFileLibrary,
@@ -84,6 +86,7 @@ describe('Auth Middleware', () => {
       expect(req.user).toBeDefined();
       expect(req.user.id).toBe('user-1');
       expect(req.user.username).toBe('test');
+      expect(req.user.role).toBe('read-write');
     });
 
     it('should extract token from cookie as fallback', async () => {
@@ -98,6 +101,7 @@ describe('Auth Middleware', () => {
 
       expect(next).toHaveBeenCalled();
       expect(req.user.id).toBe('user-2');
+      expect(req.user.role).toBe('read-write');
     });
 
     it('should return 401 when no token is provided', async () => {
@@ -132,8 +136,8 @@ describe('Auth Middleware', () => {
   // protected request. The token itself stays cryptographically valid, so
   // only the live check can end the session.
   describe('authenticate active-state check', () => {
-    const requestWithValidToken = () => {
-      const token = generateToken({ id: 'user-9', username: 'gone', role: 'admin' });
+    const requestWithValidToken = (role = 'admin') => {
+      const token = generateToken({ id: 'user-9', username: 'gone', role });
       return mockReq({ headers: { authorization: `Bearer ${token}` } });
     };
 
@@ -147,9 +151,39 @@ describe('Auth Middleware', () => {
       expect(next).toHaveBeenCalled();
       expect(queryMock).toHaveBeenCalledTimes(1);
       expect(queryMock).toHaveBeenCalledWith(
-        'SELECT is_active FROM users WHERE id = $1',
+        'SELECT is_active, role FROM users WHERE id = $1',
         ['user-9'],
       );
+    });
+
+    it('uses the live database role to deny a demoted JWT on the next request', async () => {
+      queryMock.mockResolvedValue({ rows: [{ is_active: true, role: 'read-only' }] });
+      const req = requestWithValidToken('admin');
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+      isAdmin(req, res, next);
+
+      expect(req.user.role).toBe('read-only');
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(queryMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the live database role to allow an elevated JWT on the next request', async () => {
+      queryMock.mockResolvedValue({ rows: [{ is_active: true, role: 'admin' }] });
+      const req = requestWithValidToken('read-only');
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+      isAdmin(req, res, next);
+
+      expect(req.user.role).toBe('admin');
+      expect(next).toHaveBeenCalledTimes(2);
+      expect(res.status).not.toHaveBeenCalled();
+      expect(queryMock).toHaveBeenCalledTimes(1);
     });
 
     it('rejects a deactivated user and never populates req.user', async () => {
