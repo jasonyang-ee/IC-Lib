@@ -12,26 +12,27 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `c215724` | tests pass 518/518 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 47 files/376 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
-uncommitted at handoff write: `BACKLOG.md`, `HANDOFF.md`, `PLAN.md`, `SPEC.md` — completed prep package; session close commits them together, next start expects clean status. ⊥ implementation file, ⊥ mid-edit.
+branch `test` | last commit at handoff write `bb3fb05` | tests pass 519/519 (`bash ./test.sh` → exit 0: client 28 files/141 tests, server 48 files/378 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`)
+uncommitted at handoff write: none.
 
 ## done this session
 
 - user chose **A purge** for F1.T2: every existing OIDC password hash is irreversibly cleared; future OIDC links clear the hash atomically; local credential paths gate on `auth_provider='local'`. B quarantine/hybrid auth removed.
-- `/prep` completed F1 (`T1-T3 x`), ingested the boilerplate-only `BACKLOG.md`, then blanked it after PLAN write. PLAN remains `planning status: new`; next executable work begins F2.
+- `/prep` completed F1 (`T1-T3 x`), ingested the boilerplate-only `BACKLOG.md`, then blanked it after PLAN write. Cook flipped PLAN to `planning status: work-in-progress` before F2.
 - `/encode-docs` edited existing §V29 only: `auth_provider='oidc'` → `password_hash=NULL` via DB CHECK; linking clears the hash; provider gate wins against anomalous data. Existing §R15-§R17 + §V27/§V32/§V60 research remains current.
 - F4 collapsed to one path: migration `19_oidc_password_ownership.sql` purges exact OIDC rows + adds guarded CHECK; fresh schema mirrors it; admin/guest seed conflicts update passwords only for existing local-provider rows; committed regression + isolated PostgreSQL 18.1 replay named.
 - embedded `/review-plan`: remaining research phases `0`; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0 HARDEN=0 NOTE=1`; **GO**. NOTE = plan is executable while reviewed implementation remains release **NO-GO** until F2-F9 land.
 - preserved security-review receipt for `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`: implementation baseline `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; full oracle was green but lacks the planned regressions.
+- `F2.T1` policy-only `.gitattributes` → `375165d`; `F2.T2` content-neutral normalization of 120 verified text blobs → `9a7ab7f`; `F2.T3` regression guard, three semantic whitespace fixes, changelog, and plan verification correction → `bb3fb05`.
 
 ## in progress (exact stop point)
 
-none. Prep/review gate complete; no implementation started.
+none. F2 committed and self-reviewed; no mid-edit files.
 mid-edit files: none.
 
 ## next
 
-`F2.T1` — invoke `/cook F2`; add policy-only `.gitattributes`, verify exact attrs for `docker/repair`, `start.sh`, `.msi`, `.reg`, then commit ONLY `.gitattributes`. Do not stage normalization candidates. Continue F2.T2 pure renormalization only after T1 commit/receipt.
+`F3.T1` | preconditions: F2 committed; focused auth tests + full oracle green.
 
 ## deviations & decisions
 
@@ -41,12 +42,16 @@ mid-edit files: none.
 - explicit review baseline remains `d49f3b..c215724`, not a release tag. Later planning-doc commit ⊥ expands implementation scope.
 - route registry, proxy, SCIM, line-ending, role, ECO, and visible-selection mechanisms remain exactly as PLAN F2-F10; no fallback/either-or branch remains.
 
+- F2 plan verification corrected: 120-file normalization exposes legacy trailing spaces in raw full-range `git diff --check`; semantic oracle scopes `git diff --check` to F2.T3 paths. PLAN.md updated in `bb3fb05`.
+- Windows tracks shell entrypoints as `100644`; recurrence test enumerates every tracked `#!` file, not mode bits.
+- Full oracle retains one pre-existing non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2`; no unrelated files changed.
+
 ## watchouts
 
 - before deploying F4: confirm an SSO login works and take a recoverable database backup. Migration 19 destroys existing OIDC hashes; code rollback alone cannot restore them. Unlinked `auth_provider='local'` break-glass accounts stay unchanged.
 - scratch validation ⊥ inherit `.env`/app DB coordinates and ⊥ touch `flat.gentex.int:5434/iclib`. Assert host/port mismatch before SQL.
-- `docker/repair` is currently CRLF-broken. F2 keeps policy, pure renormalization, and semantic/test edits in 3 commits; binary blob ids must remain unchanged. Merge/rebase may need `git merge -X renormalize`.
-- `.gitattributes` activation may show 120 normalization candidates after F2.T1; that is expected but T1 stages only the policy file.
+- `docker/repair` now starts with `#!/bin/sh\n`; F2 policy, pure renormalization, and semantic/test edits remain in 3 commits; binary blob ids unchanged. Merge/rebase may need `git merge -X renormalize`.
+- `.gitattributes` activation produced 120 normalization candidates after F2.T1; T1 staged only policy, T2 staged only those candidates.
 - `server/src/index.js` starts on import. F6 uses the ordered descriptor/registry architecture; ⊥ import index from tests or export a second mount list.
 - `bash ./test.sh` runs lint auto-fix first ∴ inspect status after every phase, especially F2. ⊥ push/tag.
 
