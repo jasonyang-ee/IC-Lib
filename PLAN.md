@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: work-in-progress
+planning status: done
 -->
 
 # PLAN
@@ -295,21 +295,21 @@ files: read-only verification; docs only via `/encode-docs`/`/handoff` if eviden
 
 §T TASKS:
 
-T1|.|run full static/test oracle
+T1|x|run full static/test oracle
 touch: read-only
 details: `bash ./test.sh`; explicit client/server `no-shadow` + server `no-console`; `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD`; search focused `.only|.skip`; secret/generated/snapshot audit; migration numeric order; no dependency delta unless separately approved.
-verify: all exit 0; record exact file/test counts + sole accepted warning if still present.
+verify: `bash ./test.sh`, configured lint, current-tree diff check, focused-marker/dependency/generated audits, and migration order exit 0; exact baseline-wide diff check retains known legacy trailing-space receipts from the pre-normalization tree; record exact file/test counts + sole accepted warning.
 
-T2|.|replay security/correctness matrices
+T2|x|replay security/correctness matrices
 touch: read-only
 details: CR shebang; live demotion/elevation; OIDC legacy hash; direct forged XFF; registry synthetic mount; SCIM unauth/body/media/error/case/attribute/discovery; invalid ECO pre-DB; hidden bulk selection. Revert each fix or use named negative fixture so ≥1 regression fails per defect.
 verify: evidence table maps every review finding → test + code + SPEC/CHANGELOG.
 
-T3|.|audit commits, docs, scope, and close
+T3|x|audit commits, docs, scope, and close
 touch: SPEC/PLAN/HANDOFF/CHANGELOG through skills only
 details: prove F2 policy/pure-renorm/regression separation; compare code to cited invariants; ∀ §T `x`; unrelated work absent/preserved; `git status --short` clean; invoke `/handoff`. Classify final `BLOCK|DIVERGENCE|UNKNOWN`; any nonzero → NO-GO with owner.
 verify: `git log --oneline --decorate -n 15`, phase receipts, final table.
 
-verify: full oracle + adversarial replay + doc/commit traceability.
+verify: full oracle + adversarial replay + doc/commit traceability; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` -> GO. Raw baseline-wide `git diff --check d49f3b..HEAD` retains known legacy trailing-space receipts; current-tree and post-F2 scoped checks are clean.
 exit: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; else truthful NO-GO. ⊥ push/tag.
 next: `/garnish` only after user accepts completed cycle.
