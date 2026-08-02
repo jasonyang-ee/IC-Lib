@@ -351,6 +351,10 @@ export const updateUser = async (req, res) => {
     const { id } = req.params;
     const { username, password, role, is_active } = req.body;
 
+    if (is_active !== undefined && typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be a boolean' });
+    }
+
     // Check if user exists
     const existingUser = await pool.query(
       'SELECT id, username, auth_provider FROM users WHERE id = $1',
@@ -381,17 +385,15 @@ export const updateUser = async (req, res) => {
       values.push(username);
     }
 
-    if (
-      password !== undefined
-      && password.length > 0
-      && existingUser.rows[0].auth_provider === 'oidc'
-    ) {
+    const isPasswordUpdate = password !== undefined && password.length > 0;
+
+    if (isPasswordUpdate && existingUser.rows[0].auth_provider !== 'local') {
       return res.status(400).json({
         error: 'Single sign-on users cannot have a local password',
       });
     }
 
-    if (password !== undefined && password.length > 0) {
+    if (isPasswordUpdate) {
       if (password.length < 6) {
         return res.status(400).json({ 
           error: 'Password must be at least 6 characters', 
@@ -426,11 +428,19 @@ export const updateUser = async (req, res) => {
     const result = await pool.query(
       `UPDATE users 
        SET ${updates.join(', ')}
-       WHERE id = $${paramCount}
+       WHERE id = $${paramCount}${isPasswordUpdate ? " AND auth_provider = 'local'" : ''}
        RETURNING id, username, role, is_active, auth_provider,
                  created_at(id) as created_at, last_login`,
       values,
     );
+
+    if (result.rows.length === 0) {
+      return res.status(isPasswordUpdate ? 409 : 404).json({
+        error: isPasswordUpdate
+          ? 'User is no longer eligible for a local password'
+          : 'User not found',
+      });
+    }
 
     // Log activity
     try {

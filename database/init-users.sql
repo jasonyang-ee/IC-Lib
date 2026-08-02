@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   delegation UUID REFERENCES users(id) ON DELETE SET NULL,
   created_by UUID REFERENCES users(id),
   last_login TIMESTAMP,
-  is_active BOOLEAN DEFAULT true,
+  is_active BOOLEAN NOT NULL DEFAULT true,
   auth_provider VARCHAR(20) NOT NULL DEFAULT 'local',
   oidc_issuer TEXT,
   oidc_sub TEXT,

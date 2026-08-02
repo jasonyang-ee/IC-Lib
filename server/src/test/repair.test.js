@@ -29,7 +29,9 @@ describe('repair CLI', () => {
 
   it('resets admin password and prints the generated value', async () => {
     const db = {
-      query: vi.fn().mockResolvedValue({ rowCount: 1 }),
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [{ auth_provider: 'local' }] })
+        .mockResolvedValueOnce({ rowCount: 1 }),
     };
     const bcryptLib = {
       hash: vi.fn().mockResolvedValue('hashed-password'),
@@ -48,7 +50,7 @@ describe('repair CLI', () => {
     expect(exitCode).toBe(0);
     expect(bcryptLib.hash).toHaveBeenCalledWith('AB12CD', 10);
     expect(db.query).toHaveBeenCalledWith(
-      expect.stringContaining('UPDATE users'),
+      expect.stringContaining("auth_provider = 'local'"),
       ['hashed-password', 'admin'],
     );
     expect(stdout.lines.join('')).toContain('New password: AB12CD');
@@ -57,7 +59,7 @@ describe('repair CLI', () => {
 
   it('fails when admin user does not exist', async () => {
     const db = {
-      query: vi.fn().mockResolvedValue({ rowCount: 0 }),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
     };
     const bcryptLib = {
       hash: vi.fn().mockResolvedValue('hashed-password'),
@@ -76,6 +78,56 @@ describe('repair CLI', () => {
     expect(exitCode).toBe(1);
     expect(stdout.write).not.toHaveBeenCalled();
     expect(stderr.lines.join('')).toContain('User "admin" not found');
+  });
+
+  it('rejects a non-local admin before hashing or writing', async () => {
+    const db = {
+      query: vi.fn().mockResolvedValue({ rows: [{ auth_provider: 'oidc' }] }),
+    };
+    const bcryptLib = {
+      hash: vi.fn(),
+    };
+    const stdout = createStream();
+    const stderr = createStream();
+
+    const exitCode = await runRepairCommand(['admin-reset'], {
+      bcryptLib,
+      db,
+      password: 'AB12CD',
+      stderr,
+      stdout,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(bcryptLib.hash).not.toHaveBeenCalled();
+    expect(db.query).toHaveBeenCalledTimes(1);
+    expect(stderr.lines.join('')).toContain('does not support local password reset');
+  });
+
+  it('reports a provider race without printing a password', async () => {
+    const db = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [{ auth_provider: 'local' }] })
+        .mockResolvedValueOnce({ rowCount: 0 }),
+    };
+    const bcryptLib = {
+      hash: vi.fn().mockResolvedValue('hashed-password'),
+    };
+    const stdout = createStream();
+    const stderr = createStream();
+
+    const exitCode = await runRepairCommand(['admin-reset'], {
+      bcryptLib,
+      db,
+      password: 'AB12CD',
+      stderr,
+      stdout,
+    });
+
+    expect(exitCode).toBe(1);
+    expect(db.query.mock.calls[1][0]).toContain("auth_provider = 'local'");
+    expect(stdout.write).not.toHaveBeenCalled();
+    expect(stderr.lines.join('')).toContain('no longer eligible for a local password reset');
   });
 
   it('rejects unknown repair commands', async () => {

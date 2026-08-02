@@ -312,6 +312,43 @@ describe('authController local user authority', () => {
     });
   });
 
+  it('admin password set rejects every non-local provider without bcrypt', async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ id: 'scim-user', username: 'scim.user', auth_provider: 'scim' }],
+    });
+
+    const req = mockReq({
+      params: { id: 'scim-user' },
+      body: { password: 'new-password' },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    expect(hashMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Single sign-on users cannot have a local password',
+    });
+  });
+
+  it.each([null, 'false', 0, {}])('rejects non-boolean is_active value %j before database work', async (is_active) => {
+    const req = mockReq({
+      params: { id: 'local-user' },
+      body: { is_active },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    expect(queryMock).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'is_active must be a boolean',
+    });
+  });
+
   it('delete user deactivates and retains the row', async () => {
     queryMock
       .mockResolvedValueOnce({
@@ -382,5 +419,28 @@ describe('authController local user authority', () => {
     expect(queryMock.mock.calls[1][1]).toEqual(['new-password-hash', 'local-user']);
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 'local-user' }));
+  });
+
+  it('does not update a password after a provider race', async () => {
+    hashMock.mockResolvedValue('new-password-hash');
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: 'local-user', username: 'local.user', auth_provider: 'local' }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const req = mockReq({
+      params: { id: 'local-user' },
+      body: { password: 'new-password' },
+    });
+    const res = mockRes();
+
+    await updateUser(req, res);
+
+    expect(queryMock.mock.calls[1][0]).toContain("auth_provider = 'local'");
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'User is no longer eligible for a local password',
+    });
   });
 });

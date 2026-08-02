@@ -31,17 +31,32 @@ export async function resetAdminPassword({
   stderr = process.stderr,
 } = {}) {
   try {
+    const userResult = await db.query(
+      'SELECT auth_provider FROM users WHERE username = $1',
+      [ADMIN_USERNAME],
+    );
+
+    if (userResult.rows.length === 0) {
+      writeLine(stderr, `[ERROR] [Repair] User "${ADMIN_USERNAME}" not found`);
+      return 1;
+    }
+
+    if (userResult.rows[0].auth_provider !== 'local') {
+      writeLine(stderr, '[ERROR] [Repair] Admin account does not support local password reset');
+      return 1;
+    }
+
     const passwordHash = await bcryptLib.hash(password, 10);
     const result = await db.query(
       `UPDATE users
        SET password_hash = $1
-       WHERE username = $2
+       WHERE username = $2 AND auth_provider = 'local'
        RETURNING id`,
       [passwordHash, ADMIN_USERNAME],
     );
 
     if (result.rowCount === 0) {
-      writeLine(stderr, `[ERROR] [Repair] User "${ADMIN_USERNAME}" not found`);
+      writeLine(stderr, '[ERROR] [Repair] Admin account is no longer eligible for a local password reset');
       return 1;
     }
 

@@ -107,7 +107,7 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    if (activeResult.rows.length === 0 || activeResult.rows[0].is_active === false) {
+    if (activeResult.rows.length === 0 || activeResult.rows[0].is_active !== true) {
       // Deliberately the same body a bad token gets: whether an account
       // exists or is disabled is not something an unauthenticated caller
       // should be able to probe.

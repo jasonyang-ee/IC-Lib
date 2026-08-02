@@ -199,6 +199,38 @@ describe('Auth Middleware', () => {
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
+    it.each([
+      ['Bearer', { is_active: true }, 'user-9', 1, 0],
+      ['cookie', { is_active: true }, 'user-9', 1, 0],
+      ['Bearer', { is_active: false }, undefined, 0, 1],
+      ['cookie', { is_active: false }, undefined, 0, 1],
+      ['Bearer', { is_active: null }, undefined, 0, 1],
+      ['cookie', { is_active: null }, undefined, 0, 1],
+      ['Bearer', {}, undefined, 0, 1],
+      ['cookie', {}, undefined, 0, 1],
+    ])('requires is_active to be true for %s credentials', async (
+      credential,
+      row,
+      expectedUserId,
+      expectedNextCalls,
+      expectedStatusCalls,
+    ) => {
+      queryMock.mockResolvedValue({ rows: [row] });
+      const token = generateToken({ id: 'user-9', username: 'gone', role: 'admin' });
+      const req = credential === 'cookie'
+        ? mockReq({ cookies: { token } })
+        : mockReq({ headers: { authorization: `Bearer ${token}` } });
+      const res = mockRes();
+      const next = vi.fn();
+
+      await authenticate(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(expectedNextCalls);
+      expect(queryMock).toHaveBeenCalledTimes(1);
+      expect(req.user?.id).toBe(expectedUserId);
+      expect(res.status).toHaveBeenCalledTimes(expectedStatusCalls);
+    });
+
     it('rejects a token whose user row no longer exists', async () => {
       queryMock.mockResolvedValue({ rows: [] });
       const req = requestWithValidToken();

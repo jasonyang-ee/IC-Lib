@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids/URLs/numbers/regex/errors verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -92,22 +92,22 @@ files: `server/src/middleware/auth.js`, `server/src/controllers/authController.j
 
 §T TASKS:
 
-T1|.|fail closed on active state + validate admin update
+T1|x|fail closed on active state + validate admin update
 touch: auth middleware + admin user update handler
 details: protected request succeeds only when `row.is_active === true`; `false|null|missing` → 401 before downstream. Admin update accepts booleans only when `is_active` is present; explicit `null`/wrong type → 400 and zero write. User creation keeps the database default and gains no new payload field.
 verify: cookie + Bearer matrices cover true/false/null/missing and downstream/query counts; admin update null/type tests prove zero write.
 
-T2|.|repair persisted auth constraints without trusting migration 19's global name lookup
+T2|x|repair persisted auth constraints without trusting migration 19's global name lookup
 touch: init users + migration 20 + schema test
 details: backfill `users.is_active IS NULL` to false, keep default true, add NOT NULL. Enforce OIDC password ownership on the `users` relation even when another schema/table owns the same constraint name; make repeat/application-after-recorded-19 safe. Fresh schema mirrors both constraints.
 verify: decoy schema/table with identical constraint name cannot suppress users constraint; migration 19→20 and 20-safe replay; NULL active rejected; OIDC hash rejected; local hash allowed.
 
-T3|.|gate all password writers on local provider
+T3|x|gate all password writers on local provider
 touch: admin password path + repair `admin-reset`
 details: require `auth_provider === 'local'` before bcrypt/hash/update; provider mismatch returns safe domain error and performs zero hash/write. Admin password updates + repair both reassert `auth_provider='local'` in the final UPDATE predicate and handle a zero-row provider race safely; repair hashes only after its provider read.
 verify: current OIDC + synthetic non-local provider rows reject; local admin reset/change succeeds; wrong current password and both conditional zero-row provider races are covered.
 
-T4|.|record + run phase oracle
+T4|x|record + run phase oracle
 touch: tests + `CHANGELOG.md`
 details: add one concise Unreleased receipt; preserve existing response shapes for valid local accounts.
 verify: focused auth/repair/schema suites + `bash ./test.sh` exit 0; reverting strict boolean or either provider gate fails.
