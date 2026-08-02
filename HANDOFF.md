@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `9d4690e` | tests pass 595/595 (`bash ./test.sh` exit 0: client 28 files/148 tests, server 51 files/447 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
-uncommitted at handoff write: `PLAN.md`, `HANDOFF.md` — completed-plan state + current baton; ⊥ implementation diff.
+branch `test` | last commit at handoff write `d3a6f2e` | tests pass 595/595 (`bash ./test.sh` exit 0: client 28 files/148 tests, server 51 files/447 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
