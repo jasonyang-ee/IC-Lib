@@ -12,29 +12,29 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `0732432` | tests pass 593/593 (`bash ./test.sh` exit 0: client 28 files/148 tests, server 51 files/445 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+branch `test` | last commit at handoff write `4a11607` | tests pass 595/595 (`bash ./test.sh` exit 0: client 28 files/148 tests, server 51 files/447 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
 uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
-- F7.T1-F7.T4: component deletion now locks/fetches and checks §V15 inside one client-owned transaction; `DELETE /api/components/bulk` validates a bounded unique UUID set then atomically deletes every target/dependent/audit row, while the Library uses one pending-locked, retryable request → `0732432`.
+- F8.T1-F8.T3: `git check-attr` regressions assert effective binary/LF policy; added local change-password success + later-bulk-audit rollback negatives; reviewed F2-F7 production-path tests → `4a11607`.
 
 ## in progress (exact stop point)
 
-none. F7 complete; implementation resumes from F8.T1.
+none. F8 complete; implementation resumes from F9.T1.
 mid-edit files: none.
 
 ## next
 
-- F8.T1: audit `server/src/test/repositoryTextPolicy.test.js` and related policy tests for effective rather than helper-only coverage; change `.gitattributes` only if a real effective-policy defect is proven.
+- F9.T1: run final static/test oracle, inspect post-lint status, then map adversarial replays and completion evidence before release classification.
 
 ## deviations & decisions
 
-- F7 keeps the direct-delete policy out of route middleware so its lookup cannot race the transaction; the controller is now the sole locked §V15 authority for both single and bulk deletion. SPEC unchanged: §V15/§V27/§V42 already prescribe the contract.
+- Effective `.gitattributes` policy correct, ∴ no config change. `CHANGELOG.md` unchanged: test coverage only. SPEC unchanged: durable requirements hold.
 
 ## watchouts
 
-- F8 must not expand product scope: adjust repository/policy coverage only where it proves an existing effective behavior gap. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
+- `bash ./test.sh` lint-fixes before testing; expected non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`. ⊥ push/tag.
 
 ## final verification
 
