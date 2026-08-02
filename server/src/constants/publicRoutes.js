@@ -126,7 +126,7 @@ const templateToRegExp = (template) => {
     })
     .join('/');
 
-  const compiled = new RegExp(`^${pattern}/?$`);
+  const compiled = new RegExp(`^${pattern}/?$`, 'i');
   TEMPLATE_CACHE.set(template, compiled);
   return compiled;
 };
@@ -138,10 +138,13 @@ const templateToRegExp = (template) => {
  */
 export const resolveRouteDescriptor = (method, url, descriptors) => {
   const path = String(url || '').split('?')[0];
-  const normalizedMethod = String(method || '').toLowerCase();
+  const normalizedPath = path.toLowerCase();
+  const requestMethod = String(method || '').toLowerCase();
+  const normalizedMethod = requestMethod === 'head' ? 'get' : requestMethod;
 
   for (const [routerName, mount] of Object.entries(ROUTER_MOUNTS)) {
-    if (path !== mount && !path.startsWith(`${mount}/`)) continue;
+    const normalizedMount = mount.toLowerCase();
+    if (normalizedPath !== normalizedMount && !normalizedPath.startsWith(`${normalizedMount}/`)) continue;
 
     const relative = path.slice(mount.length) || '/';
     for (const key of descriptors) {

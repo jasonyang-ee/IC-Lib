@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createLoginLimiter } from '../middleware/rateLimit.js';
+import { parseServerBindHost } from '../config/serverBind.js';
 import { parseTrustProxyHops } from '../config/trustProxy.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -34,11 +35,36 @@ describe('trusted proxy contract (SPEC §V32)', () => {
     }
   });
 
-  it('keeps Docker, development config, and index wiring on the same contract', () => {
-    expect(readRepoFile('Dockerfile')).toMatch(/PORT=3500 \\\r?\n\tTRUST_PROXY_HOPS=1/);
+  it('requires an explicit IP literal for the Node bind host', () => {
+    expect(parseServerBindHost(undefined)).toBe('0.0.0.0');
+    expect(parseServerBindHost('127.0.0.1')).toBe('127.0.0.1');
+    expect(parseServerBindHost('::1')).toBe('::1');
+
+    for (const value of ['', 'localhost', '127.0.0.1:3500', 'not an IP']) {
+      expect(() => parseServerBindHost(value)).toThrow(/SERVER_BIND_HOST/);
+    }
+  });
+
+  it('keeps Docker, development config, nginx, and index wiring on the same contract', () => {
+    expect(readRepoFile('Dockerfile')).toMatch(/PORT=3500 \\\r?\n\tSERVER_BIND_HOST=127\.0\.0\.1 \\\r?\n\tTRUST_PROXY_HOPS=1/);
     expect(readRepoFile('.env.example')).toContain('# TRUST_PROXY_HOPS=0');
+    expect(readRepoFile('.env.example')).toContain('# SERVER_BIND_HOST=0.0.0.0');
+    expect(readRepoFile('README.md')).toContain('SERVER_BIND_HOST=0.0.0.0');
     expect(readRepoFile('docker-compose.yml')).toContain('- TRUST_PROXY_HOPS=1');
+    expect(readRepoFile('docker-compose.yml')).toContain('- SERVER_BIND_HOST=127.0.0.1');
+    expect(readRepoFile('docker/nginx.conf').match(/proxy_pass http:\/\/127\.0\.0\.1:3500(?:\/api\/(?:health|ready))?;/g)).toHaveLength(3);
     expect(readRepoFile('server/src/index.js')).toContain("app.set('trust proxy', trustProxyHops);");
+    expect(readRepoFile('server/src/index.js')).toContain('server = app.listen(PORT, serverBindHost, async () => {');
+  });
+
+  it('binds the bundled topology to loopback', async () => {
+    const address = await new Promise((resolve, reject) => {
+      server = express().listen(0, parseServerBindHost('127.0.0.1'));
+      server.once('listening', () => resolve(server.address()));
+      server.once('error', reject);
+    });
+
+    expect(address.address).toBe('127.0.0.1');
   });
 
   it('uses one direct client budget despite four forged X-Forwarded-For values', async () => {

@@ -156,27 +156,27 @@ files: `server/src/middleware/bodyParsers.js`, `server/src/constants/publicRoute
 
 §T TASKS:
 
-T1|.|align path + method classification with production Express
+T1|x|align path + method classification with production Express
 touch: body parsers + public resolver
 details: compare route paths case-insensitively because runtime routing is case-insensitive; treat HEAD as GET for public-target resolution because Express auto-serves HEAD. Preserve query stripping, subtree boundaries, ordered exact public allowlist, and SCIM exclusion.
 verify: uppercase/mixed-case static + parameterized routes and HEAD/GET matrices; near-prefix negatives remain private/non-SCIM.
 
-T2|.|replay auth/parser/limiter order through real listeners
+T2|x|replay auth/parser/limiter order through real listeners
 touch: SCIM/rate-limit tests
 details: mixed-case malformed SCIM stops at 401 SCIM media before parser; limit 1 case variants + HEAD share one client budget and return expected 429s; canonical controls unchanged.
 verify: production middleware and registry are imported, listener closes in `finally`; reverting normalization or HEAD mapping fails.
 
-T3|.|remove bundled direct backend reachability
+T3|x|remove bundled direct backend reachability
 touch: index + container config/docs
 details: add validated `SERVER_BIND_HOST`; bundled nginx image sets `127.0.0.1`, so Node `:3500` is loopback-only while nginx remains the exposed ingress and `TRUST_PROXY_HOPS=1`. Direct/development deployment documents explicit bind + `TRUST_PROXY_HOPS=0`; malformed host fails startup.
 verify: image/config assertions prove bundled bind = loopback and nginx upstream matches; a listener started with bundled env reports a loopback `server.address().address`; direct-mode XFF control remains safe.
 
-T4|.|strengthen route-sweep ownership
+T4|x|strengthen route-sweep ownership
 touch: route auth guard tests/registry
 details: a middleware named `authenticate` counts as router-wide only when mounted globally, not on a path prefix. Reject direct `app.METHOD('/api/...')` mounts outside the registry except named health probes.
 verify: synthetic path-scoped auth + unguarded sibling fails; synthetic direct API mount fails; supported registry remains 17 routers and green.
 
-T5|.|record + run phase oracle
+T5|x|record + run phase oracle
 touch: `CHANGELOG.md`
 verify: focused trust/limit/route/SCIM suites + `bash ./test.sh` exit 0.
 

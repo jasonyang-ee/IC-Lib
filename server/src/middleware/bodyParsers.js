@@ -5,8 +5,11 @@ const jsonParser = express.json();
 const urlencodedParser = express.urlencoded({ extended: true });
 const SCIM_PREFIX = `${SCIM_BASE_PATH}/`;
 
-const isScimPath = (requestPath) => requestPath === SCIM_BASE_PATH
-  || requestPath.startsWith(SCIM_PREFIX);
+const isScimPath = (requestPath) => {
+  const normalizedPath = String(requestPath).toLowerCase();
+  return normalizedPath === SCIM_BASE_PATH
+    || normalizedPath.startsWith(SCIM_PREFIX);
+};
 
 /**
  * Parse ordinary app requests in the existing JSON-then-form order. SCIM is

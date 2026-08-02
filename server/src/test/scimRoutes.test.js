@@ -18,9 +18,11 @@ vi.mock('../config/database.js', () => ({
 
 const logErrorMock = vi.fn();
 const logWarnMock = vi.fn();
+const logFatalMock = vi.fn();
 vi.mock('../utils/logger.js', () => ({
   logError: (...args) => logErrorMock(...args),
   logWarn: (...args) => logWarnMock(...args),
+  logFatal: (...args) => logFatalMock(...args),
 }));
 
 const logUserActivityMock = vi.fn();
@@ -28,7 +30,10 @@ vi.mock('../services/activityLogService.js', () => ({
   logUserActivity: (...args) => logUserActivityMock(...args),
 }));
 
+vi.stubEnv('JWT_SECRET', 'test-secret-key-minimum-32-chars-long');
+
 const scimRoutes = (await import('../routes/scim.js')).default;
+const { mountApiRoutes } = await import('../routes/registry.js');
 const {
   SCIM_BASE_PATH,
   SCIM_CONTENT_TYPE,
@@ -64,7 +69,8 @@ describe('SCIM discovery and lookup (§V60)', () => {
     app.use(appBodyParsers);
     app.post('/parser-probe', (req, res) => res.json({ body: req.body ?? null }));
     app.post(`${SCIM_BASE_PATH}/parser-probe`, (req, res) => res.json({ body: req.body ?? null }));
-    app.use(SCIM_BASE_PATH, scimRoutes);
+    app.post(`${SCIM_BASE_PATH}x/parser-probe`, (req, res) => res.json({ body: req.body ?? null }));
+    mountApiRoutes(app);
     server = app.listen(0);
     origin = `http://127.0.0.1:${server.address().port}`;
     baseUrl = `http://127.0.0.1:${server.address().port}${SCIM_BASE_PATH}`;
@@ -141,6 +147,18 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(queryMock).not.toHaveBeenCalled();
     });
 
+    it('rejects a mixed-case malformed SCIM request before generic parsing', async () => {
+      const res = await fetch(`${origin}/API/ScIm/V2/Groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/scim+json' },
+        body: '{',
+      });
+
+      expect(res.status).toBe(401);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
     it('refuses a wrong bearer token', async () => {
       const res = await get('/ServiceProviderConfig', 'c'.repeat(48));
 
@@ -183,7 +201,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
   });
 
   describe('ingress body boundary', () => {
-    it('skips generic JSON and form parsing only for the SCIM subtree', async () => {
+    it('skips generic JSON and form parsing only for the case-insensitive SCIM subtree', async () => {
       const json = await fetch(`${origin}/parser-probe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,6 +229,20 @@ describe('SCIM discovery and lookup (§V60)', () => {
         body: 'active=true',
       });
       expect((await scimForm.json()).body).toBeNull();
+
+      const mixedCaseScim = await fetch(`${origin}/API/ScIm/V2/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      });
+      expect((await mixedCaseScim.json()).body).toBeNull();
+
+      const nearPrefix = await fetch(`${origin}${SCIM_BASE_PATH}x/parser-probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: true }),
+      });
+      expect((await nearPrefix.json()).body).toEqual({ active: true });
     });
   });
 

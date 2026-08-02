@@ -46,6 +46,15 @@ const guardFor = (routerName) => AUTH_GUARDS[routerName] || 'authenticate';
 // descriptors still describe the live routers in both directions.
 const PUBLIC_MUTATION_ALLOWLIST = PUBLIC_MUTATIONS;
 const PUBLIC_GET_ALLOWLIST = PUBLIC_GETS;
+const NAMED_HEALTH_PROBES = new Set([
+  'get /api/health liveness',
+  'get /api/ready readiness',
+]);
+
+const findDirectApiMounts = (source) => [...source.matchAll(
+  /app\.(get|post|put|patch|delete)\(\s*(['"])(\/api\/[^'"]+)\2\s*,\s*([A-Za-z_$][\w$]*)?/g,
+)].map(([, method, , routePath, handler]) => `${method} ${routePath} ${handler || '<anonymous>'}`)
+  .filter((mount) => !NAMED_HEALTH_PROBES.has(mount));
 
 const getRouteHandlers = (router, method, routePath) => {
   const layer = router.stack.find((stackLayer) => stackLayer.route
@@ -54,6 +63,9 @@ const getRouteHandlers = (router, method, routePath) => {
 
   return layer?.route?.stack?.map((handlerLayer) => handlerLayer.handle.name) || [];
 };
+
+const isRouterWideGuard = (layer, guard) => layer.handle.name === guard
+  && layer.regexp?.fast_slash === true;
 
 /**
  * Walk the router stack in registration order. A route counts as guarded if a
@@ -67,7 +79,7 @@ const findUnguardedRouterMutations = (routerName, router) => {
 
   for (const layer of router.stack) {
     if (!layer.route) {
-      if (layer.handle.name === guard) routerAuthActive = true;
+      if (isRouterWideGuard(layer, guard)) routerAuthActive = true;
       continue;
     }
 
@@ -104,7 +116,7 @@ const auditRouterGets = (routerName, router) => {
 
   for (const layer of router.stack) {
     if (!layer.route) {
-      if (layer.handle.name === guard) routerAuthActive = true;
+      if (isRouterWideGuard(layer, guard)) routerAuthActive = true;
       continue;
     }
 
@@ -207,6 +219,18 @@ describe('route auth guards', () => {
     expect(auditGetRoutes(syntheticRegistry)[0].publicUnlisted).toEqual(['scim get /Users']);
   });
 
+  it('does not treat path-scoped authenticate as a router-wide guard', () => {
+    const authenticate = (_req, _res, next) => next();
+    const partiallyGuarded = express.Router();
+    partiallyGuarded.use('/only-here', authenticate);
+    partiallyGuarded.post('/unguarded-sibling', (_req, res) => res.end());
+    partiallyGuarded.get('/unguarded-sibling', (_req, res) => res.end());
+    const syntheticRegistry = [{ name: 'components', router: partiallyGuarded }];
+
+    expect(findUnguardedMutations(syntheticRegistry)).toEqual(['components post /unguarded-sibling']);
+    expect(auditGetRoutes(syntheticRegistry)[0].publicUnlisted).toEqual(['components get /unguarded-sibling']);
+  });
+
   it('keeps destructive admin surfaces admin-gated', () => {
     expect(getRouteHandlers(adminRoutes, 'post', '/init')).toEqual(['authenticate', 'isAdmin', 'initializeDatabase']);
     expect(getRouteHandlers(adminRoutes, 'post', '/reset')).toEqual(['authenticate', 'isAdmin', 'resetDatabase']);
@@ -244,6 +268,13 @@ describe('public route descriptors (§V10, §V32)', () => {
     const indexSource = fs.readFileSync(path.join(repoRoot, 'server/src/index.js'), 'utf8');
     expect(indexSource.match(/mountApiRoutes\(app\)/g) || []).toHaveLength(1);
     expect(indexSource.match(/app\.use\(['"]\/api\//g) || []).toHaveLength(0);
+    expect(findDirectApiMounts(indexSource)).toEqual([]);
+    expect(findDirectApiMounts("app.post('/api/components', createComponent);"))
+      .toEqual(['post /api/components createComponent']);
+    expect(findDirectApiMounts("app.get('/api/health', anythingElse);"))
+      .toEqual(['get /api/health anythingElse']);
+    expect(findDirectApiMounts("app.delete('/api/components/:id', (_req, res) => res.end());"))
+      .toEqual(['delete /api/components/:id <anonymous>']);
   });
 
   it('declares a mount for every router the app sweeps', () => {
@@ -279,12 +310,20 @@ describe('public route descriptors (§V10, §V32)', () => {
     expect(resolve('get', '/api/auth/oidc/status')).toBe('auth get /oidc/status');
     expect(resolve('POST', '/api/inventory/search/barcode')).toBe('inventory post /search/barcode');
 
+    // Express routing is case-insensitive and implicitly serves HEAD through
+    // its GET handler, so public-target resolution must make the same choice.
+    expect(resolve('GET', '/API/COMPONENTS?search=res')).toBe('components get /');
+    expect(resolve('GET', '/aPi/CoMpOnEnTs/AbC-123')).toBe('components get /:id');
+    expect(resolve('HEAD', '/API/AUTH/OIDC/STATUS')).toBe('auth get /oidc/status');
+    expect(resolve('HEAD', '/Api/Components/AbC-123?view=full')).toBe('components get /:id');
+
     // wrong method, private route, unmounted prefix, and lookalike paths
     expect(resolve('POST', '/api/components')).toBeNull();
     expect(resolve('GET', '/api/eco')).toBeNull();
     expect(resolve('GET', '/api/dashboard/db-info')).toBeNull();
     expect(resolve('GET', '/api/scim/v2/Users')).toBeNull();
     expect(resolve('GET', '/api/components-archive')).toBeNull();
+    expect(resolve('HEAD', '/API/COMPONENTS-ARCHIVE')).toBeNull();
     expect(resolve('GET', '/api/components/abc-123/history')).toBeNull();
     expect(resolve('POST', '/api/auth/login')).toBeNull();
   });

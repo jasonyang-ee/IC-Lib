@@ -93,6 +93,8 @@ services:
 
   Authenticated requests do not spend the public ceiling, so a busy signed-in user cannot throttle guest reads coming from the same office NAT address — and cannot be throttled by them. `TRUST_PROXY_HOPS` is the number of proxy hops in front of Node: direct Node defaults to `0`, while the bundled nginx image sets `1`. Match it to the actual topology so the limiters key on the real client address rather than an untrusted forwarded header.
 
+  The bundled image also sets `SERVER_BIND_HOST=127.0.0.1`, so nginx is the only ingress to Node; do not expose the backend port separately. A direct or development Node deployment that must accept remote connections must set `SERVER_BIND_HOST=0.0.0.0` (or a specific IP literal) and `TRUST_PROXY_HOPS=0` unless it is actually placed behind trusted proxies.
+
   The counters are held in the app process's own memory. They reset when the container restarts, and each process or replica keeps its own counts — the bundled `docker-compose.yml` runs a single app container, which is what makes these numbers authoritative. If you scale the app horizontally, configure a shared external store before treating the limits as uniformly enforced.
 
 ### Single Sign-On (OIDC)

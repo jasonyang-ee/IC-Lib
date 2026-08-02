@@ -29,6 +29,7 @@ import { logError, logFatal, logInfo, logWarn } from './utils/logger.js';
 import pool from './config/database.js';
 import { gracefulShutdown } from './utils/gracefulShutdown.js';
 import { parseTrustProxyHops } from './config/trustProxy.js';
+import { parseServerBindHost } from './config/serverBind.js';
 import { mountApiRoutes } from './routes/registry.js';
 import { appBodyParsers } from './middleware/bodyParsers.js';
 
@@ -37,6 +38,7 @@ import { publicGlobalLimiter } from './middleware/rateLimit.js';
 
 const app = express();
 const PORT = process.env.PORT || 3500;
+const serverBindHost = parseServerBindHost();
 
 // Environment variables
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -165,7 +167,7 @@ async function startServer() {
     }
     
     // Start server (capture handle so SIGTERM/SIGINT can drain it - §V31)
-    server = app.listen(PORT, async () => {
+    server = app.listen(PORT, serverBindHost, async () => {
       logInfo('Server', `Running on port ${PORT}`);
       logInfo('Server', `Environment: ${NODE_ENV}`);
       if (SUBDIRECTORY_PATH) {

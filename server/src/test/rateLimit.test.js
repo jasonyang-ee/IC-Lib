@@ -161,6 +161,15 @@ describe('public global ceiling scope (§V10, §V32)', () => {
     expect(statuses).toEqual([200, 200, 429]);
   });
 
+  it('shares one public budget across mixed-case GET and implicit HEAD variants', async () => {
+    const base = listenWithLimiter({ limit: 1 });
+    const head = (url) => fetch(url, { method: 'HEAD' });
+
+    expect((await get(`${base}/API/Components`)).status).toBe(200);
+    expect((await head(`${base}/api/components`)).status).toBe(429);
+    expect((await get(`${base}/aPi/cOmPoNeNtS`)).status).toBe(429);
+  });
+
   it('throttles the barcode lookup and the public OIDC status GET', async () => {
     const base = listenWithLimiter();
     expect(await statusesFor(3, async () => (await post(`${base}/api/inventory/search/barcode`)).status))

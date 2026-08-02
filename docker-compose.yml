@@ -32,6 +32,8 @@ services:
       # Counters are process-local: this compose file runs ONE app container,
       # which is what makes them authoritative. Scale the app past one process
       # or replica and you need a shared external store first.
+      # nginx is the only container ingress; Node stays loopback-only.
+      - SERVER_BIND_HOST=127.0.0.1
       # TRUST_PROXY_HOPS is the number of proxy hops in front of Node (1 for
       # the bundled nginx) so the limiters key on the real client address.
       - TRUST_PROXY_HOPS=1
