@@ -192,27 +192,27 @@ files: `server/src/services/scimService.js`, `server/src/controllers/scimControl
 
 §T TASKS:
 
-T1|.|normalize SCIM attribute names at every JSON level
+T1|x|normalize SCIM attribute names at every JSON level
 touch: SCIM service/controller
 details: resolve attribute keys case-insensitively for top-level create data, PATCH operations, `name`, `emails`, and member objects; reject duplicate case variants as ambiguous `invalidValue`, ⊥ last-key-wins. Preserve value bytes and existing path normalization.
 verify: `externalId|ExternalId|EXTERNALID`, email/name subattribute variants, PATCH variants, and duplicate-case negative corpus.
 
-T2|.|publish + enforce immutable externalId semantics
+T2|x|publish + enforce immutable externalId semantics
 touch: discovery/controller
 details: User schema advertises `externalId.mutability='immutable'`; POST consumes the case-insensitive mapped object ID at creation/replay; PATCH mutation remains `mutability` error. Read-only `id|meta` are still ignored on POST.
 verify: discovery exact assertion; stock + case-varied create/replay return 201/stable Location; PATCH externalId variants reject before DB.
 
-T3|.|keep every authenticated parser-origin failure SCIM-shaped
+T3|x|keep every authenticated parser-origin failure SCIM-shaped
 touch: route parser error middleware
 details: add a scoped SCIM error boundary: map body-parser malformed, oversize, unsupported charset, unsupported content encoding, aborted/length/verification 4xx classes to bounded `application/scim+json` errors with safe detail; unexpected SCIM failures are logged server-side + returned as safe SCIM 500, never generic JSON or leaked detail.
 verify: authenticated charset/content-encoding/malformed/oversize/unexpected controls assert status/media/schema; unauthenticated variants remain 401 before parsing.
 
-T4|.|reassert tenant/link ownership on writes
+T4|x|reassert tenant/link ownership on writes
 touch: SCIM controller update helper
 details: UPDATE predicates include local `id` + configured `oidc_tenant_id` + the selected row's exact non-null `oidc_object_id`; zero rows after prior read becomes safe conflict/not-found, not success. Preserve the current best-effort lifecycle-audit policy without claiming it is transactional.
 verify: tenant/link changes between SELECT and UPDATE update zero rows, return a safe SCIM error, and emit no success lifecycle record; normal update and DELETE remain scoped.
 
-T5|.|record + run phase oracle
+T5|x|record + run phase oracle
 touch: tests + `CHANGELOG.md`
 verify: focused SCIM suites + `bash ./test.sh` exit 0; hostile corpus has zero authority-field writes.
 

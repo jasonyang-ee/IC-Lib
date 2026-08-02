@@ -271,6 +271,8 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(schemas.Resources[0].id).toBe(types.Resources[0].schema);
       expect(schemas.Resources[0].attributes.map(a => a.name))
         .toEqual(['userName', 'externalId', 'displayName', 'active', 'emails']);
+      expect(schemas.Resources[0].attributes.find(a => a.name === 'externalId').mutability)
+        .toBe('immutable');
     });
 
     it('retrieves the advertised User ResourceType and Schema at their locations', async () => {
@@ -389,6 +391,17 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(await res.text()).not.toContain('flat');
       expect(logErrorMock).toHaveBeenCalled();
     });
+
+    it('maps an unexpected authenticated controller failure to a SCIM 500', async () => {
+      queryMock.mockResolvedValueOnce({ rows: null });
+
+      const res = await get(filterFor(OBJECT_ID));
+
+      expect(res.status).toBe(500);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect((await res.json()).schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
+      expect(logErrorMock).toHaveBeenCalled();
+    });
   });
 
   describe('GET /Users/:id', () => {
@@ -447,7 +460,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(body.displayName).toBe('J Smith');
       expect(res.headers.get('location')).toBe(body.meta.location);
       expect(updateCall()[0]).toContain('display_name = $1');
-      expect(updateCall()[1]).toEqual(['J Smith', LOCAL_ID]);
+      expect(updateCall()[1]).toEqual(['J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
 
       queryMock.mockResolvedValueOnce({ rows: [linkedRow({ display_name: 'J Smith' })] });
       const followed = await fetch(`${origin}${body.meta.location}`, {
@@ -469,6 +482,55 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(res.status).toBe(201);
       expect(res.headers.get('location')).toBe(body.meta.location);
       expect(updateCall()).toBeUndefined();
+    });
+
+    it('does not report provisioning success when the linked identity changes after lookup', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow({ display_name: 'Old Name' })] });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      const res = await send('POST', '/Users', postBody({ displayName: 'J Smith' }));
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect(queryMock.mock.calls[1][1]).toEqual(['J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(logUserActivityMock).not.toHaveBeenCalled();
+    });
+
+    it('accepts case variants for identity, profile, name, and email members', async () => {
+      stubUser(
+        linkedRow({ username: 'old', display_name: null, email: 'old@contoso.com' }),
+        linkedRow({ username: 'jsmith@contoso.com', display_name: 'J Smith', email: 'new@contoso.com' }),
+      );
+
+      const res = await send('POST', '/Users', {
+        SCHEMAS: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+        EXTERNALID: OBJECT_ID.toUpperCase(),
+        USERNAME: 'jsmith@contoso.com',
+        NAME: { FORMATTED: 'J Smith' },
+        EMAILS: [{ VALUE: 'new@contoso.com', PRIMARY: true }],
+        ACTIVE: true,
+      });
+
+      expect(res.status).toBe(201);
+      expect(queryMock.mock.calls[0][1]).toEqual([OBJECT_ID, TENANT]);
+      expect(updateCall()[1]).toEqual(['jsmith@contoso.com', 'J Smith', 'new@contoso.com', LOCAL_ID, TENANT, OBJECT_ID]);
+    });
+
+    it('rejects duplicate case variants before looking up or writing a user', async () => {
+      const attempts = [
+        postBody({ EXTERNALID: OBJECT_ID }),
+        postBody({ USERNAME: 'other@contoso.com' }),
+        postBody({ name: { formatted: 'One', FORMATTED: 'Two' } }),
+        postBody({ emails: [{ value: 'one@contoso.com', VALUE: 'two@contoso.com' }] }),
+        postBody({ emails: [{ value: 'one@contoso.com', type: 'work', TYPE: 'home' }] }),
+      ];
+
+      for (const body of attempts) {
+        const res = await send('POST', '/Users', body);
+        expect(res.status).toBe(400);
+        expect((await res.json()).scimType).toBe('invalidValue');
+      }
+      expect(queryMock).not.toHaveBeenCalled();
     });
 
     it('requires a GUID externalId and refuses locally owned attributes', async () => {
@@ -534,6 +596,28 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(queryMock).not.toHaveBeenCalled();
     });
 
+    it('keeps authenticated charset and content-encoding parser errors SCIM-shaped', async () => {
+      const requests = [
+        fetch(`${baseUrl}/Users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': `${SCIM_CONTENT_TYPE}; charset=unsupported` },
+          body: '{}',
+        }),
+        fetch(`${baseUrl}/Users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': SCIM_CONTENT_TYPE, 'Content-Encoding': 'br' },
+          body: '{}',
+        }),
+      ];
+
+      for (const res of await Promise.all(requests)) {
+        expect(res.status).toBe(415);
+        expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+        expect((await res.json()).schemas).toEqual(['urn:ietf:params:scim:api:messages:2.0:Error']);
+      }
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
     it('maps a duplicate username to 409 uniqueness', async () => {
       queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
       queryMock.mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' }));
@@ -551,13 +635,44 @@ describe('SCIM discovery and lookup (§V60)', () => {
       Operations: operations,
     });
 
+    it('normalizes PATCH operation, member, and path casing', async () => {
+      stubUser(
+        linkedRow({ display_name: null, email: 'old@contoso.com', is_active: true }),
+        linkedRow({ display_name: 'J Smith', email: 'new@contoso.com', is_active: false }),
+      );
+
+      const res = await send('PATCH', `/Users/${LOCAL_ID}`, {
+        OPERATIONS: [
+          { OP: 'Replace', VALUE: { NAME: { FORMATTED: 'J Smith' }, EMAILS: [{ VALUE: 'new@contoso.com' }] } },
+          { OP: 'replace', PATH: 'AcTiVe', VALUE: false },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+      expect(updateCall()[1]).toEqual(['J Smith', 'new@contoso.com', false, LOCAL_ID, TENANT, OBJECT_ID]);
+    });
+
+    it('rejects duplicate case variants in every PATCH operation member', async () => {
+      const res = await patch([{
+        op: 'replace',
+        path: 'active',
+        value: false,
+        note: 'first',
+        NOTE: 'second',
+      }]);
+
+      expect(res.status).toBe(400);
+      expect((await res.json()).scimType).toBe('invalidValue');
+      expect(queryMock).not.toHaveBeenCalled();
+    });
+
     it('deactivates on a case-insensitive Replace and logs the lifecycle change', async () => {
       stubUser(linkedRow(), linkedRow({ is_active: false }));
 
       const body = await (await patch([{ op: 'Replace', path: 'active', value: false }])).json();
 
       expect(body.active).toBe(false);
-      expect(updateCall()[1]).toEqual([false, LOCAL_ID]);
+      expect(updateCall()[1]).toEqual([false, LOCAL_ID, TENANT, OBJECT_ID]);
       expect(logUserActivityMock).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ userId: LOCAL_ID }),
@@ -583,14 +698,14 @@ describe('SCIM discovery and lookup (§V60)', () => {
 
       expect(updateCall()[0]).toContain('display_name');
       expect(updateCall()[0]).toContain('email');
-      expect(updateCall()[1]).toEqual(['New', 'new@contoso.com', LOCAL_ID]);
+      expect(updateCall()[1]).toEqual(['New', 'new@contoso.com', LOCAL_ID, TENANT, OBJECT_ID]);
     });
 
     it('clears a nullable profile field on Remove but refuses the required ones', async () => {
       stubUser(linkedRow(), linkedRow({ display_name: null }));
       const cleared = await (await patch([{ op: 'remove', path: 'displayName' }])).json();
       expect(cleared.displayName).toBeUndefined();
-      expect(updateCall()[1]).toEqual([null, LOCAL_ID]);
+      expect(updateCall()[1]).toEqual([null, LOCAL_ID, TENANT, OBJECT_ID]);
 
       for (const path of ['userName', 'active']) {
         const res = await patch([{ op: 'remove', path }]);
@@ -602,6 +717,8 @@ describe('SCIM discovery and lookup (§V60)', () => {
       const attempts = [
         { op: 'replace', path: 'externalId', value: OBJECT_ID, scimType: 'mutability' },
         { op: 'replace', path: 'externalId.value', value: OBJECT_ID, scimType: 'mutability' },
+        { op: 'replace', path: 'ExternalId', value: OBJECT_ID, scimType: 'mutability' },
+        { op: 'replace', path: 'EXTERNALID.value', value: OBJECT_ID, scimType: 'mutability' },
         { op: 'replace', path: 'id.value', value: 'x', scimType: 'mutability' },
         { op: 'replace', path: 'meta.created', value: 'x', scimType: 'mutability' },
         { op: 'replace', path: 'oidc_sub', value: 'x', scimType: 'invalidValue' },
@@ -631,17 +748,30 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(res.status).toBe(200);
       expect(logErrorMock).toHaveBeenCalled();
     });
+
+    it('does not report patch success when the linked identity changes after lookup', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow({ is_active: true })] });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      const res = await patch([{ op: 'replace', path: 'active', value: false }]);
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect(queryMock.mock.calls[1][1]).toEqual([false, LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(logUserActivityMock).not.toHaveBeenCalled();
+    });
   });
 
   describe('DELETE /Users/:id', () => {
     it('deactivates the row rather than deleting it, and repeats as 204', async () => {
-      queryMock.mockResolvedValue({ rows: [{ id: LOCAL_ID, username: 'jsmith@contoso.com' }] });
+      queryMock.mockResolvedValue({ rows: [linkedRow()] });
 
       expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(204);
       expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(204);
 
-      const [sql] = queryMock.mock.calls[0];
+      const [sql, params] = updateCall();
       expect(sql).toContain('is_active = false');
+      expect(params).toEqual([LOCAL_ID, TENANT, OBJECT_ID]);
       expect(sql).not.toContain('DELETE');
     });
 
@@ -649,6 +779,18 @@ describe('SCIM discovery and lookup (§V60)', () => {
       queryMock.mockResolvedValueOnce({ rows: [] });
 
       expect((await send('DELETE', `/Users/${LOCAL_ID}`)).status).toBe(404);
+    });
+
+    it('does not report deactivation success when the linked identity changes after lookup', async () => {
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      const res = await send('DELETE', `/Users/${LOCAL_ID}`);
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
+      expect(queryMock.mock.calls[1][1]).toEqual([LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(logUserActivityMock).not.toHaveBeenCalled();
     });
   });
 });

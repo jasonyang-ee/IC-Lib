@@ -175,10 +175,38 @@ const normalizeAttributePath = (path) => String(path).trim().replace(/\[[^\]]*\]
 
 const refuse = (detail, scimType = 'invalidValue') => ({ error: { detail, scimType } });
 
+export const getScimAttribute = (resource, name) => {
+  if (!resource || typeof resource !== 'object' || Array.isArray(resource)) {
+    return { present: false, value: undefined };
+  }
+
+  const attributes = new Set();
+  for (const [attribute] of Object.entries(resource)) {
+    const normalizedAttribute = attribute.toLowerCase();
+    if (attributes.has(normalizedAttribute)) {
+      return refuse(`Duplicate case variants for ${attribute}`);
+    }
+    attributes.add(normalizedAttribute);
+  }
+
+  const match = Object.entries(resource)
+    .find(([attribute]) => attribute.toLowerCase() === name.toLowerCase());
+  return match
+    ? { present: true, value: match[1] }
+    : { present: false, value: undefined };
+};
+
 const firstEmailValue = (value) => {
-  if (!Array.isArray(value)) return value;
-  const primary = value.find(entry => entry?.primary) || value.find(entry => entry?.value);
-  return primary ? primary.value : null;
+  if (!Array.isArray(value)) return { value };
+  const emails = [];
+  for (const entry of value) {
+    const primary = getScimAttribute(entry, 'primary');
+    const email = getScimAttribute(entry, 'value');
+    if (primary.error || email.error) return primary.error ? primary : email;
+    emails.push({ primary: primary.value === true, value: email.value });
+  }
+  const selected = emails.find(entry => entry.primary) || emails.find(entry => entry.value !== undefined);
+  return { value: selected ? selected.value : null };
 };
 
 /**
@@ -188,7 +216,9 @@ const firstEmailValue = (value) => {
  * never may be null because the local row cannot serve without them.
  */
 const coerce = (column, rawValue) => {
-  const value = column === 'email' ? firstEmailValue(rawValue) : rawValue;
+  const email = column === 'email' ? firstEmailValue(rawValue) : { value: rawValue };
+  if (email.error) return email;
+  const { value } = email;
 
   if (column === 'is_active') {
     if (typeof value === 'boolean') return { value };
@@ -257,9 +287,24 @@ export const parseScimResource = (resource, mode = 'post') => {
   }
 
   let changes = {};
+  const attributes = new Set();
   for (const [attribute, value] of Object.entries(resource)) {
-    if (attribute === 'schemas') continue;
-    if (mode === 'post' && attribute.toLowerCase() === 'roles' && Array.isArray(value) && value.length === 0) {
+    const normalizedAttribute = attribute.toLowerCase();
+    if (attributes.has(normalizedAttribute)) {
+      return refuse(`Duplicate case variants for ${attribute}`);
+    }
+    attributes.add(normalizedAttribute);
+    if (normalizedAttribute === 'schemas') continue;
+    if (mode === 'post' && normalizedAttribute === 'roles' && Array.isArray(value) && value.length === 0) {
+      continue;
+    }
+    if (normalizedAttribute === 'name') {
+      const formatted = getScimAttribute(value, 'formatted');
+      if (formatted.error) return formatted;
+      if (!formatted.present) continue;
+      const step = assign(changes, 'name.formatted', formatted.value, mode);
+      if (step.error) return step;
+      changes = step.changes;
       continue;
     }
     const step = assign(changes, attribute, value, mode);
@@ -277,38 +322,46 @@ export const parseScimResource = (resource, mode = 'post') => {
  * column and is refused for the required ones.
  */
 export const parseScimPatch = (body) => {
-  const operations = body?.Operations ?? body?.operations;
+  const operationsField = getScimAttribute(body, 'operations');
+  if (operationsField.error) return operationsField;
+  const operations = operationsField.value;
   if (!Array.isArray(operations) || operations.length === 0) {
     return refuse('A PATCH body must carry at least one operation', 'invalidSyntax');
   }
 
   let changes = {};
   for (const operation of operations) {
-    const op = String(operation?.op ?? '').trim().toLowerCase();
+    const opField = getScimAttribute(operation, 'op');
+    const pathField = getScimAttribute(operation, 'path');
+    const valueField = getScimAttribute(operation, 'value');
+    if (opField.error || pathField.error || valueField.error) {
+      return opField.error ? opField : pathField.error ? pathField : valueField;
+    }
+    const op = String(opField.value ?? '').trim().toLowerCase();
     if (!['add', 'replace', 'remove'].includes(op)) {
       return refuse(`Unsupported PATCH operation "${operation?.op}"`, 'invalidSyntax');
     }
 
     if (op === 'remove') {
-      if (!operation.path) return refuse('Remove requires a path', 'invalidSyntax');
-      const attribute = normalizeAttributePath(operation.path);
+      if (!pathField.value) return refuse('Remove requires a path', 'invalidSyntax');
+      const attribute = normalizeAttributePath(pathField.value);
       if (attribute === 'username' || attribute === 'active') {
-        return refuse(`${operation.path} is required and cannot be removed`);
+        return refuse(`${pathField.value} is required and cannot be removed`);
       }
-      const step = assign(changes, operation.path, null);
+      const step = assign(changes, pathField.value, null);
       if (step.error) return step;
       changes = step.changes;
       continue;
     }
 
-    if (!operation.path) {
-      const step = parseScimResource(operation.value, 'patch');
+    if (!pathField.present || !pathField.value) {
+      const step = parseScimResource(valueField.value, 'patch');
       if (step.error) return step;
       changes = { ...changes, ...step.changes };
       continue;
     }
 
-    const step = assign(changes, operation.path, operation.value);
+    const step = assign(changes, pathField.value, valueField.value);
     if (step.error) return step;
     changes = step.changes;
   }

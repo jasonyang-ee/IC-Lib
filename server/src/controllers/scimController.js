@@ -7,6 +7,7 @@ import {
   SCIM_CONTENT_TYPE,
   SCIM_USER_SCHEMA,
   canonicalizeScimGuid,
+  getScimAttribute,
   getScimTenantId,
   parseScimPatch,
   parseScimResource,
@@ -117,7 +118,7 @@ export const SCIM_USER_SCHEMA_RESOURCE = {
   description: 'User Account',
   attributes: [
     attribute('userName', { required: true, uniqueness: 'server' }),
-    attribute('externalId', { caseExact: true, mutability: 'readOnly', uniqueness: 'server' }),
+    attribute('externalId', { caseExact: true, mutability: 'immutable', uniqueness: 'server' }),
     attribute('displayName'),
     attribute('active', { type: 'boolean', required: true }),
     {
@@ -215,12 +216,15 @@ const applyChanges = async (row, changes) => {
   const assignments = entries.map(([column], index) => `${column} = $${index + 1}`);
   const values = entries.map(([, value]) => value);
   const result = await pool.query(
-    `UPDATE users SET ${assignments.join(', ')} WHERE id = $${values.length + 1}
+    `UPDATE users SET ${assignments.join(', ')}
+     WHERE id = $${values.length + 1}
+       AND oidc_tenant_id = $${values.length + 2}
+       AND oidc_object_id = $${values.length + 3}
      RETURNING ${SELECT_USER_FIELDS}`,
-    [...values, row.id],
+    [...values, row.id, getScimTenantId(), row.oidc_object_id],
   );
 
-  return result.rows[0];
+  return result.rows[0] || null;
 };
 
 /** A duplicate username is the caller's conflict to resolve, not a 500. */
@@ -232,14 +236,19 @@ const writeFailed = (res, context, error) => {
 };
 
 export const createUser = async (req, res) => {
-  const { externalId, ...attributes } = req.body ?? {};
-  const canonicalExternalId = canonicalizeScimGuid(externalId);
+  const externalId = getScimAttribute(req.body, 'externalId');
+  if (externalId.error) {
+    return scimError(res, 400, externalId.error.detail, externalId.error.scimType);
+  }
+  const resourceAttributes = Object.fromEntries(Object.entries(req.body ?? {})
+    .filter(([key]) => key.toLowerCase() !== 'externalid'));
+  const canonicalExternalId = canonicalizeScimGuid(externalId.value);
 
   if (!canonicalExternalId) {
     return scimError(res, 400, 'externalId must be the Entra objectId', 'invalidValue');
   }
 
-  const parsed = parseScimResource(attributes);
+  const parsed = parseScimResource(resourceAttributes);
   if (parsed.error) {
     return scimError(res, 400, parsed.error.detail, parsed.error.scimType);
   }
@@ -270,6 +279,9 @@ export const createUser = async (req, res) => {
     updated = await applyChanges(existing.rows[0], parsed.changes);
   } catch (error) {
     return writeFailed(res, 'User create-as-update', error);
+  }
+  if (!updated) {
+    return scimError(res, 409, 'User ownership changed during provisioning');
   }
 
   await recordLifecycle(`SCIM provisioned existing user ${updated.username}`, updated.id);
@@ -307,6 +319,9 @@ export const updateUser = async (req, res) => {
   } catch (error) {
     return writeFailed(res, 'User patch', error);
   }
+  if (!updated) {
+    return scimError(res, 409, 'User ownership changed during update');
+  }
 
   if (updated.is_active !== existing.rows[0].is_active) {
     await recordLifecycle(
@@ -327,20 +342,31 @@ export const deleteUser = async (req, res) => {
 
   // §V57: removal deactivates and retains the row so historical authorship,
   // approvals and audit references survive. Repeating it stays a 204.
+  let existing;
+  try {
+    existing = await findLinkedUser('id = $1', [userId]);
+  } catch (error) {
+    return queryFailed(res, 'User lookup for deactivation', error);
+  }
+
+  if (existing.rows.length === 0) {
+    return scimError(res, 404, 'User not found');
+  }
+
   let result;
   try {
     result = await pool.query(
       `UPDATE users SET is_active = false
-       WHERE id = $1 AND oidc_tenant_id = $2 AND oidc_object_id IS NOT NULL
+       WHERE id = $1 AND oidc_tenant_id = $2 AND oidc_object_id = $3
        RETURNING id, username`,
-      [userId, getScimTenantId()],
+      [existing.rows[0].id, getScimTenantId(), existing.rows[0].oidc_object_id],
     );
   } catch (error) {
     return queryFailed(res, 'User deactivation', error);
   }
 
   if (result.rows.length === 0) {
-    return scimError(res, 404, 'User not found');
+    return scimError(res, 409, 'User ownership changed during deactivation');
   }
 
   await recordLifecycle(`SCIM deactivated user ${result.rows[0].username}`, result.rows[0].id);
