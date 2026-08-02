@@ -1,16 +1,107 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import BulkAlternativeClassModal from '../components/library/BulkAlternativeClassModal';
 import ComponentEditForm from '../components/library/ComponentEditForm';
 import ComponentDetailView from '../components/library/ComponentDetailView';
+import Library from '../pages/Library';
 import { canBulkSetAlternativeClass } from '../utils/accessControl';
 import { getVisibleBulkIds } from '../utils/libraryUtils';
+
+const libraryApi = vi.hoisted(() => ({
+  getCategories: vi.fn(),
+  getComponents: vi.fn(),
+  getManufacturers: vi.fn(),
+  getProjects: vi.fn(),
+  getDistributors: vi.fn(),
+  bulkSetComponentAlternativeClass: vi.fn(),
+}));
+const libraryFlags = vi.hoisted(() => ({ ecoEnabled: true }));
 
 // The edit form embeds the CAD file manager, which pulls in the query client,
 // notifications and upload endpoints. None of that is under test here.
 vi.mock('../components/library/ComponentFiles', () => ({ default: () => null }));
+vi.mock('../utils/api', () => ({ api: libraryApi }));
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    canWrite: () => true,
+    canApprove: () => false,
+    user: { id: 'user-1', role: 'read-write' },
+  }),
+}));
+vi.mock('../contexts/FeatureFlagsContext', () => ({
+  useFeatureFlags: () => libraryFlags,
+}));
+vi.mock('../contexts/NotificationContext', () => ({
+  useNotification: () => ({ showSuccess: vi.fn(), showError: vi.fn(), showInfo: vi.fn() }),
+}));
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }) => ({
+    getTotalSize: () => count * 45,
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, start: index * 45 })),
+    measureElement: () => {},
+  }),
+}));
+vi.mock('../components/library', () => ({
+  AssignedProjectsView: () => null,
+  ComponentEditForm: () => null,
+  ComponentDetailView: () => null,
+  DistributorInfoSection: () => null,
+}));
+vi.mock('../components/library/LibraryModals', () => ({
+  DeleteConfirmationModal: () => null,
+  PromoteConfirmationModal: () => null,
+  CategoryChangeModal: () => null,
+  WarningModal: ({ warningModal, onClose }) => warningModal.show ? (
+    <div role="alert">
+      {warningModal.message}
+      <button onClick={onClose}>Dismiss warning</button>
+    </div>
+  ) : null,
+  AddToProjectModal: () => null,
+  AutoFillToast: () => null,
+  VendorMappingModal: () => null,
+}));
+vi.mock('../components/common', () => ({
+  AlternativeClassBadge: ({ value }) => <span>{value || 'Unrated'}</span>,
+}));
+
+const libraryComponents = [
+  { id: 'new-part', part_number: 'NEW-00001', approval_status: 'new', alt_class: 'A' },
+  { id: 'controlled-part', part_number: 'PROD-00001', approval_status: 'production', alt_class: 'B' },
+  { id: 'archived-part', part_number: 'ARCH-00001', approval_status: 'archived', alt_class: 'C' },
+];
+
+const renderLibrary = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <Library />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
+
+beforeEach(() => {
+  sessionStorage.clear();
+  libraryFlags.ecoEnabled = true;
+  libraryApi.getCategories.mockResolvedValue({ data: [] });
+  libraryApi.getComponents.mockResolvedValue({ data: libraryComponents });
+  libraryApi.getManufacturers.mockResolvedValue({ data: [] });
+  libraryApi.getProjects.mockResolvedValue({ data: [] });
+  libraryApi.getDistributors.mockResolvedValue({ data: [] });
+  libraryApi.bulkSetComponentAlternativeClass.mockReset();
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 // §V41/§V59: the Library carries the component's library default - a field in
 // add/edit, a badge in the detail view, and one all-or-none bulk set over the
@@ -101,12 +192,21 @@ describe('BulkAlternativeClassModal (§V59)', () => {
     expect(screen.getByRole('button', { name: 'Apply to 0 Components' })).toBeDisabled();
   });
 
+  it('locks the class, cancel, and close controls while applying', () => {
+    renderModal({ isPending: true });
+
+    expect(screen.getByLabelText('Alternative Class')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Applying...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel alternative-class update' })).toBeDisabled();
+    expect(screen.getAllByRole('button')).toHaveLength(2);
+  });
+
   it('closes without applying on cancel', () => {
     const onApply = vi.fn();
     const onClose = vi.fn();
     renderModal({ onApply, onClose });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel alternative-class update' }));
 
     expect(onClose).toHaveBeenCalled();
     expect(onApply).not.toHaveBeenCalled();
@@ -123,6 +223,76 @@ describe('BulkAlternativeClassModal (§V59)', () => {
     const { container } = renderModal({ isOpen: false });
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('Library bulk alternative-class wiring (§V15/§V59)', () => {
+  it('uses the current visible selection once, preserves an explicit clear, and resets mode state after success', async () => {
+    let resolveBulkRequest;
+    libraryApi.bulkSetComponentAlternativeClass.mockImplementation(() => new Promise((resolve) => {
+      resolveBulkRequest = resolve;
+    }));
+
+    renderLibrary();
+    await screen.findByText('NEW-00001');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Alternative Class' }));
+    expect(screen.getByRole('checkbox', { name: 'Select PROD-00001' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select NEW-00001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Class (1)' }));
+    expect(screen.getByText(/1 component in this list is under change control/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel alternative-class update' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Production' }));
+    await waitFor(() => expect(screen.queryByText('PROD-00001')).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Class (1)' }));
+    expect(screen.queryByText(/under change control/)).not.toBeInTheDocument();
+
+    const applyButton = screen.getByRole('button', { name: 'Apply to 1 Component' });
+    fireEvent.click(applyButton);
+    fireEvent.click(applyButton);
+
+    await waitFor(() => expect(libraryApi.bulkSetComponentAlternativeClass).toHaveBeenCalledTimes(1));
+    expect(libraryApi.bulkSetComponentAlternativeClass).toHaveBeenCalledWith(['new-part'], null);
+    expect(screen.getByRole('button', { name: 'Applying...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel alternative-class update' })).toBeDisabled();
+    expect(screen.getByText('Set Alternative Class')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveBulkRequest({ data: {} });
+    });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Applying...' })).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Alternative Class' }));
+    expect(screen.getByRole('button', { name: 'Set Class (0)' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Alternative Class' }));
+    expect(screen.getByRole('button', { name: 'Set Class (0)' })).toBeDisabled();
+  });
+
+  it('keeps a failed bulk update visible and retryable', async () => {
+    libraryApi.bulkSetComponentAlternativeClass
+      .mockRejectedValueOnce({ response: { data: { error: 'The selected component changed before it could be updated.' } } })
+      .mockResolvedValueOnce({ data: {} });
+
+    renderLibrary();
+    await screen.findByText('NEW-00001');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Alternative Class' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select NEW-00001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set Class (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to 1 Component' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The selected component changed before it could be updated.');
+    expect(screen.getByRole('button', { name: 'Apply to 1 Component' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss warning' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to 1 Component' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply to 1 Component' })).not.toBeInTheDocument());
+
+    expect(libraryApi.bulkSetComponentAlternativeClass).toHaveBeenCalledTimes(2);
   });
 });
 

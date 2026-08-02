@@ -76,6 +76,10 @@ const validateECOAlternativeClassChanges = (changes) => {
   for (const change of changes) {
     if (change?.field_name !== 'alt_class') continue;
 
+    if (!Object.hasOwn(change, 'old_value') || !Object.hasOwn(change, 'new_value')) {
+      throw new Error(ALTERNATIVE_CLASS_ERROR_MESSAGE);
+    }
+
     for (const rawValue of [change.old_value, change.new_value]) {
       const result = normalizeAlternativeClass(rawValue);
       if (!result.ok) {

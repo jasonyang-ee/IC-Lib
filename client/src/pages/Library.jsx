@@ -124,6 +124,7 @@ const Library = () => {
   const [bulkDeleteSnapshot, setBulkDeleteSnapshot] = useState([]);
   const [bulkClassSnapshot, setBulkClassSnapshot] = useState(null);
   const [showBulkClassModal, setShowBulkClassModal] = useState(false);
+  const bulkClassRequestInFlightRef = useRef(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
@@ -867,6 +868,9 @@ const Library = () => {
         show: true,
         message: error.response?.data?.error || 'Failed to set the alternative class.',
       });
+    },
+    onSettled: () => {
+      bulkClassRequestInFlightRef.current = false;
     },
   });
 
@@ -2605,9 +2609,20 @@ const Library = () => {
   };
 
   const applyBulkAlternativeClass = (altClass) => {
+    if (bulkClassRequestInFlightRef.current || bulkAlternativeClassMutation.isPending) return;
+
     const ids = bulkClassSnapshot?.ids || [];
     if (ids.length === 0) return;
+
+    bulkClassRequestInFlightRef.current = true;
     bulkAlternativeClassMutation.mutate({ ids, altClass });
+  };
+
+  const closeBulkClassModal = () => {
+    if (bulkClassRequestInFlightRef.current || bulkAlternativeClassMutation.isPending) return;
+
+    setShowBulkClassModal(false);
+    setBulkClassSnapshot(null);
   };
 
   const handleFieldChange = (field, value) => {
@@ -3894,11 +3909,9 @@ const Library = () => {
         isOpen={showBulkClassModal}
         selectedCount={bulkClassSnapshot?.ids.length || 0}
         excludedCount={bulkClassSnapshot?.excludedCount || 0}
+        isPending={bulkAlternativeClassMutation.isPending}
         onApply={applyBulkAlternativeClass}
-        onClose={() => {
-          setShowBulkClassModal(false);
-          setBulkClassSnapshot(null);
-        }}
+        onClose={closeBulkClassModal}
       />
 
       {fileConflictModal.show && (

@@ -228,22 +228,22 @@ files: `server/src/controllers/ecoController.js`, `server/src/constants/alternat
 
 §T TASKS:
 
-T1|.|require both old/new ECO values while preserving explicit clear
+T1|x|require both old/new ECO values while preserving explicit clear
 touch: ECO controller/tests
 details: for `field_name='alt_class'`, require both `old_value` + `new_value` properties to be present/provided before `pool.connect()`; missing → 400 safe error + zero DB calls. Explicit `null`/blank remains a valid clear; A/B/C unchanged.
 verify: missing old, missing new, invalid, clear, and valid values; connection/BEGIN/INSERT absent for rejection.
 
-T2|.|lock bulk-class mutation in flight
+T2|x|lock bulk-class mutation in flight
 touch: Library + modal
 details: pass mutation pending state; disable Apply/Cancel/close and prevent second submit while request is active; show stable progress; reset snapshot/state exactly once on success/error close policy.
 verify: rapid double Apply sends one request; pending close/cancel cannot hide outcome; failure remains visible and retryable.
 
-T3|.|test actual Library wiring
+T3|x|test actual Library wiring
 touch: client regression
 details: cover filter→visible snapshot, modal count, excluded eligibility, event→eventual API payload, explicit clear, mode switch/reset, pending/error flow; helper unit tests remain but are not sole proof.
 verify: focused rendered integration fails when Library bypasses helper/snapshot or omits pending lock.
 
-T4|.|record + run phase oracle
+T4|x|record + run phase oracle
 touch: `CHANGELOG.md`
 verify: focused client/server alternative-class suites + `bash ./test.sh` exit 0.
 

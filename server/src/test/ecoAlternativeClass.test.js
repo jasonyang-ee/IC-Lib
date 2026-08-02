@@ -111,6 +111,20 @@ describe('createECO alternative-class staging (§V59)', () => {
     expect(changeInserts(query)[0][1]).toEqual(['eco-1', 'alt_class', 'B', '']);
   });
 
+  it.each([
+    ['old_value', { field_name: 'alt_class', new_value: 'A' }],
+    ['new_value', { field_name: 'alt_class', old_value: 'A' }],
+  ])('rejects an omitted %s before opening a connection', async (_field, change) => {
+    const { query, res } = await runCreate([change]);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'alt_class must be A, B, or C, or null to clear it',
+    });
+    expect(poolMocks.connect).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('rejects an out-of-domain new value before any change row is written', async () => {
     const { query, res } = await runCreate([
       { field_name: 'alt_class', old_value: 'A', new_value: 'D' },
