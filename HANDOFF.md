@@ -12,29 +12,29 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `c1f6f08` | tests pass 579/579 (`bash ./test.sh` exit 0: client 28 files/146 tests, server 50 files/433 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+branch `test` | last commit at handoff write `0732432` | tests pass 593/593 (`bash ./test.sh` exit 0: client 28 files/148 tests, server 51 files/445 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
 uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
-- F6.T1-F6.T4: alternative-class ECO changes now require own old/new values before database work; the rendered Library bulk modal is single-flight, pending-locked, retryable, and verified through its real filtered/eligible snapshot flow → `c1f6f08`.
+- F7.T1-F7.T4: component deletion now locks/fetches and checks §V15 inside one client-owned transaction; `DELETE /api/components/bulk` validates a bounded unique UUID set then atomically deletes every target/dependent/audit row, while the Library uses one pending-locked, retryable request → `0732432`.
 
 ## in progress (exact stop point)
 
-none. F6 complete; implementation resumes from F7.T1.
+none. F7 complete; implementation resumes from F8.T1.
 mid-edit files: none.
 
 ## next
 
-- F7.T1: in `server/src/controllers/componentController.js`, extract a caller-owned transaction delete primitive: lock/fetch the target and apply §V15 eligibility inside its transaction, then run dependent deletes, component delete, and required audit; preserve the single-delete response while removing the pre-transaction existence race.
+- F8.T1: audit `server/src/test/repositoryTextPolicy.test.js` and related policy tests for effective rather than helper-only coverage; change `.gitattributes` only if a real effective-policy defect is proven.
 
 ## deviations & decisions
 
-- F6 adds a short-lived request ref alongside React Query `isPending`: the ref closes the interval in which two rapid DOM events could invoke the mutation before React rerenders; `isPending` remains the visible modal state. SPEC unchanged: §V15/§V59 already prescribe the boundary.
+- F7 keeps the direct-delete policy out of route middleware so its lookup cannot race the transaction; the controller is now the sole locked §V15 authority for both single and bulk deletion. SPEC unchanged: §V15/§V27/§V42 already prescribe the contract.
 
 ## watchouts
 
-- F7’s `DELETE /api/components/bulk` must mount before `/:id`; a partial failure must roll back every dependent/component/audit write. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
+- F8 must not expand product scope: adjust repository/policy coverage only where it proves an existing effective behavior gap. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
 
 ## final verification
 
