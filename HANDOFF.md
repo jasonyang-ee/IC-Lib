@@ -12,31 +12,31 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `3eb21c3` | tests pass 556/556 (`bash ./test.sh` exit 0: client 28 files/143 tests, server 50 files/413 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+branch `test` | last commit at handoff write `c000a20` | tests pass 560/560 (`bash ./test.sh` exit 0: client 28 files/143 tests, server 50 files/417 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
 uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
-- F2.T1-F2.T4: exact active-state check, admin boolean validation, migration `20_auth_state_constraints.sql`, relation-scoped OIDC constraint, local-provider password-write races, regressions + Unreleased receipt → `3eb21c3`.
+- F3.T1-F3.T4: split explicit external-CI and owned local PostgreSQL 18 schema modes; prove version before writes and local data directory/port/child ownership; isolate CI in a disposable schema; reject PostgreSQL 16 and occupied-port decoys before DDL; wire CI URL and add Unreleased receipt → `c000a20`.
 
 ## in progress (exact stop point)
 
-none. F2 complete; implementation resumes from F3.T1.
+none. F3 complete; implementation resumes from F4.T1.
 mid-edit files: none.
 
 ## next
 
-- F3.T1: split `server/src/test/oidcPasswordOwnershipSchema.test.js` into explicit `OIDC_SCHEMA_TEST_DATABASE_URL` external-CI mode and owned PostgreSQL-18 local mode; ⊥ inherit `.env`, `DB_*`, or app DB coordinates.
+- F4.T1: align `server/src/middleware/bodyParsers.js` and public-route resolution with Express case-insensitive routing and implicit HEAD-as-GET semantics, preserving query stripping, subtree boundaries, exact allowlist order, and SCIM exclusion.
 
 ## deviations & decisions
 
-- F2 matched PLAN.md; SPEC unchanged because code restores §V1/§V29 guarantees.
-- migration 20 runs after possibly-recorded migration 19, backfills `is_active` NULL to false before `NOT NULL`, and checks `pg_constraint.conrelid = 'users'::regclass`; decoy relation regression HOLD.
+- F3 matched PLAN.md; SPEC unchanged because the schema harness enforces existing §V1/§V29 invariants rather than changing product behavior.
+- External schema tests read only `OIDC_SCHEMA_TEST_DATABASE_URL`, create a unique dropped schema, and never derive connection coordinates from application `DB_*`; local mode requires PostgreSQL 18 tools and proves server identity before schema writes.
 
 ## watchouts
 
-- F3 current scratch test still chooses a free port and accepts any PostgreSQL answering `SELECT 1`; prove `server_version_num`, normalized `SHOW data_directory`, `postmaster.pid` port, and child liveness before DDL/DML.
-- F3 must preserve F2 migration-19→20/decoy/null-active/local-hash regressions while changing test isolation.
+- F4 must use real listener tests to prove mixed-case malformed SCIM stops at 401 before parsing and case/HEAD variants share a rate-limit budget.
+- F4 topology work must validate `SERVER_BIND_HOST`, bind bundled Node to `127.0.0.1`, retain nginx as ingress with `TRUST_PROXY_HOPS=1`, and document direct mode as explicit bind + `TRUST_PROXY_HOPS=0`.
 - `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. Preserve unrelated work. ⊥ push/tag.
 
 ## final verification
