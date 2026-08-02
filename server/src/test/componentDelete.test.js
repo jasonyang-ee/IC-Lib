@@ -130,6 +130,33 @@ describe('component deletion transaction boundary (F7, V15)', () => {
     expect(res.json).toHaveBeenCalledWith({ deleted: 2, component_ids: [ID_A, ID_B] });
   });
 
+  it('rolls back all bulk deletion work when a later audit write fails', async () => {
+    let auditWrites = 0;
+    queryMock.mockImplementation(sqlDispatch([
+      ['FOR UPDATE', { rows: [component({ id: ID_A }), component({ id: ID_B })] }],
+      ['INSERT INTO activity_log', () => {
+        auditWrites += 1;
+        if (auditWrites === 2) throw new Error('second activity_log write rejected');
+        return { rows: [] };
+      }],
+      ['DELETE FROM component_specification_values', { rows: [] }],
+      ['DELETE FROM distributor_info', { rows: [] }],
+      ['DELETE FROM inventory', { rows: [] }],
+      ['DELETE FROM footprint_sources', { rows: [] }],
+      ['DELETE FROM components WHERE id = $1', { rows: [] }],
+    ]));
+    const next = vi.fn();
+
+    await bulkDeleteComponents(request({ body: { component_ids: [ID_A, ID_B] } }), mockRes(), next);
+
+    const calls = queryMock.mock.calls.map(([sql]) => sql);
+    expect(calls.filter(sql => sql.includes('INSERT INTO activity_log'))).toHaveLength(2);
+    expect(calls.filter(sql => sql.includes('DELETE FROM components WHERE id = $1'))).toHaveLength(1);
+    expect(calls).toContain('ROLLBACK');
+    expect(calls).not.toContain('COMMIT');
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+  });
+
   it.each([
     ['a missing id', [component({ id: ID_A })]],
     ['a controlled id', [component({ id: ID_A }), component({ id: ID_B, approval_status: 'production' })]],

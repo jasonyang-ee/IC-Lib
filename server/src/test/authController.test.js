@@ -246,6 +246,25 @@ describe('authController cookie auth', () => {
       error: 'This account signs in through single sign-on and has no local password',
     });
   });
+
+  it('changes a local user password after verifying the current password', async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ password_hash: 'current-password-hash', auth_provider: 'local' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    compareMock.mockResolvedValue(true);
+    hashMock.mockResolvedValue('new-password-hash');
+    const res = mockRes();
+
+    await changePassword(mockReq({ body: { currentPassword: 'current-password', newPassword: 'new-password' } }), res);
+
+    expect(compareMock).toHaveBeenCalledWith('current-password', 'current-password-hash');
+    expect(hashMock).toHaveBeenCalledWith('new-password', 10);
+    expect(queryMock.mock.calls[1]).toEqual([
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      ['new-password-hash', 'user-1'],
+    ]);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Password changed successfully' });
+  });
 });
 
 describe('authController local user authority', () => {

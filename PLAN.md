@@ -290,17 +290,17 @@ files: `server/src/test/repositoryTextPolicy.test.js`, `.gitattributes` only if 
 
 §T TASKS:
 
-T1|.|assert effective Git attributes for every declared family
+T1|x|assert effective Git attributes for every declared family
 touch: repository text policy test
 details: use `git check-attr` against representatives for `*.png|*.msi|*.psd|*.doc|*.DBC|*.reg`, shell entrypoints, Dockerfile, and ordinary text; assert binary/text/eol behavior, ⊥ substring-only policy presence.
 verify: deleting/changing each declaration fails a named representative; declared binary blob IDs remain unchanged.
 
-T2|.|audit regression ownership
+T2|x|audit regression ownership
 touch: auth/route/SCIM/Library tests from F2-F7
 details: confirm successful local change password, global-vs-path auth, direct API mount, mixed-case/HEAD listener, SCIM nested-case/tenant race, actual Library event payload, and bulk rollback each have a negative that fails when production wiring reverts.
 verify: evidence map names test case ↔ finding ↔ invariant; no focused `.only|.skip`.
 
-T3|.|run phase oracle
+T3|x|run phase oracle
 touch: `CHANGELOG.md` only if policy implementation changes; otherwise no duplicate receipt
 verify: focused repository/guard suites + `bash ./test.sh` exit 0; `git diff --check` clean.
 
