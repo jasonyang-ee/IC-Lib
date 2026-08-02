@@ -12,29 +12,29 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `1933201` | tests pass 574/574 (`bash ./test.sh` exit 0: client 28 files/143 tests, server 50 files/431 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+branch `test` | last commit at handoff write `c1f6f08` | tests pass 579/579 (`bash ./test.sh` exit 0: client 28 files/146 tests, server 50 files/433 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
 uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
-- F5.T1-F5.T5: normalized SCIM attribute casing through nested create/PATCH data; made `externalId` immutable; retained SCIM errors for authenticated parser + async-controller failures; fenced POST/PATCH/DELETE writes by selected tenant/object link and covered ownership races → `1933201`.
+- F6.T1-F6.T4: alternative-class ECO changes now require own old/new values before database work; the rendered Library bulk modal is single-flight, pending-locked, retryable, and verified through its real filtered/eligible snapshot flow → `c1f6f08`.
 
 ## in progress (exact stop point)
 
-none. F5 complete; implementation resumes from F6.T1.
+none. F6 complete; implementation resumes from F7.T1.
 mid-edit files: none.
 
 ## next
 
-- F6.T1: in `server/src/controllers/ecoController.js`, require both own `old_value` and `new_value` properties for `field_name='alt_class'` before `pool.connect()`; reject omission with safe 400 while preserving explicit null/blank clear.
+- F7.T1: in `server/src/controllers/componentController.js`, extract a caller-owned transaction delete primitive: lock/fetch the target and apply §V15 eligibility inside its transaction, then run dependent deletes, component delete, and required audit; preserve the single-delete response while removing the pre-transaction existence race.
 
 ## deviations & decisions
 
-- F5 matched PLAN.md; `server/src/routes/scim.js` wraps async controllers because Express 4 otherwise bypasses scoped error middleware on rejected promises. SPEC unchanged: §V57/§V60 already require exact behavior.
+- F6 adds a short-lived request ref alongside React Query `isPending`: the ref closes the interval in which two rapid DOM events could invoke the mutation before React rerenders; `isPending` remains the visible modal state. SPEC unchanged: §V15/§V59 already prescribe the boundary.
 
 ## watchouts
 
-- `scimRoutes.test.js` mounts through production registry; its test environment needs `JWT_SECRET` plus logger mocks for imported app-route dependencies. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
+- F7’s `DELETE /api/components/bulk` must mount before `/:id`; a partial failure must roll back every dependent/component/audit write. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
 
 ## final verification
 
