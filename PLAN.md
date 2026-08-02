@@ -316,17 +316,17 @@ files: read-only verification; `PLAN.md` + `HANDOFF.md` only through skills; SPE
 
 §T TASKS:
 
-T1|.|run full static/test oracle
+T1|x|run full static/test oracle
 touch: read-only
 details: `bash ./test.sh`; configured lint; `git diff --check`; search `.only|.skip`; migration numeric order; dependency/generated/snapshot/secret audit; inspect status after lint auto-fix.
 verify: exit 0; record exact client/server file+test counts and any warning.
 
-T2|.|replay adversarial matrices
+T2|x|replay adversarial matrices
 touch: read-only
 details: active NULL/provider writers; fake/scratch/PG16/PG18 cluster modes; mixed-case SCIM + public GET/HEAD; Docker bind/trust; SCIM attribute/parser/tenant race; omitted ECO values + double apply; bulk delete missing/audit/DB failure; effective Git attrs.
 verify: evidence table maps all `8 BLOCK + 3 DIVERGENCE` and HARDEN items to code/test/contract; every revert/negative fails.
 
-T3|.|audit commits, docs, and scope
+T3|x|audit commits, docs, and scope
 touch: Git + docs through `/encode-docs`/`/handoff`
 details: phase commits are scoped; migration 20 + fresh schema equivalent; `CHANGELOG.md` receipts present; SPEC unchanged unless durable truth genuinely changed; unrelated user work preserved; ∀ §T `x`; invoke `/handoff`.
 verify: `git log --oneline --decorate -n 20`; status clean after required doc commit; no push/tag.
