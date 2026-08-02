@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import net from 'net';
 import os from 'os';
@@ -10,14 +11,21 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const migration19Path = path.join(repoRoot, 'database', 'migrations', '19_oidc_password_ownership.sql');
 const migration20Path = path.join(repoRoot, 'database', 'migrations', '20_auth_state_constraints.sql');
 const initUsersPath = path.join(repoRoot, 'database', 'init-users.sql');
+const checkWorkflowPath = path.join(repoRoot, '.github', 'workflows', 'check.yml');
+const testPath = fileURLToPath(import.meta.url);
 const migration19Sql = fs.readFileSync(migration19Path, 'utf8');
 const migration20Sql = fs.readFileSync(migration20Path, 'utf8');
 const initUsersSql = fs.readFileSync(initUsersPath, 'utf8');
+const checkWorkflow = fs.readFileSync(checkWorkflowPath, 'utf8');
+const testSource = fs.readFileSync(testPath, 'utf8');
+const EXTERNAL_DATABASE_URL_ENV = 'OIDC_SCHEMA_TEST_DATABASE_URL';
+const POSTGRES_MAJOR_VERSION = 18;
 
-const runTool = (tool, args) => execFileSync(tool, args, {
+const runTool = (tool, args, { env = {} } = {}) => execFileSync(tool, args, {
   cwd: repoRoot,
   env: {
     ...process.env,
+    ...env,
     // PostgreSQL 18's Windows pg_ctl re-exec path requires privileges that
     // are unavailable in the test runner; the cluster is already disposable.
     PG_RESTRICT_EXEC: '1',
@@ -26,7 +34,98 @@ const runTool = (tool, args) => execFileSync(tool, args, {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
-const runSql = (port, sql) => runTool('psql', [
+const parsePostgresMajorVersion = (versionOutput) => {
+  const match = versionOutput.match(/\b(\d+)\./);
+  if (!match) {
+    throw new Error(`Unable to read PostgreSQL version from ${versionOutput.trim()}`);
+  }
+  return Number(match[1]);
+};
+
+const parseServerMajorVersion = (versionNumber) => {
+  const numericVersion = Number(versionNumber.trim());
+  if (!Number.isInteger(numericVersion)) {
+    throw new Error(`Unable to read server_version_num from ${versionNumber.trim()}`);
+  }
+  return Math.floor(numericVersion / 10000);
+};
+
+const normalizeDataDirectory = (dataDirectory) => {
+  const normalized = path.resolve(dataDirectory).replaceAll('\\', '/').replace(/\/+$/, '');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+};
+
+const readPostmasterPort = (dataDirectory) => {
+  const pidLines = fs.readFileSync(path.join(dataDirectory, 'postmaster.pid'), 'utf8').split(/\r?\n/);
+  const port = Number(pidLines[3]);
+  if (!Number.isInteger(port)) {
+    throw new Error(`Unable to read PostgreSQL port from ${dataDirectory}`);
+  }
+  return port;
+};
+
+const verifyPostgresIdentity = ({ runSql, expectedDataDirectory, expectedPort, serverProcess }) => {
+  const serverMajor = parseServerMajorVersion(runSql('SHOW server_version_num;'));
+  if (serverMajor !== POSTGRES_MAJOR_VERSION) {
+    throw new Error(`PostgreSQL ${POSTGRES_MAJOR_VERSION} required; connected to ${serverMajor}`);
+  }
+
+  if (!expectedDataDirectory) {
+    return {
+      serverMajor,
+      verifiedDataDirectory: undefined,
+      pidPort: undefined,
+      childAlive: undefined,
+    };
+  }
+
+  const verifiedDataDirectory = normalizeDataDirectory(runSql('SHOW data_directory;').trim());
+  if (verifiedDataDirectory !== normalizeDataDirectory(expectedDataDirectory)) {
+    throw new Error('Connected PostgreSQL data directory is not owned by this test');
+  }
+
+  const pidPort = readPostmasterPort(expectedDataDirectory);
+  if (pidPort !== expectedPort) {
+    throw new Error('Owned PostgreSQL postmaster.pid does not match requested port');
+  }
+
+  if (!serverProcess || serverProcess.exitCode !== null) {
+    throw new Error('Owned PostgreSQL child exited before schema verification');
+  }
+
+  return {
+    serverMajor,
+    verifiedDataDirectory,
+    pidPort,
+    childAlive: true,
+  };
+};
+
+const requireLocalPostgres18Tools = () => {
+  for (const tool of ['initdb', 'postgres', 'pg_ctl']) {
+    const majorVersion = parsePostgresMajorVersion(runTool(tool, ['--version']));
+    if (majorVersion !== POSTGRES_MAJOR_VERSION) {
+      throw new Error(`${tool} must be PostgreSQL ${POSTGRES_MAJOR_VERSION} for local schema tests`);
+    }
+  }
+};
+
+const buildPsqlEnvironment = (connection) => {
+  const environment = { ...process.env };
+  delete environment.PGHOST;
+  delete environment.PGPORT;
+  delete environment.PGUSER;
+  delete environment.PGDATABASE;
+  delete environment.PGPASSWORD;
+
+  if (connection.password !== undefined) {
+    environment.PGPASSWORD = connection.password;
+  }
+
+  return environment;
+};
+
+const createSqlRunner = (connection) => (sql) => runTool('psql', [
   '-X',
   '-q',
   '-t',
@@ -34,42 +133,43 @@ const runSql = (port, sql) => runTool('psql', [
   '-v',
   'ON_ERROR_STOP=1',
   '-h',
-  '127.0.0.1',
+  connection.host,
   '-p',
-  String(port),
+  String(connection.port),
   '-U',
-  'postgres',
+  connection.username,
   '-d',
-  'postgres',
+  connection.database,
   '-c',
   sql,
-]);
+], { env: buildPsqlEnvironment(connection) });
 
-const startScratchServer = async (dataDir, port) => {
-  const serverProcess = spawn('postgres', ['-D', dataDir, '-p', String(port)], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      PG_RESTRICT_EXEC: '1',
-    },
-    stdio: 'ignore',
-    windowsHide: true,
-  });
+const quoteIdentifier = (identifier) => `"${identifier.replaceAll('"', '""')}"`;
 
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      runSql(port, 'SELECT 1;');
-      return serverProcess;
-    } catch (error) {
-      if (serverProcess.exitCode !== null) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+const getExternalConnection = () => {
+  const databaseUrl = process.env[EXTERNAL_DATABASE_URL_ENV];
+  if (!databaseUrl) {
+    return null;
   }
 
-  serverProcess.kill();
-  throw new Error(`scratch PostgreSQL did not become ready on port ${port}`);
+  const parsedUrl = new URL(databaseUrl);
+  if (!['postgres:', 'postgresql:'].includes(parsedUrl.protocol)) {
+    throw new Error(`${EXTERNAL_DATABASE_URL_ENV} must use a PostgreSQL URL`);
+  }
+
+  const database = decodeURIComponent(parsedUrl.pathname.slice(1));
+  const username = decodeURIComponent(parsedUrl.username);
+  if (!parsedUrl.hostname || !database || !username) {
+    throw new Error(`${EXTERNAL_DATABASE_URL_ENV} must include host, database, and username`);
+  }
+
+  return {
+    host: parsedUrl.hostname,
+    port: Number(parsedUrl.port || 5432),
+    username,
+    password: parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined,
+    database,
+  };
 };
 
 const findFreePort = () => new Promise((resolve, reject) => {
@@ -81,12 +181,117 @@ const findFreePort = () => new Promise((resolve, reject) => {
   });
 });
 
-const findScratchPort = async (forbiddenPorts) => {
-  let port = await findFreePort();
-  while (forbiddenPorts.includes(port)) {
-    port = await findFreePort();
+const startScratchServer = async (dataDir, port) => {
+  const serverProcess = spawn('postgres', ['-D', dataDir, '-p', String(port)], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      PG_RESTRICT_EXEC: '1',
+    },
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  const runSql = createSqlRunner({
+    host: '127.0.0.1',
+    port,
+    username: 'postgres',
+    database: 'postgres',
+  });
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      runSql('SELECT 1;');
+      return { serverProcess, runSql };
+    } catch (error) {
+      if (serverProcess.exitCode !== null) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
-  return port;
+
+  serverProcess.kill();
+  throw new Error('scratch PostgreSQL did not become ready');
+};
+
+const createExternalEnvironment = (connection) => {
+  const schemaName = `oidc_schema_${process.pid}_${randomUUID().replaceAll('-', '')}`;
+  const runConnectionSql = createSqlRunner(connection);
+  const quotedSchemaName = quoteIdentifier(schemaName);
+
+  return {
+    mode: 'external',
+    schemaName,
+    namespace: `schema:${schemaName}`,
+    expectedDataDirectory: undefined,
+    expectedPort: undefined,
+    serverProcess: undefined,
+    verifyIdentity: () => verifyPostgresIdentity({ runSql: runConnectionSql }),
+    prepare: () => runConnectionSql(`CREATE SCHEMA ${quotedSchemaName};`),
+    runSql: (sql) => runConnectionSql(`SET search_path TO ${quotedSchemaName}; ${sql}`),
+    cleanup: () => runConnectionSql(`DROP SCHEMA IF EXISTS ${quotedSchemaName} CASCADE;`),
+  };
+};
+
+const createLocalEnvironment = async () => {
+  requireLocalPostgres18Tools();
+
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclib-oidc-ownership-'));
+  const port = await findFreePort();
+  let serverProcess;
+  let runSql;
+
+  try {
+    runTool('initdb', [
+      '-D',
+      dataDir,
+      '-U',
+      'postgres',
+      '--auth=trust',
+      '--no-locale',
+      '--encoding=UTF8',
+    ]);
+    ({ serverProcess, runSql } = await startScratchServer(dataDir, port));
+  } catch (error) {
+    if (serverProcess) {
+      serverProcess.kill();
+    }
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    throw error;
+  }
+
+  return {
+    mode: 'local',
+    dataDir,
+    port,
+    namespace: `data-directory:${normalizeDataDirectory(dataDir)}`,
+    expectedDataDirectory: normalizeDataDirectory(dataDir),
+    expectedPort: port,
+    serverProcess,
+    verifyIdentity: () => verifyPostgresIdentity({
+      runSql,
+      expectedDataDirectory: dataDir,
+      expectedPort: port,
+      serverProcess,
+    }),
+    prepare: () => {},
+    runSql,
+    cleanup: () => {
+      try {
+        runTool('pg_ctl', ['-D', dataDir, '-w', 'stop', '-m', 'fast']);
+      } catch {
+        serverProcess.kill();
+      }
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    },
+  };
+};
+
+const createSchemaTestEnvironment = async () => {
+  const externalConnection = getExternalConnection();
+  return externalConnection
+    ? createExternalEnvironment(externalConnection)
+    : createLocalEnvironment();
 };
 
 describe('OIDC password ownership schema', () => {
@@ -113,31 +318,80 @@ describe('OIDC password ownership schema', () => {
       .toHaveLength(2);
   });
 
-  it('repairs auth constraints after a same-named decoy constraint', async () => {
-    const configuredPort = Number(process.env.DB_PORT || 5432);
-    const scratchPort = await findScratchPort([configuredPort, 5434]);
-    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iclib-oidc-ownership-'));
-    let serverProcess;
+  it('uses only the explicit schema-test database URL for external mode', () => {
+    expect(testSource).not.toMatch(/process\.env\.(?:DB_[A-Z_]+|DATABASE_URL)/);
+    expect(testSource).toContain(EXTERNAL_DATABASE_URL_ENV);
+  });
 
-    expect(scratchPort).not.toBe(configuredPort);
-    expect(scratchPort).not.toBe(5434);
-    expect(`127.0.0.1:${scratchPort}`).not.toBe(
-      `${process.env.DB_HOST || 'localhost'}:${configuredPort}`,
+  it('runs the schema regression against the PostgreSQL 18 service', () => {
+    expect(checkWorkflow).toMatch(/image:\s*postgres:18/);
+    expect(checkWorkflow).toMatch(
+      /OIDC_SCHEMA_TEST_DATABASE_URL:\s*postgresql:\/\/postgres:postgres@localhost:5432\/iclib_test/,
     );
+  });
+
+  it('rejects PostgreSQL 16 before any schema write', () => {
+    const recordedStatements = [];
+
+    expect(() => verifyPostgresIdentity({
+      runSql: (sql) => {
+        recordedStatements.push(sql);
+        return '160000';
+      },
+    })).toThrow('PostgreSQL 18 required; connected to 16');
+    expect(recordedStatements).toEqual(['SHOW server_version_num;']);
+  });
+
+  it('aborts before writes when an occupied port serves another PostgreSQL cluster', async () => {
+    const decoyEnvironment = await createLocalEnvironment();
+    const targetDataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'iclib-oidc-target-'));
 
     try {
       runTool('initdb', [
         '-D',
-        dataDir,
+        targetDataDirectory,
         '-U',
         'postgres',
         '--auth=trust',
         '--no-locale',
         '--encoding=UTF8',
       ]);
-      serverProcess = await startScratchServer(dataDir, scratchPort);
+      const recordedStatements = [];
+      const runSql = (sql) => {
+        recordedStatements.push(sql);
+        return decoyEnvironment.runSql(sql);
+      };
 
-      runSql(scratchPort, `
+      expect(() => verifyPostgresIdentity({
+        runSql,
+        expectedDataDirectory: targetDataDirectory,
+        expectedPort: decoyEnvironment.port,
+        serverProcess: decoyEnvironment.serverProcess,
+      })).toThrow('Connected PostgreSQL data directory is not owned by this test');
+      expect(recordedStatements).toEqual([
+        'SHOW server_version_num;',
+        'SHOW data_directory;',
+      ]);
+      expect(recordedStatements.join('\n')).not.toMatch(/\b(?:ALTER|CREATE|DELETE|DROP|INSERT|UPDATE)\b/);
+    } finally {
+      decoyEnvironment.cleanup();
+      fs.rmSync(targetDataDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('repairs auth constraints after a same-named decoy constraint', async () => {
+    const environment = await createSchemaTestEnvironment();
+
+    try {
+      const identity = environment.verifyIdentity();
+      expect(identity.serverMajor).toBe(POSTGRES_MAJOR_VERSION);
+      expect(identity.verifiedDataDirectory).toBe(environment.expectedDataDirectory);
+      expect(identity.pidPort).toBe(environment.expectedPort);
+      expect(identity.childAlive).toBe(environment.serverProcess ? true : undefined);
+      expect(environment.namespace).toMatch(/^(?:data-directory:|schema:oidc_schema_)/);
+      environment.prepare();
+
+      environment.runSql(`
         CREATE TABLE users (
           id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
           username TEXT UNIQUE NOT NULL,
@@ -157,12 +411,11 @@ describe('OIDC password ownership schema', () => {
                ('local-user', 'local-hash', 'local', true),
                ('null-active-user', 'local-hash', 'local', NULL);
       `);
-      runSql(scratchPort, migration19Sql);
-      runSql(scratchPort, migration20Sql);
-      runSql(scratchPort, migration20Sql);
+      environment.runSql(migration19Sql);
+      environment.runSql(migration20Sql);
+      environment.runSql(migration20Sql);
 
-      const rows = runSql(
-        scratchPort,
+      const rows = environment.runSql(
         `SELECT username || ':' || auth_provider || ':' || COALESCE(password_hash, '<NULL>') || ':' || is_active
          FROM users ORDER BY username;`,
       ).trim().split(/\r?\n/);
@@ -172,39 +425,27 @@ describe('OIDC password ownership schema', () => {
         'oidc-user:oidc:<NULL>:true',
       ]);
 
-      expect(() => runSql(
-        scratchPort,
+      expect(() => environment.runSql(
         "INSERT INTO users (username, password_hash, auth_provider) VALUES ('new-oidc', 'hash', 'oidc');",
       )).toThrow();
-      expect(() => runSql(
-        scratchPort,
+      expect(() => environment.runSql(
         "UPDATE users SET password_hash = 'restored' WHERE username = 'oidc-user';",
       )).toThrow();
-      expect(() => runSql(
-        scratchPort,
+      expect(() => environment.runSql(
         "INSERT INTO users (username, password_hash, auth_provider, is_active) VALUES ('null-active', 'hash', 'local', NULL);",
       )).toThrow();
 
-      runSql(scratchPort, "UPDATE users SET password_hash = 'rotated' WHERE username = 'local-user';");
-      runSql(scratchPort, "INSERT INTO users (username, password_hash, auth_provider) VALUES ('default-active', 'hash', 'local');");
-      const localHash = runSql(
-        scratchPort,
+      environment.runSql("UPDATE users SET password_hash = 'rotated' WHERE username = 'local-user';");
+      environment.runSql("INSERT INTO users (username, password_hash, auth_provider) VALUES ('default-active', 'hash', 'local');");
+      const localHash = environment.runSql(
         "SELECT password_hash FROM users WHERE username = 'local-user';",
       ).trim();
       expect(localHash).toBe('rotated');
-      expect(runSql(
-        scratchPort,
+      expect(environment.runSql(
         "SELECT is_active FROM users WHERE username = 'default-active';",
       ).trim()).toBe('t');
     } finally {
-      if (serverProcess) {
-        try {
-          runTool('pg_ctl', ['-D', dataDir, '-w', 'stop', '-m', 'fast']);
-        } catch {
-          serverProcess.kill();
-        }
-      }
-      fs.rmSync(dataDir, { recursive: true, force: true });
+      environment.cleanup();
     }
   });
 });

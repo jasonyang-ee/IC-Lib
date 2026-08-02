@@ -124,22 +124,22 @@ files: `server/src/test/oidcPasswordOwnershipSchema.test.js`, optional shared te
 
 §T TASKS:
 
-T1|.|split explicit external-CI and spawned-local modes
+T1|x|split explicit external-CI and spawned-local modes
 touch: schema test/helper
 details: external mode reads only dedicated `OIDC_SCHEMA_TEST_DATABASE_URL`, never app `DB_*`; CI service uses a unique schema/search_path and drops it in `finally`. Local mode creates a unique temp data directory and starts host tools only when their major version is 18.
 verify: absent explicit external URL cannot select app/live coordinates; unique namespace recorded in assertions, ⊥ logs with credentials.
 
-T2|.|prove server identity before first DDL/DML
+T2|x|prove server identity before first DDL/DML
 touch: schema test/helper
 details: connect read-only, assert `server_version_num` major 18; spawned mode asserts normalized `SHOW data_directory` equals the owned temp dir, `postmaster.pid` identifies the requested port, and the spawned child remains alive. Identity mismatch aborts before `CREATE SCHEMA`, `CREATE TABLE`, migration, or seed.
 verify: occupied-port fake PostgreSQL control reaches only `SELECT/SHOW` then aborts; query recorder proves zero writes; owned cluster proceeds.
 
-T3|.|wire CI to its PostgreSQL 18 service
+T3|x|wire CI to its PostgreSQL 18 service
 touch: `.github/workflows/check.yml`
 details: pass the explicit test-only URL for the service container; assert major 18 in the test. Host `initdb/postgres/pg_ctl` availability/version no longer controls CI truth.
 verify: workflow inspection + test negative with PG16 reports a named failure, never skip/pass; PG18 service run executes migration assertions.
 
-T4|.|run phase oracle
+T4|x|run phase oracle
 touch: tests + `CHANGELOG.md`
 details: preserve deterministic cleanup/process termination on Windows and CI.
 verify: focused schema suite in applicable modes + `bash ./test.sh` exit 0; temp resources absent afterward.
