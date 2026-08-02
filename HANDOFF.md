@@ -12,32 +12,32 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-01
 
-branch `test` | last commit at handoff write `c000a20` | tests pass 560/560 (`bash ./test.sh` exit 0: client 28 files/143 tests, server 50 files/417 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
+branch `test` | last commit at handoff write `e63f2a1` | tests pass 565/565 (`bash ./test.sh` exit 0: client 28 files/143 tests, server 50 files/422 tests, scripts dry-run; 1 non-failing lint warning @ `server/src/test/componentAuditFailure.test.js:2 asClient`)
 uncommitted at handoff write: `HANDOFF.md` — current baton; ⊥ implementation diff.
 
 ## done this session
 
-- F3.T1-F3.T4: split explicit external-CI and owned local PostgreSQL 18 schema modes; prove version before writes and local data directory/port/child ownership; isolate CI in a disposable schema; reject PostgreSQL 16 and occupied-port decoys before DDL; wire CI URL and add Unreleased receipt → `c000a20`.
+- F4.T1-F4.T5: aligned public-target and SCIM parser classification with case-insensitive Express + implicit HEAD semantics; replayed limiter/auth/parser order through real listeners and registry; added validated IP-literal `SERVER_BIND_HOST` with bundled nginx-only loopback topology; strengthened route-sweep ownership and added Unreleased receipt → `e63f2a1`.
 
 ## in progress (exact stop point)
 
-none. F3 complete; implementation resumes from F4.T1.
+none. F4 complete; implementation resumes from F5.T1.
 mid-edit files: none.
 
 ## next
 
-- F4.T1: align `server/src/middleware/bodyParsers.js` and public-route resolution with Express case-insensitive routing and implicit HEAD-as-GET semantics, preserving query stripping, subtree boundaries, exact allowlist order, and SCIM exclusion.
+- F5.T1: normalize SCIM attributes in `server/src/services/scimService.js` and `server/src/controllers/scimController.js` at every JSON level; case variants map identically, duplicate case variants reject as ambiguous `invalidValue`, and value bytes/path normalization stay unchanged.
 
 ## deviations & decisions
 
-- F3 matched PLAN.md; SPEC unchanged because the schema harness enforces existing §V1/§V29 invariants rather than changing product behavior.
-- External schema tests read only `OIDC_SCHEMA_TEST_DATABASE_URL`, create a unique dropped schema, and never derive connection coordinates from application `DB_*`; local mode requires PostgreSQL 18 tools and proves server identity before schema writes.
+- F4 matched PLAN.md; SPEC unchanged because code restores existing §V10/§V27/§V32 guarantees rather than changing product behavior.
+- `SERVER_BIND_HOST` accepts only IP literals; default direct Node is `0.0.0.0`, while Dockerfile + compose set `127.0.0.1` and nginx explicitly proxies to that address.
 
 ## watchouts
 
-- F4 must use real listener tests to prove mixed-case malformed SCIM stops at 401 before parsing and case/HEAD variants share a rate-limit budget.
-- F4 topology work must validate `SERVER_BIND_HOST`, bind bundled Node to `127.0.0.1`, retain nginx as ingress with `TRUST_PROXY_HOPS=1`, and document direct mode as explicit bind + `TRUST_PROXY_HOPS=0`.
-- `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. Preserve unrelated work. ⊥ push/tag.
+- F5 must preserve SCIM's unauthenticated-before-parser guarantee while mapping every authenticated parser-origin failure to bounded `application/scim+json` errors; unexpected failures require safe SCIM 500 + server-only logging.
+- F5 write predicates must include local id, configured tenant, and selected non-null object id; a row that changes after SELECT must not report success or emit a lifecycle success record.
+- `scimRoutes.test.js` now mounts through the production registry; its test environment needs `JWT_SECRET` plus logger mocks for imported app-route dependencies. `bash ./test.sh` lint-fixes before testing; inspect `git status --short` after every phase. ⊥ push/tag.
 
 ## final verification
 
