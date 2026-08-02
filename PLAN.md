@@ -5,311 +5,332 @@ Phase ids F1..Fn monotonic. F1 ! research. Fn ! final verify. ⊥ coding outside
 ∀ phase names: goal | inputs | files | §T tasks (≥1) | verify | exit | next
 §T tasks defined & tracked in each phase. Status: x done | ~ wip | . todo.
 Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTION, ⊥ authorship. prep writes/expands as `new`; cook/cater ALONE flip new→work-in-progress at start & run on new(has phases)|wip; handoff→done on ∀ §T x + verify HOLD; garnish resets new. `new`+⊥phases (empty stub) → /prep; `done` → /garnish. prep expands ⟺ status ≠ work-in-progress.
-Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
+Encoding: same symbol set as SPEC.md. Preserve code/paths/ids/URLs/numbers/regex/errors verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: done
+planning status: new
 -->
 
 # PLAN
 
-goal: remediate every release-blocking or contract-divergent defect found by the security-first review of `d49f3b93f764717c594114f4cb900e2a80c7d630..c215724f7acf4a43d76d35c06c585bf98856dccc`, then replay each exploit/failure path before release.
+goal: remediate every accepted defect in the current-plan implementation `0b805abc8e6e54b69a2db977513d1b8d41be6d29..84edbd2e46335d3157fb89be54bead4a51396fcf`, prove each failure path at the production boundary, and restore a truthful release GO.
 
 ## ground rules
 
-- current release gate = **NO-GO**: `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`; the prior `GO` + “improvement only” framing is refuted. This implementation gate remains distinct from the executable-plan gate.
-- reviewed code head = `c215724`; later planning-doc commits ⊥ expand the implementation baseline. Branch `test`; code tree clean before this prep.
-- F2 lands before behavior edits so later diffs are reviewable. It uses 3 separable commits: policy-only `.gitattributes`; content-neutral renormalization; regression + changelog. Only the middle commit may contain mass churn.
-- F3-F9 each end with focused tests + `bash ./test.sh` exit 0 + one scoped commit. Security fixes ⊥ wait until final verification to become green.
-- user selected **A purge** on 2026-08-01: ∀ `auth_provider='oidc'` hashes are irreversibly cleared by migration; future links clear the hash atomically; provider gates remain defense-in-depth. ⊥ quarantine path or live DB command.
-- exact runtime mechanisms are frozen below: secure proxy default 0; ordered shared route registry; app parsers skip SCIM; router-wide SCIM auth precedes media/parser/fallback; GUIDs canonicalize lowercase; POST/PATCH attribute rules differ per RFC 7644.
-- preserve current response shapes/statuses unless a task names the correction. Remove Claude F4 raw-`Error` logging edit: `logError` is deliberately variadic and preserving stack/context is unrelated.
-- ∀ behavior fix → a regression that fails if the fix is reverted. ∀ security regression uses a real Express listener when middleware ordering/IP derivation matters.
-- durable contract changes only → `SPEC.md` via `/encode-docs`; implementation receipts → `CHANGELOG.md` `## [Unreleased]`. `/handoff` after every phase.
-- live DB `flat.gentex.int:5434/iclib` ⊥ agent-writable. ⊥ unrelated refactor, dependency upgrade, push, tag, or live secret in code/docs/logs.
+- implementation gate = **NO-GO**: `BLOCK=8 DIVERGENCE=3 UNKNOWN=0`. Executable-plan GO ≠ implementation/release GO.
+- explicit review base = `0b805abc8e6e54b69a2db977513d1b8d41be6d29` (`docs: finalize security remediation plan`); reviewed head = `84edbd2e46335d3157fb89be54bead4a51396fcf`; branch `test`. Latest release tag is outside the user-selected current-cycle boundary.
+- F1 review/research is complete. F2-F7 each end with focused regressions + `bash ./test.sh` exit 0 + scoped `CHANGELOG.md` receipt + one reviewable commit. F8 is a test-policy commit and changes `CHANGELOG.md` only if it also fixes behavior. F9 owns final classification.
+- preserve §V1/§V27/§V29/§V32/§V57/§V59/§V60 as system truth; defects classified DIVERGENCE resolve by changing code/tests toward those invariants, ⊥ weakening SPEC.
+- new database correction = migration `20_*.sql`; migration 19 may already be recorded and ⊥ rewritten as the sole repair. Fresh schema stays equivalent.
+- scratch PostgreSQL tests ⊥ inherit `.env`, `DB_*`, or an application database URL. Before first write they ! prove server identity/version; every test object uses a unique disposable namespace and cleanup in `finally`.
+- routing/IP security tests ! use a real Express listener where case, method fallback, middleware order, or `req.ip` matters. Unit-only classifier assertions are supplemental.
+- bulk deletion ! be one server request + one database transaction. A rejected target/audit/write leaves every target intact; client parallel per-ID deletion is removed.
+- ⊥ unrelated refactor, dependency upgrade, push, tag, live DB command, or secret in code/docs/logs. No implementation code changed during this review/prep.
+- durable requirement edits, if evidence makes one necessary, go only through `/encode-docs`; cycle progress goes through `/handoff`.
 
 ## existing assets
 
-- explicit diff = 82 files, 6592 insertions/917 deletions; `--ignore-cr-at-eol` = 6503/828. ∄ dependency-file change. Added-line secret scan found fixtures only (`new-password`, `short-secret`).
-- `bash ./test.sh` @ `c215724` → exit 0: client 28 files/141 tests, server 47 files/376 tests, scripts dry-run; 1 non-failing pre-existing lint warning (`componentAuditFailure.test.js:2 asClient`). Existing oracle therefore misses the defects below.
-- native scratch-migration tools available: `psql`, `initdb`, `pg_ctl` = PostgreSQL 18.1. F4 must use an isolated temp data directory + non-live port; ⊥ inherited app DB coordinates.
-- no `.gitattributes`; `core.autocrlf=false`; 120 tracked text blobs contain `\r`; `git diff --check d49f3b..c215724` = 741 warnings: 738 CR-only + 3 real trailing spaces (`Library.jsx:1168,2416,2446`). `docker/repair` begins `23 21 2F 62 69 6E 2F 73 68 0D 0A` while `Dockerfile:63-64` installs it executable ∴ `/bin/sh\r` breaks §I10 repair in Linux.
-- `auth.js:98` reads only `is_active`; downstream gates consume token `role` for ≤24h. `/verify` separately returns the DB role ∴ UI and authorization can disagree.
-- verified-email OIDC linking flips `auth_provider='oidc'` without clearing `password_hash`; login/change-password gate only on hash presence ∴ a linked SSO account keeps local authentication despite §V29/§V50 and commit `81d3472`.
-- `index.js:64` uses `Number(TRUST_PROXY_HOPS) || 1`; direct default trusts caller XFF and 0 is unrepresentable. Real-listener probe, limit 2: forged XFF statuses `[401,401,401,401]`; secure direct mode 0 → `[401,401,429,429]`.
-- route paths exist in `index.js`, `ROUTER_MOUNTS`, and test `ALL_ROUTERS`; the test compares the latter 2 only. `index.js` import starts DB/listener ∴ ⊥ import it as a registry workaround.
-- app `express.json()` + `express.urlencoded()` run before SCIM; ordinary JSON/form can parse before service auth. SCIM router parser also precedes auth; fallback `/Groups|/Bulk|typo` lacks auth; parser errors fall into generic JSON errors.
-- OIDC stores tenant/object GUIDs lowercase; SCIM trims but preserves case and compares PostgreSQL TEXT exactly. Uppercase valid tenant/object input can hide the linked row.
-- RFC 7644: POST read-only `id|meta` inputs are ignored; PATCH mutation is rejected. Entra’s stock create payload includes `meta` + `roles: []`. The old F5 plan would reject both and break interoperability; it also misses dotted/filtered sensitive paths.
-- SCIM discovery publishes `/ResourceTypes/User` + `/Schemas/<urn>` locations but routes neither; successful `POST /Users` returns 200 without `Location`, not SCIM/Entra 201 + stable resource location. ECO invalid `alt_class` is tested as 500 after `BEGIN`; Library bulk selections survive filter changes and can mutate hidden rows.
-- sourced contracts = §R15 (Git/Linux text), §R16 (Express proxy), §R17 (SCIM/HTTP/Entra).
+- ancestry verified; `git rev-list --count 0b805abc..HEAD` = 22 commits. Raw diff = 147 files; 120 paths are content-neutral CRLF→LF normalization. Semantic diff = 37 files, 1251 insertions/281 deletions; dependency semantic diff empty.
+- F2 isolation from the completed cycle holds: `375165d` changes only `.gitattributes`; `9a7ab7f` changes exactly 120 paths and `git diff --exit-code --ignore-cr-at-eol 375165d..9a7ab7f` is empty; declared binary blob IDs unchanged; `git diff --check bb3fb05..HEAD` clean.
+- full oracle @ reviewed head: `bash ./test.sh` exit 0; client 28 files/143 tests + server 50 files/397 tests = 540/540; scripts dry-run. Sole non-failing warning: `server/src/test/componentAuditFailure.test.js:2 asClient`.
+- focused review oracles: auth/OIDC 70/70; SCIM/trust/registry 69/69; repository/F9 suites green. Green status does not clear the accepted boundary failures.
+- live SCIM probe: malformed lowercase `/api/scim/v2/Groups` → `401 application/scim+json`; mixed-case `/api/SCIM/v2/Groups` → generic `400 application/json` before service auth.
+- live limiter probe with limit 1: mixed-case GET×2, HEAD×2, canonical GET×2 → `[200,200,200,200,200,429]`; case variants + Express automatic HEAD→GET bypass the public budget.
+- `isPublicGlobalTarget('/api/components')===true`; uppercase `/api/COMPONENTS` is false while the mounted Express GET resolves uppercase.
+- official contracts checked 2026-08-01: RFC 7643 `readOnly` vs `immutable` mutability + RFC 7644 POST handling; GitHub `ubuntu-latest` inventory exposes host PostgreSQL 16.14 while the workflow's PostgreSQL 18 is only a service; Docker Compose peers reach service container ports and `EXPOSE` does not isolate/publish. Sources: `https://www.rfc-editor.org/rfc/rfc7643.html`; `https://www.rfc-editor.org/rfc/rfc7644.html`; `https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md`; `https://docs.docker.com/compose/how-tos/networking/`; `https://docs.docker.com/reference/dockerfile/#expose`.
+- accepted BLOCKS: nullable active-state fail-open; scratch-cluster identity race; false/non-deterministic PG18 CI claim; mixed-case SCIM pre-auth parser; public limiter case/HEAD bypass; omitted ECO alt-class values accepted as clears; partial/silent bulk delete; bundled Docker direct backend path defeats one-hop trust topology.
+- accepted DIVERGENCES: local password writers do not universally gate on `auth_provider='local'`; SCIM discovery says `externalId` read-only while creation consumes it and case variants fail; authenticated nonstandard SCIM parser failures escape as generic JSON.
+- accepted HARDEN: relation-scoped migration guard; successful local change-password coverage; full Library wiring coverage; effective `.gitattributes` assertions; bulk-class in-flight lock; SCIM tenant predicate + case-insensitive attribute levels; route-sweep path/global/direct-mount negatives.
+- NOTE: commit `bb3fb05` contains a literal control byte in its commit-message test receipt only; tree/runtime unaffected.
 
 ## phase order
 
 id|goal|depends|exit
 |---|---|---|---|
-F1|record SSO purge ruling + freeze receipts|-|A purge recorded; research gate HOLD; remaining research = 0
-F2|normalize tracked text without hiding code changes|F1|policy + pure renorm + regression separable; repair shebang LF
-F3|enforce live DB role|F2|demotion/elevation bind next protected request
-F4|enforce SSO credential ownership|F1,F2|OIDC hashes purged; OIDC account ⊥ local auth
-F5|secure proxy/IP limiter contract|F2|direct forged XFF ⊥ rotate limiter key; image still trusts nginx
-F6|single-source runtime route mounts + sweep|F2|registry-added unguarded router fails automatically
-F7|seal SCIM ingress/auth/media boundary|F6|auth precedes body work + fallback; all errors SCIM-shaped
-F8|fix SCIM identity, attribute, discovery semantics|F7|uppercase IDs work; Entra stock body works; sensitive writes fail
-F9|fix alternative-class API/UI edge paths|F2|invalid ECO input 400 pre-DB; hidden rows ⊥ bulk mutation
-F10|final security replay + closure|F2-F9|oracle green; `BLOCK=DIVERGENCE=UNKNOWN=0`
+F1|freeze review evidence + implementation decisions|-|research gate HOLD; remaining research = 0
+F2|make account state + credential ownership fail closed|F1|NULL/non-local rows cannot authenticate or receive password writes
+F3|make PostgreSQL 18 schema verification isolated + truthful|F2|CI/local tests prove PG18 and cluster identity before writes
+F4|close request-classification + trusted-proxy bypasses|F1|case/HEAD/direct-peer paths share production security policy
+F5|align SCIM wire/schema/write semantics|F4|all SCIM variants stay authenticated, scoped, and SCIM-shaped
+F6|harden alternative-class request/UI boundaries|F1|omissions reject pre-DB; modal writes are single-flight
+F7|make component bulk deletion atomic + observable|F1|one request/transaction; failures preserve all rows and remain visible
+F8|strengthen repository/policy regressions|F2-F7|tests fail on the reviewed blind spots rather than helper-only drift
+F9|final adversarial replay + closure|F2-F8|oracle green; `BLOCK=DIVERGENCE=UNKNOWN=0`
 
-## F1 research + decision gate
+## F1 research + review gate
 
-goal: preserve the review receipt and encode the user-selected irreversible purge policy before code.
-inputs: explicit baseline/head; §C11, §R15-§R17, §V1, §V27, §V29, §V32, §V50, §V60.
-files: read-only review targets; `SPEC.md`, `PLAN.md`, `HANDOFF.md` via `/encode-docs`.
+goal: preserve reproducible evidence, settle mechanisms, and hand a cold executor a closed plan.
+inputs: explicit baseline/head; SPEC §C11, §R16-§R17, §V1, §V27, §V29, §V32, §V57, §V59, §V60; official sources in `existing assets`.
+files: read-only reviewed implementation; `PLAN.md`, `HANDOFF.md` through `/encode-docs`.
 
 §T TASKS:
 
-T1|x|freeze baseline, text, security, and test receipts
-touch: read-only git metadata + files named in `existing assets`
-details: verified ancestry + 82-file scope; 120 CR-bearing tracked text blobs; 738 CR-only + 3 semantic whitespace warnings; exact repair bytes; proxy exploit/control; full oracle; dependency/secret scope.
-verify: receipts reproduced @ `c215724`; no implementation write.
+T1|x|verify scope, normalization isolation, and full oracle
+touch: git metadata + reviewed tree
+details: prove ancestry/22-commit slice; separate 120 content-neutral paths from 37 semantic paths; audit dependency/migration/focus-marker/diff hygiene; run full + focused suites.
+verify: receipts in `existing assets`; worktree clean before prep.
 
-T2|x|record user ruling: A purge
-touch: `SPEC.md`, `PLAN.md`, `HANDOFF.md`
-details: user chose **A purge**. F4 adds `database/migrations/19_oidc_password_ownership.sql` setting `password_hash=NULL` for every `auth_provider='oidc' AND password_hash IS NOT NULL`, then enforces the ownership invariant in PostgreSQL; irreversible credential invalidation matches SSO-only §V29/§V50. Future linking clears hashes atomically and every local credential flow gates on `auth_provider='local'`. B quarantine + hybrid local/SSO auth are out of scope.
-verify: A purge written verbatim in PLAN + HANDOFF; §V29 owns the durable provider/hash invariant; F4 contains no conditional path.
+T2|x|reproduce boundary failures
+touch: production middleware/router composition through ephemeral listeners; read-only source inspection
+details: replay mixed-case SCIM malformed body, case/HEAD public limiter keys, active NULL token, scratch identity ordering, PG18 workflow topology, omitted ECO fields, partial delete ordering, and Docker peer reachability.
+verify: live statuses in `existing assets`; every BLOCK has code + failure-path evidence.
 
-T3|x|freeze implementation architecture + primary-source contracts
-touch: read-only Git/Express/RFC/Microsoft/Linux sources; SPEC §R15-§R17, §V27, §V32, §V60 via `/encode-docs`
-details: chose 3-commit normalization; shared ordered mount registry consumed by runtime/public resolver/sweep; proxy default 0 + Docker 1; SCIM app-parser exclusion + router-wide auth first; operation-specific SCIM attribute matrix + lowercase GUIDs + resolvable discovery locations.
-verify: ∄ later “either/or” mechanism; citations checked 2026-07-31.
+T3|x|freeze standards + remediation architecture
+touch: official RFC/GitHub/Docker sources; PLAN
+details: choose fail-closed active boolean + migration 20; provider gates for every password writer; explicit external/scratch PG18 modes with pre-write identity proof; Express-compatible path/method classifiers; bundled Node `SERVER_BIND_HOST=127.0.0.1`; case-insensitive SCIM attribute reader; one-transaction `DELETE /api/components/bulk`.
+verify: `UNKNOWN=0`; no later either/or implementation choice; sources checked 2026-08-01.
 
-verify: T1-T3 evidence HOLD; user ruling + durable contract recorded.
-exit: research gate HOLD; embedded review-plan `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; remaining research phases = 0.
+verify: T1-T3 HOLD; embedded plan refutation finds `BLOCK=0 DIVERGENCE=0 UNKNOWN=0`.
+exit: executable plan GO while reviewed implementation remains NO-GO.
 next: F2.T1
 
-## F2 line-ending policy + normalization
+## F2 account state + credential ownership
 
-goal: make Git-stored text LF, preserve binaries, and restore executable Linux shebangs with auditable commits.
-inputs: F1; §C11, §I10, §R15.
-files: `.gitattributes`, mechanically affected tracked text, `server/src/test/repositoryTextPolicy.test.js`, `CHANGELOG.md`.
+goal: make the database's active/provider state authoritative and close every password-write path.
+inputs: F1; §V1, §V29, §V50; existing migration 19.
+files: `server/src/middleware/auth.js`, `server/src/controllers/authController.js`, `server/src/repair.js`, `database/init-users.sql`, new `database/migrations/20_auth_state_constraints.sql`, `server/src/test/{auth,authController,repair,oidcPasswordOwnershipSchema}.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|commit policy alone
-touch: `.gitattributes`
-details: add `* text=auto eol=lf`; explicit `binary` for verified binary families (`*.png|*.msi|*.psd|*.doc|*.DBC|*.reg`); explicit `text eol=lf` for `*.sh`, `docker/repair`, `Dockerfile`. Stage/commit ONLY `.gitattributes`; expected unstaged normalization candidates are allowed after policy activation.
-verify: staged diff names only `.gitattributes`; `git check-attr -a -- docker/repair start.sh library/template/CIS/psqlodbc_x64.msi library/template/CIS/odbc_example.reg` exact.
+T1|.|fail closed on active state + validate admin update
+touch: auth middleware + admin user update handler
+details: protected request succeeds only when `row.is_active === true`; `false|null|missing` → 401 before downstream. Admin update accepts booleans only when `is_active` is present; explicit `null`/wrong type → 400 and zero write. User creation keeps the database default and gains no new payload field.
+verify: cookie + Bearer matrices cover true/false/null/missing and downstream/query counts; admin update null/type tests prove zero write.
 
-T2|x|commit content-neutral renormalization alone
-touch: only F1.T1’s verified text set
-details: `git add --renormalize .`; compare staged paths to expected text set; abort if binary or semantic delta appears; commit with ⊥ hand edit/docs/test.
-verify: `git diff --ignore-cr-at-eol <parent>..<renorm-commit>` EMPTY; baseline diff-check falls from 741 to exactly the 3 known `Library.jsx` trailing spaces; binary blob IDs unchanged.
+T2|.|repair persisted auth constraints without trusting migration 19's global name lookup
+touch: init users + migration 20 + schema test
+details: backfill `users.is_active IS NULL` to false, keep default true, add NOT NULL. Enforce OIDC password ownership on the `users` relation even when another schema/table owns the same constraint name; make repeat/application-after-recorded-19 safe. Fresh schema mirrors both constraints.
+verify: decoy schema/table with identical constraint name cannot suppress users constraint; migration 19→20 and 20-safe replay; NULL active rejected; OIDC hash rejected; local hash allowed.
 
-T3|x|remove semantic whitespace + add recurrence guard/receipt
-touch: `client/src/pages/Library.jsx:1168,2416,2446`, `server/src/test/repositoryTextPolicy.test.js`, `CHANGELOG.md`
-details: remove the 3 real trailing spaces outside T2. Test repo bytes: `.gitattributes` owns LF policy; every tracked executable shebang first line contains no `\r`; `docker/repair` exactly starts `#!/bin/sh\n`. T2 exposes pre-existing trailing spaces in its 120-file pure diff, so full-range raw `git diff --check` is not a semantic oracle; scope check to semantic F2.T3 paths. Record broken/fixed container repair + normalization. Commit separately from T2.
-verify: `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD -- client/src/pages/Library.jsx docker/repair server/src/test/repositoryTextPolicy.test.js CHANGELOG.md` = 0; focused guard fails after reinjecting CR in fixture/probe; `bash ./test.sh` exit 0; worktree clean.
+T3|.|gate all password writers on local provider
+touch: admin password path + repair `admin-reset`
+details: require `auth_provider === 'local'` before bcrypt/hash/update; provider mismatch returns safe domain error and performs zero hash/write. Admin password updates + repair both reassert `auth_provider='local'` in the final UPDATE predicate and handle a zero-row provider race safely; repair hashes only after its provider read.
+verify: current OIDC + synthetic non-local provider rows reject; local admin reset/change succeeds; wrong current password and both conditional zero-row provider races are covered.
 
-verify: policy attrs + pure-diff proof + shebang regression + full oracle.
-exit: §C11/§I10 HOLD; merge/rebase note remains `git merge -X renormalize` where needed.
+T4|.|record + run phase oracle
+touch: tests + `CHANGELOG.md`
+details: add one concise Unreleased receipt; preserve existing response shapes for valid local accounts.
+verify: focused auth/repair/schema suites + `bash ./test.sh` exit 0; reverting strict boolean or either provider gate fails.
+
+verify: §V1/§V29/§V50 HOLD; active/provider anomalies fail closed.
+exit: every authentication/password boundary requires exact live state.
 next: F3.T1
 
-## F3 live DB role enforcement
+## F3 isolated PostgreSQL 18 verification
 
-goal: make the database role authoritative on every protected request without adding a query.
-inputs: F1; §V1, §V2, §V15.
-files: `server/src/middleware/auth.js`, `server/src/test/auth.test.js`, `CHANGELOG.md`.
+goal: ensure schema tests can never mutate an unrelated cluster and CI actually executes against PostgreSQL 18.
+inputs: F1; current `oidcPasswordOwnershipSchema.test.js`; GitHub workflow service topology.
+files: `server/src/test/oidcPasswordOwnershipSchema.test.js`, optional shared test helper under `server/src/test/helpers/`, `.github/workflows/check.yml`, `server/vitest.config.js` only if isolation needs it, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|override JWT role from existing active-user query
-touch: `server/src/middleware/auth.js`
-details: query `SELECT is_active, role FROM users WHERE id = $1`; set `req.user={...decoded,id:decoded.userId,role:row.role}`. Preserve JWT generation, other claims, exactly 1 DB query, missing/inactive 401, query failure 503. ⊥ alter `authController.verify`; ⊥ raw-error logging refactor.
-verify: F3.T2.
+T1|.|split explicit external-CI and spawned-local modes
+touch: schema test/helper
+details: external mode reads only dedicated `OIDC_SCHEMA_TEST_DATABASE_URL`, never app `DB_*`; CI service uses a unique schema/search_path and drops it in `finally`. Local mode creates a unique temp data directory and starts host tools only when their major version is 18.
+verify: absent explicit external URL cannot select app/live coordinates; unique namespace recorded in assertions, ⊥ logs with credentials.
 
-T2|x|lock live-role matrix
-touch: `server/src/test/auth.test.js`, `CHANGELOG.md`
-details: cookie + Bearer; JWT admin/DB read-only denied by `isAdmin` next request; JWT read-only/DB admin allowed; inactive/missing 401; DB reject 503; downstream ⊥ called on deny; valid request query count = 1.
-verify: focused auth suite; reverting row-role override fails demotion + elevation; `bash ./test.sh` exit 0.
+T2|.|prove server identity before first DDL/DML
+touch: schema test/helper
+details: connect read-only, assert `server_version_num` major 18; spawned mode asserts normalized `SHOW data_directory` equals the owned temp dir, `postmaster.pid` identifies the requested port, and the spawned child remains alive. Identity mismatch aborts before `CREATE SCHEMA`, `CREATE TABLE`, migration, or seed.
+verify: occupied-port fake PostgreSQL control reaches only `SELECT/SHOW` then aborts; query recorder proves zero writes; owned cluster proceeds.
 
-verify: §V1 live-role clause HOLD; response shapes unchanged.
-exit: stale JWT role cannot authorize.
+T3|.|wire CI to its PostgreSQL 18 service
+touch: `.github/workflows/check.yml`
+details: pass the explicit test-only URL for the service container; assert major 18 in the test. Host `initdb/postgres/pg_ctl` availability/version no longer controls CI truth.
+verify: workflow inspection + test negative with PG16 reports a named failure, never skip/pass; PG18 service run executes migration assertions.
+
+T4|.|run phase oracle
+touch: tests + `CHANGELOG.md`
+details: preserve deterministic cleanup/process termination on Windows and CI.
+verify: focused schema suite in applicable modes + `bash ./test.sh` exit 0; temp resources absent afterward.
+
+verify: scratch writes occur only after identity proof; CI receipt names PG18.
+exit: schema compatibility claim is isolated, deterministic, and version-true.
 next: F4.T1
 
-## F4 SSO credential ownership
+## F4 request classification + proxy topology
 
-goal: make every `auth_provider='oidc'` account SSO-only and purge every stored OIDC password hash.
-inputs: F1.T2; §V29, §V50; commit `81d3472` intent.
-files: `server/src/services/oidcService.js`, `server/src/controllers/authController.js`, `server/vitest.config.js`, `database/init-users.sql`, `database/migrations/19_oidc_password_ownership.sql`, `server/src/test/{oidcService,authController,oidcPasswordOwnershipSchema}.test.js`, `README.md`, `CHANGELOG.md`.
+goal: make security classifiers match Express routing and remove the bundled image's direct trusted-hop path.
+inputs: F1; §V10, §V27, §V32; Docker networking receipt.
+files: `server/src/middleware/bodyParsers.js`, `server/src/constants/publicRoutes.js`, `server/src/index.js`, `server/src/constants/routeMounts.js`, `server/src/routes/registry.js`, `Dockerfile`, `docker-compose.yml`, `docker/nginx.conf`, `.env.example`, `README.md`, `server/src/test/{trustProxy,rateLimit,routeAuthGuards,scimRoutes}.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|close future link + local-auth paths
-touch: `oidcService.js`, `authController.js`
-details: verified-email link atomically sets `password_hash=NULL` with provider/OIDC keys. Login selects `auth_provider` + rejects provider ≠ `local` before bcrypt regardless hash. Change-password selects provider + hash, rejects provider ≠ `local` before bcrypt/hash/update. Admin password gate already rejects OIDC; preserve local break-glass users.
-verify: F4.T3.
+T1|.|align path + method classification with production Express
+touch: body parsers + public resolver
+details: compare route paths case-insensitively because runtime routing is case-insensitive; treat HEAD as GET for public-target resolution because Express auto-serves HEAD. Preserve query stripping, subtree boundaries, ordered exact public allowlist, and SCIM exclusion.
+verify: uppercase/mixed-case static + parameterized routes and HEAD/GET matrices; near-prefix negatives remain private/non-SCIM.
 
-T2|x|purge existing OIDC password hashes
-touch: `database/migrations/19_oidc_password_ownership.sql`, `database/init-users.sql`, new `oidcPasswordOwnershipSchema.test.js`, `README.md`, `CHANGELOG.md`, `server/vitest.config.js`
-details: migration first runs exactly `UPDATE users SET password_hash = NULL WHERE auth_provider = 'oidc' AND password_hash IS NOT NULL`, then idempotently adds `users_oidc_password_ownership` CHECK (`auth_provider <> 'oidc' OR password_hash IS NULL`). Mirror the CHECK in fresh schema. Guard default admin/guest `ON CONFLICT` password resets with existing `auth_provider='local'` so manual init cannot restore an OIDC hash. README/changelog require confirmed SSO + backup before rollout, name irreversible invalidation, and clarify unlinked local-provider break-glass accounts remain unchanged. ⊥ live DB command.
-verify: committed test checks exact purge predicate, migration/fresh-schema constraint parity, and guarded seed conflicts. Isolated temp PostgreSQL 18.1: load prior schema shape, seed OIDC+local hashes, apply migration twice → OIDC NULL + local unchanged; non-NULL OIDC insert/update rejected; local hash update accepted. Start with `initdb` + direct `postgres` on Windows because this runner's PostgreSQL 18.1 `pg_ctl start` restricted-token path fails; stop via `pg_ctl` with process-kill fallback in `finally`; assert scratch host/port ≠ app/live coordinates. Server Vitest file parallelism is disabled so real-listener/global-state suites have deterministic boundaries.
+T2|.|replay auth/parser/limiter order through real listeners
+touch: SCIM/rate-limit tests
+details: mixed-case malformed SCIM stops at 401 SCIM media before parser; limit 1 case variants + HEAD share one client budget and return expected 429s; canonical controls unchanged.
+verify: production middleware and registry are imported, listener closes in `finally`; reverting normalization or HEAD mapping fails.
 
-T3|x|lock credential matrix
-touch: named server tests
-details: linked local user update includes hash NULL; OIDC row with anomalous non-null legacy hash gets login 401 + change 400 with bcrypt/hash/update ⊥ called; local row still authenticates/changes; JIT remains NULL; admin cannot set OIDC password; migration proves A purge.
-verify: focused OIDC/auth/user-management suites; revert each gate fails; `bash ./test.sh` exit 0.
+T3|.|remove bundled direct backend reachability
+touch: index + container config/docs
+details: add validated `SERVER_BIND_HOST`; bundled nginx image sets `127.0.0.1`, so Node `:3500` is loopback-only while nginx remains the exposed ingress and `TRUST_PROXY_HOPS=1`. Direct/development deployment documents explicit bind + `TRUST_PROXY_HOPS=0`; malformed host fails startup.
+verify: image/config assertions prove bundled bind = loopback and nginx upstream matches; a listener started with bundled env reports a loopback `server.address().address`; direct-mode XFF control remains safe.
 
-verify: §V29/§V50 HOLD under A purge.
-exit: no unintended local credential path remains.
+T4|.|strengthen route-sweep ownership
+touch: route auth guard tests/registry
+details: a middleware named `authenticate` counts as router-wide only when mounted globally, not on a path prefix. Reject direct `app.METHOD('/api/...')` mounts outside the registry except named health probes.
+verify: synthetic path-scoped auth + unguarded sibling fails; synthetic direct API mount fails; supported registry remains 17 routers and green.
+
+T5|.|record + run phase oracle
+touch: `CHANGELOG.md`
+verify: focused trust/limit/route/SCIM suites + `bash ./test.sh` exit 0.
+
+verify: §V10/§V27/§V32 HOLD for case, method, and topology variants.
+exit: no shorter route or spelling changes parser/auth/limiter identity.
 next: F5.T1
 
-## F5 trusted-proxy + limiter identity
+## F5 SCIM schema + wire semantics
 
-goal: prevent direct clients from choosing `req.ip` while retaining one-hop nginx behavior in the image.
-inputs: F1; §R16, §V32.
-files: new `server/src/config/trustProxy.js`, `server/src/index.js`, `Dockerfile`, `.env.example`, `docker-compose.yml`, `README.md`, new `server/src/test/trustProxy.test.js`, `CHANGELOG.md`.
+goal: make case-insensitive SCIM attributes, parser failures, mutability metadata, and tenant writes coherent with §V57/§V60.
+inputs: F4; §R17, §V57, §V60; RFC 7643/7644.
+files: `server/src/services/scimService.js`, `server/src/controllers/scimController.js`, `server/src/routes/scim.js`, `server/src/test/{scimRoutes,scimAuth}.test.js`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|parse a secure explicit proxy contract
-touch: `trustProxy.js`, `index.js`, deployment docs/config
-details: missing `TRUST_PROXY_HOPS` → 0; accept only integer ≥0; preserve literal 0; invalid/negative/fractional → startup configuration error. `app.set('trust proxy', hops)`. Bundled Docker image explicitly sets 1 because nginx is the only exposed hop; docs say direct Node stays 0 and proxy topology must match.
-verify: parser unit matrix + Docker/config-doc parity.
+T1|.|normalize SCIM attribute names at every JSON level
+touch: SCIM service/controller
+details: resolve attribute keys case-insensitively for top-level create data, PATCH operations, `name`, `emails`, and member objects; reject duplicate case variants as ambiguous `invalidValue`, ⊥ last-key-wins. Preserve value bytes and existing path normalization.
+verify: `externalId|ExternalId|EXTERNALID`, email/name subattribute variants, PATCH variants, and duplicate-case negative corpus.
 
-T2|x|replay IP spoof/control through real listener
-touch: `trustProxy.test.js`
-details: limit 2 direct/default + four distinct forged XFF → `[401,401,429,429]`; explicit one-hop + proxy-overwritten XFF distinguishes real clients; literal 0 regression; invalid configs fail before listen.
-verify: real listener closes in `finally`; reverting `|| 1` behavior fails; focused rate-limit + trust-proxy suites; `bash ./test.sh` exit 0.
+T2|.|publish + enforce immutable externalId semantics
+touch: discovery/controller
+details: User schema advertises `externalId.mutability='immutable'`; POST consumes the case-insensitive mapped object ID at creation/replay; PATCH mutation remains `mutability` error. Read-only `id|meta` are still ignored on POST.
+verify: discovery exact assertion; stock + case-varied create/replay return 201/stable Location; PATCH externalId variants reject before DB.
 
-verify: §V32 HOLD; bundled nginx path + direct dev path both named.
-exit: XFF cannot bypass credential/public budgets on direct deployment.
+T3|.|keep every authenticated parser-origin failure SCIM-shaped
+touch: route parser error middleware
+details: add a scoped SCIM error boundary: map body-parser malformed, oversize, unsupported charset, unsupported content encoding, aborted/length/verification 4xx classes to bounded `application/scim+json` errors with safe detail; unexpected SCIM failures are logged server-side + returned as safe SCIM 500, never generic JSON or leaked detail.
+verify: authenticated charset/content-encoding/malformed/oversize/unexpected controls assert status/media/schema; unauthenticated variants remain 401 before parsing.
+
+T4|.|reassert tenant/link ownership on writes
+touch: SCIM controller update helper
+details: UPDATE predicates include local `id` + configured `oidc_tenant_id` + the selected row's exact non-null `oidc_object_id`; zero rows after prior read becomes safe conflict/not-found, not success. Preserve the current best-effort lifecycle-audit policy without claiming it is transactional.
+verify: tenant/link changes between SELECT and UPDATE update zero rows, return a safe SCIM error, and emit no success lifecycle record; normal update and DELETE remain scoped.
+
+T5|.|record + run phase oracle
+touch: tests + `CHANGELOG.md`
+verify: focused SCIM suites + `bash ./test.sh` exit 0; hostile corpus has zero authority-field writes.
+
+verify: §V57/§V60 HOLD; RFC mutability + media contract exact.
+exit: spelling/parser/race variants cannot escape SCIM ownership or response shape.
 next: F6.T1
 
-## F6 runtime route registry + auth sweep
+## F6 alternative-class boundary hardening
 
-goal: ensure the runtime mount set, public-path resolver, and full-router guard sweep consume one ordered source.
-inputs: F1; §V10, §V27, §V32.
-files: new `server/src/constants/routeMounts.js`, new `server/src/routes/registry.js`, `server/src/index.js`, `server/src/constants/publicRoutes.js`, `server/src/test/routeAuthGuards.test.js`, `CHANGELOG.md`.
+goal: reject malformed ECO field omissions before DB work and make bulk-class UI single-flight with real wiring coverage.
+inputs: F1; §V15, §V59.
+files: `server/src/controllers/ecoController.js`, `server/src/constants/alternativeClass.js`, `server/src/test/ecoAlternativeClass.test.js`, `client/src/pages/Library.jsx`, `client/src/components/library/BulkAlternativeClassModal.jsx`, `client/src/test/libraryAlternativeClass.test.jsx`, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|create ordered runtime registry without import cycle
-touch: `routeMounts.js`, `registry.js`, `index.js`, `publicRoutes.js`
-details: ordered descriptors own router name + exact mount path; registry binds each descriptor to its router and asserts exact name parity; exported mount fn is index’s sole API-router mounting path. `publicRoutes.js` derives mounts from descriptors. Preserve all 17 paths, public limiter before app routers, SCIM last/outside public budget. Dependency edge remains registry → auth route → rateLimit → publicRoutes → descriptor leaf; ⊥ edge back to registry.
-verify: paths/order byte-identical to `c215724`; `node --check`; no direct route import/mount list remains in index.
+T1|.|require both old/new ECO values while preserving explicit clear
+touch: ECO controller/tests
+details: for `field_name='alt_class'`, require both `old_value` + `new_value` properties to be present/provided before `pool.connect()`; missing → 400 safe error + zero DB calls. Explicit `null`/blank remains a valid clear; A/B/C unchanged.
+verify: missing old, missing new, invalid, clear, and valid values; connection/BEGIN/INSERT absent for rejection.
 
-T2|x|derive sweep + prove drift failure
-touch: `routeAuthGuards.test.js`
-details: delete `ALL_ROUTERS`; audit registry routers directly, retaining per-router guard policy. Export audit helper accepting a registry; append synthetic mounted unguarded router → audit fails automatically. Assert descriptor↔binding exact parity and index uses mount fn once.
-verify: focused route suite; synthetic negative proves mounted-but-unswept impossible through supported mount path; `bash ./test.sh` exit 0.
+T2|.|lock bulk-class mutation in flight
+touch: Library + modal
+details: pass mutation pending state; disable Apply/Cancel/close and prevent second submit while request is active; show stable progress; reset snapshot/state exactly once on success/error close policy.
+verify: rapid double Apply sends one request; pending close/cancel cannot hide outcome; failure remains visible and retryable.
 
-verify: §V10/§V27 registry clause HOLD; ∄ duplicate mount list.
-exit: route additions have one runtime path and automatic sweep coverage.
+T3|.|test actual Library wiring
+touch: client regression
+details: cover filter→visible snapshot, modal count, excluded eligibility, event→eventual API payload, explicit clear, mode switch/reset, pending/error flow; helper unit tests remain but are not sole proof.
+verify: focused rendered integration fails when Library bypasses helper/snapshot or omits pending lock.
+
+T4|.|record + run phase oracle
+touch: `CHANGELOG.md`
+verify: focused client/server alternative-class suites + `bash ./test.sh` exit 0.
+
+verify: §V15/§V59 HOLD across API and UI.
+exit: omission cannot clear data; one operator action produces one class transaction.
 next: F7.T1
 
-## F7 SCIM ingress/auth/media boundary
+## F7 atomic component bulk delete
 
-goal: authenticate every SCIM request before body work and return SCIM media/errors for every ingress failure.
-inputs: F6; §R17, §V27, §V60.
-files: new `server/src/middleware/bodyParsers.js`, `server/src/index.js`, `server/src/routes/scim.js`, `server/src/middleware/scimAuth.js`, `server/src/test/{scimRoutes,scimAuth,routeAuthGuards}.test.js`, `CHANGELOG.md`.
+goal: replace parallel irreversible per-row requests with one validated, auditable database transaction and visible client failure handling.
+inputs: F1; §V15, §V27, §V42; current single-delete semantics.
+files: `server/src/routes/components.js`, `server/src/controllers/componentController.js`, server component-controller/route tests, `client/src/utils/api.js`, `client/src/pages/Library.jsx`, client Library tests, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|exclude SCIM from generic app body parsers
-touch: `bodyParsers.js`, `index.js`
-details: exported production middleware skips BOTH generic JSON + urlencoded parsing for exact `SCIM_BASE_PATH` subtree; other routes retain current parser behavior/order. Tests import this middleware, ⊥ duplicate a test-only approximation.
-verify: ordinary JSON/form SCIM payload reaches router unparsed; non-SCIM JSON remains parsed.
+T1|.|factor transaction-owned delete primitive
+touch: component controller
+details: move target lookup/lock, §V15 ECO direct-delete eligibility check, dependent deletes, component delete, and audit write behind a caller-owned `pg` client; single delete reuses it. Eliminate pre-transaction existence race; missing target returns 404 and controlled non-admin target returns 403 before commit.
+verify: single delete success response preserved; ECO role/status matrix enforced server-side; audit or dependent failure rolls back everything.
 
-T2|x|make SCIM router auth-first + media-strict
-touch: `scim.js`, `scimAuth.js`
-details: router-wide `authenticateScim` first, covering discovery/users/unsupported fallback; auth scheme comparison case-insensitive, token bytes still exact/constant-time. After auth: POST/PATCH require `req.is(SCIM_CONTENT_TYPE)` else SCIM 415; 64kb SCIM JSON parser; scoped parser error middleware maps malformed → 400 `invalidSyntax`, oversized → 413, all `application/scim+json`. DELETE/GET need no body type.
-verify: F7.T3.
+T2|.|add one bulk endpoint + all-or-none contract
+touch: route/controller/server tests
+details: add authenticated write-gated `DELETE /api/components/bulk` before `/:id`; accept JSON `{ component_ids }`, validate a nonempty unique UUID array within the existing app JSON body limit. In one transaction lock/fetch every target, reject if count or any §V15 eligibility differs, run every delete/audit, then commit once; return deleted IDs/count.
+verify: one missing/controlled ID, audit failure, FK/DB failure, duplicate/invalid/oversize input each leaves all targets/dependents intact; success commits all with one audit each.
 
-T3|x|lock production-order adversarial matrix
-touch: named SCIM/route tests
-details: unauthenticated `/Groups`, malformed, oversized, JSON, form all stop at 401 before parser/DB; authenticated unsupported → SCIM 404; wrong mutation media → SCIM 415; malformed → SCIM 400; oversized → SCIM 413; lowercase `bearer` accepted; correct media reaches handler; non-SCIM app JSON unchanged. Sweep understands router-wide gate.
-verify: focused SCIM + route suites via real listener; reverting order/skip/fallback auth fails; `bash ./test.sh` exit 0.
+T3|.|replace client fan-out + surface failures
+touch: API/Library/client tests
+details: bulk confirmation sends one bulk call with the immutable visible snapshot; single delete stays single route. Keep confirmation/snapshot while pending, disable repeat/close, invalidate/reset only on success, and show safe server error on failure before allowing retry/cancel.
+verify: N selected rows → one HTTP call; partial server rejection leaves UI selection + snapshot; rapid confirm sends one call; success clears/invalidate once.
 
-verify: §V27/§V60 ingress clauses HOLD.
-exit: no SCIM path/body/error bypasses service boundary.
+T4|.|record + run phase oracle
+touch: `CHANGELOG.md`
+verify: focused component/Library suites + `bash ./test.sh` exit 0; reverting to `Promise.all` fails.
+
+verify: one action = one server transaction; no silent/partial irreversible state.
+exit: bulk deletion is atomic, idempotence-aware, and observable.
 next: F8.T1
 
-## F8 SCIM identity + resource semantics
+## F8 repository regression completeness
 
-goal: make Entra interoperability correct without allowing SCIM to mutate local authorization/credentials.
-inputs: F7; §R17, §V57, §V60.
-files: `server/src/services/scimService.js`, `server/src/controllers/scimController.js`, `server/src/routes/scim.js`, `server/src/test/scimRoutes.test.js`, `README.md` if operator mapping changes, `CHANGELOG.md`.
+goal: make policy tests assert effective behavior and close residual review blind spots without product-scope expansion.
+inputs: F2-F7; §C11, §V27, §V29.
+files: `server/src/test/repositoryTextPolicy.test.js`, `.gitattributes` only if an effective-policy defect is proven, related auth/route tests, `CHANGELOG.md`.
 
 §T TASKS:
 
-T1|x|canonicalize GUID identity at every boundary
-touch: `scimService.js`, `scimController.js`
-details: one helper validates + returns lowercase GUID. Apply to configured tenant, filter `externalId`, POST externalId, and all TEXT DB predicates/log/audit values. Invalid filter GUID → `invalidFilter`; invalid POST → `invalidValue`. OIDC lowercase storage remains unchanged.
-verify: uppercase env + filter/create finds same lowercase linked row; mixed-case replay idempotent; foreign tenant remains invisible.
+T1|.|assert effective Git attributes for every declared family
+touch: repository text policy test
+details: use `git check-attr` against representatives for `*.png|*.msi|*.psd|*.doc|*.DBC|*.reg`, shell entrypoints, Dockerfile, and ordinary text; assert binary/text/eol behavior, ⊥ substring-only policy presence.
+verify: deleting/changing each declaration fails a named representative; declared binary blob IDs remain unchanged.
 
-T2|x|implement operation-specific attribute ownership
-touch: `scimService.js`
-details: normalize filter syntax then inspect first path segment before full writable lookup. Sensitive aliases = `role|roles|password|password_hash|authProvider|auth_provider|oidc*`. POST: ignore read-only `id|meta`; tolerate only `roles: []` as no-op for Entra stock body; reject nonempty roles + every other sensitive nested/dotted/filtered form; controller removes the one valid top-level `externalId`, while any leftover/nested externalId form is a mutability error. PATCH: reject `id|meta|externalId` with `mutability`; reject sensitive class `invalidValue`; keep `name.formatted|emails.value|displayName|active|userName` writable; unknown non-sensitive attrs remain ignored.
-verify: corpus in F8.T4; revert first-segment match fails dotted sensitive case.
+T2|.|audit regression ownership
+touch: auth/route/SCIM/Library tests from F2-F7
+details: confirm successful local change password, global-vs-path auth, direct API mount, mixed-case/HEAD listener, SCIM nested-case/tenant race, actual Library event payload, and bulk rollback each have a negative that fails when production wiring reverts.
+verify: evidence map names test case ↔ finding ↔ invariant; no focused `.only|.skip`.
 
-T3|x|make create/discovery response contract complete
-touch: `scimController.js`, `scim.js`
-details: successful `POST /Users` → 201 + `Location` equal returned `meta.location`; repeat remains state-idempotent and returns same representation/location. Factor single User ResourceType/Schema objects; add authenticated `GET /ResourceTypes/User` + `GET /Schemas/:id`; exact IDs return advertised object, unknown IDs SCIM 404. Advertise `externalId` with actual immutable/server-unique semantics. Preserve collection ListResponse shapes.
-verify: POST first/replay both 201 + stable Location; follow every emitted `meta.location` → 200 + matching object; unsupported ID → SCIM 404.
+T3|.|run phase oracle
+touch: `CHANGELOG.md` only if policy implementation changes; otherwise no duplicate receipt
+verify: focused repository/guard suites + `bash ./test.sh` exit 0; `git diff --check` clean.
 
-T4|x|lock Entra + hostile corpora
-touch: `scimRoutes.test.js`, `CHANGELOG.md`
-details: Entra create body with `meta` + `roles:[]` succeeds @ 201 + Location and idempotently updates; nonempty role never changes DB; POST/PATCH first-segment corpus; writable + unknown controls; uppercase GUID cases; discovery links. Assert no query on rejected sensitive attempt.
-verify: focused SCIM suites + `bash ./test.sh` exit 0.
-
-verify: §V57/§V60 HOLD; RFC readOnly semantics ≠ local sensitive refusal preserved explicitly.
-exit: SCIM standard/default payload compatible and authority boundary closed.
+verify: helpers/config text cannot pass while runtime/effective policy regresses.
+exit: every accepted BLOCK/DIVERGENCE has a production-path regression.
 next: F9.T1
 
-## F9 alternative-class edge safety
+## F9 final verification + closure
 
-goal: turn invalid client input into a pre-DB 400 and prevent filter changes from expanding any bulk write beyond visible eligible rows.
-inputs: §V15, §V59; reviewed alternative-class server/client paths.
-files: `server/src/controllers/ecoController.js`, `server/src/test/ecoAlternativeClass.test.js`, `client/src/pages/Library.jsx`, `client/src/test/libraryAlternativeClass.test.jsx`, `CHANGELOG.md`.
-
-§T TASKS:
-
-T1|x|validate ECO alt-class before connection/transaction
-touch: `ecoController.js`, `ecoAlternativeClass.test.js`
-details: destructure/validate every `alt_class` old/new input before `pool.connect()`; domain failure → 400 exact safe message, connection/BEGIN/INSERT ⊥ called. Valid clear/A/B/C flow unchanged. ⊥ broaden generic ECO error refactor.
-verify: old/new invalid tests expect 400 + zero DB calls; valid staging/apply tests unchanged.
-
-T2|x|snapshot visible IDs at every bulk mutation boundary
-touch: `Library.jsx`, client regression
-details: derive current visible ID set from `sortedComponents` (+ direct-edit eligibility for alt-class). Delete confirmation and alt-class modal snapshot the exact intersected IDs; displayed count + eventual mutation use that snapshot, ⊥ mutable/stale `selectedForBulk`. Disable/no-op when intersection empty.
-verify: select row → filter it out → delete/class sends no hidden ID; mixed selection sends visible eligible subset only; confirmation/modal count matches payload; mode switching still clears; focused client suite + `bash ./test.sh` exit 0.
-
-verify: §V59 API boundary + visible-selection safety HOLD.
-exit: no 500 for domain input; no off-screen class mutation.
-next: F10.T1
-
-## F10 final verification + closure
-
-goal: prove every blocker/divergence is fixed, documented, and isolated before release.
-inputs: F2-F9 commits; §C11, §I10, §R15-§R17, §V1, §V10, §V27, §V29, §V32, §V50, §V57, §V59, §V60.
-files: read-only verification; docs only via `/encode-docs`/`/handoff` if evidence requires.
+goal: replay all accepted defects, verify scope/docs/migrations, and issue the final release classification.
+inputs: F2-F8 commits; all cited invariants and receipts.
+files: read-only verification; `PLAN.md` + `HANDOFF.md` only through skills; SPEC only if evidence changes durable truth.
 
 §T TASKS:
 
-T1|x|run full static/test oracle
+T1|.|run full static/test oracle
 touch: read-only
-details: `bash ./test.sh`; explicit client/server `no-shadow` + server `no-console`; `git diff --check d49f3b93f764717c594114f4cb900e2a80c7d630..HEAD`; search focused `.only|.skip`; secret/generated/snapshot audit; migration numeric order; no dependency delta unless separately approved.
-verify: `bash ./test.sh`, configured lint, current-tree diff check, focused-marker/dependency/generated audits, and migration order exit 0; exact baseline-wide diff check retains known legacy trailing-space receipts from the pre-normalization tree; record exact file/test counts + sole accepted warning.
+details: `bash ./test.sh`; configured lint; `git diff --check`; search `.only|.skip`; migration numeric order; dependency/generated/snapshot/secret audit; inspect status after lint auto-fix.
+verify: exit 0; record exact client/server file+test counts and any warning.
 
-T2|x|replay security/correctness matrices
+T2|.|replay adversarial matrices
 touch: read-only
-details: CR shebang; live demotion/elevation; OIDC legacy hash; direct forged XFF; registry synthetic mount; SCIM unauth/body/media/error/case/attribute/discovery; invalid ECO pre-DB; hidden bulk selection. Revert each fix or use named negative fixture so ≥1 regression fails per defect.
-verify: evidence table maps every review finding → test + code + SPEC/CHANGELOG.
+details: active NULL/provider writers; fake/scratch/PG16/PG18 cluster modes; mixed-case SCIM + public GET/HEAD; Docker bind/trust; SCIM attribute/parser/tenant race; omitted ECO values + double apply; bulk delete missing/audit/DB failure; effective Git attrs.
+verify: evidence table maps all `8 BLOCK + 3 DIVERGENCE` and HARDEN items to code/test/contract; every revert/negative fails.
 
-T3|x|audit commits, docs, scope, and close
-touch: SPEC/PLAN/HANDOFF/CHANGELOG through skills only
-details: prove F2 policy/pure-renorm/regression separation; compare code to cited invariants; ∀ §T `x`; unrelated work absent/preserved; `git status --short` clean; invoke `/handoff`. Classify final `BLOCK|DIVERGENCE|UNKNOWN`; any nonzero → NO-GO with owner.
-verify: `git log --oneline --decorate -n 15`, phase receipts, final table.
+T3|.|audit commits, docs, and scope
+touch: Git + docs through `/encode-docs`/`/handoff`
+details: phase commits are scoped; migration 20 + fresh schema equivalent; `CHANGELOG.md` receipts present; SPEC unchanged unless durable truth genuinely changed; unrelated user work preserved; ∀ §T `x`; invoke `/handoff`.
+verify: `git log --oneline --decorate -n 20`; status clean after required doc commit; no push/tag.
 
-verify: full oracle + adversarial replay + doc/commit traceability; `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` -> GO. Raw baseline-wide `git diff --check d49f3b..HEAD` retains known legacy trailing-space receipts; current-tree and post-F2 scoped checks are clean.
-exit: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; else truthful NO-GO. ⊥ push/tag.
-next: `/garnish` only after user accepts completed cycle.
+verify: full oracle + adversarial replay + traceability; any nonzero class remains NO-GO.
+exit: `BLOCK=0 DIVERGENCE=0 UNKNOWN=0` → GO; otherwise truthful NO-GO with exact owner.
+next: `/garnish` only after completed implementation cycle is accepted.
