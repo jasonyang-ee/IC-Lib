@@ -8,7 +8,7 @@ const ModalBackdrop = ({ children, zClass = 'z-50', onClick }) => (
 );
 
 // Delete Confirmation Modal
-export const DeleteConfirmationModal = ({ deleteConfirmation, onConfirm, onCancel }) => {
+export const DeleteConfirmationModal = ({ deleteConfirmation, isPending = false, onConfirm, onCancel }) => {
   if (!deleteConfirmation.show) return null;
   return (
     <ModalBackdrop>
@@ -28,15 +28,17 @@ export const DeleteConfirmationModal = ({ deleteConfirmation, onConfirm, onCance
         <div className="flex gap-3">
           <button
             onClick={onCancel}
+            disabled={isPending}
             className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
+            disabled={isPending}
             className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center gap-2"
           >
-            Delete
+            {isPending ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </div>

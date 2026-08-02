@@ -32,6 +32,10 @@ router.post('/bulk/update-distributors', authenticate, canWrite, componentContro
 // there is no per-component canDirectEditComponent guard here.
 router.put('/bulk/alternative-class', authenticate, canWrite, componentController.bulkSetAlternativeClass);
 
+// Bulk delete must stay ahead of /:id. Its controller locks every target and
+// applies the ECO direct-delete policy atomically across the complete batch.
+router.delete('/bulk', authenticate, canWrite, componentController.bulkDeleteComponents);
+
 // Get component by ID
 router.get('/:id', componentController.getComponentById);
 
@@ -41,8 +45,9 @@ router.post('/', authenticate, canWrite, componentController.createComponent);
 // Update component
 router.put('/:id', authenticate, canWrite, canDirectEditComponent, componentController.updateComponent);
 
-// Delete component
-router.delete('/:id', authenticate, canWrite, canDirectEditComponent, componentController.deleteComponent);
+// Delete component. The controller owns the locked §V15 policy check so the
+// lookup and delete cannot race between middleware and its transaction.
+router.delete('/:id', authenticate, canWrite, componentController.deleteComponent);
 
 // Get component specifications
 router.get('/:id/specifications', componentController.getComponentSpecifications);

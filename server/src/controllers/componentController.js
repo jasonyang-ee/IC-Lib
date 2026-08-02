@@ -778,65 +778,138 @@ export const bulkSetAlternativeClass = async (req, res, next) => {
   }
 };
 
-export const deleteComponent = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    
-    // Check if component exists and get its details for logging
-    const componentCheck = await pool.query(
-      `SELECT c.id, c.part_number, c.description, cat.name as category_name 
-       FROM components c 
-       LEFT JOIN component_categories cat ON c.category_id = cat.id
-       WHERE c.id = $1`,
-      [id],
-    );
+const MAX_BULK_DELETE_COMPONENTS = 100;
 
-    if (componentCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Component not found' });
-    }
+const deleteComponentsWithClient = async (client, { componentIds, user }) => {
+  // Lock every target before checking policy or deleting anything. This makes
+  // a missing/controlled member fail the whole batch without a pre-transaction
+  // read racing another writer, and stable ordering avoids cross-batch locks.
+  const targets = await client.query(
+    `SELECT c.id, c.part_number, c.description, c.approval_status, cat.name AS category_name
+     FROM components c
+     LEFT JOIN component_categories cat ON c.category_id = cat.id
+     WHERE c.id = ANY($1::uuid[])
+     ORDER BY c.id
+     FOR UPDATE`,
+    [componentIds],
+  );
 
-    const component = componentCheck.rows[0];
-
-    // Use transaction to delete from all related tables
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Required audit inside the delete transaction (§R9): a rejected write
-      // aborts the delete instead of losing the only record of it.
-      await logActivity(client, {
-        componentId: component.id,
-        userId: req.user.id,
-        partNumber: component.part_number,
-        activityType: 'deleted',
-        details: {
-          description: component.description,
-          category_name: component.category_name,
-        },
-      });
-
-      // Delete from related tables first (foreign key constraints)
-      await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [id]);
-      await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
-      await client.query('DELETE FROM inventory WHERE component_id = $1', [id]);
-      await client.query('DELETE FROM footprint_sources WHERE component_id = $1', [id]);
-      
-      // Delete the component (no category table sync needed)
-      await client.query('DELETE FROM components WHERE id = $1', [id]);
-      
-      await client.query('COMMIT');
-      
-      res.json({ message: 'Component deleted successfully' });
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    logError('Component', 'Error deleting component:', error);
-    next(error);
+  if (targets.rows.length !== componentIds.length) {
+    return { error: { status: 404, body: { error: 'One or more components were not found' } } };
   }
+
+  if (isEcoEnabled()) {
+    const blocked = targets.rows.filter(component => !canDirectEditComponentInEcoMode({
+      role: user?.role,
+      currentApprovalStatus: component.approval_status,
+    }));
+
+    if (blocked.length > 0) {
+      return {
+        error: {
+          status: 403,
+          body: {
+            error: 'Access denied',
+            message: 'Direct edits require ECO approval unless the part is still in new status',
+            component_ids: blocked.map(component => component.id),
+          },
+        },
+      };
+    }
+  }
+
+  for (const component of targets.rows) {
+    // The audit must precede the parent delete because activity_log retains
+    // history through its ON DELETE SET NULL foreign key.
+    await logActivity(client, {
+      componentId: component.id,
+      userId: user.id,
+      partNumber: component.part_number,
+      activityType: 'deleted',
+      details: {
+        description: component.description,
+        category_name: component.category_name,
+      },
+    });
+
+    await client.query('DELETE FROM component_specification_values WHERE component_id = $1', [component.id]);
+    await client.query('DELETE FROM distributor_info WHERE component_id = $1', [component.id]);
+    await client.query('DELETE FROM inventory WHERE component_id = $1', [component.id]);
+    await client.query('DELETE FROM footprint_sources WHERE component_id = $1', [component.id]);
+    await client.query('DELETE FROM components WHERE id = $1', [component.id]);
+  }
+
+  return { components: targets.rows };
+};
+
+const validateBulkDeleteIds = (componentIds) => {
+  if (!Array.isArray(componentIds) || componentIds.length === 0) {
+    return { error: 'component_ids must be a non-empty array of unique component ids' };
+  }
+
+  if (componentIds.length > MAX_BULK_DELETE_COMPONENTS) {
+    return { error: `component_ids must contain at most ${MAX_BULK_DELETE_COMPONENTS} component ids` };
+  }
+
+  const normalizedIds = componentIds.map(id => String(id ?? '').trim());
+  if (normalizedIds.some(id => !UUID_PATTERN.test(id)) || new Set(normalizedIds).size !== normalizedIds.length) {
+    return { error: 'component_ids must be a non-empty array of unique component ids' };
+  }
+
+  return { componentIds: normalizedIds };
+};
+
+const runComponentDelete = async ({ componentIds, user, res, next, success }) => {
+  let client = null;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await deleteComponentsWithClient(client, { componentIds, user });
+    if (result.error) {
+      await client.query('ROLLBACK');
+      return res.status(result.error.status).json(result.error.body);
+    }
+
+    await client.query('COMMIT');
+    return success(result.components);
+  } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK').catch(rollbackError => {
+        logError('Component', 'Failed to roll back component deletion:', rollbackError.message);
+      });
+    }
+    logError('Component', 'Error deleting component:', error);
+    return next(error);
+  } finally {
+    if (client) client.release();
+  }
+};
+
+export const deleteComponent = async (req, res, next) => runComponentDelete({
+  componentIds: [req.params.id],
+  user: req.user,
+  res,
+  next,
+  success: () => res.json({ message: 'Component deleted successfully' }),
+});
+
+export const bulkDeleteComponents = async (req, res, next) => {
+  const validation = validateBulkDeleteIds(req.body?.component_ids);
+  if (validation.error) {
+    return res.status(400).json({ error: validation.error });
+  }
+
+  return runComponentDelete({
+    componentIds: validation.componentIds,
+    user: req.user,
+    res,
+    next,
+    success: (components) => res.json({
+      deleted: components.length,
+      component_ids: components.map(component => component.id),
+    }),
+  });
 };
 
 export const getComponentSpecifications = async (req, res, next) => {

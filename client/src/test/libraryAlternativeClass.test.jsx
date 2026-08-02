@@ -17,6 +17,7 @@ const libraryApi = vi.hoisted(() => ({
   getProjects: vi.fn(),
   getDistributors: vi.fn(),
   bulkSetComponentAlternativeClass: vi.fn(),
+  bulkDeleteComponents: vi.fn(),
 }));
 const libraryFlags = vi.hoisted(() => ({ ecoEnabled: true }));
 
@@ -51,7 +52,13 @@ vi.mock('../components/library', () => ({
   DistributorInfoSection: () => null,
 }));
 vi.mock('../components/library/LibraryModals', () => ({
-  DeleteConfirmationModal: () => null,
+  DeleteConfirmationModal: ({ deleteConfirmation, isPending, onConfirm, onCancel }) => deleteConfirmation.show ? (
+    <div>
+      <p>Delete {deleteConfirmation.count} component(s)?</p>
+      <button onClick={onCancel} disabled={isPending}>Cancel deletion</button>
+      <button onClick={onConfirm} disabled={isPending}>{isPending ? 'Deleting...' : 'Delete'}</button>
+    </div>
+  ) : null,
   PromoteConfirmationModal: () => null,
   CategoryChangeModal: () => null,
   WarningModal: ({ warningModal, onClose }) => warningModal.show ? (
@@ -97,6 +104,7 @@ beforeEach(() => {
   libraryApi.getProjects.mockResolvedValue({ data: [] });
   libraryApi.getDistributors.mockResolvedValue({ data: [] });
   libraryApi.bulkSetComponentAlternativeClass.mockReset();
+  libraryApi.bulkDeleteComponents.mockReset();
 });
 
 afterEach(() => {
@@ -293,6 +301,56 @@ describe('Library bulk alternative-class wiring (§V15/§V59)', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply to 1 Component' })).not.toBeInTheDocument());
 
     expect(libraryApi.bulkSetComponentAlternativeClass).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Library bulk-delete wiring (F7)', () => {
+  it('sends one immutable bulk request and keeps the confirmation pending until success', async () => {
+    let resolveDelete;
+    libraryFlags.ecoEnabled = false;
+    libraryApi.bulkDeleteComponents.mockImplementation(() => new Promise((resolve) => {
+      resolveDelete = resolve;
+    }));
+
+    renderLibrary();
+    await screen.findByText('NEW-00001');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Components' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select NEW-00001' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select PROD-00001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Selected (2)' }));
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(deleteButton);
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => expect(libraryApi.bulkDeleteComponents).toHaveBeenCalledTimes(1));
+    expect(libraryApi.bulkDeleteComponents).toHaveBeenCalledWith(['new-part', 'controlled-part']);
+    expect(screen.getByRole('button', { name: 'Deleting...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel deletion' })).toBeDisabled();
+
+    await act(async () => {
+      resolveDelete({ data: { deleted: 2 } });
+    });
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Deleting...' })).not.toBeInTheDocument());
+  });
+
+  it('retains the snapshot after a rejected bulk delete so it can be retried', async () => {
+    libraryFlags.ecoEnabled = false;
+    libraryApi.bulkDeleteComponents
+      .mockRejectedValueOnce({ response: { data: { error: 'One or more components were not found' } } });
+
+    renderLibrary();
+    await screen.findByText('NEW-00001');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Components' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select NEW-00001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Selected (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('One or more components were not found');
+    expect(screen.getByText('Delete 1 component(s)?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled();
   });
 });
 

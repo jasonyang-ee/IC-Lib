@@ -88,6 +88,7 @@ export const api = {
   createComponent: (data) => apiClient.post('/components', data),
   updateComponent: (id, data) => apiClient.put(`/components/${id}`, data),
   deleteComponent: (id) => apiClient.delete(`/components/${id}`),
+  bulkDeleteComponents: (component_ids) => apiClient.delete('/components/bulk', { data: { component_ids } }),
   // One all-or-none call per bulk set: the server locks every target row and
   // rejects the whole batch rather than applying it partway (§V59).
   bulkSetComponentAlternativeClass: (component_ids, alt_class) =>

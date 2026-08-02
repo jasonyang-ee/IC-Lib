@@ -125,6 +125,7 @@ const Library = () => {
   const [bulkClassSnapshot, setBulkClassSnapshot] = useState(null);
   const [showBulkClassModal, setShowBulkClassModal] = useState(false);
   const bulkClassRequestInFlightRef = useRef(false);
+  const deleteRequestInFlightRef = useRef(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
   const [promoteConfirmation, setPromoteConfirmation] = useState({ show: false, altIndex: null, altData: null, currentData: null });
@@ -830,16 +831,14 @@ const Library = () => {
     // not here — onSuccess fires before the rest of the save handler completes.
   });
 
-  // Delete mutation - now supports bulk delete
+  // One API call owns every selected component in a server transaction; never
+  // fan out irreversible delete requests that can only partly succeed.
   const deleteMutation = useMutation({
-    mutationFn: async (ids) => {
-      if (Array.isArray(ids)) {
-        // Bulk delete
-        await Promise.all(ids.map(id => api.deleteComponent(id)));
-      } else {
-        // Single delete
-        await api.deleteComponent(ids);
+    mutationFn: ({ type, ids }) => {
+      if (type === 'bulk') {
+        return api.bulkDeleteComponents(ids);
       }
+      return api.deleteComponent(ids[0]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['components']);
@@ -847,6 +846,16 @@ const Library = () => {
       setBulkActionMode(null);
       setSelectedForBulk(new Set());
       setBulkDeleteSnapshot([]);
+      setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
+    },
+    onError: (error) => {
+      setWarningModal({
+        show: true,
+        message: error.response?.data?.error || 'Failed to delete the selected component(s).',
+      });
+    },
+    onSettled: () => {
+      deleteRequestInFlightRef.current = false;
     },
   });
 
@@ -1937,18 +1946,23 @@ const Library = () => {
   };
 
   const confirmDelete = () => {
+    if (deleteRequestInFlightRef.current || deleteMutation.isPending) return;
+
     if (deleteConfirmation.type === 'single') {
-      deleteMutation.mutate(selectedComponent.id);
+      if (!selectedComponent) return;
+      deleteRequestInFlightRef.current = true;
+      deleteMutation.mutate({ type: 'single', ids: [selectedComponent.id] });
     } else if (deleteConfirmation.type === 'bulk') {
       if (bulkDeleteSnapshot.length > 0) {
-        deleteMutation.mutate(bulkDeleteSnapshot);
+        deleteRequestInFlightRef.current = true;
+        deleteMutation.mutate({ type: 'bulk', ids: bulkDeleteSnapshot });
       }
     }
-    setBulkDeleteSnapshot([]);
-    setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
 
   const cancelDelete = () => {
+    if (deleteRequestInFlightRef.current || deleteMutation.isPending) return;
+
     setBulkDeleteSnapshot([]);
     setDeleteConfirmation({ show: false, type: '', count: 0, componentName: '' });
   };
@@ -3882,6 +3896,7 @@ const Library = () => {
       {/* Modals */}
       <DeleteConfirmationModal
         deleteConfirmation={deleteConfirmation}
+        isPending={deleteMutation.isPending}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
       />

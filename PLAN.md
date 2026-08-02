@@ -259,22 +259,22 @@ files: `server/src/routes/components.js`, `server/src/controllers/componentContr
 
 §T TASKS:
 
-T1|.|factor transaction-owned delete primitive
+T1|x|factor transaction-owned delete primitive
 touch: component controller
 details: move target lookup/lock, §V15 ECO direct-delete eligibility check, dependent deletes, component delete, and audit write behind a caller-owned `pg` client; single delete reuses it. Eliminate pre-transaction existence race; missing target returns 404 and controlled non-admin target returns 403 before commit.
 verify: single delete success response preserved; ECO role/status matrix enforced server-side; audit or dependent failure rolls back everything.
 
-T2|.|add one bulk endpoint + all-or-none contract
+T2|x|add one bulk endpoint + all-or-none contract
 touch: route/controller/server tests
 details: add authenticated write-gated `DELETE /api/components/bulk` before `/:id`; accept JSON `{ component_ids }`, validate a nonempty unique UUID array within the existing app JSON body limit. In one transaction lock/fetch every target, reject if count or any §V15 eligibility differs, run every delete/audit, then commit once; return deleted IDs/count.
 verify: one missing/controlled ID, audit failure, FK/DB failure, duplicate/invalid/oversize input each leaves all targets/dependents intact; success commits all with one audit each.
 
-T3|.|replace client fan-out + surface failures
+T3|x|replace client fan-out + surface failures
 touch: API/Library/client tests
 details: bulk confirmation sends one bulk call with the immutable visible snapshot; single delete stays single route. Keep confirmation/snapshot while pending, disable repeat/close, invalidate/reset only on success, and show safe server error on failure before allowing retry/cancel.
 verify: N selected rows → one HTTP call; partial server rejection leaves UI selection + snapshot; rapid confirm sends one call; success clears/invalidate once.
 
-T4|.|record + run phase oracle
+T4|x|record + run phase oracle
 touch: `CHANGELOG.md`
 verify: focused component/Library suites + `bash ./test.sh` exit 0; reverting to `Promise.all` fails.
 
