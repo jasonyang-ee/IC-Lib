@@ -12,8 +12,8 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 5961d5b | tests pass 694/694 (`bash ./test.sh`; 1 pre-existing server lint warning)
-uncommitted: none
+branch test | last commit d1c87aa | tests pass 694/694 (`bash ./test.sh`; 1 pre-existing server lint warning)
+uncommitted: `PLAN.md` F4.T3 marked `~` before required full-file review
 
 ## done this session
 
@@ -21,12 +21,12 @@ F4.T2: File Library single/pair rename canonicalization + transaction regression
 
 ## in progress (exact stop point)
 
-F4.T3: route MPN/package shortcuts through F3 naming module with file-type case policy.
-mid-edit files: none
+F4.T3: read `ComponentFiles.jsx` + `FileLibrary.jsx` in full before shortcut edits; implementation not started.
+mid-edit files: `PLAN.md` status flip only
 
 ## next
 
-F4.T3 | preconditions: read `ComponentFiles.jsx`, `FileLibrary.jsx`, `cadFileNaming.js`, `packageNaming.js`, and client tests; name shortcut cases before implementation.
+F4.T3 | preconditions: read `ComponentFiles.jsx`, `FileLibrary.jsx`, `cadFileNaming.js`, `packageNaming.js`, and client tests in full; name shortcut cases before implementation.
 
 ## deviations & decisions
 
