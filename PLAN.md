@@ -99,6 +99,10 @@ files: scratchpad working artifacts, `SPEC.md` §R.
 - **D6 catalog read is PUBLIC**, matching the `categories`/`manufacturers`/`distributors` catalog precedent in §V10 & the already-public `components get /field-suggestions`. Mutations are `authenticate`+`isAdmin`. §V10's row already names `packages` — no further SPEC edit needed.
 - **D7 F5 lives in a new file** `server/src/services/filenameSanitizeService.js`. ⊥ extend `server/src/services/cadFileService.js`, already 1101 lines & the largest service in the repo.
 
+- **D8 canonical promotion (admin).** `promoteAlias(packageId, alias)`: the alias ! already belong to that package; reject when the target name already serves as ANOTHER package's `short_name`; reject a no-op (target == current `short_name`). Because every package owns a self-alias row (F2.T2), promotion is a single `UPDATE packages SET short_name = <alias> WHERE id = <packageId>` in 1 txn — the alias table needs ∄ mutation & the old canonical automatically survives as an alias. ⊥ delete-and-reinsert, which would trip the `alias_key` UNIQUE index mid-transaction.
+- **D9 seed canonical-name policy = shortest common-use name**, applied CONSISTENTLY across every equivalence class. `SMA\|SMB\|SMC` over `DO-214AC\|AA\|AB`; `DO-41\|DO-35\|DO-15` over `DO-204AL\|AH\|AC`; `DPAK\|D2PAK\|IPAK\|I2PAK\|D3PAK` over `TO-252\|TO-263\|TO-251\|TO-262\|TO-268`; `MiniMELF\|MELF` over `DO-213AA\|AB`. The displaced standards name becomes an alias, ⊥ is dropped. Rationale: the user's goal is "simple clean identification", & D8 lets an admin flip any individual choice later without a code change.
+- **D10 profile-prefix rule.** A name carrying a profile/thermal prefix (`T` thin, `V` very-thin, `L` low-profile, `H` thermally-enhanced, `S` shrink — §R21) is ⊥ EVER an alias of its un-prefixed base: different JEDEC outline & body height (§R26). TSOT-23-5 ≠ SOT-23-5, VQFN ≠ QFN, HTSSOP ≠ TSSOP. They are separate catalog rows; a shared land pattern is expressed by reusing the same footprint FILE via §V8 `footprint_related_cad_files`, ⊥ by collapsing two packages onto one name.
+
 §T TASKS:
 
 T1|x|build the canonical package + alias seed dataset
@@ -120,12 +124,22 @@ touch: `scratchpad/21_package_catalog.draft.sql`
 details: write & apply the D4/D5 schema against a scratch PG18 cluster (⊥ the live DB, §C7). `packages`: `id UUID PRIMARY KEY DEFAULT uuidv7()` (§C2), `short_name TEXT NOT NULL UNIQUE`, `family TEXT`, `mount TEXT`, `count_policy TEXT NOT NULL CHECK (count_policy IN ('chip','embedded','none','append'))`, `is_builtin BOOLEAN NOT NULL DEFAULT false`, `is_active BOOLEAN NOT NULL DEFAULT true`, `display_order INTEGER`. `package_aliases`: `id UUID PRIMARY KEY DEFAULT uuidv7()`, `package_id UUID NOT NULL REFERENCES packages(id) ON DELETE CASCADE`, `alias TEXT NOT NULL`, `alias_key TEXT GENERATED ALWAYS AS (lower(regexp_replace(alias, '[^A-Za-z0-9]', '', 'g'))) STORED`, `UNIQUE (alias_key)`, plus an index on `package_id` (FK covering, precedent `database/migrations/14_fk_covering_indexes.sql`).
 verify: DDL applies clean on scratch PG18; re-running is a no-op; a duplicate `alias_key` insert is rejected; `INSERT` w/ `count_policy='bogus'` is rejected. Record whether the generated column was accepted or the §R25 error forced the D4 trigger fallback — F2.T1 copies whichever landed.
 exit: DDL proven; F2.T1 can copy it verbatim.
+next: F1.T4
+
+T4|.|remediate the seed against D9/D10 — REQUIRED before F2.T2
+touch: `scratchpad/package-seed.json`, `scratchpad/package-samples.json`
+details: three defects found by `/review-plan` against the F1.T1 output. Fix all three, ⊥ partially.
+  (a) **TSOT-23-5 is currently an alias of `SOT-23-5`, and so is `SOT-23-5 Thin`.** Per D10 + §R26 they are distinct outlines (MO-193 @0.88mm vs MO-178 @1.15mm). Split `TSOT-23-5` into its own row (`family` TSOT, `count_policy` embedded) & move the alias `SOT-23-5 Thin` onto it. The existing bare `TSOT` row has 0 aliases & is unreachable once real strings resolve — either give it real aliases or drop it. Then fix `package-samples.json`: the sample `"SOT-23-5 Thin, TSOT-23-5"` currently expects canonical `SOT-23-5`; it ! expect `TSOT-23-5`, which is what the D1 note in this phase always said.
+  (b) **`count_policy='chip'` has only 3 rows — `0402`, `0603`, `1206`.** The F1.T1 guide named those as EXAMPLES & they were seeded literally. A component library is mostly passives, so this misses the common case. Add the full imperial chip series: `01005 0201 0402 0603 0805 1206 1210 1806 1812 2010 2512 2920`. **⊥ seed bare metric codes as aliases** — metric `0402` means imperial `01005` while imperial `0402` also exists, so both fold to the identical `alias_key` `0402` & the UNIQUE index would reject the second insert (or worse, silently mis-resolve). If a metric form is wanted, seed it prefixed (`M1005`), never bare.
+  (c) **canonical choice is inconsistent** — `SMA` was chosen over `DO-214AC` (nickname-head) while `DO-204AL` was chosen over `DO-41` and `TO-252` over `DPAK` (standards-head). Apply D9 uniformly; the displaced name stays as an alias so resolution is unaffected either way.
+verify: re-run the F1.T1 checks — JSON parses, ∄ duplicate `short_name`, ∄ cross-package folded-alias collision. Then additionally: every §R19/§R20 equivalence class still resolves to exactly ONE package (17 classes); `fold('0805')` and `fold('2512')` both resolve; `fold('TSOT-23-5')` resolves to `TSOT-23-5` ⊥ `SOT-23-5`; ∄ profile-prefixed alias sits on an un-prefixed base (D10 sweep across `T\|V\|L\|H\|S`); `package-samples.json` still has all 30 samples w/ the 4 hostile inputs & the corrected TSOT expectation.
+exit: seed + fixture consistent w/ D9/D10; F2.T2 may consume them.
 next: F2.T1
 
 ## F2 package catalog: migration + seed + service + API
 
 goal: `packages` + `package_aliases` exist, ship seeded, survive startup verification, & are readable/writable through a guarded API (§V62, §I13).
-inputs: F1.T1 dataset, F1.T4 schema, §C2 (uuidv7 PKs), §C7 (migration rules), §V4 (seed idempotence), §V10/§V27 (auth boundary).
+inputs: F1.T1+F1.T4 dataset, F1.T3 schema, §C2 (uuidv7 PKs), §C7 (migration rules), §V4 (seed idempotence), §V10/§V27 (auth boundary).
 files: `database/migrations/21_package_catalog.sql`, `database/init-schema.sql`, `database/init-settings.sql`, `server/src/services/packageService.js`, `server/src/controllers/packageController.js`, `server/src/routes/packages.js`, `server/src/index.js` (route registry), `server/src/services/schemaInspectionService.js`, tests.
 
 §T TASKS:
@@ -139,8 +153,9 @@ next: F2.T2
 
 T2|.|seed the catalog idempotently
 touch: `database/init-settings.sql`
-details: convert the F1.T1 dataset to `INSERT ... ON CONFLICT DO NOTHING` for `packages` then `package_aliases` (§V4: this file re-runs every boot). aliases resolve their `package_id` by `short_name` subquery so ordering is stable. mark seeded rows `is_builtin = true`. honor the F1.T4 ruling on admin-deleted builtin rows — a deleted builtin ! ⊥ silently reappear next boot if that was the decision.
-verify: boot twice against a scratch DB → row counts identical; admin-added rows survive; the builtin-delete case behaves as F1.T4 decided.
+details: convert the F1.T1 dataset to `INSERT ... ON CONFLICT DO NOTHING` for `packages` then `package_aliases` (§V4: this file re-runs every boot). aliases resolve their `package_id` by `short_name` subquery so ordering is stable. mark seeded rows `is_builtin = true`.
+**! insert a SELF-ALIAS row for every package** (`alias` = its own `short_name`) in addition to its synonyms — D1 step 4a looks up `package_aliases` ONLY, so without a self-alias row a canonical input like `SOIC` or `QFN` fails to resolve at all. This also makes D8 promotion a single `packages.short_name` update, since both names already own alias rows. (found during /review-plan; §V62.) honor D5 on admin-deleted builtin rows: a deleted builtin is soft-disabled (`is_active=false`, row retained) ∴ `ON CONFLICT DO NOTHING` no-ops on the retained row instead of resurrecting it.
+verify: boot twice against a scratch DB → row counts identical; admin-added rows survive; a soft-disabled builtin stays `is_active=false` across a reboot (D5); `SELECT count(*) FROM package_aliases WHERE alias_key = lower(regexp_replace(short_name,'[^A-Za-z0-9]','','g'))` equals the `packages` row count, proving every self-alias landed.
 exit: seed idempotent & proven across 2 boots.
 next: F2.T3
 
@@ -153,7 +168,7 @@ next: F2.T4
 
 T4|.|service + controller + guarded routes
 touch: `server/src/services/packageService.js`, `server/src/controllers/packageController.js`, `server/src/routes/packages.js`, `server/src/index.js`
-details: service owns `listPackages` (`is_active=true` only, D5), `resolvePackage(raw)` implementing D1 verbatim, `createPackage`, `updatePackage`, `deletePackage` (D5 soft-disable vs hard-delete branch), alias CRUD. naming per §C11.
+details: service owns `listPackages` (`is_active=true` only, D5), `resolvePackage(raw)` implementing D1 verbatim, `createPackage`, `updatePackage`, `deletePackage` (D5 soft-disable vs hard-delete branch), alias CRUD, and `promoteAlias(packageId, alias)` implementing D8. naming per §C11.
 registration is 3 exact edits — the §V27 registry is ⊥ a single file:
   1. `server/src/constants/routeMounts.js` -> add `Object.freeze({ name: 'packages', path: '/api/packages' })` to `ROUTE_MOUNTS`, placed after the `manufacturers` entry so it sits w/ the other catalog mounts.
   2. `server/src/routes/registry.js` -> `import packageRoutes from './packages.js'` + add `packages: packageRoutes` to `ROUTER_BINDINGS`. the parity guard at `registry.js:45` THROWS at import time if the two lists disagree, so a half-edit fails fast, ⊥ silently.
@@ -305,8 +320,8 @@ next: F6.T2
 
 T2|.|admin package CRUD incl. `count_policy`
 touch: `client/src/components/settings/tabs/CategoryTab.jsx`
-details: add a package-catalog section (§V51 Category tab already owns category/spec/manufacturer admin ∴ it is the coherent host). create/edit/delete packages, manage aliases, & set `count_policy` via a 4-choice control (`chip`|`embedded`|`none`|`append`) w/ a one-line explanation + a live example of the resulting name — the user asked for the policy to be admin-settable so newly added packages adopt the same per-package logic. admin-only (§V2). minimal icon use (§C11).
-verify: client tests for create/edit/delete + alias add/remove + `count_policy` change; a non-admin ⊥ sees the section.
+details: add a package-catalog section (§V51 Category tab already owns category/spec/manufacturer admin ∴ it is the coherent host). create/edit/delete packages, manage aliases, PROMOTE an alias to canonical (D8 — one action per alias row; the promoted name becomes `short_name` & the old canonical stays as an alias), & set `count_policy` via a 4-choice control (`chip`|`embedded`|`none`|`append`) w/ a one-line explanation + a live example of the resulting name — the user asked for the policy to be admin-settable so newly added packages adopt the same per-package logic. admin-only (§V2). minimal icon use (§C11).
+verify: client tests for create/edit/delete + alias add/remove + promote + `count_policy` change; a promote test asserts the old canonical survives as an alias & resolution still works from BOTH names; a non-admin ⊥ sees the section.
 exit: catalog admin-maintainable.
 next: F6.T3
 
