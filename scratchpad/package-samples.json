@@ -2,13 +2,13 @@
   {"input":"8-SOIC (0.154\", 3.90mm Width)","expectedShortName":"SOIC","expectedPinCount":8,"expectedCanonical":"SOIC-8","resolveStepThatMatched":"D1.2+D1.4b","source":"DigiKey CAT93C46VI-G"},
   {"input":"8-SOIC (0.209\", 5.30mm Width)","expectedShortName":"SOIC","expectedPinCount":8,"expectedCanonical":"SOIC-8","resolveStepThatMatched":"D1.2+D1.4b","source":"DigiKey W25Q80BVSSIG"},
   {"input":"SC-74A, SOT-753","expectedShortName":"SOT-23-5","expectedPinCount":5,"expectedCanonical":"SOT-23-5","resolveStepThatMatched":"D1.3+D1.4a","source":"DigiKey TMAG5110B4AQDBVR"},
-  {"input":"SOT-23-5 Thin, TSOT-23-5","expectedShortName":"SOT-23-5","expectedPinCount":5,"expectedCanonical":"SOT-23-5","resolveStepThatMatched":"D1.3+D1.4a","source":"D1 hostile input"},
+  {"input":"SOT-23-5 Thin, TSOT-23-5","expectedShortName":"TSOT-23-5","expectedPinCount":5,"expectedCanonical":"TSOT-23-5","resolveStepThatMatched":"D1.3+D1.4a","source":"D1 hostile input"},
   {"input":"16-VQFN Exposed Pad","expectedShortName":"VQFN","expectedPinCount":16,"expectedCanonical":"VQFN-16","resolveStepThatMatched":"D1.4b+D1.4d","source":"DigiKey MCP660-E/ML"},
   {"input":"16-VQFN, CSP","expectedShortName":"VQFN","expectedPinCount":16,"expectedCanonical":"VQFN-16","resolveStepThatMatched":"D1.3+D1.4b","source":"DigiKey AD8222HBCPZ-R7"},
   {"input":"16-VQFN Exposed Pad, CSP","expectedShortName":"VQFN","expectedPinCount":16,"expectedCanonical":"VQFN-16","resolveStepThatMatched":"D1.3+D1.4b+D1.4d","source":"DigiKey ADA4858-3ACPZ-R2"},
   {"input":"16-VFQFN Exposed Pad","expectedShortName":"VFQFN","expectedPinCount":16,"expectedCanonical":"VFQFN-16","resolveStepThatMatched":"D1.4b+D1.4d","source":"DigiKey BQ24230RGTR"},
-  {"input":"TO-252-3, DPAK (2 Leads + Tab), SC-63","expectedShortName":"TO-252","expectedPinCount":3,"expectedCanonical":"TO-252","resolveStepThatMatched":"D1.3+D1.4c","source":"DigiKey AUIRLR2703"},
-  {"input":"TO-252-3, DPAK (2 Leads + Tab), SC-63","expectedShortName":"TO-252","expectedPinCount":3,"expectedCanonical":"TO-252","resolveStepThatMatched":"D1.3+D1.4c","source":"DigiKey DMTH10H025SK3-13"},
+  {"input":"TO-252-3, DPAK (2 Leads + Tab), SC-63","expectedShortName":"DPAK","expectedPinCount":3,"expectedCanonical":"DPAK","resolveStepThatMatched":"D1.3+D1.4c","source":"DigiKey AUIRLR2703"},
+  {"input":"TO-252-3, DPAK (2 Leads + Tab), SC-63","expectedShortName":"DPAK","expectedPinCount":3,"expectedCanonical":"DPAK","resolveStepThatMatched":"D1.3+D1.4c","source":"DigiKey DMTH10H025SK3-13"},
   {"input":"0402 (1005 Metric)","expectedShortName":"0402","expectedPinCount":null,"expectedCanonical":"0402","resolveStepThatMatched":"D1.2+D1.4a","source":"DigiKey C1005X5R1V105K050BE"},
   {"input":"0603","expectedShortName":"0603","expectedPinCount":null,"expectedCanonical":"0603","resolveStepThatMatched":"D1.4a","source":"Mouser MSP-EXP430F5529 BOM"},
   {"input":"64-QFN","expectedShortName":"QFN","expectedPinCount":64,"expectedCanonical":"QFN-64","resolveStepThatMatched":"D1.4b","source":"Mouser Si52212 datasheet"},
@@ -19,7 +19,7 @@
   {"input":"SOD-123","expectedShortName":"SOD-123","expectedPinCount":null,"expectedCanonical":"SOD-123","resolveStepThatMatched":"D1.4a","source":"DigiKey MMSZ5248BS00J3 datasheet"},
   {"input":"SMA","expectedShortName":"SMA","expectedPinCount":null,"expectedCanonical":"SMA","resolveStepThatMatched":"D1.4a","source":"R20 package form"},
   {"input":"DO-214AC","expectedShortName":"SMA","expectedPinCount":null,"expectedCanonical":"SMA","resolveStepThatMatched":"D1.4a","source":"R20 package form"},
-  {"input":"TO-263","expectedShortName":"TO-263","expectedPinCount":null,"expectedCanonical":"TO-263","resolveStepThatMatched":"D1.4a","source":"R20 package form"},
+  {"input":"TO-263","expectedShortName":"D2PAK","expectedPinCount":null,"expectedCanonical":"D2PAK","resolveStepThatMatched":"D1.4a","source":"R20 package form"},
   {"input":"SC70-3","expectedShortName":"SOT-323","expectedPinCount":3,"expectedCanonical":"SOT-323","resolveStepThatMatched":"D1.4a","source":"R19 package form"},
   {"input":"MO-187AA","expectedShortName":"MSOP","expectedPinCount":8,"expectedCanonical":"MSOP-8","resolveStepThatMatched":"D1.4a","source":"R22 package form; 8-pin fixture"},
   {"input":"QFN50P500X500X80-29N","expectedShortName":"QFN","expectedPinCount":29,"expectedCanonical":"QFN-29_B","resolveStepThatMatched":"D1.5","source":"R18 IPC-7351B grammar"},
@@ -28,5 +28,5 @@
   {"input":"Box with Connector","expectedShortName":null,"expectedPinCount":null,"expectedCanonical":null,"resolveStepThatMatched":"D1.6","source":"DigiKey RTY180LVEAX"},
   {"input":"N/A","expectedShortName":null,"expectedPinCount":null,"expectedCanonical":null,"resolveStepThatMatched":"D1.1","source":"Mouser fallback `part.PackageType || 'N/A'`"},
   {"input":"SOT-23-5","expectedShortName":"SOT-23-5","expectedPinCount":5,"expectedCanonical":"SOT-23-5","resolveStepThatMatched":"D1.4a","source":"DigiKey primaryVariation.PackageType.Name fallback fixture"},
-  {"input":"TO-252-3","expectedShortName":"TO-252","expectedPinCount":3,"expectedCanonical":"TO-252","resolveStepThatMatched":"D1.4c","source":"Mouser part.PackageType fallback fixture"}
+  {"input":"TO-252-3","expectedShortName":"DPAK","expectedPinCount":3,"expectedCanonical":"DPAK","resolveStepThatMatched":"D1.4c","source":"Mouser part.PackageType fallback fixture"}
 ]

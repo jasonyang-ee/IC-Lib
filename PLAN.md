@@ -126,7 +126,7 @@ verify: DDL applies clean on scratch PG18; re-running is a no-op; a duplicate `a
 exit: DDL proven; F2.T1 can copy it verbatim.
 next: F1.T4
 
-T4|.|remediate the seed against D9/D10 — REQUIRED before F2.T2
+T4|x|remediate the seed against D9/D10 — REQUIRED before F2.T2
 touch: `scratchpad/package-seed.json`, `scratchpad/package-samples.json`
 details: three defects found by `/review-plan` against the F1.T1 output. Fix all three, ⊥ partially.
   (a) **TSOT-23-5 is currently an alias of `SOT-23-5`, and so is `SOT-23-5 Thin`.** Per D10 + §R26 they are distinct outlines (MO-193 @0.88mm vs MO-178 @1.15mm). Split `TSOT-23-5` into its own row (`family` TSOT, `count_policy` embedded) & move the alias `SOT-23-5 Thin` onto it. The existing bare `TSOT` row has 0 aliases & is unreachable once real strings resolve — either give it real aliases or drop it. Then fix `package-samples.json`: the sample `"SOT-23-5 Thin, TSOT-23-5"` currently expects canonical `SOT-23-5`; it ! expect `TSOT-23-5`, which is what the D1 note in this phase always said.
