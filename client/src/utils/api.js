@@ -316,6 +316,7 @@ export const api = {
   checkCollisionsBatch: (files) => apiClient.post('/files/check-collisions-batch', { files }),
 
   // File Library - CAD Files (new junction-based)
+  sanitizeFilenames: (confirmation) => apiClient.post('/file-library/sanitize-filenames', { confirmation }),
   getOrphanFiles: (type) => apiClient.get('/file-library/orphans', { params: { type } }),
   getAvailableFiles: (type, search) => apiClient.get('/file-library/available', { params: { type, search } }),
   getCadFilesForComponent: (componentId) => apiClient.get(`/file-library/component/${componentId}`),

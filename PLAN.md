@@ -296,7 +296,7 @@ verify: `server/src/test/routeAuthGuards.test.js` green w/ the new route; a non-
 exit: endpoint live, admin-only, confirmation-gated, ∄ automatic rename anywhere.
 next: F5.T4
 
-T4|.|Operation tab UI + backup warning gate
+T4|x|Operation tab UI + backup warning gate
 touch: `client/src/components/settings/tabs/OperationTab.jsx`, `client/src/utils/api.js`
 details: a `Filename Sanitization` panel between the DB backup tools & the destructive reset block (§V51 ordering, ruling 7). warning copy ! name: (a) that it renames CAD files on the shared drive, (b) the §C4 consequence — footprint renames regenerate `components.pcb_footprint`, which OrCAD/CIS reads for existing board designs, (c) `BACK UP THE SHARED DRIVE FIRST`. run button stays disabled until the admin types `SANITIZE` (ruling 9). after the run, render the report from F5.T3 — renamed / skipped / failed counts + the per-file table w/ reasons, so a skip is visible, ⊥ silent. minimal icon use (§C11).
 verify: client tests — button disabled until the exact token is typed (⊥ case-insensitive partial match); a non-admin ⊥ sees the panel; the report table renders renamed + skipped rows w/ reasons.

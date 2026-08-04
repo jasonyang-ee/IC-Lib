@@ -38,10 +38,15 @@ const OPERATION_CONFIRMATIONS = {
   },
 };
 
+// Must match SANITIZE_CONFIRMATION_TOKEN in the server sanitize service.
+const SANITIZE_CONFIRMATION_TOKEN = 'SANITIZE';
+
 const OperationTab = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
+  const [sanitizeConfirmation, setSanitizeConfirmation] = useState('');
+  const [sanitizeReport, setSanitizeReport] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [pendingImportFile, setPendingImportFile] = useState(null);
 
@@ -161,6 +166,21 @@ const OperationTab = () => {
       closePendingImportFile();
       const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
       showError(`Import failed: ${errorMsg}`);
+    },
+  });
+
+  const sanitizeFilenamesMutation = useMutation({
+    mutationFn: async () => api.sanitizeFilenames(sanitizeConfirmation),
+    onSuccess: (data) => {
+      setSanitizeReport(data.data);
+      setSanitizeConfirmation('');
+      queryClient.invalidateQueries({ queryKey: ['filesByType'] });
+      queryClient.invalidateQueries({ queryKey: ['fileLibraryStats'] });
+      showSuccess(`Sanitization complete: ${data.data.renamed} renamed, ${data.data.skipped} skipped, ${data.data.failed} failed.`);
+    },
+    onError: (error) => {
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message;
+      showError(`Error sanitizing filenames: ${errorMsg}`);
     },
   });
 
@@ -290,6 +310,78 @@ const OperationTab = () => {
               }}
             />
           </label>
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-[#3a3a3a] pt-4 mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Filename Sanitization</h3>
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-900 dark:text-amber-200 space-y-2">
+                <p>
+                  This renames footprint, symbol, and 3D model CAD files on the shared library drive to the
+                  canonical package name. Pad and PSpice files are never touched.
+                </p>
+                <p>
+                  Renaming a footprint also regenerates the <code>pcb_footprint</code> value that OrCAD/CIS reads
+                  for existing board designs, so open designs may need to be relinked.
+                </p>
+                <p className="font-semibold">BACK UP THE SHARED DRIVE FIRST.</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+              <input
+                type="text"
+                value={sanitizeConfirmation}
+                onChange={(event) => setSanitizeConfirmation(event.target.value)}
+                placeholder={`Type ${SANITIZE_CONFIRMATION_TOKEN} to confirm`}
+                aria-label="Filename sanitization confirmation"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-[#3a3a3a] dark:bg-[#1f1f1f] dark:text-gray-100 rounded-lg"
+              />
+              <button
+                onClick={() => sanitizeFilenamesMutation.mutate()}
+                disabled={sanitizeConfirmation !== SANITIZE_CONFIRMATION_TOKEN || sanitizeFilenamesMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {sanitizeFilenamesMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sanitizing...
+                  </>
+                ) : 'Run Filename Sanitization'}
+              </button>
+            </div>
+
+            {sanitizeReport && (
+              <div className="mt-4">
+                <p className="text-sm text-gray-800 dark:text-gray-200 mb-2">
+                  {sanitizeReport.renamed} renamed, {sanitizeReport.skipped} skipped, {sanitizeReport.failed} failed
+                </p>
+                <div className="max-h-64 overflow-y-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="text-gray-600 dark:text-gray-400">
+                      <tr>
+                        <th className="py-1 pr-2">Type</th>
+                        <th className="py-1 pr-2">File</th>
+                        <th className="py-1 pr-2">New name</th>
+                        <th className="py-1">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-800 dark:text-gray-200">
+                      {sanitizeReport.entries.map((entry) => (
+                        <tr key={`${entry.fileType}-${entry.oldName}`} className="border-t border-gray-200 dark:border-[#3a3a3a]">
+                          <td className="py-1 pr-2">{entry.fileType}</td>
+                          <td className="py-1 pr-2 font-mono">{entry.oldName}</td>
+                          <td className="py-1 pr-2 font-mono">{entry.action === 'rename' ? entry.newName : '-'}</td>
+                          <td className="py-1">{entry.action === 'rename' ? 'renamed' : `skipped (${entry.reason})`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="border-t border-gray-200 dark:border-[#3a3a3a] pt-4">
