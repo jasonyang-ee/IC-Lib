@@ -216,14 +216,14 @@ verify: tests over ≥8 real IPC names incl. `QFN50P500X500X80-29N`, a BGA name,
 exit: IPC input form collapses correctly.
 next: F3.T4
 
-T4|~|vendor leading-count reorder
+T4|x|vendor leading-count reorder
 touch: `server/src/utils/packageNaming.js`
 details: per §V61 + ruling 2, the leading number is a PIN COUNT: `8-SOIC` → `SOIC-8`, `16-VQFN` → `VQFN-16`, `10-VFDFN` → `VFDFN-10`. reuse the parenthetical-note stripper + alias-list splitter semantics from `client/src/utils/cadFileNaming.js:1-14` (`DIMENSIONAL_NOTE_PATTERN`, `PACKAGE_ALIAS_SEPARATOR`) — port them, ⊥ re-invent, & keep `client/src/test/cadFileNaming.test.js:12-24` passing or consciously update it. apply the F1.T3 ruling on trailing modifiers (`Exposed Pad`, `Thin`).
 verify: tests over the ≥15 samples from F1.T3.
 exit: vendor forms canonicalize.
 next: F3.T5
 
-T5|.|client mirror + retire the old density regex
+T5|x|client mirror + retire the old density regex
 touch: `client/src/utils/packageNaming.js`, `client/src/utils/cadFileNaming.js`, `client/src/test/cadFileNaming.test.js`
 details: mirror the server module. per §V28's precedent, what ! match is user-visible BOUNDARY BEHAVIOR, ⊥ the internal algorithm — document that in the file header exactly as `client/src/utils/footprintFiles.js:30-40` does. replace `CAD_DENSITY_SUFFIX_PATTERN = /^(.*?)([_-][lmn])$/i` w/ the new module. `client/src/test/cadFileNaming.test.js:36` (`'8-soic_N.psm'` + `'SOIC-8'` → `'SOIC-8_n.psm'`) ! become `'soic-8_b.psm'` (lowercase disk, remapped letter, §V61/§V63); `:40` (`'QFN-M.OLB'` + `'ABC123'` → `'ABC123-m.OLB'`) ! become the uppercase-base + lowercase-`.olb` symbol form per §V63.
 verify: `bash ./test.sh --test-only` green; a parity test asserts server & client agree on the F1.T3 sample set.

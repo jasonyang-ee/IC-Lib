@@ -84,19 +84,32 @@ describe('packageNaming', () => {
   });
 
   it.each([
-    ['8-SOIC (0.154", 3.90mm Width)', 'SOIC', '8'],
-    ['16-VQFN Exposed Pad', 'VQFN', '16'],
-    ['16-VFQFN Exposed Pad', 'VFQFN', '16'],
-    ['SOT-23-5 Thin, TSOT-23-5', 'TSOT-23-5', '5'],
-    ['SC-74A, SOT-753', 'SOT-23-5', '5'],
-    ['TO-252-3, DPAK', 'DPAK', '3'],
-    ['64-QFN', 'QFN', '64'],
-    ['48-QFN', 'QFN', '48'],
-    ['32-QFN', 'QFN', '32'],
-    ['20-QFN', 'QFN', '20'],
-    ['14-TSSOP (0.173", 4.40mm Width)', 'TSSOP', '14'],
-  ])('resolves vendor package text %s against passed catalog rows', (input, shortName, pinCount) => {
-    expect(parsePackageInput(input, catalog)).toMatchObject({ shortName, pinCount });
+    ['8-SOIC (0.154", 3.90mm Width)', 'SOIC', '8', 'SOIC-8'],
+    ['8-SOIC (0.209", 5.30mm Width)', 'SOIC', '8', 'SOIC-8'],
+    ['16-VQFN Exposed Pad', 'VQFN', '16', 'VQFN-16'],
+    ['16-VQFN, CSP', 'VQFN', '16', 'VQFN-16'],
+    ['16-VFQFN Exposed Pad', 'VFQFN', '16', 'VFQFN-16'],
+    ['64-VFQFN Exposed Pad', 'VFQFN', '64', 'VFQFN-64'],
+    ['SOT-23-5 Thin, TSOT-23-5', 'TSOT-23-5', '5', 'TSOT-23-5'],
+    ['SC-74A, SOT-753', 'SOT-23-5', '5', 'SOT-23-5'],
+    ['TO-252-3, DPAK', 'DPAK', '3', 'DPAK'],
+    ['TO-252-3, DPAK (2 Leads + Tab), SC-63', 'DPAK', '3', 'DPAK'],
+    ['64-QFN', 'QFN', '64', 'QFN-64'],
+    ['48-QFN', 'QFN', '48', 'QFN-48'],
+    ['32-QFN', 'QFN', '32', 'QFN-32'],
+    ['20-QFN', 'QFN', '20', 'QFN-20'],
+    ['14-TSSOP (0.173", 4.40mm Width)', 'TSSOP', '14', 'TSSOP-14'],
+  ])('resolves vendor package text %s against passed catalog rows', (input, shortName, pinCount, canonicalName) => {
+    const parsed = parsePackageInput(input, catalog);
+    const packageRow = catalog.find(row => row.short_name === shortName);
+
+    expect(parsed).toMatchObject({ shortName, pinCount });
+    expect(buildCanonicalName({
+      shortName: parsed.shortName,
+      pinCount: parsed.pinCount,
+      density: parsed.density,
+      countPolicy: packageRow.count_policy,
+    })).toBe(canonicalName);
   });
 
   it('tries an unmodified alias before stripping its terminal modifier', () => {

@@ -49,6 +49,6 @@ describe('footprintFiles', () => {
     const base = formatPackageFilenameBase('LGA-14 3.0x2.5');
     expect(base).toBe('LGA-14_3.0x2.5'); // package bases can contain dots
     const filename = buildCadShortcutFilename('old_name_l.psm', base);
-    expect(normalizeFootprintFilename(filename)).toBe('lga-14_30x25_l.psm');
+    expect(normalizeFootprintFilename(filename)).toBe('lga-14_30x25_c.psm');
   });
 });

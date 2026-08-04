@@ -24,19 +24,19 @@ describe('cadFileNaming', () => {
     expect(formatPackageFilenameBase('8-SOIC (0.154", 3.90mm Width)')).toBe('8-SOIC');
   });
 
-  it('detects underscore density suffixes case-insensitively and normalizes them to lowercase', () => {
+  it('remaps legacy density suffixes semantically for display-independent disk names', () => {
     expect(extractCadDensitySuffix('8-soic_L.dra')).toEqual({
       base: '8-soic',
-      suffix: '_l',
+      suffix: '_c',
       ext: '.dra',
     });
   });
 
-  it('preserves n-density suffixes when building shortcut rename filenames', () => {
-    expect(buildCadShortcutFilename('8-soic_N.psm', 'SOIC-8')).toBe('SOIC-8_n.psm');
+  it('uses lowercased canonical footprint names when building shortcut rename filenames', () => {
+    expect(buildCadShortcutFilename('8-soic_N.psm', 'SOIC-8')).toBe('soic-8_b.psm');
   });
 
-  it('keeps legacy dash density suffixes while normalizing the suffix letter to lowercase', () => {
-    expect(buildCadShortcutFilename('QFN-M.OLB', 'ABC123')).toBe('ABC123-m.OLB');
+  it('uses the canonical density separator and lowercase symbol extension', () => {
+    expect(buildCadShortcutFilename('QFN-M.OLB', 'ABC123')).toBe('ABC123_a.olb');
   });
 });
