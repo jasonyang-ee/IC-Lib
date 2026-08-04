@@ -42,6 +42,13 @@ describe('schema inspection expectations', () => {
     ]));
   });
 
+  it('requires both package catalog tables at startup', () => {
+    expect(STARTUP_REQUIRED_TABLES).toEqual(expect.arrayContaining([
+      'packages',
+      'package_aliases',
+    ]));
+  });
+
   it('requires alt_class on exactly the six component-facing views, not eco_orders_full', () => {
     expect([...REQUIRED_VIEW_COLUMNS].map(({ table }) => table).sort()).toEqual([
       'alternative_parts',
@@ -76,12 +83,17 @@ describe('inspectDatabaseSchema alternative-class coverage', () => {
   const allRequiredColumns = [...REPAIRABLE_SCHEMA_COLUMNS, ...REQUIRED_VIEW_COLUMNS];
 
   // Drive the three parallel queries off their SQL text rather than call order.
-  function primePool({ omitColumns = [] } = {}) {
+  function primePool({ omitColumns = [], omitTables = [] } = {}) {
     const omitted = new Set(omitColumns.map(({ table, column }) => `${table}.${column}`));
+    const omittedTables = new Set(omitTables);
 
     pool.query.mockImplementation((sql) => {
       if (sql.includes('pg_tables')) {
-        return Promise.resolve({ rows: STARTUP_REQUIRED_TABLES.map(name => ({ name })) });
+        return Promise.resolve({
+          rows: STARTUP_REQUIRED_TABLES
+            .filter(name => !omittedTables.has(name))
+            .map(name => ({ name })),
+        });
       }
       if (sql.includes('pg_views')) {
         return Promise.resolve({ rows: allViews.map(name => ({ name })) });
@@ -124,6 +136,18 @@ describe('inspectDatabaseSchema alternative-class coverage', () => {
     expect(result.valid).toBe(false);
     expect(result.missingColumns).toEqual([{ table: 'project_components', column: 'alt_class' }]);
   });
+
+  it.each(['packages', 'package_aliases'])(
+    'is invalid when required table %s is missing',
+    async (table) => {
+      primePool({ omitTables: [table] });
+
+      const result = await inspectDatabaseSchema();
+
+      expect(result.valid).toBe(false);
+      expect(result.missingTables).toEqual([table]);
+    },
+  );
 
   it.each(REQUIRED_VIEW_COLUMNS)(
     'is invalid when $table is missing alt_class even though the view exists',

@@ -1964,6 +1964,8 @@ export const EXPORT_TABLES = [
   'activity_types',
   'component_categories',
   'manufacturers',
+  'packages',
+  'package_aliases',
   'distributors',
   'components',
   'category_specifications',

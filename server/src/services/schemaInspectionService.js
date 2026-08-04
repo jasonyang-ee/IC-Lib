@@ -4,6 +4,8 @@ export const EXPECTED_SCHEMA_TABLES = [
   'users',
   'component_categories',
   'manufacturers',
+  'packages',
+  'package_aliases',
   'distributors',
   'components',
   'components_alternative',

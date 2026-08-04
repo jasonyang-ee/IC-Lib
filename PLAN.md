@@ -159,10 +159,10 @@ verify: boot twice against a scratch DB → row counts identical; admin-added ro
 exit: seed idempotent & proven across 2 boots.
 next: F2.T3
 
-T3|.|teach startup schema inspection about the new tables
-touch: `server/src/services/schemaInspectionService.js`, `server/src/test/schemaInspectionService.test.js`
-details: §C7 — a migration adding startup-required tables ! update inspection expectations else post-migration verification fails the boot (§V4). add `packages` + `package_aliases` to the expected-table set. ⊥ touch `EXPECTED_SCHEMA_VIEWS` (§C4 locks the 7 OrCAD/CIS views).
-verify: `server/src/test/schemaInspectionService.test.js` green; a scratch DB missing the tables fails verification w/ a named error.
+T3|x|teach startup schema inspection about the new tables
+touch: `server/src/services/schemaInspectionService.js`, `server/src/test/schemaInspectionService.test.js`, `server/src/controllers/settingsController.js`
+details: §C7 — a migration adding startup-required tables ! update inspection expectations else post-migration verification fails the boot (§V4). add `packages` + `package_aliases` to the expected-table set. D11's two-way list guard ! retain catalog backup coverage: append `packages` then `package_aliases` to dependency-ordered `EXPORT_TABLES`. ⊥ touch `EXPECTED_SCHEMA_VIEWS` (§C4 locks the 7 OrCAD/CIS views).
+verify: `server/src/test/schemaInspectionService.test.js` + `server/src/test/dbTableLists.test.js` green; a scratch DB missing the tables fails verification w/ a named error.
 exit: startup verification covers the catalog.
 next: F2.T4
 
