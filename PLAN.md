@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -71,7 +71,7 @@ files: read-only audit — scratchpad notes only. ⊥ edit source in F1.
 
 §T TASKS:
 
-T1|.|audit the 8 candidate render sites + the 2 current consumers
+T1|x|audit the 8 candidate render sites + the 2 current consumers
 touch: `scratchpad/display-case-audit.md`
 details: ∀ site, record: file:line of the rendered name expression; what the name IS (a stored `cad_files.file_name`, a user-typed draft, a staged upload name, a server-proposed rename target); whether the surface is INFORMATIONAL (adopt) or a WRITE/CONFIRM surface (⊥ adopt). the distinction that decides it: a name the user READS to identify a file → adopt; a name the user is EDITING, or must compare against a rename/delete they are authorizing → ⊥ adopt, ∵ §V63 forbids a display form reaching a write path & a confirm dialog is the last chance to see the real stored name.
 specifically rule on: `RenameModal.jsx` (holds the name being edited — expect ⊥ adopt for the input, ? adopt for a read-only "current name" label if one exists), `DeleteModal.jsx` (expect ⊥ adopt — the user is authorizing destruction of a specific stored file), `FootprintLinkEditorModal.jsx`, `CadFilePickerModal.jsx` (picker — a selection feeds a link write ∴ check whether the rendered string is also the selection VALUE), `CategoryView.jsx` + `CadFieldSection.jsx` + `ComponentDetailView.jsx` (expect adopt — read surfaces), `FileLibrary.jsx` (search/orphan/toast strings — check whether any name reaches `showSuccess`/`showError` copy).
@@ -80,7 +80,7 @@ verify: audit file lists ∀ 10 sites (8 candidates + 2 consumers) w/ a verdict 
 exit: F2.T2's site list is fixed & justified, ⊥ discovered mid-edit.
 next: F1.T2
 
-T2|.|rule on the export & document surfaces
+T2|x|rule on the export & document surfaces
 touch: `scratchpad/display-case-audit.md`
 details: the 4 non-UI surfaces named in `existing assets`. ruling 5 sets the DEFAULT to ⊥ adopt for all of them — this task's job is to confirm that per surface & catch the one case ruling 5 ⊥ anticipate, ⊥ to re-open the ruling.
   - `client/src/pages/Reports.jsx` Footprint Issues (§V49): the ONLY split case. the on-screen table is a screen read (candidate adopt) while its CSV export is data (⊥ adopt). check whether both render from ONE expression — if so, either they split or the surface stays unformatted; record which, & prefer LEAVING IT UNFORMATTED over restructuring the report, ∵ a footprint-ISSUES report is precisely where a user needs the literal stored name to go fix it.
