@@ -144,7 +144,7 @@ files: `database/migrations/21_package_catalog.sql`, `database/init-schema.sql`,
 
 §T TASKS:
 
-T1|.|write migration `21_package_catalog.sql`
+T1|x|write migration `21_package_catalog.sql`
 touch: `database/migrations/21_package_catalog.sql`, `database/init-schema.sql`
 details: copy the DDL proven in F1.T3 VERBATIM (incl. whichever of D4's generated-column | trigger form landed). wrap idempotent (`CREATE TABLE IF NOT EXISTS`, guarded `DO $$` for the index/constraint adds) per §C7. add the same objects to `database/init-schema.sql` for the fresh-init path — §C7: init files get the final shape, ⊥ `ALTER`. version header + `CHANGELOG.md` entry carry release traceability, ⊥ the filename.
 verify: applies clean on a scratch PG18 cluster from both paths — fresh `init-schema.sql`, and existing-DB migration-only; second run is a no-op; `\d packages` shows the CHECK + indexes.
