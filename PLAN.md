@@ -260,7 +260,7 @@ verify: client tests for both shortcuts × 3 file types (footprint/symbol/model)
 exit: shortcuts canonical & case-correct.
 next: F4.T4
 
-T4|.|mass-rename ECO staging
+T4|x|mass-rename ECO staging
 touch: `server/src/services/massFileRenameEcoService.js:98`
 details: staged `new_file_name` already runs `assertNoPlusInFootprintName` + `normalizeFootprintFilename`. canonicalize at the same point so the name an approver reviews is the name that lands. ⊥ change §V20/§V46 governance (who may rename, when an ECO is required, which parts move to `reviewing`).
 verify: `server/src/test/` ECO rename cases assert staged == applied name; a §V20 governance test still passes unchanged.

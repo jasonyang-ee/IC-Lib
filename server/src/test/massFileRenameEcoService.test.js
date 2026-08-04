@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMassFileRenameCadRows,
   buildMassFileRenameSummary,
+  canonicalizeMassFileRenameFiles,
   MASS_FILE_RENAME_LABEL,
   MASS_FILE_RENAME_PIPELINE_TYPE,
   resolveMassFileRenamePipelineTypes,
@@ -68,6 +69,26 @@ describe('massFileRenameEcoService', () => {
         existing_file_name: 'logic.olb',
         existing_file_type: 'symbol',
       },
+    ]);
+  });
+
+  it('canonicalizes staged names while leaving PSpice unchanged', () => {
+    const catalog = [{
+      short_name: 'SOIC',
+      count_policy: 'append',
+      aliases: [{ alias: 'SOIC' }],
+    }];
+
+    expect(canonicalizeMassFileRenameFiles([
+      { file_type: 'footprint', new_file_name: '8-SOIC_N.PSM' },
+      { file_type: 'symbol', new_file_name: '8-SOIC_N.OLB' },
+      { file_type: 'model', new_file_name: '8-SOIC_N.STEP' },
+      { file_type: 'pspice', new_file_name: '8-SOIC_N.LIB' },
+    ], catalog).map((file) => file.new_file_name)).toEqual([
+      'soic-8_b.psm',
+      'SOIC-8_B.olb',
+      'SOIC-8_B.step',
+      '8-SOIC_N.LIB',
     ]);
   });
 

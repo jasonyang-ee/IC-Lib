@@ -11,9 +11,13 @@ import {
   shouldStageSharedRenameForStatus,
 } from './componentLifecycleService.js';
 import { regenerateCadText } from './cadFileService.js';
+import { listPackages } from './packageService.js';
 import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
-import { assertNoPlusInFootprintName, normalizeFootprintFilename } from '../utils/footprintFiles.js';
+import {
+  assertNoPlusInFootprintName,
+  canonicalizeCadUploadFilename,
+} from '../utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +57,26 @@ export const buildMassFileRenameSummary = (files = [], affectedComponentCount = 
   return `${firstFile.old_file_name} +${files.length - 1} file${files.length === 2 ? '' : 's'} -> ${firstFile.new_file_name} (${affectedComponentCount} part${affectedComponentCount === 1 ? '' : 's'})`;
 };
 
+const isCanonicalPackageFileType = (fileType) => (
+  fileType === 'footprint' || fileType === 'symbol' || fileType === 'model'
+);
+
+export const canonicalizeMassFileRenameFiles = (files = [], catalog = []) => (
+  files.map((file) => {
+    if (!isCanonicalPackageFileType(file.file_type)) {
+      return file;
+    }
+
+    const newFileName = file.file_type === 'footprint'
+      ? assertNoPlusInFootprintName(file.new_file_name)
+      : file.new_file_name;
+    return {
+      ...file,
+      new_file_name: canonicalizeCadUploadFilename(newFileName, file.file_type, catalog),
+    };
+  })
+);
+
 const consumeNextEcoNumber = async (client) => {
   let settingsResult = await client.query('SELECT * FROM eco_settings LIMIT 1 FOR UPDATE');
 
@@ -90,14 +114,10 @@ export const createMassFileRenameEco = async (client, {
     throw new Error('At least one renamed file is required');
   }
 
-  // Defensive: staged names must already satisfy footprint naming rules (the
-  // rename controllers normalize before staging), so apply-time never writes
-  // an unnormalized name to disk.
-  files = files.map((file) => (
-    file.file_type === 'footprint'
-      ? { ...file, new_file_name: normalizeFootprintFilename(assertNoPlusInFootprintName(file.new_file_name)) }
-      : file
-  ));
+  const packageCatalog = files.some((file) => isCanonicalPackageFileType(file.file_type))
+    ? await listPackages()
+    : [];
+  files = canonicalizeMassFileRenameFiles(files, packageCatalog);
 
   if (!Array.isArray(affectedComponents) || affectedComponents.length === 0) {
     throw new Error('At least one affected component is required');

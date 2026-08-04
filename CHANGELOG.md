@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Shared File Rename ECOs now store catalog-canonical footprint, symbol, and 3D-model filenames before review, while leaving pad and PSpice names unchanged.
+
 - CAD rename shortcuts now resolve package aliases through the catalog before displaying the proposed filename. Footprints remain lowercase, while symbol and 3D-model shortcut bases and density suffixes are uppercase with lowercase extensions; PSpice stays outside package canonicalization.
 
 - CAD upload, ZIP extraction, temp finalization, component-file rename, and vendor footprint staging now resolve known package aliases through the catalog before storing filenames. Footprints remain lowercase, symbol/model bases retain canonical uppercase display identity with lowercase extensions, and pad/PSpice filenames remain outside this canonicalization scope.
