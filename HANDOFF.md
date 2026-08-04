@@ -12,22 +12,23 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 1f23732 | tests pass 595/595 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit b3521fe | tests pass 595/595 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
 F1.T4: TSOT/D9/D10 seed remediation; 116 packages, 205 folded keys, 30 fixtures → a88b05e
 F2.T1: PG18 `packages`/`package_aliases` migration + fresh-schema parity; scratch fresh/migration replay HOLD → 1f23732
+F2.T2: idempotent 116-package + normalized-alias startup seed; PG18 3-run proof → b3521fe
 
 ## in progress (exact stop point)
 
-F2.T2: ⊥ started. Next action: read full `database/init-settings.sql`, convert all 116 `scratchpad/package-seed.json` rows into idempotent builtin package + self-alias + sourced-alias inserts.
+F2.T3: read `server/src/services/schemaInspectionService.js` + `server/src/test/schemaInspectionService.test.js`; add `packages`/`package_aliases` to `EXPECTED_SCHEMA_TABLES` and test named missing-table reporting.
 mid-edit files: none
 
 ## next
 
-F2.T2 | preconditions: 2 scratch startup-seed runs ! preserve counts; self-alias count = package count; soft-disabled builtin stays inactive; admin-added row survives; ⊥ live DB.
+F2.T3 | preconditions: inspect expected-table pattern; ⊥ alter `EXPECTED_SCHEMA_VIEWS`.
 
 ## deviations & decisions
 
@@ -35,8 +36,6 @@ F2.T2 | preconditions: 2 scratch startup-seed runs ! preserve counts; self-alias
 
 ## watchouts
 
-- `package_aliases` ! carry every package self-alias + every sourced alias; bare metric chip forms ⊥ aliases (`0402` collision).
-- seed builtin delete state ! use `ON CONFLICT DO NOTHING`; ⊥ reactivate retained soft-disabled rows.
 - `packages` + `package_aliases` ! join `EXPECTED_SCHEMA_TABLES` in F2.T3; ⊥ alter OrCAD/CIS view expectations.
 - scratch PostgreSQL container `iclib-pg18-package-catalog` stopped/removed; ⊥ live DB touched.
 
