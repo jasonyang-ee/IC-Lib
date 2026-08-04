@@ -12,25 +12,26 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit d1c87aa | tests pass 694/694 (`bash ./test.sh`; 1 pre-existing server lint warning)
-uncommitted: `PLAN.md` F4.T3 marked `~` before required full-file review
+branch test | last commit b29f839 | tests pass 699/699 (`bash ./test.sh`; 1 pre-existing server lint warning)
+uncommitted: none
 
 ## done this session
 
-F4.T2: File Library single/pair rename canonicalization + transaction regressions -> 5961d5b
+F4.T3: catalog-backed MPN/package shortcut case policy + File Library controls -> b29f839
 
 ## in progress (exact stop point)
 
-F4.T3: read `ComponentFiles.jsx` + `FileLibrary.jsx` in full before shortcut edits; implementation not started.
-mid-edit files: `PLAN.md` status flip only
+F4.T4: read `massFileRenameEcoService.js` + ECO rename tests in full before staging edits; implementation not started.
+mid-edit files: none
 
 ## next
 
-F4.T3 | preconditions: read `ComponentFiles.jsx`, `FileLibrary.jsx`, `cadFileNaming.js`, `packageNaming.js`, and client tests in full; name shortcut cases before implementation.
+F4.T4 | preconditions: read `server/src/services/massFileRenameEcoService.js`, `server/src/test/massFileRenameEcoService.test.js`, `server/src/utils/footprintFiles.js`, and ECO route/controller callers in full; name staged-name cases before implementation.
 
 ## deviations & decisions
 
 - File Library canonicalizes before physical-only, ECO-staged, and pair collision paths; `renameCadFile` independently keeps the same boundary for direct callers. PLAN.md updated: n.
+- File Library passed MPN/package handlers into `RenameModal`, but modal omitted them; F4.T3 renders those existing actions so catalog-backed shortcuts are usable. PLAN.md updated: n.
 
 ## watchouts
 
