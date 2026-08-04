@@ -103,8 +103,11 @@ const mockFootprintPairEntry = {
 };
 
 vi.mock('../components/fileLibrary', () => ({
-  FileTypesView: ({ onOpenRename }) => (
+  FileTypesView: ({ onOpenRename, onCopyPath }) => (
     <div>
+      <button onClick={() => onCopyPath(mockFootprintPairEntry.fileNames, 'footprint')}>
+        Copy Footprint Path
+      </button>
       <button onClick={() => onOpenRename(mockRenameEntry, 'schematic')}>
         Open Rename
       </button>
@@ -345,5 +348,42 @@ describe('FileLibrary footprint "+" rejection (V28)', () => {
       expect(renameFootprintGroupMock).toHaveBeenCalled();
     });
     expect(showErrorMock).not.toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
+  });
+});
+
+// §V63: footprints display uppercase but live on disk lowercase. The clipboard
+// is a path an operator pastes into OrCAD, so it must carry the stored name -
+// this is the test that fails if someone "helpfully" formats the copy path.
+describe('FileLibrary copy-path keeps the stored footprint case (V63)', () => {
+  const writeTextMock = vi.fn();
+
+  beforeEach(() => {
+    primeMocks();
+    authState.user = { role: 'admin' };
+    getComponentsByFileMock.mockResolvedValue({ data: { components: [] } });
+    writeTextMock.mockReset();
+    writeTextMock.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: writeTextMock },
+    });
+  });
+
+  it('copies the lowercase on-disk name, never the uppercase display form', async () => {
+    renderComponent();
+
+    await screen.findByRole('button', { name: 'Copy Footprint Path' });
+    // The copy path needs the per-user storage base, so let that query settle
+    // before clicking or the handler bails with a "set your path" error.
+    await waitFor(() => expect(getFileStoragePathMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Footprint Path' }));
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalled();
+    });
+    // A footprint pair copies its .dra - the file OrCAD opens.
+    const copied = writeTextMock.mock.calls[0][0];
+    expect(copied).toBe('C:\\Library\\footprint\\soic8.dra');
+    expect(copied).not.toMatch(/SOIC8/);
   });
 });

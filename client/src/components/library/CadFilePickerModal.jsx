@@ -4,6 +4,7 @@ import { Search, X, FileText, Link } from 'lucide-react';
 import { api } from '../../utils/api';
 import { PSPICE_LABEL, SCHEMATIC_SYMBOL_LABEL, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
 import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
+import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 
 const FILE_TYPE_LABELS = {
   symbol: SCHEMATIC_SYMBOL_LABEL,
@@ -171,11 +172,16 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
               >
                 <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-900 dark:text-gray-100 break-all">{entry.displayName}</div>
+                  {/* Display form only - the onSelect payload above keeps the stored name. */}
+                  <div className="text-sm text-gray-900 dark:text-gray-100 break-all">
+                    {formatCadFileDisplayName(entry.displayName, entry.files[0]?.file_type || fileType)}
+                  </div>
                   {entry.kind === 'pair' && (
                     <div className="mt-0.5 space-y-0.5">
                       {entry.files.map((file) => (
-                        <div key={file.id || file.file_name} className="text-xs text-gray-500 dark:text-gray-400 break-all">{file.file_name}</div>
+                        <div key={file.id || file.file_name} className="text-xs text-gray-500 dark:text-gray-400 break-all">
+                          {formatCadFileDisplayName(file.file_name, file.file_type)}
+                        </div>
                       ))}
                     </div>
                   )}

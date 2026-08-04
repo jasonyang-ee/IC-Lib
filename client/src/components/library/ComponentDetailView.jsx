@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import ApprovalSection from './ApprovalSection';
 import AlternativeClassBadge from '../common/AlternativeClassBadge';
+import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 
 /**
  * Helper component for a copyable text field with an aligned label.
@@ -74,11 +75,13 @@ const ComponentDetailView = ({
     );
   }
 
+  // cadType tells the display formatter what it cannot sniff: these values are
+  // CIS TEXT-column names and carry no extension.
   const cadTypeMap = {
-    schematic: { label: 'Schematic', routeType: 'schematic' },
-    pcb_footprint: { label: 'Footprint', routeType: 'footprint' },
+    schematic: { label: 'Schematic', routeType: 'schematic', cadType: 'symbol' },
+    pcb_footprint: { label: 'Footprint', routeType: 'footprint', cadType: 'footprint' },
     pad_file: { label: 'Pad', routeType: 'pad' },
-    step_model: { label: '3D Model', routeType: 'step' },
+    step_model: { label: '3D Model', routeType: 'step', cadType: 'model' },
     pspice: { label: 'PSpice', routeType: 'pspice' },
   };
 
@@ -184,10 +187,12 @@ const ComponentDetailView = ({
                       className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-mono"
                       title="View in File Library"
                     >
-                      {fileName}
+                      {formatCadFileDisplayName(fileName, config.cadType)}
                     </button>
                   ) : (
-                    <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">{fileName}</span>
+                    <span className="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                      {formatCadFileDisplayName(fileName, config.cadType)}
+                    </span>
                   )}
                 </div>
               ))}

@@ -98,7 +98,7 @@ files: `client/src/utils/cadFileNaming.js`, `client/src/test/cadFileDisplayName.
 
 §T TASKS:
 
-T1|.|rewrite the footprint branch as a pure case transform
+T1|x|rewrite the footprint branch as a pure case transform
 touch: `client/src/utils/cadFileNaming.js:82-95`
 details: footprint branch becomes `base.toUpperCase()`; extension stays `.toLowerCase()` (already at `:88`). DELETE the `([_-])([abc])$` regex — ruling 2 makes it dead code, & leaving it would imply a density-aware rule that ∄ any more. symbol/model branch UNCHANGED (ruling 3). update the JSDoc at `:76-81`: it currently says "render their density letter uppercase" — that under-describes the new rule & would mislead the next reader. keep the "Never send the result to a write path" warning verbatim; it is the §V63 boundary.
 ∵ the transform is now case-only, `formatCadFileDisplayName(name).toLowerCase() === name.toLowerCase()` ! hold for ∀ footprint input — that identity is the cheapest possible proof of ruling 2 & F2.T3 asserts it.
@@ -106,7 +106,7 @@ verify: `client/src/test/cadFileDisplayName.test.js` updated — `:7-9` expectat
 exit: rule implemented, ∄ density regex left in the display path.
 next: F2.T2
 
-T2|.|adopt the formatter at the F1.T1 ruled-in sites
+T2|x|adopt the formatter at the F1.T1 ruled-in sites
 touch: per F1.T1 verdicts
 details: wrap only the expressions F1.T1 named. pass an explicit `fileType` wherever the site HAS one — extension sniffing is the fallback, ⊥ the preferred contract, & an explicit type is what makes a `.olb` symbol reliably miss the footprint branch. ⊥ change any site F1.T1 ruled out, & ⊥ expand scope to a site F1.T1 ⊥ list.
 ∀ adopted site: the value used for `title=` and the value RENDERED ! both be the display form (they already pair this way in `FileTypesView.jsx:318-319`), while any `key`, selection value, mutation payload, or clipboard argument at that site ! keep the stored name.
@@ -114,7 +114,7 @@ verify: a client test per newly-adopted site asserting the rendered text is the 
 exit: ruled-in sites render uppercase footprints; ruled-out sites provably unchanged (∄ diff).
 next: F2.T3
 
-T3|.|regression guards on the three verified-HOLD behaviors
+T3|x|regression guards on the three verified-HOLD behaviors
 touch: `client/src/test/cadFileDisplayName.test.js`, `server/src/test/filenameSanitizeService.test.js`
 details: lock the behaviors listed under `already verified as HOLD` so this cycle ⊥ silently break them & a future one ⊥ either.
   (a) copy-path true case: a test asserting `handleCopyPath`'s clipboard string contains the STORED lowercase name for a footprint whose DISPLAY form is uppercase — the one test that would catch someone "helpfully" formatting the clipboard.

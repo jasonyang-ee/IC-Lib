@@ -1,5 +1,6 @@
 import { FileText } from 'lucide-react';
 import { PSPICE_LABEL } from '../../utils/cadFileTypes';
+import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 import { isFootprintSecondaryFile } from '../../utils/footprintFiles';
 
 const FILE_TYPE_LABELS = {
@@ -8,6 +9,14 @@ const FILE_TYPE_LABELS = {
   pad_file: 'Pad',
   step_model: '3D Model',
   pspice: PSPICE_LABEL,
+};
+
+// These values come from the CIS TEXT columns, which carry no extension, so
+// the display formatter cannot sniff the type and must be told it.
+const FIELD_CAD_TYPES = {
+  schematic: 'symbol',
+  pcb_footprint: 'footprint',
+  step_model: 'model',
 };
 
 /**
@@ -44,7 +53,7 @@ export default function CadFieldSection({ field, values = [] }) {
           <div key={`${fileName}-${index}`} className="flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             <span className="text-sm text-gray-800 dark:text-gray-200 break-all font-mono">
-              {stripExt(fileName)}
+              {formatCadFileDisplayName(stripExt(fileName), FIELD_CAD_TYPES[field])}
             </span>
           </div>
         ))

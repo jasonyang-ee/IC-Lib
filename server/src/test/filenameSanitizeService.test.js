@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { applyFilenameSanitization, planFilenameSanitization } from '../services/filenameSanitizeService.js';
+import { resolveCanonicalCadFilename } from '../utils/footprintFiles.js';
 
 const catalog = [
   { short_name: 'SOIC', count_policy: 'append', aliases: [{ alias: 'SOIC' }] },
@@ -51,6 +52,23 @@ describe('planFilenameSanitization', () => {
         reason: 'no-package-info',
       },
     ]);
+  });
+
+  // §V63/§V64: a custom MPN-named footprint carries no package information, so
+  // it is lowercased and left alone. parsePackageInput does synthesize a
+  // shortName for arbitrary text - this guards the fact that the synthesized
+  // value is discarded unless it matches a real catalog row, so no fabricated
+  // canonical name is ever written to disk.
+  it('lowercases a custom MPN footprint without inventing a canonical name', () => {
+    expect(resolveCanonicalCadFilename('MAX17761ATP.psm', 'footprint', catalog))
+      .toEqual({ fileName: 'max17761atp.psm', reason: 'no-package-info' });
+    expect(resolveCanonicalCadFilename('ESP32-WROOM-32.psm', 'footprint', catalog))
+      .toEqual({ fileName: 'esp32-wroom-32.psm', reason: 'no-package-info' });
+
+    // Control: a real catalog package still canonicalizes, so the guard above
+    // is not just proving the catalog is empty.
+    expect(resolveCanonicalCadFilename('8-SOIC_n.psm', 'footprint', catalog))
+      .toEqual({ fileName: 'soic-8_b.psm', reason: null });
   });
 
   it('skips an append package with no derivable pin count', () => {

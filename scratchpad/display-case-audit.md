@@ -51,6 +51,20 @@ surface|expression|verdict|reason
 ∄ server file imports a client util (`grep -rn "from '.*client" server/src/services/*.js` → only
 `openid-client` in `oidcService.js:1`) ∴ ∄ server mirror exists & ∄ is implied.
 
+## audit corrections found during F2.T2 (2 expressions this audit MISSED)
+
+the F2.T2 test `FileTypesView shows a footprint pair uppercase...` failed on
+`queryByText('soic-8_b.psm')` ∴ a raw name still rendered. two more expressions in the SAME file:
+
+id|site|expression|verdict|reason
+|---|---|---|---|---|
+9c|`FileTypesView.jsx:403-404`|detail-pane pair sublist `{file.file_name}`|ADOPT|twin of the list-row sublist `:324-326`; sits directly under the uppercase header ∴ raw here was visibly inconsistent.
+9d|`FileTypesView.jsx:19-41` `buildRelatedFileEntries` → rendered `:427`|`label` + `tooltip` of linked-counterpart chips|ADOPT for the `fileType === 'footprint'` branch ONLY|§V45 footprint/pad/3D headers show linked counterparts; the footprint branch (`:77`) renders FOOTPRINT names on a read surface. `pad` (`:61`) & `model` (`:67`) branches left untouched — `pad` ∉ scope (ruling 4) & a model ext-lowercase change is ∉ this cycle's goal.
+
+lesson: grepping only for `formatCadFileDisplayName` + obvious `{file.file_name}` JSX missed a name
+that reached the DOM through a builder-computed `label`. F3.T3's sweep ! grep for indirect name
+fields (`label`, `tooltip`, `displayName`) too, ⊥ only direct JSX.
+
 ## F2.T2 site list (fixed)
 
 ADOPT, 6 files: `CategoryView.jsx:243-244,288-289` | `CadFieldSection.jsx:47` |

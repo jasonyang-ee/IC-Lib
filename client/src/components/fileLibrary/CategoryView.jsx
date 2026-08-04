@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getCadFileTypeLabel, routeTypeToFileType } from './constants';
+import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 
 const CategoryView = ({
   categories,
@@ -240,8 +241,8 @@ const CategoryView = ({
                             <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
                               {getCadFileTypeLabel(file.file_type, file.file_name)}
                             </td>
-                            <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-gray-100 truncate max-w-xs" title={file.file_name}>
-                              {file.file_name}
+                            <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-gray-100 truncate max-w-xs" title={formatCadFileDisplayName(file.file_name, file.file_type)}>
+                              {formatCadFileDisplayName(file.file_name, file.file_type)}
                             </td>
                             <td className="px-3 py-2 text-right">
                               <div className="flex items-center justify-end gap-3 flex-wrap">
@@ -286,7 +287,7 @@ const CategoryView = ({
                     <div key={`${group.file_type}:${group.file_name}`} className="mb-2">
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                         <span className="font-medium">{getCadFileTypeLabel(group.file_type, group.file_name)}:</span>{' '}
-                        <span className="font-mono">{group.file_name}</span>
+                        <span className="font-mono">{formatCadFileDisplayName(group.file_name, group.file_type)}</span>
                       </p>
                       <div className="flex flex-wrap gap-1.5 ml-2">
                         {group.components.map((comp) => (

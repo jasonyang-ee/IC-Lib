@@ -75,9 +75,17 @@ export const buildCadShortcutFilename = (currentFilename, renamedBase, fileType)
 
 /**
  * Display-only formatting (SPEC V63): footprints are stored all-lowercase, so
- * render their density letter uppercase, and always show a CAD extension
- * lowercase even on a legacy row that still holds `.STEP`. Never send the
- * result to a write path, a collision check, or a rename payload.
+ * render the whole base uppercase — a custom `max17761atp.psm` reads
+ * `MAX17761ATP.psm`. This is a pure case transform, so the displayed name
+ * differs from the stored one by case alone and a reader can always map it
+ * back to disk; a legacy density letter is uppercased, never remapped
+ * (`_m` shows as `_M`, not `_A`). Symbol and model bases keep their input
+ * case. Every CAD extension shows lowercase even on a legacy row that still
+ * holds `.STEP`. Never send the result to a write path, a collision check,
+ * or a rename payload.
+ *
+ * A name with no extension (a TEXT-column value or a footprint pair base)
+ * cannot be sniffed, so pass `fileType` wherever the caller knows it.
  */
 export const formatCadFileDisplayName = (fileName, fileType) => {
   const name = typeof fileName === 'string' ? fileName : '';
@@ -88,7 +96,7 @@ export const formatCadFileDisplayName = (fileName, fileType) => {
   const ext = lastDotIndex >= 0 ? name.slice(lastDotIndex).toLowerCase() : '';
 
   const displayBase = fileType === 'footprint' || isFootprintPairFile(name)
-    ? base.replace(/([_-])([abc])$/, (match, separator, letter) => `${separator}${letter.toUpperCase()}`)
+    ? base.toUpperCase()
     : base;
 
   return `${displayBase}${ext}`;

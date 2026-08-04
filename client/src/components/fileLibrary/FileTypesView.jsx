@@ -22,20 +22,22 @@ const buildRelatedFileEntries = (fileType, relatedFiles) => {
   }
 
   if (fileType === 'footprint') {
+    // Linked counterparts are a read surface, so the footprint names here read
+    // uppercase like every other one; `files` keeps the stored names.
     return groupFootprintFiles(relatedFiles, (file) => file.file_name).map((group) => {
       if (group.type !== 'pair') {
         return {
           key: group.file.id || group.file.file_name,
-          label: group.file.file_name,
-          tooltip: group.file.file_name,
+          label: formatCadFileDisplayName(group.file.file_name, 'footprint'),
+          tooltip: formatCadFileDisplayName(group.file.file_name, 'footprint'),
           files: [group.file],
         };
       }
 
       return {
         key: `pair:${group.primary.id || group.primary.file_name}`,
-        label: getCadFileBaseName(group.primary.file_name),
-        tooltip: group.files.map((file) => file.file_name).join('\n'),
+        label: formatCadFileDisplayName(getCadFileBaseName(group.primary.file_name), 'footprint'),
+        tooltip: group.files.map((file) => formatCadFileDisplayName(file.file_name, 'footprint')).join('\n'),
         files: group.files,
       };
     });
@@ -321,8 +323,8 @@ const FileTypesView = ({
                           {entry.kind === 'pair' ? (
                             <div className="mt-0.5 space-y-0.5">
                               {entry.files.map((file) => (
-                                <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400 truncate" title={file.file_name}>
-                                  {file.file_name}
+                                <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400 truncate" title={formatCadFileDisplayName(file.file_name, entry.file_type)}>
+                                  {formatCadFileDisplayName(file.file_name, entry.file_type)}
                                 </p>
                               ))}
                             </div>
@@ -401,7 +403,9 @@ const FileTypesView = ({
                 {selectedEntry.kind === 'pair' && (
                   <div className="mt-1 space-y-0.5">
                     {selectedEntry.files.map((file) => (
-                      <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400">{file.file_name}</p>
+                      <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatCadFileDisplayName(file.file_name, selectedEntry.file_type)}
+                      </p>
                     ))}
                   </div>
                 )}

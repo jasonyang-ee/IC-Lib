@@ -93,4 +93,30 @@ describe('CadFilePickerModal', () => {
       ]),
     }));
   });
+
+  it('lists a footprint uppercase but hands the stored names to onSelect', () => {
+    queryState.data = [
+      { id: 'footprint-1', file_name: 'max17761atp.psm', file_type: 'footprint', component_count: 1 },
+      { id: 'footprint-2', file_name: 'max17761atp.dra', file_type: 'footprint', component_count: 1 },
+    ];
+
+    const onSelect = vi.fn();
+    render(
+      <CadFilePickerModal
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        fileType="footprint"
+      />,
+    );
+
+    fireEvent.click(screen.getByText('MAX17761ATP'));
+
+    // The selection feeds a link write (SPEC V63), so every name in the
+    // payload must still be the stored lowercase one.
+    const payload = onSelect.mock.calls[0][0];
+    expect(payload.files.map((file) => file.file_name).sort())
+      .toEqual(['max17761atp.dra', 'max17761atp.psm']);
+    expect(payload.displayName).toBe('max17761atp');
+  });
 });

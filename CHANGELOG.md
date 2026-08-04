@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Footprint filenames now display with the whole base uppercase wherever the UI shows one, so a custom MPN-named footprint reads `MAX17761ATP.psm` while the file on disk stays `max17761atp.psm`. The display is a pure case transform: a legacy density letter is uppercased rather than remapped (`_m` shows as `_M`, not `_A`), so what you read always maps back to the file on disk. Adopted at the parts-detail CAD fields, the component form's read-only CAD list, the file picker, the File Library category table, and the File Library pair and linked-counterpart lists. Rename, delete, copy-path, toasts, CSV exports, and ECO PDFs deliberately keep showing the exact stored name, because those either authorize or record a write.
+
 ### Fixed
 
 - Dependencies refreshed via `npm update` across `client/`, `server/`, and `scripts/` (lockfiles only; no manifest ranges changed).
