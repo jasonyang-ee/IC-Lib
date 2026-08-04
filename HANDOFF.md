@@ -12,31 +12,34 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 1649985 | tests pass 19/19 (`cd server && npm.cmd run test:run -- src/test/routeAuthGuards.test.js`; 1 pre-existing server lint warning)
+branch test | last commit c802522 | tests pass 605/605 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
 F2.T4: package service/controller/routes + registry/public-read bindings; route guard 19/19 → 1649985
+F2.T5: alias-folding/pass-through/API-policy tests + full suite 605/605 → c802522
 
 ## in progress (exact stop point)
 
-F2.T5: add `packageService` + controller tests for catalog resolution, count-policy validation, and admin-only mutation routes.
+F3.T1: implement pure server package-identity helpers in `server/src/utils/packageNaming.js` with unit tests.
 mid-edit files: none
 
 ## next
 
-F2.T5 | preconditions: mock DB/transaction behavior; preserve `routeAuthGuards.test.js` public-read parity.
+F3.T1 | preconditions: preserve `packageService` catalog/DB ownership; new utility takes rows/values only.
 
 ## deviations & decisions
 
 - F2.T1 DDL used F1.T3's generated `alias_key`; guarded constraints/indexes preserve idempotence. PLAN.md updated: n
 - F2.T4 resolves unknown vendor text as `{ input, package: null }`; caller has a sanitized pass-through value while catalog miss remains explicit. PLAN.md updated: n
+- F2.T5 uses `SC-59A`, not absent `SC-59`; F1 seed's retained R19 alias is source-consistent. PLAN.md updated: y
 
 ## watchouts
 
 - `packages` + `package_aliases` now join `EXPECTED_SCHEMA_TABLES` + `EXPORT_TABLES`; ⊥ alter OrCAD/CIS view expectations.
 - `resolvePackage(raw)` returns `{ input, package: null }` for misses; canonical promotion stays transactional and preserves aliases.
+- F3 should extract shared pure parsing only where it removes duplication; `packageService` keeps DB alias lookup + catalog CRUD ownership.
 - scratch PostgreSQL container `iclib-pg18-package-catalog` stopped/removed; ⊥ live DB touched.
 
 ## final verification
