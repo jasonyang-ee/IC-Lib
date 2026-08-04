@@ -82,7 +82,9 @@ const resolveAliasCandidate = (token, aliases, allowModifier = true) => {
     if (packageRow) return packageResult(packageRow, leadingCount[1], aliasKey);
   }
 
-  const trailingCount = token.match(/^(.+?)-(\d+)$/);
+  // The separator is optional: filenames drop it (`soic8`) where vendor
+  // strings keep it (`SOIC-8`).
+  const trailingCount = token.match(/^(.+?)-?(\d+)$/);
   if (trailingCount) {
     const aliasKey = foldAliasKey(trailingCount[1]);
     const packageRow = aliases.get(aliasKey);

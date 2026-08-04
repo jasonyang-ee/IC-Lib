@@ -1,5 +1,5 @@
 import path from 'path';
-import { buildCanonicalName, foldAliasKey, parsePackageInput } from './packageNaming.js';
+import { buildCanonicalName, foldAliasKey, isUnsupportedIpcVariant, parsePackageInput } from './packageNaming.js';
 
 export const FOOTPRINT_PRIMARY_EXTENSIONS = ['.psm', '.bsm'];
 export const FOOTPRINT_SECONDARY_EXTENSION = '.dra';
@@ -88,15 +88,17 @@ const findCatalogPackage = (catalog, matchedAliasKey) => (
  * existing storage rules. Callers load the catalog once per request so ZIPs
  * and batches do not issue one query per file.
  */
-export function canonicalizeCadUploadFilename(fileName, fileType, catalog) {
+export function resolveCanonicalCadFilename(fileName, fileType, catalog) {
   const normalizedFilename = normalizeCadUploadFilename(fileName);
-  if (!isCanonicalPackageFileType(fileType)) return normalizedFilename;
+  const miss = (reason) => ({ fileName: normalizedFilename, reason });
+  if (!isCanonicalPackageFileType(fileType)) return miss('not-canonical-type');
 
-  const parsed = parsePackageInput(getCadFileBaseName(normalizedFilename), catalog);
-  if (!parsed) return normalizedFilename;
+  const baseName = getCadFileBaseName(normalizedFilename);
+  if (isUnsupportedIpcVariant(baseName)) return miss('unsupported-variant');
 
-  const packageRow = findCatalogPackage(catalog, parsed.matchedAliasKey);
-  if (!packageRow) return normalizedFilename;
+  const parsed = parsePackageInput(baseName, catalog);
+  const packageRow = parsed && findCatalogPackage(catalog, parsed.matchedAliasKey);
+  if (!packageRow) return miss('no-package-info');
 
   const canonicalBaseName = buildCanonicalName({
     shortName: packageRow.short_name,
@@ -104,9 +106,16 @@ export function canonicalizeCadUploadFilename(fileName, fileType, catalog) {
     density: parsed.density,
     countPolicy: packageRow.count_policy,
   });
-  if (!canonicalBaseName) return normalizedFilename;
+  if (!canonicalBaseName) return miss('no-pin-count');
 
-  return normalizeCadUploadFilename(`${canonicalBaseName}${getCadFileExtension(normalizedFilename)}`);
+  return {
+    fileName: normalizeCadUploadFilename(`${canonicalBaseName}${getCadFileExtension(normalizedFilename)}`),
+    reason: null,
+  };
+}
+
+export function canonicalizeCadUploadFilename(fileName, fileType, catalog) {
+  return resolveCanonicalCadFilename(fileName, fileType, catalog).fileName;
 }
 
 /** `+` is OrCAD-illegal in footprint names — reject, never silently strip. */

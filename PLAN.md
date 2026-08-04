@@ -275,7 +275,7 @@ files: `server/src/services/cadFileService.js`, `server/src/controllers/fileLibr
 
 §T TASKS:
 
-T1|.|pure rename planner
+T1|x|pure rename planner
 touch: `server/src/services/filenameSanitizeService.js` (NEW file per D7; ⊥ extend `cadFileService.js`)
 details: given the registered file set + the catalog, return `[{fileType, oldName, newName, action: 'rename'|'skip', reason}]`. scope = `footprint|symbol|model` ONLY (ruling 8; `pad|pspice` ∉ scope). derive the canonical name from the FILE's own name via F3's `parsePackageInput` — ⊥ consult the linked component's `package_size` (ruling 8: a name w/ ∄ package info is `skip` w/ reason `no-package-info`). the closed set of `skip` reasons — use these exact strings: `no-package-info` (D1 miss), `no-pin-count` (D3), `unsupported-variant` (F3.T3 hidden/deleted/reverse), `already-canonical`, `collision` (target exists & is a different inode — `isSameExistingFile` at `cadFileService.js:279` distinguishes a same-inode case-only rename, which is ⊥ a collision per §V25), `not-trackable` (file ∉ `isTrackableCadFile`), `rename-failed` (added by F5.T2). footprint pairs planned as a unit (§V53). pure & side-effect free ∴ unit-testable & reusable as a future dry-run.
 verify: planner unit tests over a synthetic set incl. `soic8_l.psm`→`soic-8_c.psm`, `8-soic_n.psm`→`soic-8_b.psm`, `qfn50p500x500x80-29n.psm`→`qfn-29_b.psm`, `TO-236-3_m.psm`→`sot-23-3_a.psm`, `My.Symbol.OLB`→`My.Symbol.olb`, `FT260Q-T--3DModel-STEP-510211.STEP`→skip/`no-package-info`, a collision pair, an already-canonical file, & a `pad`+`pspice` file proving they are ∉ the plan.

@@ -18,6 +18,13 @@ export const remapDensity = (letter) => {
   return ({ M: 'A', N: 'B', L: 'C', A: 'A', B: 'B', C: 'C' })[normalized] || null;
 };
 
+/**
+ * IPC hidden/deleted-pin (`-20_24N`) and reverse-numbering (`-20RN`) forms read
+ * identically in plain English but describe different parts (SPEC R18), so they
+ * are never collapsed - callers pass them through or skip them.
+ */
+export const isUnsupportedIpcVariant = (raw) => IPC_UNSUPPORTED_VARIANT_PATTERN.test(String(raw || '').trim());
+
 export const buildCanonicalName = ({ shortName, pinCount, density, countPolicy }) => {
   const normalizedShortName = String(shortName || '').trim();
   if (!normalizedShortName || !COUNT_POLICIES.has(countPolicy)) return null;
@@ -73,7 +80,9 @@ const resolveAliasCandidate = (token, aliases, allowModifier = true) => {
     if (packageRow) return packageResult(packageRow, leadingCount[1], aliasKey);
   }
 
-  const trailingCount = token.match(/^(.+?)-(\d+)$/);
+  // The separator is optional: filenames drop it (`soic8`) where vendor
+  // strings keep it (`SOIC-8`).
+  const trailingCount = token.match(/^(.+?)-?(\d+)$/);
   if (trailingCount) {
     const aliasKey = foldAliasKey(trailingCount[1]);
     const packageRow = aliases.get(aliasKey);
