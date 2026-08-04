@@ -22,7 +22,7 @@ F2.T5: alias-folding/pass-through/API-policy tests + full suite 605/605 → c802
 
 ## in progress (exact stop point)
 
-F3.T1: implement pure server package-identity helpers in `server/src/utils/packageNaming.js` with unit tests.
+F3.T1: inspected `server/src/utils/footprintFiles.js`, `cadFileNaming.js`, IPC grammar, and F3 contract; no edit started.
 mid-edit files: none
 
 ## next
