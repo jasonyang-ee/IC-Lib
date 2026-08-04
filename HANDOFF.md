@@ -12,30 +12,32 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit a88b05e | tests pass 595/595 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 1f23732 | tests pass 595/595 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
 F1.T4: TSOT/D9/D10 seed remediation; 116 packages, 205 folded keys, 30 fixtures → a88b05e
+F2.T1: PG18 `packages`/`package_aliases` migration + fresh-schema parity; scratch fresh/migration replay HOLD → 1f23732
 
 ## in progress (exact stop point)
 
-F2.T1: ⊥ started. Next action: read `scratchpad/21_package_catalog.draft.sql`, `database/init-schema.sql`, then add migration `database/migrations/21_package_catalog.sql` with proven DDL.
+F2.T2: ⊥ started. Next action: read full `database/init-settings.sql`, convert all 116 `scratchpad/package-seed.json` rows into idempotent builtin package + self-alias + sourced-alias inserts.
 mid-edit files: none
 
 ## next
 
-F2.T1 | preconditions: use F1.T3 DDL verbatim; validate fresh-init + migration-only paths on scratch PostgreSQL 18; ⊥ live DB.
+F2.T2 | preconditions: 2 scratch startup-seed runs ! preserve counts; self-alias count = package count; soft-disabled builtin stays inactive; admin-added row survives; ⊥ live DB.
 
 ## deviations & decisions
 
-- F1.T4 executed exactly D9/D10: TSOT-23-5 separate, bare `TSOT` dropped, common-use canonical names replace standards names, full imperial chip series added. PLAN.md updated: n
+- F2.T1 DDL used F1.T3's generated `alias_key`; guarded constraints/indexes preserve idempotence. PLAN.md updated: n
 
 ## watchouts
 
-- F2.T2 ! seed every package's self-alias; D1 step 4a otherwise cannot resolve canonical input.
-- `packages` + `package_aliases` ! join `EXPECTED_SCHEMA_TABLES`; ⊥ alter OrCAD/CIS view expectations.
+- `package_aliases` ! carry every package self-alias + every sourced alias; bare metric chip forms ⊥ aliases (`0402` collision).
+- seed builtin delete state ! use `ON CONFLICT DO NOTHING`; ⊥ reactivate retained soft-disabled rows.
+- `packages` + `package_aliases` ! join `EXPECTED_SCHEMA_TABLES` in F2.T3; ⊥ alter OrCAD/CIS view expectations.
 - scratch PostgreSQL container `iclib-pg18-package-catalog` stopped/removed; ⊥ live DB touched.
 
 ## final verification
