@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -101,21 +101,21 @@ files: scratchpad working artifacts, `SPEC.md` §R.
 
 §T TASKS:
 
-T1|.|build the canonical package + alias seed dataset
+T1|x|build the canonical package + alias seed dataset
 touch: `scratchpad/package-seed.json` (working artifact; F2 converts to SQL)
 details: one row per canonical short name w/ `short_name`, `family`, `mount ∈ {SMT,TH,PANEL,WAFER}`, `count_policy ∈ {chip,embedded,none,append}` (§V61), `aliases[]`, `source`. cover ∀ family the user listed: diodes DO-201/DO-204/DO-213/DO-214/SOD-*; 3-5 pin SOT/TSOT + TO-3/5/8/18/39/66/92/126/202/220/247/251/252/262/263/268/273/274/277; SIP/SIL; DFN/DIP/DIL/FlatPack/MSOP/SO/SOIC/SOP/SSOP/TSOP/HTSOP/TSSOP/HTSSOP/ZIP; LCC/QIP/QIL/PLCC/QFN/QFP/QUIP/QUIL; BGA/eWLB/LGA/PGA; COB/COF/COG/CSP/FlipChip/PoP/QP/UICC/WL-CSP/WLP. seed aliases verbatim from §R19/§R20/§R21/§R22 — already sourced, ⊥ re-fetch, ⊥ retry analog.com (§R23 is a CLOSED gap). add TI prefix-composed rows as first-class entries per §R21 (⊥ runtime prefix synthesis). ∀ alias ! carry its source. `count_policy` guide: chip size codes (0402/0603/1206) = `chip`; a short name already ending in its count (SOT-23-3, SC70-5) = `embedded`; diode/power families whose identity has ∄ count (SOD-123, SMA, DO-214AC, TO-252) = `none`; everything else = `append`.
 verify: dataset parses as JSON; ∄ duplicate `short_name`; `foldAliasKey` over every alias yields ∄ collisions across different packages — a colliding alias ! be reported for a human ruling, ⊥ silently dropped; spot-check 10 rows against the cited source.
 exit: reviewed dataset on disk + row/alias counts reported.
 next: F1.T2
 
-T2|.|collect real vendor package strings & write the grammar fixture
+T2|x|collect real vendor package strings & write the grammar fixture
 touch: `scratchpad/package-grammar.md`, `scratchpad/package-samples.json`
 details: §R24 already fixes the provenance — DigiKey `product.Parameters[].ParameterText === 'Package / Case'` -> `{value}`, fallback `primaryVariation?.PackageType?.Name`; Mouser `part.PackageType`. What is still missing is a real SAMPLE SET. Collect ≥20 real `Package / Case` values across categories (IC, discrete, passive, connector) + ≥3 fallback-path values, & record each as `{input, expectedShortName, expectedPinCount, expectedCanonical, resolveStepThatMatched}` using the D1 step numbers. ! include the known-hostile inputs: `'N/A'`, `8-SOIC (0.154", 3.90mm Width)`, `16-VQFN Exposed Pad`, `SOT-23-5 Thin, TSOT-23-5`. This file becomes the shared fixture for F3.T4 & the F3.T5 server/client parity test.
 verify: every sample carries an expected canonical output & the D1 step number that produced it; ≥20 samples; the 4 hostile inputs present.
 exit: fixture on disk, consumable verbatim as a test table.
 next: F1.T3
 
-T3|.|prove the decided DDL on scratch PostgreSQL 18
+T3|x|prove the decided DDL on scratch PostgreSQL 18
 touch: `scratchpad/21_package_catalog.draft.sql`
 details: write & apply the D4/D5 schema against a scratch PG18 cluster (⊥ the live DB, §C7). `packages`: `id UUID PRIMARY KEY DEFAULT uuidv7()` (§C2), `short_name TEXT NOT NULL UNIQUE`, `family TEXT`, `mount TEXT`, `count_policy TEXT NOT NULL CHECK (count_policy IN ('chip','embedded','none','append'))`, `is_builtin BOOLEAN NOT NULL DEFAULT false`, `is_active BOOLEAN NOT NULL DEFAULT true`, `display_order INTEGER`. `package_aliases`: `id UUID PRIMARY KEY DEFAULT uuidv7()`, `package_id UUID NOT NULL REFERENCES packages(id) ON DELETE CASCADE`, `alias TEXT NOT NULL`, `alias_key TEXT GENERATED ALWAYS AS (lower(regexp_replace(alias, '[^A-Za-z0-9]', '', 'g'))) STORED`, `UNIQUE (alias_key)`, plus an index on `package_id` (FK covering, precedent `database/migrations/14_fk_covering_indexes.sql`).
 verify: DDL applies clean on scratch PG18; re-running is a no-op; a duplicate `alias_key` insert is rejected; `INSERT` w/ `count_policy='bogus'` is rejected. Record whether the generated column was accepted or the §R25 error forced the D4 trigger fallback — F2.T1 copies whichever landed.
