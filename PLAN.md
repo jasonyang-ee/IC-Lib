@@ -325,7 +325,7 @@ verify: client tests for create/edit/delete + alias add/remove + promote + `coun
 exit: catalog admin-maintainable.
 next: F6.T3
 
-T3|.|display case: uppercase density, lowercase extension (§V63)
+T3|x|display case: uppercase density, lowercase extension (§V63)
 touch: `client/src/pages/FileLibrary.jsx`, `client/src/components/library/ComponentFiles.jsx`
 details: two display rules, both display-only. (a) on-disk footprint names are lowercase → render the density letter uppercase (`dip-8_a.psm` shown as `DIP-8_A.psm`). (b) per ruling 5, a symbol/model extension is ALWAYS shown lowercase (`.step`, `.olb`) — since F4 also writes it lowercase, this is belt-and-braces for legacy rows still holding `.STEP`. ⊥ let either display form reach a write path, a collision check, or a rename payload.
 verify: a client test asserts the displayed string is uppercase-density + lowercase-extension while the value sent to the rename mutation stays exactly as stored.

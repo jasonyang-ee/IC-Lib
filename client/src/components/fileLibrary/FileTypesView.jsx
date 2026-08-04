@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getCadFileBaseName, groupFootprintFiles } from '../../utils/footprintFiles';
+import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 import StatusBadge from './StatusBadge';
 import { FilterSelect, SidebarCard } from '../common';
 import { getCadFileTypeLabel } from './constants';
@@ -314,8 +315,8 @@ const FileTypesView = ({
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={entry.displayName}>
-                            {entry.displayName}
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={formatCadFileDisplayName(entry.displayName, entry.file_type)}>
+                            {formatCadFileDisplayName(entry.displayName, entry.file_type)}
                           </p>
                           {entry.kind === 'pair' ? (
                             <div className="mt-0.5 space-y-0.5">
@@ -387,8 +388,8 @@ const FileTypesView = ({
             <div className="flex justify-between items-start mb-3 shrink-0">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" title={selectedEntry.displayName}>
-                    {selectedEntry.displayName}
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" title={formatCadFileDisplayName(selectedEntry.displayName, selectedEntry.file_type)}>
+                    {formatCadFileDisplayName(selectedEntry.displayName, selectedEntry.file_type)}
                   </h2>
                   <button
                     onClick={() => onCopyPath(selectedEntry.fileNames, selectedType)}

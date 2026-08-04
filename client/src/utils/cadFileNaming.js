@@ -72,3 +72,24 @@ export const buildCadShortcutFilename = (currentFilename, renamedBase, fileType)
 
   return `${normalizedBase}${normalizedSuffix}${normalizedExtension}`;
 };
+
+/**
+ * Display-only formatting (SPEC V63): footprints are stored all-lowercase, so
+ * render their density letter uppercase, and always show a CAD extension
+ * lowercase even on a legacy row that still holds `.STEP`. Never send the
+ * result to a write path, a collision check, or a rename payload.
+ */
+export const formatCadFileDisplayName = (fileName, fileType) => {
+  const name = typeof fileName === 'string' ? fileName : '';
+  if (!name) return name;
+
+  const lastDotIndex = name.lastIndexOf('.');
+  const base = lastDotIndex >= 0 ? name.slice(0, lastDotIndex) : name;
+  const ext = lastDotIndex >= 0 ? name.slice(lastDotIndex).toLowerCase() : '';
+
+  const displayBase = fileType === 'footprint' || isFootprintPairFile(name)
+    ? base.replace(/([_-])([abc])$/, (match, separator, letter) => `${separator}${letter.toUpperCase()}`)
+    : base;
+
+  return `${displayBase}${ext}`;
+};

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
-import { buildCadShortcutFilename, formatCanonicalPackageFilenameBase } from '../../utils/cadFileNaming';
+import { buildCadShortcutFilename, formatCadFileDisplayName, formatCanonicalPackageFilenameBase } from '../../utils/cadFileNaming';
 import {
   buildOlbCategoryAssignments,
   CAD_FILE_UPLOAD_ACCEPT,
@@ -1211,8 +1211,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                     /* Normal file row */
                     <div className="flex items-start justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
                       {file.missing ? (
-                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={file.name}>
-                          {file.name}
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name)}>
+                          {formatCadFileDisplayName(file.name)}
                           <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
                         </span>
                       ) : mfgPartNumber ? (
@@ -1221,13 +1221,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                          title={file.name}
+                          title={formatCadFileDisplayName(file.name)}
                         >
-                          {file.name}
+                          {formatCadFileDisplayName(file.name)}
                         </a>
                       ) : (
-                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={file.name}>
-                          {file.name}
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name)}>
+                          {formatCadFileDisplayName(file.name)}
                         </span>
                       )}
                       {!file.missing && (

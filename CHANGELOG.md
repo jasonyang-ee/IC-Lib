@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Footprint names now display their density letter uppercase (`dip-8_a.psm` shows as `dip-8_A.psm`) and every CAD extension displays lowercase, including legacy records still holding `.STEP`. The formatting is display-only: renames, collision checks, and download links still use the stored name.
+
 - Administrators can maintain the package catalog from Admin Settings -> Category: create, edit, and remove packages, add or remove aliases, promote any alias to be the canonical name, and choose the per-package count policy from four labelled options that show the resulting canonical name for an 8-pin part. Promotion keeps every alias row, so the package still resolves from both the new and the displaced name.
 
 - The parts-detail package field now offers the built-in package catalog as well as the package values already stored on components in that category, so a fresh install has suggestions before any part exists. Catalog names are listed first and a stored value that matches a catalog package is listed once. Stored `package_size` values are never rewritten.
