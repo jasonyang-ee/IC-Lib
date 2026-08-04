@@ -131,6 +131,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install PostgreSQL 18 binaries
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-18
+          # The schema tests spin up their own scratch clusters; the packaged
+          # cluster would only contend with the postgres:18 service container.
+          sudo pg_dropcluster --stop 18 main || true
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
       - name: Initialize test database
         run: |
           PGPASSWORD=postgres psql -h localhost -U postgres -d iclib_test -f ../database/init-schema.sql
