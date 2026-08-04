@@ -12,26 +12,27 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit b29f839 | tests pass 699/699 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 2a9a8bd | tests pass 700/700 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
-F4.T3: catalog-backed MPN/package shortcut case policy + File Library controls -> b29f839
+F4.T4: Shared File Rename ECO catalog canonicalization + regressions -> 2a9a8bd
 
 ## in progress (exact stop point)
 
-F4.T4: read `massFileRenameEcoService.js` + ECO rename tests in full before staging edits; implementation not started.
+F5.T1: read `cadFileService.js` and filename-sanitizer boundaries in full before planner implementation; implementation not started.
 mid-edit files: none
 
 ## next
 
-F4.T4 | preconditions: read `server/src/services/massFileRenameEcoService.js`, `server/src/test/massFileRenameEcoService.test.js`, `server/src/utils/footprintFiles.js`, and ECO route/controller callers in full; name staged-name cases before implementation.
+F5.T1 | preconditions: read `server/src/services/cadFileService.js`, `server/src/utils/footprintFiles.js`, `server/src/utils/packageNaming.js`, catalog service, and CAD transaction tests in full; name planner cases before implementation.
 
 ## deviations & decisions
 
 - File Library canonicalizes before physical-only, ECO-staged, and pair collision paths; `renameCadFile` independently keeps the same boundary for direct callers. PLAN.md updated: n.
 - File Library passed MPN/package handlers into `RenameModal`, but modal omitted them; F4.T3 renders those existing actions so catalog-backed shortcuts are usable. PLAN.md updated: n.
+- Shared Rename ECO staging loads the active catalog once per run and canonicalizes only `footprint|symbol|model`; pad/PSpice staged names remain byte-for-byte unchanged. PLAN.md updated: n.
 
 ## watchouts
 
