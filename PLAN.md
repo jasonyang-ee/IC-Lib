@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: work-in-progress
+planning status: done
 -->
 
 # PLAN
@@ -133,14 +133,14 @@ files: `HANDOFF.md` (result table), `SPEC.md` (drift resolution), `CHANGELOG.md`
 
 §T TASKS:
 
-T1|.|run the suite & re-read the touched spec
+T1|x|run the suite & re-read the touched spec
 touch: -
 details: `bash ./test.sh` full (⊥ `--test-only`). re-read §V28, §V63, §V45, §C11 & the F1/F2 phase sections. baseline for comparison = 739/739 + 1 pre-existing server lint warning.
 verify: full suite green, or every failure named exactly — file + case.
 exit: baseline established.
 next: F3.T2
 
-T2|.|classify ∀ relevant §V / §I / §T item
+T2|x|classify ∀ relevant §V / §I / §T item
 touch: `HANDOFF.md`
 details: mark each `HOLD` | `VIOLATE` | `UNVERIFIABLE` w/ file or test evidence. §V63 is AMENDED this cycle ∴ it ! carry a named test, ⊥ a code pointer alone. §V28 ! be re-verified as untouched — this cycle changes ∄ disk name.
 **! actually write the table rows.** the prior cycle left this table as a header row w/ ∄ body while its commit `773cc2a` claimed it was filled; an empty table blocked `/garnish`. a row per item or the phase is ⊥ done.
@@ -148,7 +148,7 @@ verify: result table filled in `HANDOFF.md`; ∄ row left blank; row count ≥ t
 exit: classification complete.
 next: F3.T3
 
-T3|.|sweep + resolve drift & close
+T3|x|sweep + resolve drift & close
 touch: `SPEC.md` (via /encode-docs), `CHANGELOG.md`, `PLAN.md`
 details: sweep for logic correctness, unnecessary complexity, missed reuse, incoherence — cite each finding w/ file:line. traps specific to this cycle: a display form reaching a write path, collision check, rename payload, clipboard, or download link (§V63); a density remap creeping back into display (ruling 2); the symbol/model branch drifting (ruling 3); `pad`/`pspice` drifting into scope (ruling 4); a site edited that F1.T1 ruled OUT; a display form reaching a CSV export, a BOM cell, or an ECO PDF, or a server-side mirror of the formatter appearing (ruling 5).
 §V63 drift: its text says "on-disk density letter = `_a\|_b\|_c` & uppercase `_A\|_B\|_C` is display-only", which now under-describes the rule. hand `encode-docs` an EDIT of the §V63 row — whole-BASE uppercase for footprint display, pure case transform, ⊥ density remap — ⊥ a new row beside it.
