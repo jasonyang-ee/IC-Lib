@@ -143,6 +143,9 @@ jobs:
           # The schema tests spin up their own scratch clusters; the packaged
           # cluster would only contend with the postgres:18 service container.
           sudo pg_dropcluster --stop 18 main || true
+          # The PGDG build defaults unix_socket_directories to /var/run/postgresql,
+          # so the scratch clusters need it to exist and be writable by the runner.
+          sudo install -d -m 0755 -o "$(id -un)" -g "$(id -gn)" /var/run/postgresql
           echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
 
       - name: Initialize test database
