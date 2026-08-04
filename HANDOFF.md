@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit a3594a2 | tests pass 734/734 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 1070916 | tests pass 739/739 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
@@ -23,15 +23,16 @@ F5.T3: `POST /api/file-library/sanitize-filenames` admin+token gated + run repor
 F5.T4: Operation tab Filename Sanitization panel + `api.sanitizeFilenames` + 3 client cases -> 90c3dbd
 F6.T1: `mergePackageSuggestions` + `loadPackageSuggestions` across ∀ 4 Library.jsx sites + `api.getPackages` -> 053aec9
 F6.T2: `PackageCatalogManager` (new component under Category tab) + admin api wrappers + promoteAlias service cases -> a3594a2
+F6.T3: `formatCadFileDisplayName` display-only case rules in FileTypesView + ComponentFiles -> 1070916
 
 ## in progress (exact stop point)
 
-F6.T2: done & committed.
+F6.T3: done & committed. F6 complete.
 mid-edit files: none
 
 ## next
 
-F6.T3 | preconditions: display-only case rules in `client/src/pages/FileLibrary.jsx` + `client/src/components/library/ComponentFiles.jsx` — footprint density letter rendered UPPERCASE (`dip-8_a.psm` -> `DIP-8_A.psm`), symbol/model extension rendered lowercase. ⊥ let either display form reach a write path, collision check, or rename payload: format at render only, keep the stored value in state & in every mutation body.
+F7.T1 | preconditions: full `bash ./test.sh` (⊥ `--test-only`), then re-read §C2/§C4/§C7/§C11, §I6/§I13, §V2/§V4/§V10/§V15/§V20/§V25/§V27/§V28/§V41/§V46/§V51/§V53/§V61-64 & the F2-F6 phase sections before filling the F7.T2 classification table in this file.
 
 ## deviations & decisions
 
