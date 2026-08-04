@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: work-in-progress
+planning status: done
 -->
 
 # PLAN
@@ -340,28 +340,28 @@ files: `HANDOFF.md` (result table), `SPEC.md` (drift resolution), `CHANGELOG.md`
 
 §T TASKS:
 
-T1|.|run the suite & re-read the touched spec
+T1|x|run the suite & re-read the touched spec
 touch: -
 details: `bash ./test.sh` full (⊥ `--test-only`). re-read every §V/§C/§I id listed in `inputs` & every F2-F6 phase section.
 verify: full suite green, or every failure named exactly — file + case.
 exit: baseline established.
 next: F7.T2
 
-T2|.|classify ∀ relevant §V / §I / §T item
+T2|x|classify ∀ relevant §V / §I / §T item
 touch: `HANDOFF.md`
 details: mark each `HOLD` | `VIOLATE` | `UNVERIFIABLE` w/ file or test evidence. §V61-64 are new this cycle ∴ each ! carry a named test, ⊥ a code pointer alone. §V28 & §V51 were amended — re-verify their claims still hold. §V25 & §V64 interact in F5 ∴ verify atomicity under bulk rename volume.
 verify: result table filled in `HANDOFF.md`; ∄ row left blank.
 exit: classification complete.
 next: F7.T3
 
-T3|.|sweep the implementation
+T3|x|sweep the implementation
 touch: -
 details: logic correctness, unnecessary complexity, missed reuse, codebase incoherence — cite each finding w/ file:line. traps specific to this cycle: a second package list living outside the catalog (§V62); the density remap silently reverting to alphabetical (§R18); `_A` or an uppercase extension leaking into a write path (§V63); F5 bypassing `renameCadFile` (§V64); a rename path sneaking back into the startup scan (ruling 7); `pad`/`pspice` drifting into scope (ruling 6); server & client naming modules diverging (§V28 precedent).
 verify: each finding cited, or the sweep explicitly reports ∄ findings per category.
 exit: sweep recorded.
 next: F7.T4
 
-T4|.|resolve drift & close
+T4|x|resolve drift & close
 touch: `SPEC.md` (via /encode-docs), `CHANGELOG.md`, `PLAN.md`
 details: name every drift explicitly & decide code-changes vs spec-changes. `CHANGELOG.md` `## [Unreleased]` ! carry the cycle, incl. an operator note that Filename Sanitization renames shared-drive files & rewrites the OrCAD/CIS `pcb_footprint` surface. commit directly, single summary commit, ⊥ AI co-author trailer. ⊥ push | tag without an explicit ask.
 verify: `SPEC.md` matches code-as-built (§C9); tree clean.

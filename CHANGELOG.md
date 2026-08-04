@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Operator note: Filename Sanitization renames CAD files on the shared library drive and rewrites the `pcb_footprint` values that OrCAD/CIS reads for existing board designs. Back up the shared drive before running it.
+
 - Footprint names now display their density letter uppercase (`dip-8_a.psm` shows as `dip-8_A.psm`) and every CAD extension displays lowercase, including legacy records still holding `.STEP`. The formatting is display-only: renames, collision checks, and download links still use the stored name.
 
 - Administrators can maintain the package catalog from Admin Settings -> Category: create, edit, and remove packages, add or remove aliases, promote any alias to be the canonical name, and choose the per-package count policy from four labelled options that show the resulting canonical name for an 8-pin part. Promotion keeps every alias row, so the package still resolves from both the new and the displaced name.

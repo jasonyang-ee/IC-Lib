@@ -24,15 +24,16 @@ F5.T4: Operation tab Filename Sanitization panel + `api.sanitizeFilenames` + 3 c
 F6.T1: `mergePackageSuggestions` + `loadPackageSuggestions` across ∀ 4 Library.jsx sites + `api.getPackages` -> 053aec9
 F6.T2: `PackageCatalogManager` (new component under Category tab) + admin api wrappers + promoteAlias service cases -> a3594a2
 F6.T3: `formatCadFileDisplayName` display-only case rules in FileTypesView + ComponentFiles -> 1070916
+F7.T1-T4: full suite green, §V/§I/§C classified below, sweep clean, §V64 pair-unwind clause added to SPEC.md
 
 ## in progress (exact stop point)
 
-F6.T3: done & committed. F6 complete.
+F7.T4: done & committed. cycle complete.
 mid-edit files: none
 
 ## next
 
-F7.T1 | preconditions: full `bash ./test.sh` (⊥ `--test-only`), then re-read §C2/§C4/§C7/§C11, §I6/§I13, §V2/§V4/§V10/§V15/§V20/§V25/§V27/§V28/§V41/§V46/§V51/§V53/§V61-64 & the F2-F6 phase sections before filling the F7.T2 classification table in this file.
+- | cycle complete: ∀ §T = x & final verification HOLD ∴ run `/garnish`.
 
 ## deviations & decisions
 
