@@ -12,33 +12,31 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit f4b0f40 | tests pass 595/595 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 1649985 | tests pass 19/19 (`cd server && npm.cmd run test:run -- src/test/routeAuthGuards.test.js`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
-F1.T4: TSOT/D9/D10 seed remediation; 116 packages, 205 folded keys, 30 fixtures → a88b05e
-F2.T1: PG18 `packages`/`package_aliases` migration + fresh-schema parity; scratch fresh/migration replay HOLD → 1f23732
-F2.T2: idempotent 116-package + normalized-alias startup seed; PG18 3-run proof → b3521fe
-F2.T3: startup inspection + dependency-ordered export catalog coverage; full suite → f4b0f40
+F2.T4: package service/controller/routes + registry/public-read bindings; route guard 19/19 → 1649985
 
 ## in progress (exact stop point)
 
-F2.T4: read full catalog-route patterns and implement `packageService`, controller, routes, and exact registry/public-read bindings.
+F2.T5: add `packageService` + controller tests for catalog resolution, count-policy validation, and admin-only mutation routes.
 mid-edit files: none
 
 ## next
 
-F2.T4 | preconditions: use `authenticate` + `isAdmin` for every mutation; public GET parity guard stays green.
+F2.T5 | preconditions: mock DB/transaction behavior; preserve `routeAuthGuards.test.js` public-read parity.
 
 ## deviations & decisions
 
 - F2.T1 DDL used F1.T3's generated `alias_key`; guarded constraints/indexes preserve idempotence. PLAN.md updated: n
+- F2.T4 resolves unknown vendor text as `{ input, package: null }`; caller has a sanitized pass-through value while catalog miss remains explicit. PLAN.md updated: n
 
 ## watchouts
 
 - `packages` + `package_aliases` now join `EXPECTED_SCHEMA_TABLES` + `EXPORT_TABLES`; ⊥ alter OrCAD/CIS view expectations.
-- F2.T4's `resolvePackage(raw)` must return sanitized unknown input instead of throwing; promotion stays transactional.
+- `resolvePackage(raw)` returns `{ input, package: null }` for misses; canonical promotion stays transactional and preserves aliases.
 - scratch PostgreSQL container `iclib-pg18-package-catalog` stopped/removed; ⊥ live DB touched.
 
 ## final verification
