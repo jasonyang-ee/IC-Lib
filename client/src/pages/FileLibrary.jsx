@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
-import { formatPackageFilenameBase } from '../utils/cadFileNaming';
+import { buildCadShortcutFilename, formatCanonicalPackageFilenameBase } from '../utils/cadFileNaming';
 import {
   FOOTPRINT_PLUS_ERROR_MESSAGE,
   getCadFileBaseName,
@@ -124,6 +124,12 @@ const buildFileEntries = (files, selectedType) => {
   return (files || [])
     .map((file) => buildSingleFileEntry(file, selectedType))
     .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
+};
+
+const buildShortcutRenameValue = (renameData, baseName, fileType) => {
+  const currentFilename = renameData.fileNames?.[0] || renameData.oldName;
+  const shortcutFilename = buildCadShortcutFilename(currentFilename, baseName, fileType);
+  return renameData.mode === 'pair' ? getCadFileBaseName(shortcutFilename) : shortcutFilename;
 };
 
 const FileLibrary = () => {
@@ -749,39 +755,39 @@ const FileLibrary = () => {
     if (components && components.length > 0) {
       const mpn = components[0].manufacturer_pn;
       if (mpn) {
-        if (renameData.mode === 'pair') {
-          setRenameData((previous) => ({ ...previous, newName: mpn }));
-          return;
-        }
-
-        const ext = renameData.oldName.includes('.')
-          ? renameData.oldName.substring(renameData.oldName.lastIndexOf('.'))
-          : '';
-        setRenameData(prev => ({ ...prev, newName: mpn + ext }));
+        const sanitizedMpn = mpn
+          .replace(/[<>:"/\\|?*]/g, '_')
+          .replace(/\s+/g, '_');
+        setRenameData((previous) => ({
+          ...previous,
+          newName: buildShortcutRenameValue(previous, sanitizedMpn, routeTypeToFileType[previous.type || selectedType]),
+        }));
       }
     }
   };
 
-  const handleUsePackage = () => {
+  const handleUsePackage = async () => {
     const components = componentsData?.components;
     if (components && components.length > 0) {
       const pkg = components[0].package_size;
       if (pkg) {
-        const formattedPkg = formatPackageFilenameBase(pkg);
-        if (!formattedPkg) {
+        let packageBase;
+        try {
+          const response = await api.resolvePackage(pkg);
+          packageBase = formatCanonicalPackageFilenameBase(pkg, response.data);
+        } catch (error) {
+          showError('Package lookup failed: ' + (error.response?.data?.error || error.message));
+          return;
+        }
+
+        if (!packageBase) {
           showError('Package name is empty after formatting');
           return;
         }
-
-        if (renameData.mode === 'pair') {
-          setRenameData((previous) => ({ ...previous, newName: formattedPkg }));
-          return;
-        }
-
-        const ext = renameData.oldName.includes('.')
-          ? renameData.oldName.substring(renameData.oldName.lastIndexOf('.'))
-          : '';
-        setRenameData(prev => ({ ...prev, newName: formattedPkg + ext }));
+        setRenameData((previous) => ({
+          ...previous,
+          newName: buildShortcutRenameValue(previous, packageBase, routeTypeToFileType[previous.type || selectedType]),
+        }));
       }
     }
   };

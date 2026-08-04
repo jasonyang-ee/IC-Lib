@@ -253,7 +253,7 @@ verify: `server/src/test/cadFileServiceTransactions.test.js` extended: canonical
 exit: rename paths canonical & still atomic.
 next: F4.T3
 
-T3|~|MPN + package rename shortcuts w/ per-type case (§V63)
+T3|x|MPN + package rename shortcuts w/ per-type case (§V63)
 touch: `client/src/components/library/ComponentFiles.jsx:636-727`, `client/src/pages/FileLibrary.jsx:770`
 details: the two shortcuts (`requestMpnRename`, `requestPkgRename`) currently call `buildCadShortcutFilename` + `formatPackageFilenameBase`. route them through F3's module. §V63 case split: footprint → all lowercase; symbol & model → UPPERCASE base + lowercase extension. the PKG shortcut ! canonicalize `packageSize` through the catalog first ∴ a part carrying `8-SOIC (0.154", 3.90mm Width)` renames its footprint to `soic-8_<d>.psm` & its model to `SOIC-8_<D>.step`, preserving whatever density the current filename carries (`buildCadShortcutFilename` already preserves the suffix — keep that contract).
 verify: client tests for both shortcuts × 3 file types (footprint/symbol/model) asserting the case split incl. lowercase extension; the existing confirm-modal flow still shows old→new before mutating.

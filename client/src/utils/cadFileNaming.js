@@ -1,5 +1,5 @@
 import { isFootprintPairFile } from './footprintFiles';
-import { parsePackageInput } from './packageNaming';
+import { buildCanonicalName, parsePackageInput } from './packageNaming';
 
 const DIMENSIONAL_NOTE_PATTERN = /\s*\((?=[^)]*(?:mm|cm|mil|inch|inches|width|height|length|pitch|dia|diameter|body|thick|od|id|["']))[^)]*\)\s*$/i;
 const PACKAGE_ALIAS_SEPARATOR = /[;,]/;
@@ -20,6 +20,21 @@ export const formatPackageFilenameBase = (packageSize) => (
     .replace(/[<>:"/\\|?*]/g, '_')
     .replace(/\s+/g, '_')
 );
+
+/**
+ * Keep unknown package text usable while promoting catalog-resolved package
+ * names to the same canonical base the server stores.
+ */
+export const formatCanonicalPackageFilenameBase = (packageSize, resolution) => {
+  const packageRow = resolution?.package;
+  const canonicalName = packageRow && buildCanonicalName({
+    shortName: packageRow.short_name,
+    pinCount: resolution.pinCount,
+    countPolicy: packageRow.count_policy,
+  });
+
+  return canonicalName || formatPackageFilenameBase(resolution?.input || packageSize);
+};
 
 export const extractCadDensitySuffix = (filename) => {
   if (!filename || typeof filename !== 'string') {
@@ -42,9 +57,18 @@ export const extractCadDensitySuffix = (filename) => {
   };
 };
 
-export const buildCadShortcutFilename = (currentFilename, renamedBase) => {
+export const buildCadShortcutFilename = (currentFilename, renamedBase, fileType) => {
   const { suffix, ext } = extractCadDensitySuffix(currentFilename);
   const normalizedExtension = ext.toLowerCase();
-  const normalizedBase = isFootprintPairFile(`file${normalizedExtension}`) ? String(renamedBase || '').toLowerCase() : renamedBase;
-  return `${normalizedBase}${suffix}${normalizedExtension}`;
+  const resolvedFileType = fileType || (isFootprintPairFile(`file${normalizedExtension}`) ? 'footprint' : '');
+  const isFootprint = resolvedFileType === 'footprint' || isFootprintPairFile(`file${normalizedExtension}`);
+  const isSymbolOrModel = resolvedFileType === 'symbol' || resolvedFileType === 'model';
+  const normalizedBase = isFootprint
+    ? String(renamedBase || '').toLowerCase()
+    : isSymbolOrModel
+      ? String(renamedBase || '').toUpperCase()
+      : String(renamedBase || '');
+  const normalizedSuffix = isSymbolOrModel ? suffix.toUpperCase() : suffix;
+
+  return `${normalizedBase}${normalizedSuffix}${normalizedExtension}`;
 };

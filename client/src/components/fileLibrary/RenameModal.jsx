@@ -10,6 +10,8 @@ const RenameModal = ({
   fileTypes,
   onClose,
   onSubmit,
+  onUseMPN,
+  onUsePackage,
   isPending,
   isUnchanged,
 }) => {
@@ -87,6 +89,20 @@ const RenameModal = ({
                     <p key={name} className="text-sm font-mono text-blue-800 dark:text-blue-200">{name}</p>
                   ))}
                 </div>
+              </div>
+            )}
+            {(componentsData?.components?.[0]?.manufacturer_pn || componentsData?.components?.[0]?.package_size) && (
+              <div className="mt-3 flex gap-2">
+                {componentsData?.components?.[0]?.manufacturer_pn && (
+                  <button type="button" onClick={onUseMPN} disabled={isPending} className="btn-secondary text-sm disabled:opacity-50">
+                    Use MPN
+                  </button>
+                )}
+                {componentsData?.components?.[0]?.package_size && (
+                  <button type="button" onClick={onUsePackage} disabled={isPending} className="btn-secondary text-sm disabled:opacity-50">
+                    Use Package
+                  </button>
+                )}
               </div>
             )}
           </div>

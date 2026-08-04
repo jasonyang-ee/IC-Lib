@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
-import { buildCadShortcutFilename, formatPackageFilenameBase } from '../../utils/cadFileNaming';
+import { buildCadShortcutFilename, formatCanonicalPackageFilenameBase } from '../../utils/cadFileNaming';
 import {
   buildOlbCategoryAssignments,
   CAD_FILE_UPLOAD_ACCEPT,
@@ -612,7 +612,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     const sanitizedMpn = mfgPartNumber
       .replace(/[<>:"/\\|?*]/g, '_')
       .replace(/\s+/g, '_');
-    const candidateFilename = buildCadShortcutFilename(file.name, sanitizedMpn);
+    const candidateFilename = buildCadShortcutFilename(file.name, sanitizedMpn, category);
     if (hasIllegalFootprintPlus(candidateFilename)) {
       showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
       return;
@@ -653,14 +653,22 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     setMpnRenameConfirm({ show: false, category: '', oldFilename: '', newFilename: '', tempFilename: null, pairedFilename: null, pairedTempFilename: null });
   };
 
-  const requestPkgRename = (category, file, pairedFile = null) => {
+  const requestPkgRename = async (category, file, pairedFile = null) => {
     if (!packageSize) return;
-    const sanitizedPkg = formatPackageFilenameBase(packageSize);
-    if (!sanitizedPkg) {
+    let packageBase;
+    try {
+      const response = await api.resolvePackage(packageSize);
+      packageBase = formatCanonicalPackageFilenameBase(packageSize, response.data);
+    } catch (error) {
+      showError('Package lookup failed: ' + (error.response?.data?.error || error.message));
+      return;
+    }
+
+    if (!packageBase) {
       showError('Package name is empty after formatting');
       return;
     }
-    const candidateFilename = buildCadShortcutFilename(file.name, sanitizedPkg);
+    const candidateFilename = buildCadShortcutFilename(file.name, packageBase, category);
     if (hasIllegalFootprintPlus(candidateFilename)) {
       showError(FOOTPRINT_PLUS_ERROR_MESSAGE);
       return;

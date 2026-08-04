@@ -120,6 +120,9 @@ export const api = {
     return apiClient.get('/components/field-suggestions', { params: { categoryId, field } });
   },
 
+  // Package catalog (public reads)
+  resolvePackage: (value) => apiClient.get('/packages', { params: { resolve: value } }),
+
   // Categories
   getCategories: () => apiClient.get('/categories'),
   getCategoryById: (id) => apiClient.get(`/categories/${id}`),
