@@ -5,7 +5,8 @@ import {
   normalizeCadUploadFilename,
   resolveCanonicalCadFilename,
 } from '../utils/footprintFiles.js';
-import { isTrackableCadFile } from './cadFileService.js';
+import { logInfo, logWarn } from '../utils/logger.js';
+import { isTrackableCadFile, renameCadFile } from './cadFileService.js';
 
 /** Filename Sanitization scope (SPEC V64): pad and pspice stay out. */
 export const SANITIZE_FILE_TYPES = ['footprint', 'symbol', 'model'];
@@ -45,6 +46,7 @@ const groupFiles = (files) => {
 
 const entryOf = (file, newName, action, reason) => ({
   cadFileId: file.id,
+  groupKey: groupKeyOf(file),
   fileType: file.file_type,
   oldName: file.file_name,
   newName,
@@ -119,4 +121,59 @@ export function planFilenameSanitization(files, catalog) {
   return entries;
 }
 
-export default { SANITIZE_FILE_TYPES, SANITIZE_SKIP_REASONS, planFilenameSanitization };
+/**
+ * Apply a plan through the atomic rename path (SPEC V25). A failure demotes its
+ * whole group to a reported skip and the pass continues (SPEC V64); a footprint
+ * pair that fails halfway is unwound so the pair never splits (SPEC V53).
+ */
+export async function applyFilenameSanitization(entries, { renameFile = renameCadFile } = {}) {
+  const groups = new Map();
+  for (const entry of entries) {
+    if (entry.action !== 'rename') continue;
+    if (!groups.has(entry.groupKey)) groups.set(entry.groupKey, []);
+    groups.get(entry.groupKey).push(entry);
+  }
+
+  const failedGroups = new Set();
+  for (const [groupKey, members] of groups) {
+    const renamed = [];
+    try {
+      for (const entry of members) {
+        await renameFile(entry.cadFileId, entry.newName);
+        renamed.push(entry);
+        logInfo('Sanitize', `${entry.oldName} -> ${entry.newName}`);
+      }
+    } catch (error) {
+      failedGroups.add(groupKey);
+      for (const entry of renamed.reverse()) {
+        try {
+          await renameFile(entry.cadFileId, entry.oldName, { canonicalize: false });
+        } catch (revertError) {
+          logWarn('Sanitize', `Failed to restore ${entry.newName} to ${entry.oldName}: ${revertError.message}`);
+        }
+      }
+      logWarn('Sanitize', `skip ${members.map((entry) => entry.oldName).join(', ')} (${SANITIZE_SKIP_REASONS.RENAME_FAILED}: ${error.message})`);
+    }
+  }
+
+  const results = entries.map((entry) => (
+    entry.action === 'rename' && failedGroups.has(entry.groupKey)
+      ? { ...entry, newName: entry.oldName, action: 'skip', reason: SANITIZE_SKIP_REASONS.RENAME_FAILED }
+      : entry
+  ));
+
+  for (const entry of results) {
+    if (entry.action === 'skip' && entry.reason !== SANITIZE_SKIP_REASONS.RENAME_FAILED) {
+      logInfo('Sanitize', `skip ${entry.oldName} (${entry.reason})`);
+    }
+  }
+
+  return results;
+}
+
+export default {
+  SANITIZE_FILE_TYPES,
+  SANITIZE_SKIP_REASONS,
+  planFilenameSanitization,
+  applyFilenameSanitization,
+};

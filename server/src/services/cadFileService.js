@@ -294,8 +294,13 @@ export function isSameExistingFile(firstPath, secondPath) {
  * The physical rename, cad_files update, and TEXT-column regeneration run inside
  * a single transaction; if any step fails the DB rolls back and the physical
  * rename is reverted (best effort), so disk and DB never drift apart.
+ *
+ * `canonicalize: false` is for callers restoring a previous name (Filename
+ * Sanitization unwinding a half-renamed footprint pair): re-resolving the
+ * catalog there would map the old name straight back onto the name being
+ * undone.
  */
-export async function renameCadFile(cadFileId, newFileName) {
+export async function renameCadFile(cadFileId, newFileName, { canonicalize = true } = {}) {
   const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
 
   if (cfResult.rows.length === 0) {
@@ -307,7 +312,7 @@ export async function renameCadFile(cadFileId, newFileName) {
   const subdir = TYPE_SUBDIR[cadFile.file_type];
   let safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
 
-  if (isCanonicalPackageFileType(cadFile.file_type)) {
+  if (canonicalize && isCanonicalPackageFileType(cadFile.file_type)) {
     let catalog = [];
     try {
       catalog = await listPackages();

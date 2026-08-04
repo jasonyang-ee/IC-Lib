@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Filename Sanitization applies its plan through the existing atomic CAD rename path, so each rename keeps disk, `cad_files`, and component TEXT columns in one transaction. A failed rename is reported as a skipped file and the pass continues; a footprint pair that fails halfway is restored to its original names so the pair never splits. Every rename and skip is logged with its reason.
+
 - Filename Sanitization now has a side-effect-free planner that classifies each registered footprint, symbol, and model file as a rename or a reported skip (`no-package-info`, `no-pin-count`, `unsupported-variant`, `already-canonical`, `collision`, `not-trackable`). The canonical name is derived from the file's own name only, footprint pairs are planned as one unit, pad and PSpice files stay out of scope, and package names ending in a pin count without a separator (`soic8`) now resolve like their separated form.
 
 - File Library single-file and footprint-pair renames now resolve catalog aliases to the canonical final filename before collision checks. The existing disk, `cad_files`, and component TEXT transaction remains intact, and the rename preview identifies package canonicalization as server-authoritative.

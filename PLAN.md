@@ -282,7 +282,7 @@ verify: planner unit tests over a synthetic set incl. `soic8_l.psm`→`soic-8_c.
 exit: plan computable w/ ∄ side effects.
 next: F5.T2
 
-T2|.|applier through the §V25 atomic path
+T2|x|applier through the §V25 atomic path
 touch: `server/src/services/filenameSanitizeService.js`
 details: apply each planned rename via the existing `renameCadFile` path — physical rename + `cad_files` update + TEXT regen ∈ 1 txn, fail → DB rollback + best-effort physical revert (§V25). per-file try/catch: a failure demotes that file to `skip` w/ reason & the pass continues (§V64), ⊥ aborts. footprint pairs rename together — a `.psm` renamed w/o its `.dra` breaks §V53 grouping. admin actor ∴ §V20 already permits direct rename of shared files w/ ⊥ ECO; ⊥ add an ECO gate.
 verify: `server/src/test/cadFileServiceTransactions.test.js` cases: successful rename commits disk+DB together; a mid-rename DB failure leaves disk+DB consistent; a collision is skipped & the pass continues to the next file; a pair renames atomically.

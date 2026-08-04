@@ -148,6 +148,24 @@ describe('renameCadFile (transactional)', () => {
     );
   });
 
+  it('skips catalog resolution when the caller is restoring a previous name', async () => {
+    // Filename Sanitization unwinds a half-renamed footprint pair this way:
+    // re-resolving would map soic8_l.psm straight back to soic-8_b.psm.
+    configureFs(['soic-8_b.psm']);
+    configurePool({
+      cadFile: { id: 'cf-1', file_name: 'soic-8_b.psm', file_type: 'footprint' },
+      affected: [{ id: 'c1' }],
+      packages: [{ short_name: 'SOIC', count_policy: 'append', aliases: [{ alias: 'SOIC' }] }],
+    });
+    const client = makeClient();
+    mocks.pool.connect.mockResolvedValue(client);
+
+    const result = await renameCadFile('cf-1', '8-soic_n.psm', { canonicalize: false });
+
+    expect(result.newFileName).toBe('8-soic_n.psm');
+    expect(mocks.fsState.has('8-soic_n.psm')).toBe(true);
+  });
+
   it('rolls back the DB and reverts the physical rename when the cad_files update fails', async () => {
     configureFs(['old.psm']);
     configurePool({
