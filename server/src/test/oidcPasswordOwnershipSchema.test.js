@@ -216,12 +216,17 @@ const startScratchServer = async (dataDir, port) => {
 
 const createExternalEnvironment = (connection) => {
   const schemaName = `oidc_schema_${process.pid}_${randomUUID().replaceAll('-', '')}`;
+  const decoySchemaName = `${schemaName}_decoy`;
   const runConnectionSql = createSqlRunner(connection);
   const quotedSchemaName = quoteIdentifier(schemaName);
+  const quotedDecoySchemaName = quoteIdentifier(decoySchemaName);
 
   return {
     mode: 'external',
     schemaName,
+    // CREATE SCHEMA ignores search_path, so the decoy lands in the shared
+    // database and must be uniquely named and dropped with its owner schema.
+    decoySchemaName,
     namespace: `schema:${schemaName}`,
     expectedDataDirectory: undefined,
     expectedPort: undefined,
@@ -229,7 +234,9 @@ const createExternalEnvironment = (connection) => {
     verifyIdentity: () => verifyPostgresIdentity({ runSql: runConnectionSql }),
     prepare: () => runConnectionSql(`CREATE SCHEMA ${quotedSchemaName};`),
     runSql: (sql) => runConnectionSql(`SET search_path TO ${quotedSchemaName}; ${sql}`),
-    cleanup: () => runConnectionSql(`DROP SCHEMA IF EXISTS ${quotedSchemaName} CASCADE;`),
+    cleanup: () => runConnectionSql(
+      `DROP SCHEMA IF EXISTS ${quotedSchemaName} CASCADE; DROP SCHEMA IF EXISTS ${quotedDecoySchemaName} CASCADE;`,
+    ),
   };
 };
 
@@ -262,6 +269,8 @@ const createLocalEnvironment = async () => {
 
   return {
     mode: 'local',
+    // The whole cluster is destroyed in cleanup, so the plain name is safe here.
+    decoySchemaName: 'decoy',
     dataDir,
     port,
     namespace: `data-directory:${normalizeDataDirectory(dataDir)}`,
@@ -399,8 +408,8 @@ describe('OIDC password ownership schema', () => {
           auth_provider TEXT NOT NULL DEFAULT 'local',
           is_active BOOLEAN DEFAULT true
         );
-        CREATE SCHEMA decoy;
-        CREATE TABLE decoy.users (
+        CREATE SCHEMA ${quoteIdentifier(environment.decoySchemaName)};
+        CREATE TABLE ${quoteIdentifier(environment.decoySchemaName)}.users (
           id INTEGER PRIMARY KEY,
           auth_provider TEXT,
           password_hash TEXT,

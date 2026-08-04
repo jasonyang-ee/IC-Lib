@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { asClient, mockReq, mockRes, sqlDispatch } from './fixtures/controllerTestKit.js';
+import { mockReq, mockRes, sqlDispatch } from './fixtures/controllerTestKit.js';
 
 /**
  * Audit / atomicity regressions (§V7, §V8, §R9).

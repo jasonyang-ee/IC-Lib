@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Dependencies refreshed via `npm update` across `client/`, `server/`, and `scripts/` (lockfiles only; no manifest ranges changed).
+
+- The OIDC schema test no longer leaks a `decoy` schema into the shared CI database. `CREATE SCHEMA` ignores `search_path`, so the decoy escaped the per-run schema and made the second suite pass of the same job fail with `schema "decoy" already exists`; it is now uniquely named per run and dropped in cleanup.
+
+- The Library bulk-delete test waits for each row checkbox instead of assuming every row is committed once the first part number appears, removing a CI-only failure on `Select PROD-00001`.
+
 - CI installs the PostgreSQL 18 server binaries (`initdb`, `postgres`, `pg_ctl`) on the runner, so the OIDC password-ownership schema test that spins up its own scratch cluster no longer fails with `spawnSync initdb ENOENT`.
 
 - Operator note: Filename Sanitization renames CAD files on the shared library drive and rewrites the `pcb_footprint` values that OrCAD/CIS reads for existing board designs. Back up the shared drive before running it.
