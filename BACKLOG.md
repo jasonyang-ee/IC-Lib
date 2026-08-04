@@ -1,0 +1,1 @@
+Bug: The `link existing file` feature in edit and add mode of parts library did not auto link the pad of the footprint. It used to able to link the same pad that was learned and linked from other import. Please ensure this feature is working.
