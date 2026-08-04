@@ -12,34 +12,31 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 2532277 | tests pass 653/653 (`bash ./test.sh`; 1 pre-existing server lint warning)
-uncommitted: `PLAN.md`, `HANDOFF.md` — F3.T4 coverage-state correction + session baton
+branch test | last commit 6e2e210 | tests pass 683/683 (`bash ./test.sh`; 1 pre-existing server lint warning)
+uncommitted: `HANDOFF.md` - F3 baton
 
 ## done this session
 
-F3.T1-T3: pure server package naming core + focused tests → 2532277
-
+F3.T4-T5: vendor fixture coverage + client naming mirror/shortcut parity -> 6e2e210
 
 ## in progress (exact stop point)
 
-F3.T4: `server/src/test/packageNaming.test.js` resolves 11 vendor fixtures; add ≥4 F1.T3 sample rows, then mark x.
-mid-edit files: `PLAN.md`, `HANDOFF.md`
+F4.T1: inspect `fileUploadController.js` + `footprintService.js` ingress calls, then test canonical catalog-resolved upload/ZIP/finalize names.
+mid-edit files: none
 
 ## next
 
-F3.T4 | preconditions: retain pure catalog-row input; add fixture coverage before client mirror T5.
+F4.T1 | preconditions: F2 catalog + F3 naming modules complete.
 
 ## deviations & decisions
 
-- T4 was marked x before self-review found 11/15 required vendor-form examples; restored `~`. PLAN.md updated: y
-
+- T4 restored after prior 11/15 fixture gap; 15 vendor rows + canonical outputs now covered. PLAN.md updated: y
 
 ## watchouts
 
 - `parsePackageInput` returns `null` for `N/A` and ambiguous IPC hidden/deleted/reverse forms; F4 passes unresolved text through, F5 reports unsupported variants.
-
 - `packageService` keeps DB lookup/catalog CRUD; `packageNaming.js` gets catalog rows only.
-- Full suite's expected mocked-error/network stdout and lint warning do not indicate a failure.
+- Full suite expected mocked-error/network stdout + 1 server lint warning do not indicate failure.
 
 ## final verification
 
