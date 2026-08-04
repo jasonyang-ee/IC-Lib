@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 90c3dbd | tests pass 723/723 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 053aec9 | tests pass 727/727 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
@@ -21,15 +21,16 @@ F5.T1: pure rename planner `planFilenameSanitization` + `resolveCanonicalCadFile
 F5.T2: `applyFilenameSanitization` through `renameCadFile` + pair unwind + `canonicalize:false` restore -> 0477ce3
 F5.T3: `POST /api/file-library/sanitize-filenames` admin+token gated + run report + scan guard case -> 9a91295
 F5.T4: Operation tab Filename Sanitization panel + `api.sanitizeFilenames` + 3 client cases -> 90c3dbd
+F6.T1: `mergePackageSuggestions` + `loadPackageSuggestions` across ∀ 4 Library.jsx sites + `api.getPackages` -> 053aec9
 
 ## in progress (exact stop point)
 
-F5.T4: done & committed. F5 complete.
+F6.T1: done & committed.
 mid-edit files: none
 
 ## next
 
-F6.T1 | preconditions: union the catalog into `packageSuggestions` — `client/src/pages/Library.jsx:995,2070,2199,2242` + `client/src/components/library/ComponentEditForm.jsx:34-38,127-137` + a `api.getPackages()` call in `client/src/utils/api.js` (`GET /api/packages` is public & already live from F2.T4). catalog names FIRST, then existing `DISTINCT components.package_size` values, deduped by folded key (`foldAliasKey`, `client/src/utils/packageNaming.js`). ⊥ rewrite stored `components.package_size` (§V15/§V42).
+F6.T2 | preconditions: package-catalog admin section in `client/src/components/settings/tabs/CategoryTab.jsx` (614 L) — create/edit/delete package, alias add/remove, PROMOTE alias -> canonical (D8), `count_policy` 4-choice control (`chip|embedded|none|append`) w/ a one-line explanation + live example. API already live: `api.getPackages`, plus the admin mutations in `server/src/routes/packages.js` (`post /`, `put /:id`, `delete /:id`, `post /:id/aliases`, `put|delete /:id/aliases/:aliasId`, `post /:id/promote`) — add the matching `client/src/utils/api.js` wrappers. a promote test ! assert BOTH names still resolve.
 
 ## deviations & decisions
 
@@ -47,6 +48,7 @@ F6.T1 | preconditions: union the catalog into `packageSuggestions` — `client/s
 - `resolveCanonicalCadFilename` (footprintFiles.js) is now the single resolution path; `canonicalizeCadUploadFilename` is its thin wrapper. add new skip reasons there, ⊥ in the planner.
 - `parsePackageInput` trailing-count now accepts a missing separator (`soic8` ≡ `SOIC-8`), server + client mirrored. the unresolved-fallback branch still requires the `-`.
 - `renameCadFile(id, name, { canonicalize:false })` = restore-only escape hatch. ∀ forward rename ! keep the default true.
+- `mergePackageSuggestions` lives in `libraryUtils.js` & folds via `packageNaming.foldAliasKey`; ⊥ add client-only exports to the `packageNaming` mirror pair.
 - Operation tab hardcodes `SANITIZE`; server truth = `SANITIZE_CONFIRMATION_TOKEN`. changing one ! change both.
 - server confirmation token = `SANITIZE_CONFIRMATION_TOKEN` in `filenameSanitizeService.js`; the UI ! match it exactly.
 - planner entries carry `groupKey` + `cadFileId` — the applier needs both; F5.T3 strips them from the API response.
