@@ -166,7 +166,7 @@ verify: `server/src/test/schemaInspectionService.test.js` + `server/src/test/dbT
 exit: startup verification covers the catalog.
 next: F2.T4
 
-T4|.|service + controller + guarded routes
+T4|x|service + controller + guarded routes
 touch: `server/src/services/packageService.js`, `server/src/controllers/packageController.js`, `server/src/routes/packages.js`, `server/src/index.js`
 details: service owns `listPackages` (`is_active=true` only, D5), `resolvePackage(raw)` implementing D1 verbatim, `createPackage`, `updatePackage`, `deletePackage` (D5 soft-disable vs hard-delete branch), alias CRUD, and `promoteAlias(packageId, alias)` implementing D8. naming per §C11.
 registration is 3 exact edits — the §V27 registry is ⊥ a single file:

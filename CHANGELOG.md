@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Package catalog reads and administrator-only package, alias, and canonical-name promotion APIs are now mounted through the guarded route registry. Public catalog reads return active packages only, and unresolved vendor package text is returned as a sanitized pass-through value instead of failing a component workflow.
+
 - Package catalog seed data now keeps TSOT-23-5 distinct from SOT-23-5, consistently uses common package names for diode and power aliases, and includes the full imperial passive-chip series without ambiguous bare metric aliases.
 
 - Authentication state now fails closed unless `users.is_active` is exactly true, and admin activation changes reject non-boolean values before database work. Migration `20_auth_state_constraints.sql` backfills legacy NULL active states to false, makes the column non-null with a true default, and relation-scopes the OIDC password-ownership CHECK so a same-named constraint elsewhere cannot suppress it. Admin and repair password resets now accept only local-provider accounts and reassert that provider in their final write, safely rejecting a provider race without printing a new password.

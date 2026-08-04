@@ -24,6 +24,7 @@ const {
   dashboard: dashboardRoutes,
   inventory: inventoryRoutes,
   manufacturers: manufacturerRoutes,
+  packages: packageRoutes,
   projects: projectRoutes,
   scim: scimRoutes,
   settings: settingsRoutes,
@@ -175,6 +176,16 @@ describe('route auth guards', () => {
     expect(getRouteHandlers(manufacturerRoutes, 'delete', '/:id')).toEqual(['authenticate', 'isAdmin', 'deleteManufacturer']);
   });
 
+  it('protects every package catalog mutation with admin access', () => {
+    expect(getRouteHandlers(packageRoutes, 'post', '/')).toEqual(['authenticate', 'isAdmin', 'createPackage']);
+    expect(getRouteHandlers(packageRoutes, 'put', '/:id')).toEqual(['authenticate', 'isAdmin', 'updatePackage']);
+    expect(getRouteHandlers(packageRoutes, 'delete', '/:id')).toEqual(['authenticate', 'isAdmin', 'deletePackage']);
+    expect(getRouteHandlers(packageRoutes, 'post', '/:id/aliases')).toEqual(['authenticate', 'isAdmin', 'createAlias']);
+    expect(getRouteHandlers(packageRoutes, 'put', '/:id/aliases/:aliasId')).toEqual(['authenticate', 'isAdmin', 'updateAlias']);
+    expect(getRouteHandlers(packageRoutes, 'delete', '/:id/aliases/:aliasId')).toEqual(['authenticate', 'isAdmin', 'deleteAlias']);
+    expect(getRouteHandlers(packageRoutes, 'post', '/:id/promote')).toEqual(['authenticate', 'isAdmin', 'promoteAlias']);
+  });
+
   it('categories router is read-only (mutations live on the admin settings surface)', () => {
     const mutatingLayers = categoryRoutes.stack.filter((layer) => layer.route
       && Object.keys(layer.route.methods).some((method) => MUTATING_METHODS.includes(method)));
@@ -248,6 +259,7 @@ describe('public route descriptors (§V10, §V32)', () => {
       'categories /api/categories',
       'distributors /api/distributors',
       'manufacturers /api/manufacturers',
+      'packages /api/packages',
       'inventory /api/inventory',
       'search /api/search',
       'reports /api/reports',
@@ -304,6 +316,8 @@ describe('public route descriptors (§V10, §V32)', () => {
 
     // static, :param, query string, trailing slash, and method casing
     expect(resolve('GET', '/api/components')).toBe('components get /');
+    expect(resolve('GET', '/api/packages?resolve=SOIC')).toBe('packages get /');
+    expect(resolve('GET', '/api/packages/abc-123')).toBe('packages get /:id');
     expect(resolve('GET', '/api/components/abc-123')).toBe('components get /:id');
     expect(resolve('GET', '/api/components?search=res')).toBe('components get /');
     expect(resolve('GET', '/api/components/')).toBe('components get /');

@@ -72,6 +72,8 @@ export const PUBLIC_GETS = new Set([
   'inventory get /:id/alternatives',
   'manufacturers get /',
   'manufacturers get /:id',
+  'packages get /',
+  'packages get /:id',
   'projects get /',
   'projects get /:id',
   'reports get /component-summary',

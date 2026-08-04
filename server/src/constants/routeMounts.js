@@ -10,6 +10,7 @@ export const ROUTE_MOUNTS = Object.freeze([
   Object.freeze({ name: 'categories', path: '/api/categories' }),
   Object.freeze({ name: 'distributors', path: '/api/distributors' }),
   Object.freeze({ name: 'manufacturers', path: '/api/manufacturers' }),
+  Object.freeze({ name: 'packages', path: '/api/packages' }),
   Object.freeze({ name: 'inventory', path: '/api/inventory' }),
   Object.freeze({ name: 'search', path: '/api/search' }),
   Object.freeze({ name: 'reports', path: '/api/reports' }),

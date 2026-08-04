@@ -9,6 +9,7 @@ import fileLibraryRoutes from './fileLibrary.js';
 import fileUploadRoutes from './fileUpload.js';
 import inventoryRoutes from './inventory.js';
 import manufacturerRoutes from './manufacturers.js';
+import packageRoutes from './packages.js';
 import projectRoutes from './projects.js';
 import reportsRoutes from './reports.js';
 import scimRoutes from './scim.js';
@@ -29,6 +30,7 @@ const ROUTER_BINDINGS = {
   fileUpload: fileUploadRoutes,
   inventory: inventoryRoutes,
   manufacturers: manufacturerRoutes,
+  packages: packageRoutes,
   projects: projectRoutes,
   reports: reportsRoutes,
   scim: scimRoutes,
