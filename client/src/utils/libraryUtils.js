@@ -1,5 +1,7 @@
 // Part number utilities for parsing and formatting component part numbers
 
+import { foldAliasKey } from './packageNaming';
+
 export const getVisibleBulkIds = (selectedIds, visibleComponents, isEligible = () => true) => {
   const selected = new Set(selectedIds || []);
   return visibleComponents
@@ -134,4 +136,27 @@ export const normalizeDistributors = (existingDistributors, allDistributors) => 
       price_breaks: []
     };
   });
+};
+
+/**
+ * Package field suggestions: catalog names first, then the site-specific
+ * values already stored on components, deduped by folded key so a catalog
+ * package and its differently-punctuated stored form appear once (SPEC V62).
+ */
+export const mergePackageSuggestions = (catalogPackages, storedValues) => {
+  const suggestions = [];
+  const seen = new Set();
+
+  const add = (value) => {
+    const name = String(value || '').trim();
+    const key = foldAliasKey(name);
+    if (!name || !key || seen.has(key)) return;
+    seen.add(key);
+    suggestions.push(name);
+  };
+
+  (Array.isArray(catalogPackages) ? catalogPackages : []).forEach((row) => add(row?.short_name || row));
+  (Array.isArray(storedValues) ? storedValues : []).forEach(add);
+
+  return suggestions;
 };

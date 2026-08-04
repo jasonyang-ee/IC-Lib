@@ -311,7 +311,7 @@ files: `client/src/pages/Library.jsx`, `client/src/components/library/ComponentE
 
 §T TASKS:
 
-T1|.|package field reads the catalog
+T1|x|package field reads the catalog
 touch: `client/src/pages/Library.jsx:995,2070,2199,2242`, `client/src/components/library/ComponentEditForm.jsx:34-38,127-137`, `client/src/utils/api.js`
 details: today `packageSuggestions` = `DISTINCT components.package_size` per category (`getFieldSuggestions`). merge in the catalog so a fresh install has suggestions w/ ∄ parts yet ("new service starts with default info"). keep existing distinct values so site-specific strings survive — union, catalog first, deduped by folded key (§V62). ⊥ mass-rewrite stored `components.package_size`: that is a controlled field under §V15/§V42 & a silent rewrite would bypass ECO. the dropdown offers the canonical name; the user chooses.
 verify: client test — fresh category w/ ∄ components still lists catalog packages; an existing custom value still appears exactly once.

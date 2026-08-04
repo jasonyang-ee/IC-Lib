@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { buildEcoCadFileChanges } from '../utils/ecoCadUtils';
-import { getVisibleBulkIds, parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard } from '../utils/libraryUtils';
+import { getVisibleBulkIds, parsePartNumber, formatPartNumber, mapVendorSpecifications, copyToClipboard, mergePackageSuggestions } from '../utils/libraryUtils';
 import { DeleteConfirmationModal, PromoteConfirmationModal, CategoryChangeModal, WarningModal, AddToProjectModal, AutoFillToast, VendorMappingModal } from '../components/library/LibraryModals';
 import VendorDataPanel from '../components/library/VendorDataPanel';
 import SpecificationsEditor from '../components/library/SpecificationsEditor';
@@ -172,6 +172,16 @@ const Library = () => {
   // Package suggestions and dropdown states
   const [packageSuggestions, setPackageSuggestions] = useState([]);
   const [packageOpen, setPackageOpen] = useState(false);
+
+  // Catalog packages first so a fresh install has suggestions before any part
+  // exists, then the site-specific values already stored on components.
+  const loadPackageSuggestions = async (categoryId) => {
+    const [catalogResp, storedResp] = await Promise.all([
+      api.getPackages().catch(() => ({ data: [] })),
+      api.getFieldSuggestions(categoryId, 'package_size'),
+    ]);
+    setPackageSuggestions(mergePackageSuggestions(catalogResp.data, storedResp.data));
+  };
 
   const trackEcoCadAddedFile = ({ category, filename }) => {
     setEcoCadStagedFiles(prev => {
@@ -991,9 +1001,7 @@ const Library = () => {
           setSubCat4Suggestions(sub4.data || []);
         }
         
-        // Load package suggestions
-        const packageResp = await api.getFieldSuggestions(componentDetails.category_id, 'package_size');
-        setPackageSuggestions(packageResp.data || []);
+        await loadPackageSuggestions(componentDetails.category_id);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -2066,9 +2074,7 @@ const Library = () => {
         handleFieldChange('sub_category2', '');
         handleFieldChange('sub_category3', '');
         
-        // Load package suggestions
-        const packageResp = await api.getFieldSuggestions(categoryId, 'package_size');
-        setPackageSuggestions(packageResp.data || []);
+        await loadPackageSuggestions(categoryId);
       } catch (error) {
         console.error('Error loading sub-category suggestions:', error);
       }
@@ -2195,9 +2201,7 @@ const Library = () => {
         setSubCat3Suggestions([]);
         setSubCat4Suggestions([]);
         
-        // Load package suggestions for new category
-        const packageResp = await api.getFieldSuggestions(newCategoryId, 'package_size');
-        setPackageSuggestions(packageResp.data || []);
+        await loadPackageSuggestions(newCategoryId);
 
         // Load new category's specifications (user will fill these in for ECO)
         const specsResponse = await api.getCategorySpecifications(newCategoryId);
@@ -2238,9 +2242,7 @@ const Library = () => {
         setSubCat3Suggestions([]);
         setSubCat4Suggestions([]);
         
-        // Load package suggestions for new category
-        const packageResp = await api.getFieldSuggestions(newCategoryId, 'package_size');
-        setPackageSuggestions(packageResp.data || []);
+        await loadPackageSuggestions(newCategoryId);
 
         // Load new category's specifications
         const specsResponse = await api.getCategorySpecifications(newCategoryId);

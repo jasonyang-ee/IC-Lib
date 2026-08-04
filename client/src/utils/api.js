@@ -121,6 +121,7 @@ export const api = {
   },
 
   // Package catalog (public reads)
+  getPackages: () => apiClient.get('/packages'),
   resolvePackage: (value) => apiClient.get('/packages', { params: { resolve: value } }),
 
   // Categories

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The parts-detail package field now offers the built-in package catalog as well as the package values already stored on components in that category, so a fresh install has suggestions before any part exists. Catalog names are listed first and a stored value that matches a catalog package is listed once. Stored `package_size` values are never rewritten.
+
 - Admin Settings -> Operation now hosts a Filename Sanitization panel between the database backup tools and the destructive reset block. It warns that the run renames CAD files on the shared library drive, that a footprint rename regenerates the `pcb_footprint` value OrCAD/CIS reads for existing board designs, and that the shared drive must be backed up first. The run button stays disabled until an administrator types `SANITIZE` exactly, and the result table lists every renamed file and every skipped file with its reason.
 
 - `POST /api/file-library/sanitize-filenames` runs Filename Sanitization for administrators only and refuses to start unless the request carries the typed `SANITIZE` confirmation, in which case nothing on disk is read or changed. The response reports renamed, skipped, and failed counts plus a per-file table of old name, new name, and reason. The startup library scan still only registers and tags missing files.
