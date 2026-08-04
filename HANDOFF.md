@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 053aec9 | tests pass 727/727 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit a3594a2 | tests pass 734/734 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
@@ -22,15 +22,16 @@ F5.T2: `applyFilenameSanitization` through `renameCadFile` + pair unwind + `cano
 F5.T3: `POST /api/file-library/sanitize-filenames` admin+token gated + run report + scan guard case -> 9a91295
 F5.T4: Operation tab Filename Sanitization panel + `api.sanitizeFilenames` + 3 client cases -> 90c3dbd
 F6.T1: `mergePackageSuggestions` + `loadPackageSuggestions` across ∀ 4 Library.jsx sites + `api.getPackages` -> 053aec9
+F6.T2: `PackageCatalogManager` (new component under Category tab) + admin api wrappers + promoteAlias service cases -> a3594a2
 
 ## in progress (exact stop point)
 
-F6.T1: done & committed.
+F6.T2: done & committed.
 mid-edit files: none
 
 ## next
 
-F6.T2 | preconditions: package-catalog admin section in `client/src/components/settings/tabs/CategoryTab.jsx` (614 L) — create/edit/delete package, alias add/remove, PROMOTE alias -> canonical (D8), `count_policy` 4-choice control (`chip|embedded|none|append`) w/ a one-line explanation + live example. API already live: `api.getPackages`, plus the admin mutations in `server/src/routes/packages.js` (`post /`, `put /:id`, `delete /:id`, `post /:id/aliases`, `put|delete /:id/aliases/:aliasId`, `post /:id/promote`) — add the matching `client/src/utils/api.js` wrappers. a promote test ! assert BOTH names still resolve.
+F6.T3 | preconditions: display-only case rules in `client/src/pages/FileLibrary.jsx` + `client/src/components/library/ComponentFiles.jsx` — footprint density letter rendered UPPERCASE (`dip-8_a.psm` -> `DIP-8_A.psm`), symbol/model extension rendered lowercase. ⊥ let either display form reach a write path, collision check, or rename payload: format at render only, keep the stored value in state & in every mutation body.
 
 ## deviations & decisions
 
@@ -48,6 +49,8 @@ F6.T2 | preconditions: package-catalog admin section in `client/src/components/s
 - `resolveCanonicalCadFilename` (footprintFiles.js) is now the single resolution path; `canonicalizeCadUploadFilename` is its thin wrapper. add new skip reasons there, ⊥ in the planner.
 - `parsePackageInput` trailing-count now accepts a missing separator (`soic8` ≡ `SOIC-8`), server + client mirrored. the unresolved-fallback branch still requires the `-`.
 - `renameCadFile(id, name, { canonicalize:false })` = restore-only escape hatch. ∀ forward rename ! keep the default true.
+- `server/src/test/rateLimit.test.js > leaves private routes unthrottled and stops them spending the public budget` failed once under full-suite load & passed alone + on re-run — timing flake, ⊥ caused by this cycle.
+- `PackageCatalogManager.jsx` = new sibling of `CategorySpecificationsManager.jsx`; CategoryTab (614 L) only mounts it.
 - `mergePackageSuggestions` lives in `libraryUtils.js` & folds via `packageNaming.foldAliasKey`; ⊥ add client-only exports to the `packageNaming` mirror pair.
 - Operation tab hardcodes `SANITIZE`; server truth = `SANITIZE_CONFIRMATION_TOKEN`. changing one ! change both.
 - server confirmation token = `SANITIZE_CONFIRMATION_TOKEN` in `filenameSanitizeService.js`; the UI ! match it exactly.
