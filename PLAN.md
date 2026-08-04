@@ -178,9 +178,9 @@ verify: `server/src/test/routeAuthGuards.test.js` green (2-way: unlisted public 
 exit: `/api/packages/*` live & guard-swept (§I13).
 next: F2.T5
 
-T5|.|server tests for catalog + resolution
+T5|x|server tests for catalog + resolution
 touch: `server/src/test/packageService.test.js`, `server/src/test/packageController.test.js`
-details: cover alias→canonical for the §R19/§R20 sets (`TO-236-3`|`SC-59`|`SOT-23-3` → one canonical), case/separator folding (`TO236_3`, `to 236 3`), unknown package → pass-through ⊥ throw (§V62), `count_policy` CHECK rejection at the API boundary, admin-only mutation.
+details: cover alias→canonical for the §R19/§R20 sets (`TO-236-3`|`SC-59A`|`SOT-23-3` → one canonical), case/separator folding (`TO236_3`, `to 236 3`), unknown package → pass-through ⊥ throw (§V62), `count_policy` CHECK rejection at the API boundary, admin-only mutation. `SC-59` was unsourced & absent from F1's seed; use retained R19 alias `SC-59A`.
 verify: `bash ./test.sh` green; named cases exist for each bullet.
 exit: F2 complete, committed.
 next: F3.T1
