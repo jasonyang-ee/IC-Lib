@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added the pure server package-naming core for catalog-driven CAD sanitization: it folds aliases, applies the IPC M/N/L density remap, respects package count policy, resolves vendor leading/trailing counts and terminal modifiers, and safely leaves ambiguous IPC dimensional variants uncanonicalized.
+
 - Runtime API mounts, public-path resolution, and the full-router auth sweep now consume one ordered 17-router registry. SCIM remains the final mount outside the guest limiter, and registry-based negative tests fail when a mounted router is added without its guard coverage.
 
 - Server Vitest now runs test files serially so real-listener suites with process-wide environment and mock state cannot race one another; the full repository gate remains deterministic while the isolated PostgreSQL migration replay runs.

@@ -193,21 +193,21 @@ files: `server/src/utils/packageNaming.js`, `client/src/utils/packageNaming.js`,
 
 §T TASKS:
 
-T1|.|server truth module `packageNaming.js`
+T1|x|server truth module `packageNaming.js`
 touch: `server/src/utils/packageNaming.js`
 details: pure functions, ⊥ DB access inside (catalog rows passed in) so it stays unit-testable, mirrorable, & reusable by F5's planner. exports: `parsePackageInput(raw)` → `{shortName, pinCount, density, modifiers, matchedAliasKey}`; `remapDensity(letter)` implementing §R18 `m→A, n→B, l→C` + identity for `A|B|C`; `buildCanonicalName({shortName,pinCount,density,countPolicy})` applying `count_policy` (§V61); `foldAliasKey(s)` for case/separator-insensitive lookup (§V62). live beside `footprintFiles.js`, ⊥ inside it — that file owns §V28 filename mechanics, this one owns package identity.
 verify: unit tests for each export.
 exit: module exists w/ ∄ DB import.
 next: F3.T2
 
-T2|.|density remap + legacy acceptance
+T2|x|density remap + legacy acceptance
 touch: `server/src/utils/packageNaming.js`
 details: input accepts `_m|_n|_l|_M|_N|_L|-m|-n|-l` & `_a|_b|_c|_A|_B|_C`; output is always the new letter (§V61). the remap is SEMANTIC: `_l`→`C`, `_m`→`A`, `_n`→`B` — an alphabetical mapping is the expected bug, cite §R18 in the code comment. ∄ density in input → emit ⊥ suffix, ⊥ a guessed default.
 verify: table-driven test asserting all 12 input forms + the ∄-density case; a test that would pass under alphabetical mapping ! fail (e.g. `_l` → `C`, ⊥ `A`).
 exit: remap locked by test.
 next: F3.T3
 
-T3|.|IPC-7351B dimensional-name collapse
+T3|x|IPC-7351B dimensional-name collapse
 touch: `server/src/utils/packageNaming.js`
 details: recognize the §R18 grammar & collapse to family + pin qty + density. worked case: `QFN50P500X500X80-29N` → family `QFN`, pitch `0.50`, body `5.00X5.00X0.80`, pins `29`, density `N` → `QFN-29_B`.
 DECIDED — the hidden/deleted-pin form (`-20_24N`, `-24_20N`) & the reverse marker (`-20RN`) are NOT canonicalized: return a miss so the caller passes the name through (F4) or skips w/ reason `unsupported-variant` (F5). Rationale: §R18 gives `-20_24` and `-24_20` the SAME plain-English reading ("20 pin part in a 24 pin package") & they differ only in numbering, so collapsing either to one pin count is a guess, and two distinct real footprints could collapse onto one name. The precise IPC name is more informative than a wrong short name — leave it alone.
@@ -216,7 +216,7 @@ verify: tests over ≥8 real IPC names incl. `QFN50P500X500X80-29N`, a BGA name,
 exit: IPC input form collapses correctly.
 next: F3.T4
 
-T4|.|vendor leading-count reorder
+T4|x|vendor leading-count reorder
 touch: `server/src/utils/packageNaming.js`
 details: per §V61 + ruling 2, the leading number is a PIN COUNT: `8-SOIC` → `SOIC-8`, `16-VQFN` → `VQFN-16`, `10-VFDFN` → `VFDFN-10`. reuse the parenthetical-note stripper + alias-list splitter semantics from `client/src/utils/cadFileNaming.js:1-14` (`DIMENSIONAL_NOTE_PATTERN`, `PACKAGE_ALIAS_SEPARATOR`) — port them, ⊥ re-invent, & keep `client/src/test/cadFileNaming.test.js:12-24` passing or consciously update it. apply the F1.T3 ruling on trailing modifiers (`Exposed Pad`, `Thin`).
 verify: tests over the ≥15 samples from F1.T3.
