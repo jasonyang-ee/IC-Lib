@@ -12,12 +12,12 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-03
 
-branch test | last commit 0a3cc1d | tests ⊥ run this session (planning only; lint green via `bash ./test.sh --lint-only`)
-uncommitted: `PLAN.md` + `SPEC.md` + `HANDOFF.md` — `/review-plan` pass 3 output. planning only, ⊥ code.
+branch test | last commit e4fc979 | tests ⊥ run this session (planning only; lint green via `bash ./test.sh --lint-only`)
+uncommitted: none
 
 ## done this session
 
-Two `/prep` passes, ⊥ code written, ⊥ §T task executed.
+Two `/prep` passes + one `/review-plan`. ⊥ code written, ⊥ §T task executed.
 
 pass 1 — research + first plan (committed 332cb35):
 - extracted `IPC-7351B-Land-Pattern-Naming-Convention_0281365.pdf` + `Vishay landpatterns.pdf` via `pdftotext -layout`; fetched ti.com packaging terminology + Wikipedia SOT/DO-214/TO-252/TO-263 → `SPEC.md` §R18-R23.
@@ -27,7 +27,7 @@ pass 2 — revision after user corrections (committed 0a3cc1d):
 - `SPEC.md` §V64 REWRITTEN: startup auto-rename → admin-run "Filename Sanitization" action. §V63 rewritten for the extension-case ruling + pad/pspice exclusion. §I6 extended w/ the sanitize endpoint. §V51 Operation-tab list extended.
 - `PLAN.md` rewritten: F1 6→4 tasks (dropped the library survey & the extension-case question — both resolved by the user); F5 rewritten from startup auto-rename to the admin feature.
 
-pass 3 — `/review-plan`, GO (uncommitted):
+pass 3 — `/review-plan`, verdict GO (committed e4fc979):
 - research gate closed. analog.com attempted a 3rd time (`timeout of 60000ms exceeded` after 2 earlier `read ECONNRESET`) → §R23 marked CLOSED, ⊥ retry again. +§R24 (`package_size` provenance w/ file:line + the `'N/A'` fallback hazard), +§R25 (PostgreSQL STORED generated-column immutability rule + its exact DDL error string). `next:` → `C14 I14 R26 V65`.
 - §V10 amended: `packages` added to the catalog public-read clause. §V62 amended: builtin rows soft-disable on admin delete.
 - `PLAN.md` F1 rewritten around a new `decided during /review-plan` block D1..D7 — every dangling "decide whether…" in the plan is now answered in writing. F1 4→3 tasks (data collection + DDL proof only). F2.T1/T4, F3.T3, F4.T1, F5.T1 sharpened w/ exact file paths, exact edits, and a closed set of skip reasons.
@@ -65,7 +65,6 @@ resolved assumptions (pass 1 carried these as unconfirmed; user has now answered
 - **ruling 6 is easy to erode.** F4.T1 carries a `pad` + `pspice` UNCHANGED-behavior test on purpose; keep it.
 - live DB `flat.gentex.int:5434/iclib` ⊥ agent-writable (§C7) — validate migration `21_package_catalog.sql` on a scratch PostgreSQL 18 cluster.
 - `pdftoppm` ∄ in this environment ∴ the Read tool cannot render PDFs. Use `pdftotext -layout` (`/mingw64/bin/pdftotext`). python has ⊥ pypdf/fitz/pdfminer.
-- analog.com (user-cited source) returns `read ECONNRESET` — recorded as the §R23 gap, retried @ F1.T2, ⊥ a blocker.
 - **D1..D7 in `PLAN.md` F1 are decisions, ⊥ suggestions.** They exist because the plan previously left 7 "decide whether…" calls to the implementer. Re-opening one silently forks the design. If one turns out wrong, change it in `PLAN.md` & say so in the baton — ⊥ just diverge in code.
 - **3 unresolved-but-non-blocking `?`** carried from the review gate: analog.com alias coverage (§R23, closed gap — admins add ADI codes); the DigiKey `PackageType.Name` value domain (§R24 — mitigated because D1 step 1 drops `'N/A'` & a miss passes through); the generated-column immutability question (§R25 — F1.T3 proves it on scratch PG18 & D4 names the exact fallback).
 - tests that ! change when F3 lands: `client/src/test/cadFileNaming.test.js:36` (`'8-soic_N.psm'`+`'SOIC-8'` → currently `'SOIC-8_n.psm'`) & `:40` (`'QFN-M.OLB'`+`'ABC123'` → currently `'ABC123-m.OLB'`). Both encode the OLD density letters & the OLD case policy.
