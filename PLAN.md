@@ -78,38 +78,48 @@ note: F5 & F6 are ⊥ interdependent ∴ parallelizable under `/cater` once F4 l
 
 ## F1 research
 
-goal: turn the cited references into a reviewed seed dataset + fix the remaining grammar/schema unknowns before any code.
-inputs: §R18-§R23; the user's wiki package family list (diode / 3-5 pin / single row / dual row / quad row / grid array / wafer); the 4 reference sources named in `existing assets`.
+goal: build the seed dataset + prove the decided schema on a real cluster. every DESIGN choice is already made below — F1 collects data & verifies, it does ⊥ decide.
+inputs: §R18-§R25; the user's wiki package family list; the 4 reference sources named in `existing assets`.
 files: scratchpad working artifacts, `SPEC.md` §R.
+
+### decided during /review-plan — implement as written, ⊥ re-decide
+
+- **D1 resolve order.** `resolvePackage(raw)` runs these steps in order & returns on first hit; a miss returns `null` and the caller passes the input through uncanonicalized (§V62):
+  1. falsy | `'N/A'` -> miss immediately (§R24: the vendor fallback can supply `'N/A'`).
+  2. strip parenthetical dimensional notes — reuse `DIMENSIONAL_NOTE_PATTERN` from `client/src/utils/cadFileNaming.js:1`, applied repeatedly until stable (that file already loops).
+  3. split on `/[;,]/` (`PACKAGE_ALIAS_SEPARATOR`, same file `:2`) -> ordered candidate tokens, trimmed, empties dropped.
+  4. ∀ token in order: (a) `foldAliasKey(token)` -> `package_aliases.alias_key` lookup, hit -> return; (b) leading-count `/^(\d+)[-\s](.+)$/` -> pinCount = group 1, retry (a) on group 2; (c) trailing-count `/^(.+?)-(\d+)$/` -> pinCount = group 2, retry (a) on group 1; (d) strip one trailing modifier word from `MODIFIER_STOPLIST` & retry (a).
+  5. IPC-7351B dimensional form (§R18 grammar) -> family + pin qty + density.
+  6. miss.
+  step 4 order matters: the WHOLE token is tried before any modifier is stripped, so `SOT-23-5 Thin` resolves via its own alias row to `TSOT-23-5` & never degrades to `SOT-23-5`.
+- **D2 `MODIFIER_STOPLIST`** = `['exposed pad','e-pad','ep','thin','wide','narrow','shrink']`, matched case-insensitively at the END of a token only, one word/phrase per retry.
+- **D3 missing pin count.** `count_policy='append'` w/ ∄ derivable pin count: F4 boundaries pass the input through uncanonicalized; F5 SKIPs the file w/ reason `no-pin-count`. ⊥ emit a countless `DIP_A`.
+- **D4 `alias_key` = generated column**, `GENERATED ALWAYS AS (lower(regexp_replace(alias, '[^A-Za-z0-9]', '', 'g'))) STORED`. If PostgreSQL rejects the DDL with the exact error `generation expression is not immutable` (§R25), fall back to a `BEFORE INSERT OR UPDATE` trigger writing the same expression — ⊥ compute the key in application code, which would let the seed SQL & the service drift apart.
+- **D5 builtin delete = soft disable.** `packages.is_active BOOLEAN NOT NULL DEFAULT true`. Admin delete of `is_builtin=true` sets `is_active=false` & retains the row (§V4 re-seeds every boot; `ON CONFLICT DO NOTHING` then no-ops on the retained row instead of resurrecting a deleted one). Admin delete of `is_builtin=false` hard-deletes. Same deactivate-⊥-delete pattern as §V57. Resolution & the parts-detail dropdown read `is_active=true` rows only.
+- **D6 catalog read is PUBLIC**, matching the `categories`/`manufacturers`/`distributors` catalog precedent in §V10 & the already-public `components get /field-suggestions`. Mutations are `authenticate`+`isAdmin`. §V10's row already names `packages` — no further SPEC edit needed.
+- **D7 F5 lives in a new file** `server/src/services/filenameSanitizeService.js`. ⊥ extend `server/src/services/cadFileService.js`, already 1101 lines & the largest service in the repo.
 
 §T TASKS:
 
 T1|.|build the canonical package + alias seed dataset
 touch: `scratchpad/package-seed.json` (working artifact; F2 converts to SQL)
-details: one row per canonical short name w/ `family`, `mount ∈ {SMT,TH,PANEL,WAFER}`, `count_policy ∈ {chip,embedded,none,append}` (§V61), `aliases[]`, `typical_pin_counts?`, `source`. cover ∀ family the user listed: diodes DO-201/DO-204/DO-213/DO-214/SOD-*; 3-5 pin SOT/TSOT + TO-3/5/8/18/39/66/92/126/202/220/247/251/252/262/263/268/273/274/277; SIP/SIL; DFN/DIP/DIL/FlatPack/MSOP/SO/SOIC/SOP/SSOP/TSOP/HTSOP/TSSOP/HTSSOP/ZIP; LCC/QIP/QIL/PLCC/QFN/QFP/QUIP/QUIL; BGA/eWLB/LGA/PGA; COB/COF/COG/CSP/FlipChip/PoP/QP/UICC/WL-CSP/WLP. seed aliases verbatim from §R19/§R20/§R21/§R22 — already sourced, ⊥ re-fetch. add TI prefix-composed rows as first-class entries per §R21 (⊥ runtime prefix synthesis). ∀ alias ! carry its source so a reviewer can audit.
-verify: dataset parses; ∄ duplicate canonical short name; ∀ alias resolves to exactly 1 canonical (many-to-one, §V62) — a colliding alias ! flagged for a human ruling, ⊥ silently dropped; spot-check 10 rows against the cited source.
+details: one row per canonical short name w/ `short_name`, `family`, `mount ∈ {SMT,TH,PANEL,WAFER}`, `count_policy ∈ {chip,embedded,none,append}` (§V61), `aliases[]`, `source`. cover ∀ family the user listed: diodes DO-201/DO-204/DO-213/DO-214/SOD-*; 3-5 pin SOT/TSOT + TO-3/5/8/18/39/66/92/126/202/220/247/251/252/262/263/268/273/274/277; SIP/SIL; DFN/DIP/DIL/FlatPack/MSOP/SO/SOIC/SOP/SSOP/TSOP/HTSOP/TSSOP/HTSSOP/ZIP; LCC/QIP/QIL/PLCC/QFN/QFP/QUIP/QUIL; BGA/eWLB/LGA/PGA; COB/COF/COG/CSP/FlipChip/PoP/QP/UICC/WL-CSP/WLP. seed aliases verbatim from §R19/§R20/§R21/§R22 — already sourced, ⊥ re-fetch, ⊥ retry analog.com (§R23 is a CLOSED gap). add TI prefix-composed rows as first-class entries per §R21 (⊥ runtime prefix synthesis). ∀ alias ! carry its source. `count_policy` guide: chip size codes (0402/0603/1206) = `chip`; a short name already ending in its count (SOT-23-3, SC70-5) = `embedded`; diode/power families whose identity has ∄ count (SOD-123, SMA, DO-214AC, TO-252) = `none`; everything else = `append`.
+verify: dataset parses as JSON; ∄ duplicate `short_name`; `foldAliasKey` over every alias yields ∄ collisions across different packages — a colliding alias ! be reported for a human ruling, ⊥ silently dropped; spot-check 10 rows against the cited source.
 exit: reviewed dataset on disk + row/alias counts reported.
 next: F1.T2
 
-T2|.|close or accept the ADI source gap (§R23)
-touch: `SPEC.md` §R (via /encode-docs)
-details: retry `https://www.analog.com/en/resources/packaging-quality-symbols-footprints/package-index.html` (failed `read ECONNRESET` twice on 2026-08-03). if still blocked, try the sibling `package-resources.html` / `keypackageinformation.html` pages or a search-sourced mirror. target = ADI house codes (LFCSP `CP-nn`, `CC`, `RQ`, `RU`) → alias rows. if unreachable: leave §R23 as the recorded gap, add whatever ADI codes are confirmable from ADI package-drawing PDFs, & note that admins add the rest per §V62. ⊥ block the cycle on this.
-verify: §R23 either replaced w/ a sourced finding or restated w/ the retry date.
-exit: gap closed | explicitly accepted.
+T2|.|collect real vendor package strings & write the grammar fixture
+touch: `scratchpad/package-grammar.md`, `scratchpad/package-samples.json`
+details: §R24 already fixes the provenance — DigiKey `product.Parameters[].ParameterText === 'Package / Case'` -> `{value}`, fallback `primaryVariation?.PackageType?.Name`; Mouser `part.PackageType`. What is still missing is a real SAMPLE SET. Collect ≥20 real `Package / Case` values across categories (IC, discrete, passive, connector) + ≥3 fallback-path values, & record each as `{input, expectedShortName, expectedPinCount, expectedCanonical, resolveStepThatMatched}` using the D1 step numbers. ! include the known-hostile inputs: `'N/A'`, `8-SOIC (0.154", 3.90mm Width)`, `16-VQFN Exposed Pad`, `SOT-23-5 Thin, TSOT-23-5`. This file becomes the shared fixture for F3.T4 & the F3.T5 server/client parity test.
+verify: every sample carries an expected canonical output & the D1 step number that produced it; ≥20 samples; the 4 hostile inputs present.
+exit: fixture on disk, consumable verbatim as a test table.
 next: F1.T3
 
-T3|.|fix the vendor package-string input grammar
-touch: read-only: `server/src/services/digikeyService.js`, `server/src/services/mouserService.js`, `client/src/pages/Library.jsx:638-648,2674-2693`
-details: collect the real shapes `package_size` receives — DigiKey `Package / Case` values (`8-SOIC (0.154", 3.90mm Width)`, `16-VQFN Exposed Pad`, `SOT-23-5 Thin, TSOT-23-5`), Mouser equivalents, & the leading-count form the user reported on STEP files. record: leading-count regex, parenthetical dimensional-note stripping (already in `extractPackageLabel`), comma/semicolon alias-list splitting (already in `PACKAGE_ALIAS_SEPARATOR`), `Exposed Pad`/`Thin`/`Wide` modifier handling. decide whether a trailing modifier joins the short name or is dropped — it changes catalog row identity.
-verify: a written grammar table: input form → tokens → canonical output, ≥15 real samples incl. every form above.
-exit: grammar table recorded; F3 parser spec fixed.
-next: F1.T4
-
-T4|.|fix the `packages` / `package_aliases` schema shape
-touch: design note in `scratchpad/`; consumed by F2.T1
-details: columns, keys, indexes. `packages`: `id UUID DEFAULT uuidv7()` (§C2), `short_name` unique, `family`, `mount`, `count_policy` w/ CHECK on the 4-value domain (§V61), `is_builtin BOOLEAN`, `display_order?`. `package_aliases`: `id`, `package_id` FK, `alias`, + a normalized `alias_key` (case/separator-folded per §V62) w/ a UNIQUE index ∵ resolution ! be case- & separator-insensitive. decide: generated column vs trigger vs app-side write for `alias_key`. FK ! covered by an index (repo precedent `14_fk_covering_indexes.sql`). decide admin-delete policy for `is_builtin` rows — §V4 re-seeds every boot ∴ a deleted builtin would resurrect unless the seed respects a tombstone or the delete is a soft disable.
-verify: DDL drafted + applied on a scratch PG18 cluster; re-running it is a no-op; the `is_builtin` re-seed interaction is answered in writing.
-exit: schema locked; F2.T1 can write the migration verbatim.
+T3|.|prove the decided DDL on scratch PostgreSQL 18
+touch: `scratchpad/21_package_catalog.draft.sql`
+details: write & apply the D4/D5 schema against a scratch PG18 cluster (⊥ the live DB, §C7). `packages`: `id UUID PRIMARY KEY DEFAULT uuidv7()` (§C2), `short_name TEXT NOT NULL UNIQUE`, `family TEXT`, `mount TEXT`, `count_policy TEXT NOT NULL CHECK (count_policy IN ('chip','embedded','none','append'))`, `is_builtin BOOLEAN NOT NULL DEFAULT false`, `is_active BOOLEAN NOT NULL DEFAULT true`, `display_order INTEGER`. `package_aliases`: `id UUID PRIMARY KEY DEFAULT uuidv7()`, `package_id UUID NOT NULL REFERENCES packages(id) ON DELETE CASCADE`, `alias TEXT NOT NULL`, `alias_key TEXT GENERATED ALWAYS AS (lower(regexp_replace(alias, '[^A-Za-z0-9]', '', 'g'))) STORED`, `UNIQUE (alias_key)`, plus an index on `package_id` (FK covering, precedent `database/migrations/14_fk_covering_indexes.sql`).
+verify: DDL applies clean on scratch PG18; re-running is a no-op; a duplicate `alias_key` insert is rejected; `INSERT` w/ `count_policy='bogus'` is rejected. Record whether the generated column was accepted or the §R25 error forced the D4 trigger fallback — F2.T1 copies whichever landed.
+exit: DDL proven; F2.T1 can copy it verbatim.
 next: F2.T1
 
 ## F2 package catalog: migration + seed + service + API
@@ -122,7 +132,7 @@ files: `database/migrations/21_package_catalog.sql`, `database/init-schema.sql`,
 
 T1|.|write migration `21_package_catalog.sql`
 touch: `database/migrations/21_package_catalog.sql`, `database/init-schema.sql`
-details: DDL from F1.T4. idempotent (`IF NOT EXISTS`, guarded `DO $$`) per §C7. PKs `UUID DEFAULT uuidv7()` (§C2). `count_policy` CHECK over `chip|embedded|none|append` (§V61). unique `alias_key` index. FK covering index. add the same objects to `database/init-schema.sql` for the fresh-init path — §C7: init files get the final shape, ⊥ `ALTER`. version header + `CHANGELOG.md` entry carry release traceability, ⊥ the filename.
+details: copy the DDL proven in F1.T3 VERBATIM (incl. whichever of D4's generated-column | trigger form landed). wrap idempotent (`CREATE TABLE IF NOT EXISTS`, guarded `DO $$` for the index/constraint adds) per §C7. add the same objects to `database/init-schema.sql` for the fresh-init path — §C7: init files get the final shape, ⊥ `ALTER`. version header + `CHANGELOG.md` entry carry release traceability, ⊥ the filename.
 verify: applies clean on a scratch PG18 cluster from both paths — fresh `init-schema.sql`, and existing-DB migration-only; second run is a no-op; `\d packages` shows the CHECK + indexes.
 exit: migration + init parity proven on scratch PG18. ⊥ touch the live DB.
 next: F2.T2
@@ -143,7 +153,12 @@ next: F2.T4
 
 T4|.|service + controller + guarded routes
 touch: `server/src/services/packageService.js`, `server/src/controllers/packageController.js`, `server/src/routes/packages.js`, `server/src/index.js`
-details: service owns `listPackages`, `resolveAlias(input)` (case/separator-folded per §V62), `createPackage`, `updatePackage`, `deletePackage`, alias CRUD. naming per §C11. auth: catalog READ is a catalog-shaped read — decide public-allowlist (§V10) vs `authenticate` and apply consistently; ∀ mutation ! `authenticate` + `isAdmin` (§V2, §V27). routes ! register through the ONE ordered route registry §V27 names — a hand-added mount makes `routeAuthGuards.test.js` fail by design.
+details: service owns `listPackages` (`is_active=true` only, D5), `resolvePackage(raw)` implementing D1 verbatim, `createPackage`, `updatePackage`, `deletePackage` (D5 soft-disable vs hard-delete branch), alias CRUD. naming per §C11.
+registration is 3 exact edits — the §V27 registry is ⊥ a single file:
+  1. `server/src/constants/routeMounts.js` -> add `Object.freeze({ name: 'packages', path: '/api/packages' })` to `ROUTE_MOUNTS`, placed after the `manufacturers` entry so it sits w/ the other catalog mounts.
+  2. `server/src/routes/registry.js` -> `import packageRoutes from './packages.js'` + add `packages: packageRoutes` to `ROUTER_BINDINGS`. the parity guard at `registry.js:45` THROWS at import time if the two lists disagree, so a half-edit fails fast, ⊥ silently.
+  3. `server/src/constants/publicRoutes.js` -> add `'packages get /'` & `'packages get /:id'` to `PUBLIC_GETS` (D6; mirrors the existing `'manufacturers get /'` / `'distributors get /'` rows). `PUBLIC_GLOBAL_TARGETS` spreads `PUBLIC_GETS` at `publicRoutes.js:105` ∴ the §V32 guest limiter picks them up automatically — ⊥ add a separate entry there.
+§V10 already names `packages` in its catalog-read clause ∴ ∄ further SPEC edit. ∀ mutation ! `authenticate` + `isAdmin` (§V2, §V27).
 verify: `server/src/test/routeAuthGuards.test.js` green (2-way: unlisted public GET & stale allowlist entry both fail); if a public GET is added, §V10's allowlist + the invariant text ! be updated in the same change.
 exit: `/api/packages/*` live & guard-swept (§I13).
 next: F2.T5
@@ -179,7 +194,9 @@ next: F3.T3
 
 T3|.|IPC-7351B dimensional-name collapse
 touch: `server/src/utils/packageNaming.js`
-details: recognize the §R18 grammar & collapse to family + pin qty + density. worked case: `QFN50P500X500X80-29N` → family `QFN`, pitch `0.50`, body `5.00X5.00X0.80`, pins `29`, density `N` → `QFN-29_B`. handle the `-<qty>_<qty>` hidden/deleted-pin form & the trailing `R` reverse marker (§R18) — decide whether they survive into the short name or are dropped, & record the choice. BGA family carries ⊥ density suffix (§R18) ∴ ⊥ synthesize one.
+details: recognize the §R18 grammar & collapse to family + pin qty + density. worked case: `QFN50P500X500X80-29N` → family `QFN`, pitch `0.50`, body `5.00X5.00X0.80`, pins `29`, density `N` → `QFN-29_B`.
+DECIDED — the hidden/deleted-pin form (`-20_24N`, `-24_20N`) & the reverse marker (`-20RN`) are NOT canonicalized: return a miss so the caller passes the name through (F4) or skips w/ reason `unsupported-variant` (F5). Rationale: §R18 gives `-20_24` and `-24_20` the SAME plain-English reading ("20 pin part in a 24 pin package") & they differ only in numbering, so collapsing either to one pin count is a guess, and two distinct real footprints could collapse onto one name. The precise IPC name is more informative than a wrong short name — leave it alone.
+BGA family carries ⊥ density suffix (§R18) ∴ ⊥ synthesize one.
 verify: tests over ≥8 real IPC names incl. `QFN50P500X500X80-29N`, a BGA name, a hidden-pin `-20_24N` form, a reverse `-20RN` form.
 exit: IPC input form collapses correctly.
 next: F3.T4
@@ -209,7 +226,8 @@ files: `server/src/controllers/fileUploadController.js`, `server/src/controllers
 T1|.|upload / ZIP / temp-finalize boundaries
 touch: `server/src/controllers/fileUploadController.js:178,260,351,424,434,699`, `server/src/services/footprintService.js:19`
 details: those 7 call sites already run `normalizeCadUploadFilename`. add canonicalization ahead of it, catalog-resolved. footprint → lowercase whole name (§V28/§V63). symbol & model → base case as-is, extension forced lowercase (§V63 ruling 5). `pad` & `pspice` → ⊥ canonicalization, existing behavior only (ruling 6). unresolved package → sanitized pass-through, ⊥ a 4xx (§V62). keep `FootprintNameError`/`+` → 422 behavior intact (§V28).
-verify: `server/src/test/footprintFiles.test.js` extended per boundary; a ZIP-extract case & a temp-finalize case each assert canonical output; a `pad` + a `pspice` case assert UNCHANGED behavior (guards ruling 6 against scope creep).
+the staged name the user sees before save ! already be the canonical one — §V53 makes uploads reversible until save/cancel, & that preview is what keeps a silent package-level rename from being a surprise.
+verify: `server/src/test/footprintFiles.test.js` extended per boundary; a ZIP-extract case & a temp-finalize case each assert canonical output; a `pad` + a `pspice` case assert UNCHANGED behavior (guards ruling 6 against scope creep); a client test asserts the staged filename shown pre-save equals the name that lands.
 exit: ∀ ingress boundary canonical, pad/pspice untouched.
 next: F4.T2
 
@@ -243,14 +261,14 @@ files: `server/src/services/cadFileService.js`, `server/src/controllers/fileLibr
 §T TASKS:
 
 T1|.|pure rename planner
-touch: `server/src/services/cadFileService.js` (or a new `server/src/services/filenameSanitizeService.js` if `cadFileService.js` — already 1101 L — would bloat; prefer the new service, §C11 `{name}Service.js`)
-details: given the registered file set + the catalog, return `[{fileType, oldName, newName, action: 'rename'|'skip', reason}]`. scope = `footprint|symbol|model` ONLY (ruling 8; `pad|pspice` ∉ scope). derive the canonical name from the FILE's own name via F3's `parsePackageInput` — ⊥ consult the linked component's `package_size` (ruling 8: a name w/ ∄ package info is `skip` w/ reason `no-package-info`). also `skip` when: already canonical, target name exists & is a different inode (`collision`), file ∉ `isTrackableCadFile`. footprint pairs planned as a unit (§V53). pure & side-effect free ∴ unit-testable & reusable as a future dry-run.
+touch: `server/src/services/filenameSanitizeService.js` (NEW file per D7; ⊥ extend `cadFileService.js`)
+details: given the registered file set + the catalog, return `[{fileType, oldName, newName, action: 'rename'|'skip', reason}]`. scope = `footprint|symbol|model` ONLY (ruling 8; `pad|pspice` ∉ scope). derive the canonical name from the FILE's own name via F3's `parsePackageInput` — ⊥ consult the linked component's `package_size` (ruling 8: a name w/ ∄ package info is `skip` w/ reason `no-package-info`). the closed set of `skip` reasons — use these exact strings: `no-package-info` (D1 miss), `no-pin-count` (D3), `unsupported-variant` (F3.T3 hidden/deleted/reverse), `already-canonical`, `collision` (target exists & is a different inode — `isSameExistingFile` at `cadFileService.js:279` distinguishes a same-inode case-only rename, which is ⊥ a collision per §V25), `not-trackable` (file ∉ `isTrackableCadFile`), `rename-failed` (added by F5.T2). footprint pairs planned as a unit (§V53). pure & side-effect free ∴ unit-testable & reusable as a future dry-run.
 verify: planner unit tests over a synthetic set incl. `soic8_l.psm`→`soic-8_c.psm`, `8-soic_n.psm`→`soic-8_b.psm`, `qfn50p500x500x80-29n.psm`→`qfn-29_b.psm`, `TO-236-3_m.psm`→`sot-23-3_a.psm`, `My.Symbol.OLB`→`My.Symbol.olb`, `FT260Q-T--3DModel-STEP-510211.STEP`→skip/`no-package-info`, a collision pair, an already-canonical file, & a `pad`+`pspice` file proving they are ∉ the plan.
 exit: plan computable w/ ∄ side effects.
 next: F5.T2
 
 T2|.|applier through the §V25 atomic path
-touch: the F5.T1 service
+touch: `server/src/services/filenameSanitizeService.js`
 details: apply each planned rename via the existing `renameCadFile` path — physical rename + `cad_files` update + TEXT regen ∈ 1 txn, fail → DB rollback + best-effort physical revert (§V25). per-file try/catch: a failure demotes that file to `skip` w/ reason & the pass continues (§V64), ⊥ aborts. footprint pairs rename together — a `.psm` renamed w/o its `.dra` breaks §V53 grouping. admin actor ∴ §V20 already permits direct rename of shared files w/ ⊥ ECO; ⊥ add an ECO gate.
 verify: `server/src/test/cadFileServiceTransactions.test.js` cases: successful rename commits disk+DB together; a mid-rename DB failure leaves disk+DB consistent; a collision is skipped & the pass continues to the next file; a pair renames atomically.
 exit: renames atomic, isolated, resumable.
