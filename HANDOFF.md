@@ -12,22 +12,23 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 0477ce3 | tests pass 715/715 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 9a91295 | tests pass 720/720 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
 F5.T1: pure rename planner `planFilenameSanitization` + `resolveCanonicalCadFilename` + 10 planner cases -> 34d0ae3
 F5.T2: `applyFilenameSanitization` through `renameCadFile` + pair unwind + `canonicalize:false` restore -> 0477ce3
+F5.T3: `POST /api/file-library/sanitize-filenames` admin+token gated + run report + scan guard case -> 9a91295
 
 ## in progress (exact stop point)
 
-F5.T2: done & committed.
+F5.T3: done & committed.
 mid-edit files: none
 
 ## next
 
-F5.T3 | preconditions: `POST /api/file-library/sanitize-filenames` -> `authenticate` + `isAdmin`; body ! carry the typed `SANITIZE` token else 400 w/ ∄ fs mutation. controller loads registered `footprint|symbol|model` rows + `listPackages()`, runs `planFilenameSanitization` then `applyFilenameSanitization`, returns `{renamed, skipped, failed, entries}` (strip `groupKey`|`cadFileId` from the response, ⊥ from the plan). register via `routeMounts.js` + `routes/registry.js` (⊥ `publicRoutes.js` — this is ⊥ a public GET). confirm `scanAndRegisterFiles` still ⊥ renames. extend `server/src/test/routeAuthGuards.test.js`.
+F5.T4 | preconditions: `Filename Sanitization` panel in `client/src/components/settings/tabs/OperationTab.jsx`, placed between the DB backup tools & the destructive reset block (§V51). warning copy ! name the shared-drive path, the §C4 OrCAD/CIS consequence, & `BACK UP THE SHARED DRIVE FIRST`. run button disabled until the admin types exactly `SANITIZE` (⊥ case-insensitive, ⊥ partial). add the `api.js` call posting `{ confirmation }` to `/file-library/sanitize-filenames` & render the returned `{renamed, skipped, failed, entries}` table incl. skip reasons.
 
 ## deviations & decisions
 
@@ -45,6 +46,7 @@ F5.T3 | preconditions: `POST /api/file-library/sanitize-filenames` -> `authentic
 - `resolveCanonicalCadFilename` (footprintFiles.js) is now the single resolution path; `canonicalizeCadUploadFilename` is its thin wrapper. add new skip reasons there, ⊥ in the planner.
 - `parsePackageInput` trailing-count now accepts a missing separator (`soic8` ≡ `SOIC-8`), server + client mirrored. the unresolved-fallback branch still requires the `-`.
 - `renameCadFile(id, name, { canonicalize:false })` = restore-only escape hatch. ∀ forward rename ! keep the default true.
+- server confirmation token = `SANITIZE_CONFIRMATION_TOKEN` in `filenameSanitizeService.js`; the UI ! match it exactly.
 - planner entries carry `groupKey` + `cadFileId` — the applier needs both; F5.T3 strips them from the API response.
 - F5 planner derives every candidate from `cad_files.file_name`, never a linked component. `renameCadFile` owns physical collision and atomicity; planner only classifies synthetic catalog targets.
 
