@@ -12,35 +12,34 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit c802522 | tests pass 605/605 (`bash ./test.sh`; 1 pre-existing server lint warning)
-uncommitted: none
+branch test | last commit 2532277 | tests pass 653/653 (`bash ./test.sh`; 1 pre-existing server lint warning)
+uncommitted: `PLAN.md`, `HANDOFF.md` — F3.T4 coverage-state correction + session baton
 
 ## done this session
 
-F2.T4: package service/controller/routes + registry/public-read bindings; route guard 19/19 → 1649985
-F2.T5: alias-folding/pass-through/API-policy tests + full suite 605/605 → c802522
+F3.T1-T3: pure server package naming core + focused tests → 2532277
+
 
 ## in progress (exact stop point)
 
-F3.T1: inspected `server/src/utils/footprintFiles.js`, `cadFileNaming.js`, IPC grammar, and F3 contract; no edit started.
-mid-edit files: none
+F3.T4: `server/src/test/packageNaming.test.js` resolves 11 vendor fixtures; add ≥4 F1.T3 sample rows, then mark x.
+mid-edit files: `PLAN.md`, `HANDOFF.md`
 
 ## next
 
-F3.T1 | preconditions: preserve `packageService` catalog/DB ownership; new utility takes rows/values only.
+F3.T4 | preconditions: retain pure catalog-row input; add fixture coverage before client mirror T5.
 
 ## deviations & decisions
 
-- F2.T1 DDL used F1.T3's generated `alias_key`; guarded constraints/indexes preserve idempotence. PLAN.md updated: n
-- F2.T4 resolves unknown vendor text as `{ input, package: null }`; caller has a sanitized pass-through value while catalog miss remains explicit. PLAN.md updated: n
-- F2.T5 uses `SC-59A`, not absent `SC-59`; F1 seed's retained R19 alias is source-consistent. PLAN.md updated: y
+- T4 was marked x before self-review found 11/15 required vendor-form examples; restored `~`. PLAN.md updated: y
+
 
 ## watchouts
 
-- `packages` + `package_aliases` now join `EXPECTED_SCHEMA_TABLES` + `EXPORT_TABLES`; ⊥ alter OrCAD/CIS view expectations.
-- `resolvePackage(raw)` returns `{ input, package: null }` for misses; canonical promotion stays transactional and preserves aliases.
-- F3 should extract shared pure parsing only where it removes duplication; `packageService` keeps DB alias lookup + catalog CRUD ownership.
-- scratch PostgreSQL container `iclib-pg18-package-catalog` stopped/removed; ⊥ live DB touched.
+- `parsePackageInput` returns `null` for `N/A` and ambiguous IPC hidden/deleted/reverse forms; F4 passes unresolved text through, F5 reports unsupported variants.
+
+- `packageService` keeps DB lookup/catalog CRUD; `packageNaming.js` gets catalog rows only.
+- Full suite's expected mocked-error/network stdout and lint warning do not indicate a failure.
 
 ## final verification
 

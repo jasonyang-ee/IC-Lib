@@ -216,7 +216,7 @@ verify: tests over ≥8 real IPC names incl. `QFN50P500X500X80-29N`, a BGA name,
 exit: IPC input form collapses correctly.
 next: F3.T4
 
-T4|x|vendor leading-count reorder
+T4|~|vendor leading-count reorder
 touch: `server/src/utils/packageNaming.js`
 details: per §V61 + ruling 2, the leading number is a PIN COUNT: `8-SOIC` → `SOIC-8`, `16-VQFN` → `VQFN-16`, `10-VFDFN` → `VFDFN-10`. reuse the parenthetical-note stripper + alias-list splitter semantics from `client/src/utils/cadFileNaming.js:1-14` (`DIMENSIONAL_NOTE_PATTERN`, `PACKAGE_ALIAS_SEPARATOR`) — port them, ⊥ re-invent, & keep `client/src/test/cadFileNaming.test.js:12-24` passing or consciously update it. apply the F1.T3 ruling on trailing modifiers (`Exposed Pad`, `Thin`).
 verify: tests over the ≥15 samples from F1.T3.
