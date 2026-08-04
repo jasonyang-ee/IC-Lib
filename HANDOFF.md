@@ -13,7 +13,7 @@ Full rules: /encode-docs skill.
 # HANDOFF 2026-08-04
 
 branch test | last commit 6e2e210 | tests pass 683/683 (`bash ./test.sh`; 1 pre-existing server lint warning)
-uncommitted: `HANDOFF.md` - F3 baton
+uncommitted: none
 
 ## done this session
 
@@ -21,12 +21,12 @@ F3.T4-T5: vendor fixture coverage + client naming mirror/shortcut parity -> 6e2e
 
 ## in progress (exact stop point)
 
-F4.T1: inspect `fileUploadController.js` + `footprintService.js` ingress calls, then test canonical catalog-resolved upload/ZIP/finalize names.
-mid-edit files: none
+F4.T1: `fileUploadController.js` ingress points at 178, 260, 351, 424, 434, and 699 use only `normalizeCadUploadFilename`; add one catalog-row-aware canonicalizer before each, preserving staged preview name, plus/422 behavior, collision behavior, and pad/pspice pass-through.
+mid-edit files: `PLAN.md`, `HANDOFF.md` - F4.T1 status + session baton only
 
 ## next
 
-F4.T1 | preconditions: F2 catalog + F3 naming modules complete.
+F4.T1 | preconditions: read boundary tests; add focused upload/ZIP/finalize coverage before implementation.
 
 ## deviations & decisions
 
@@ -34,6 +34,7 @@ F4.T1 | preconditions: F2 catalog + F3 naming modules complete.
 
 ## watchouts
 
+- `extractSmartZipToTemp` and `moveToCategory` are synchronous; catalog resolution is async. Preserve visible staged name and avoid per-file catalog queries.
 - `parsePackageInput` returns `null` for `N/A` and ambiguous IPC hidden/deleted/reverse forms; F4 passes unresolved text through, F5 reports unsupported variants.
 - `packageService` keeps DB lookup/catalog CRUD; `packageNaming.js` gets catalog rows only.
 - Full suite expected mocked-error/network stdout + 1 server lint warning do not indicate failure.
