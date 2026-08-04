@@ -12,21 +12,22 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 34d0ae3 | tests pass 710/710 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 0477ce3 | tests pass 715/715 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
 F5.T1: pure rename planner `planFilenameSanitization` + `resolveCanonicalCadFilename` + 10 planner cases -> 34d0ae3
+F5.T2: `applyFilenameSanitization` through `renameCadFile` + pair unwind + `canonicalize:false` restore -> 0477ce3
 
 ## in progress (exact stop point)
 
-F5.T1: done & committed.
+F5.T2: done & committed.
 mid-edit files: none
 
 ## next
 
-F5.T2 | preconditions: add the applier to `server/src/services/filenameSanitizeService.js` — iterate `planFilenameSanitization` entries w/ `action === 'rename'`, call `renameCadFile(cadFileId, newName)` (§V25), per-file try/catch demoting a failure to `skip` + reason `rename-failed` (`SANITIZE_SKIP_REASONS.RENAME_FAILED` already exported) & continuing the pass; footprint pair entries share a `footprint:<base>` grouping in the planner but the applier ! rename both members together. extend `server/src/test/cadFileServiceTransactions.test.js`.
+F5.T3 | preconditions: `POST /api/file-library/sanitize-filenames` -> `authenticate` + `isAdmin`; body ! carry the typed `SANITIZE` token else 400 w/ ∄ fs mutation. controller loads registered `footprint|symbol|model` rows + `listPackages()`, runs `planFilenameSanitization` then `applyFilenameSanitization`, returns `{renamed, skipped, failed, entries}` (strip `groupKey`|`cadFileId` from the response, ⊥ from the plan). register via `routeMounts.js` + `routes/registry.js` (⊥ `publicRoutes.js` — this is ⊥ a public GET). confirm `scanAndRegisterFiles` still ⊥ renames. extend `server/src/test/routeAuthGuards.test.js`.
 
 ## deviations & decisions
 
@@ -43,6 +44,8 @@ F5.T2 | preconditions: add the applier to `server/src/services/filenameSanitizeS
 - Full suite expected mocked-error/network stdout + 1 server lint warning do not indicate failure.
 - `resolveCanonicalCadFilename` (footprintFiles.js) is now the single resolution path; `canonicalizeCadUploadFilename` is its thin wrapper. add new skip reasons there, ⊥ in the planner.
 - `parsePackageInput` trailing-count now accepts a missing separator (`soic8` ≡ `SOIC-8`), server + client mirrored. the unresolved-fallback branch still requires the `-`.
+- `renameCadFile(id, name, { canonicalize:false })` = restore-only escape hatch. ∀ forward rename ! keep the default true.
+- planner entries carry `groupKey` + `cadFileId` — the applier needs both; F5.T3 strips them from the API response.
 - F5 planner derives every candidate from `cad_files.file_name`, never a linked component. `renameCadFile` owns physical collision and atomicity; planner only classifies synthetic catalog targets.
 
 ## final verification
