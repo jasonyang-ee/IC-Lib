@@ -5,6 +5,13 @@ import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
 import { listPackages } from '../services/packageService.js';
+import {
+  SANITIZE_CONFIRMATION_TOKEN,
+  SANITIZE_FILE_TYPES,
+  SANITIZE_SKIP_REASONS,
+  applyFilenameSanitization,
+  planFilenameSanitization,
+} from '../services/filenameSanitizeService.js';
 import { CAD_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import {
   FootprintNameError,
@@ -930,6 +937,38 @@ export const scanLibraryFiles = async (req, res) => {
   } catch (error) {
     logError('FileLibrary', 'Error scanning library files:', error);
     res.status(500).json({ error: 'Failed to scan library files' });
+  }
+};
+
+/**
+ * Admin-only Filename Sanitization run (§V64). Explicitly triggered and
+ * confirmation-gated: the library scan never renames anything.
+ */
+export const sanitizeFilenames = async (req, res) => {
+  if (req.body?.confirmation !== SANITIZE_CONFIRMATION_TOKEN) {
+    return res.status(400).json({ error: `Type ${SANITIZE_CONFIRMATION_TOKEN} to confirm this run` });
+  }
+
+  try {
+    const catalog = await listPackages();
+    const files = (await Promise.all(
+      SANITIZE_FILE_TYPES.map((fileType) => cadFileService.getCadFilesByType(fileType)),
+    )).flat();
+
+    const entries = await applyFilenameSanitization(planFilenameSanitization(files, catalog));
+    const reported = entries.map(({ fileType, oldName, newName, action, reason }) => ({
+      fileType, oldName, newName, action, reason,
+    }));
+
+    res.json({
+      renamed: reported.filter((entry) => entry.action === 'rename').length,
+      skipped: reported.filter((entry) => entry.action === 'skip' && entry.reason !== SANITIZE_SKIP_REASONS.RENAME_FAILED).length,
+      failed: reported.filter((entry) => entry.reason === SANITIZE_SKIP_REASONS.RENAME_FAILED).length,
+      entries: reported,
+    });
+  } catch (error) {
+    logError('Sanitize', 'Error sanitizing CAD filenames:', error);
+    res.status(500).json({ error: 'Failed to sanitize CAD filenames' });
   }
 };
 

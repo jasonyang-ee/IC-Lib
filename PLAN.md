@@ -289,7 +289,7 @@ verify: `server/src/test/cadFileServiceTransactions.test.js` cases: successful r
 exit: renames atomic, isolated, resumable.
 next: F5.T3
 
-T3|.|guarded endpoint + run report + scan de-scoping
+T3|x|guarded endpoint + run report + scan de-scoping
 touch: `server/src/controllers/fileLibraryController.js`, `server/src/routes/fileLibrary.js`, `server/src/index.js` (route registry), `server/src/services/cadFileService.js:848`
 details: `POST /api/file-library/sanitize-filenames` → `authenticate` + `isAdmin` (§V2/§V27; admin-only per ruling 7 — `canAccessFileLibrary` alone is ⊥ enough). body ! carry the typed confirmation token; a request w/o it → 400, ⊥ run. response = `{renamed, skipped, failed, entries:[{oldName,newName,action,reason}]}` so the admin sees exactly what happened (§V64). log ∀ rename + ∀ skip: `[INFO] [Sanitize] <old> -> <new>` / `[INFO] [Sanitize] skip <name> (<reason>)`, ASCII only (§C11). **de-scope the scan**: confirm `scanAndRegisterFiles` + `detectMissingFiles` still only register & tag-missing — ruling 7 forbids automatic renaming there, so ⊥ add rename logic to the startup path.
 verify: `server/src/test/routeAuthGuards.test.js` green w/ the new route; a non-admin write role → 403; a missing/incorrect confirmation token → 400 w/ ∄ filesystem mutation; a test asserts the startup scan performs ∄ renames.

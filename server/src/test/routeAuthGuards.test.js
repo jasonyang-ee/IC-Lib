@@ -22,6 +22,7 @@ const {
   categories: categoryRoutes,
   components: componentRoutes,
   dashboard: dashboardRoutes,
+  fileLibrary: fileLibraryRoutes,
   inventory: inventoryRoutes,
   manufacturers: manufacturerRoutes,
   packages: packageRoutes,
@@ -184,6 +185,12 @@ describe('route auth guards', () => {
     expect(getRouteHandlers(packageRoutes, 'put', '/:id/aliases/:aliasId')).toEqual(['authenticate', 'isAdmin', 'updateAlias']);
     expect(getRouteHandlers(packageRoutes, 'delete', '/:id/aliases/:aliasId')).toEqual(['authenticate', 'isAdmin', 'deleteAlias']);
     expect(getRouteHandlers(packageRoutes, 'post', '/:id/promote')).toEqual(['authenticate', 'isAdmin', 'promoteAlias']);
+  });
+
+  it('gates the Filename Sanitization run on admin access (SPEC V64)', () => {
+    expect(getRouteHandlers(fileLibraryRoutes, 'post', '/sanitize-filenames'))
+      // `authenticate` is router-wide on this router, so it is not a per-route layer.
+      .toEqual(['canAccessFileLibrary', 'isAdmin', 'sanitizeFilenames']);
   });
 
   it('categories router is read-only (mutations live on the admin settings surface)', () => {

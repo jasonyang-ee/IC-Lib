@@ -8,6 +8,9 @@ import {
 import { logInfo, logWarn } from '../utils/logger.js';
 import { isTrackableCadFile, renameCadFile } from './cadFileService.js';
 
+/** Typed confirmation the admin must supply before a run may start (SPEC V64). */
+export const SANITIZE_CONFIRMATION_TOKEN = 'SANITIZE';
+
 /** Filename Sanitization scope (SPEC V64): pad and pspice stay out. */
 export const SANITIZE_FILE_TYPES = ['footprint', 'symbol', 'model'];
 
@@ -172,6 +175,7 @@ export async function applyFilenameSanitization(entries, { renameFile = renameCa
 }
 
 export default {
+  SANITIZE_CONFIRMATION_TOKEN,
   SANITIZE_FILE_TYPES,
   SANITIZE_SKIP_REASONS,
   planFilenameSanitization,

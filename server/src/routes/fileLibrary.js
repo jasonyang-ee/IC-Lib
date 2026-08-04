@@ -27,6 +27,7 @@ import {
   getSharingComponents,
   getAvailableFiles,
   scanLibraryFiles,
+  sanitizeFilenames,
 } from '../controllers/fileLibraryController.js';
 
 const router = express.Router();
@@ -36,6 +37,9 @@ router.use(authenticate);
 
 // Scan library folder for untracked files and register them (requires write permission)
 router.post('/scan', canAccessFileLibrary, canWrite, scanLibraryFiles);
+
+// Run the admin-only Filename Sanitization pass (confirmation-gated, SPEC V64)
+router.post('/sanitize-filenames', canAccessFileLibrary, isAdmin, sanitizeFilenames);
 
 // Get statistics for all file types (counts)
 router.get('/stats', canAccessFileLibrary, getFileTypeStats);
