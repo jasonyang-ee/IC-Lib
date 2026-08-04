@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const queryMock = vi.fn();
+const connectMock = vi.fn();
 
 vi.mock('../config/database.js', () => ({
   default: {
     query: (...args) => queryMock(...args),
-    connect: vi.fn(),
+    connect: (...args) => connectMock(...args),
   },
 }));
 
-const { resolvePackage } = await import('../services/packageService.js');
+const { promoteAlias, resolvePackage } = await import('../services/packageService.js');
 
 const catalogPackage = {
   id: 'package-1',
@@ -64,5 +65,51 @@ describe('packageService resolvePackage', () => {
       pinCount: null,
       density: null,
     });
+  });
+});
+
+describe('packageService promoteAlias', () => {
+  const makeClient = (responses) => ({
+    query: vi.fn(async (text) => {
+      const match = Object.keys(responses).find((fragment) => text.includes(fragment));
+      return match ? responses[match] : { rows: [] };
+    }),
+    release: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('moves the canonical name onto the alias without rewriting any alias row', async () => {
+    const client = makeClient({
+      'FROM packages WHERE id = $1': { rows: [{ id: 'package-1', short_name: 'TO-236-3' }] },
+      'FROM package_aliases': { rows: [{ alias: 'SOT-23-3' }] },
+      'FROM packages WHERE lower(short_name)': { rows: [] },
+    });
+    connectMock.mockResolvedValue(client);
+    queryMock.mockResolvedValue({ rows: [{ ...catalogPackage, short_name: 'SOT-23-3' }] });
+
+    await expect(promoteAlias('package-1', 'SOT-23-3')).resolves.toMatchObject({ short_name: 'SOT-23-3' });
+
+    const statements = client.query.mock.calls.map(([text]) => text);
+    // Both names keep resolving: the promoted alias row stays, and the displaced
+    // canonical is still an alias row of its own (SPEC V62).
+    expect(statements).toContain('UPDATE packages SET short_name = $1 WHERE id = $2');
+    expect(statements.some((text) => /(INSERT INTO|DELETE FROM|UPDATE) package_aliases/.test(text))).toBe(false);
+    expect(statements).toContain('COMMIT');
+  });
+
+  it('rejects an alias that already serves as another package canonical name', async () => {
+    const client = makeClient({
+      'FROM packages WHERE id = $1': { rows: [{ id: 'package-1', short_name: 'TO-236-3' }] },
+      'FROM package_aliases': { rows: [{ alias: 'SOT-23-3' }] },
+      'FROM packages WHERE lower(short_name)': { rows: [{ id: 'package-2' }] },
+    });
+    connectMock.mockResolvedValue(client);
+
+    await expect(promoteAlias('package-1', 'SOT-23-3'))
+      .rejects.toThrow('Alias already serves as another package canonical name');
+    expect(client.query.mock.calls.map(([text]) => text)).toContain('ROLLBACK');
   });
 });

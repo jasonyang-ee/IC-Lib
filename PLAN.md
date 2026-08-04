@@ -318,7 +318,7 @@ verify: client test — fresh category w/ ∄ components still lists catalog pac
 exit: dropdown catalog-backed.
 next: F6.T2
 
-T2|.|admin package CRUD incl. `count_policy`
+T2|x|admin package CRUD incl. `count_policy`
 touch: `client/src/components/settings/tabs/CategoryTab.jsx`
 details: add a package-catalog section (§V51 Category tab already owns category/spec/manufacturer admin ∴ it is the coherent host). create/edit/delete packages, manage aliases, PROMOTE an alias to canonical (D8 — one action per alias row; the promoted name becomes `short_name` & the old canonical stays as an alias), & set `count_policy` via a 4-choice control (`chip`|`embedded`|`none`|`append`) w/ a one-line explanation + a live example of the resulting name — the user asked for the policy to be admin-settable so newly added packages adopt the same per-package logic. admin-only (§V2). minimal icon use (§C11).
 verify: client tests for create/edit/delete + alias add/remove + promote + `count_policy` change; a promote test asserts the old canonical survives as an alias & resolution still works from BOTH names; a non-admin ⊥ sees the section.

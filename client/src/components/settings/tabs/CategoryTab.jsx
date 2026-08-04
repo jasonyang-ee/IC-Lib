@@ -6,6 +6,7 @@ import TypeaheadInput from '../../common/TypeaheadInput';
 import { api } from '../../../utils/api';
 import { useNotification } from '../../../contexts/NotificationContext';
 import CategorySpecificationsManager from '../CategorySpecificationsManager';
+import PackageCatalogManager from '../PackageCatalogManager';
 
 const EMPTY_CATEGORY = {
   name: '',
@@ -546,6 +547,8 @@ const CategoryTab = () => {
       </div>
 
       <CategorySpecificationsManager />
+
+      <PackageCatalogManager />
 
       <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Rename/Merge Manufacturers</h2>

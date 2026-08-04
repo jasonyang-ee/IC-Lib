@@ -120,9 +120,15 @@ export const api = {
     return apiClient.get('/components/field-suggestions', { params: { categoryId, field } });
   },
 
-  // Package catalog (public reads)
+  // Package catalog (public reads, admin-only mutations)
   getPackages: () => apiClient.get('/packages'),
   resolvePackage: (value) => apiClient.get('/packages', { params: { resolve: value } }),
+  createPackage: (data) => apiClient.post('/packages', data),
+  updatePackage: (id, data) => apiClient.put(`/packages/${id}`, data),
+  deletePackage: (id) => apiClient.delete(`/packages/${id}`),
+  createPackageAlias: (id, alias) => apiClient.post(`/packages/${id}/aliases`, { alias }),
+  deletePackageAlias: (id, aliasId) => apiClient.delete(`/packages/${id}/aliases/${aliasId}`),
+  promotePackageAlias: (id, alias) => apiClient.post(`/packages/${id}/promote`, { alias }),
 
   // Categories
   getCategories: () => apiClient.get('/categories'),
