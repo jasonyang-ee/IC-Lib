@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 2a9a8bd | tests pass 700/700 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 591ad51 | tests pass 700/700 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
@@ -21,12 +21,12 @@ F4.T4: Shared File Rename ECO catalog canonicalization + regressions -> 2a9a8bd
 
 ## in progress (exact stop point)
 
-F5.T1: read `cadFileService.js` and filename-sanitizer boundaries in full before planner implementation; implementation not started.
+F5.T1: planner design complete; `filenameSanitizeService.js` implementation not started.
 mid-edit files: none
 
 ## next
 
-F5.T1 | preconditions: read `server/src/services/cadFileService.js`, `server/src/utils/footprintFiles.js`, `server/src/utils/packageNaming.js`, catalog service, and CAD transaction tests in full; name planner cases before implementation.
+F5.T1 | preconditions: create `server/src/services/filenameSanitizeService.js` + planner unit tests; keep planner side-effect free and pass final targets to `renameCadFile` only in F5.T2.
 
 ## deviations & decisions
 
@@ -40,6 +40,7 @@ F5.T1 | preconditions: read `server/src/services/cadFileService.js`, `server/src
 - `parsePackageInput` returns `null` for `N/A` and ambiguous IPC hidden/deleted/reverse forms; F4 passes unresolved text through, F5 reports unsupported variants.
 - `packageService` keeps DB lookup/catalog CRUD; `packageNaming.js` gets catalog rows only.
 - Full suite expected mocked-error/network stdout + 1 server lint warning do not indicate failure.
+- F5 planner derives every candidate from `cad_files.file_name`, never a linked component. `renameCadFile` owns physical collision and atomicity; planner only classifies synthetic catalog targets.
 
 ## final verification
 
