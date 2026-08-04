@@ -246,7 +246,7 @@ verify: `server/src/test/footprintFiles.test.js` extended per boundary; a ZIP-ex
 exit: ∀ ingress boundary canonical, pad/pspice untouched.
 next: F4.T2
 
-T2|.|rename boundaries incl. File Library single + pair
+T2|x|rename boundaries incl. File Library single + pair
 touch: `server/src/controllers/fileLibraryController.js:241`, `server/src/services/cadFileService.js:295 renameCadFile`, `client/src/components/fileLibrary/RenameModal.jsx:32-35`
 details: canonicalize the proposed name before the collision check so collisions are detected on the FINAL name (§V28: collision checks fire on the normalized name → 409, ⊥ silent overwrite). footprint pairs ! stay grouped — `buildFootprintRenameTargets` already enforces one primary + one `.dra` w/ matching bases; the canonical base ! apply to both (§V53). ⊥ weaken §V25 atomicity.
 verify: `server/src/test/cadFileServiceTransactions.test.js` extended: canonical rename in 1 txn, failure → DB rollback + physical revert; a pair rename asserts both files land on the same canonical base.

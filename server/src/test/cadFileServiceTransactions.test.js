@@ -21,6 +21,7 @@ vi.mock('fs', () => ({ default: mocks.fs }));
 vi.mock('../config/database.js', () => ({ default: mocks.pool }));
 
 const { renameCadFile, deleteCadFile } = await import('../services/cadFileService.js');
+const { renameFootprintGroup } = await import('../controllers/fileLibraryController.js');
 const { normalizeFootprintFilename } = await import('../utils/footprintFiles.js');
 
 function base(p) {
@@ -69,16 +70,30 @@ function configureFs(initialBasenames) {
   });
 }
 
-function configurePool({ cadFile, affected = [] }) {
-  mocks.pool.query.mockImplementation(async (sql) => {
+function configurePool({ cadFile, cadFilesByName = {}, affected = [], packages = [] }) {
+  mocks.pool.query.mockImplementation(async (sql, values = []) => {
     if (typeof sql === 'string' && sql.includes('SELECT * FROM cad_files WHERE id')) {
       return { rows: cadFile ? [cadFile] : [] };
+    }
+    if (typeof sql === 'string' && sql.includes('SELECT * FROM cad_files WHERE file_name')) {
+      const file = cadFilesByName[values[0]];
+      return { rows: file ? [file] : [] };
     }
     if (typeof sql === 'string' && sql.includes('c.part_number')) {
       return { rows: affected };
     }
+    if (typeof sql === 'string' && sql.includes('FROM packages p')) {
+      return { rows: packages };
+    }
     return { rows: [] };
   });
+}
+
+function makeResponse() {
+  return {
+    json: vi.fn(),
+    status: vi.fn().mockReturnThis(),
+  };
 }
 
 beforeEach(() => {
@@ -106,6 +121,31 @@ describe('renameCadFile (transactional)', () => {
     expect(mocks.fsState.has('new.psm')).toBe(true);
     expect(mocks.fsState.has('old.psm')).toBe(false);
     expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('canonicalizes the final footprint target before checking collisions and updating the transaction', async () => {
+    configureFs(['old.psm']);
+    configurePool({
+      cadFile: { id: 'cf-1', file_name: 'old.psm', file_type: 'footprint' },
+      affected: [{ id: 'c1' }],
+      packages: [{
+        short_name: 'SOIC',
+        count_policy: 'append',
+        aliases: [{ alias: 'SOIC' }],
+      }],
+    });
+    const client = makeClient();
+    mocks.pool.connect.mockResolvedValue(client);
+
+    const result = await renameCadFile('cf-1', '8-SOIC_N.PSM');
+
+    expect(result).toEqual({ oldFileName: 'old.psm', newFileName: 'soic-8_b.psm', fileType: 'footprint' });
+    expect(mocks.fsState.has('soic-8_b.psm')).toBe(true);
+    expect(mocks.fsState.has('old.psm')).toBe(false);
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE cad_files'),
+      ['soic-8_b.psm', 'footprint/soic-8_b.psm', 'cf-1'],
+    );
   });
 
   it('rolls back the DB and reverts the physical rename when the cad_files update fails', async () => {
@@ -153,6 +193,45 @@ describe('renameCadFile (transactional)', () => {
 
     await expect(renameCadFile('cf-1', normalized)).rejects.toThrow('already exists');
     expect(mocks.fs.renameSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('renameFootprintGroup', () => {
+  it('applies one catalog-resolved canonical base to both footprint pair files', async () => {
+    configureFs(['8-SOIC_N.psm', '8-SOIC_N.dra']);
+    configurePool({
+      cadFilesByName: {
+        '8-SOIC_N.psm': { id: 'cf-psm', file_name: '8-SOIC_N.psm', file_type: 'footprint' },
+        '8-SOIC_N.dra': { id: 'cf-dra', file_name: '8-SOIC_N.dra', file_type: 'footprint' },
+      },
+      affected: [{ id: 'c1' }],
+      packages: [{
+        short_name: 'SOIC',
+        count_policy: 'append',
+        aliases: [{ alias: 'SOIC' }],
+      }],
+    });
+    const client = makeClient();
+    mocks.pool.connect.mockResolvedValue(client);
+    const res = makeResponse();
+
+    await renameFootprintGroup({
+      body: {
+        fileNames: ['8-SOIC_N.psm', '8-SOIC_N.dra'],
+        newBaseName: '8-SOIC_N',
+      },
+      user: { role: 'admin' },
+    }, res);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      renamedFiles: [
+        { oldFileName: '8-SOIC_N.psm', newFileName: 'soic-8_b.psm' },
+        { oldFileName: '8-SOIC_N.dra', newFileName: 'soic-8_b.dra' },
+      ],
+    }));
+    expect(mocks.fsState.has('soic-8_b.psm')).toBe(true);
+    expect(mocks.fsState.has('soic-8_b.dra')).toBe(true);
   });
 });
 

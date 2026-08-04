@@ -4,11 +4,15 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
+import { listPackages } from '../services/packageService.js';
 import { CAD_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import {
   FootprintNameError,
   assertNoPlusInFootprintName,
   buildFootprintRenameTargets,
+  canonicalizeCadUploadFilename,
+  getCadFileBaseName,
+  isCanonicalPackageFileType,
   isFootprintFileExtension,
   normalizeFootprintFilename,
 } from '../utils/footprintFiles.js';
@@ -66,6 +70,21 @@ function getTypeInfo(type) {
 
 function shouldStageSharedFileRename(req, affectedCount, ecoAffectedCount) {
   return isEcoEnabled() && req.user?.role !== 'admin' && affectedCount > 1 && ecoAffectedCount > 0;
+}
+
+async function canonicalizeRenameFileName(fileName, fileType) {
+  if (!isCanonicalPackageFileType(fileType)) {
+    return fileName;
+  }
+
+  let catalog = [];
+  try {
+    catalog = await listPackages();
+  } catch (error) {
+    logError('FileLibrary', `Failed to load package catalog: ${error.message}`);
+  }
+
+  return canonicalizeCadUploadFilename(fileName, fileType, catalog);
 }
 
 /**
@@ -240,6 +259,7 @@ export const renamePhysicalFile = async (req, res) => {
       assertNoPlusInFootprintName(safeNewFileName); // typed error -> 422 below
       safeNewFileName = normalizeFootprintFilename(safeNewFileName);
     }
+    safeNewFileName = await canonicalizeRenameFileName(safeNewFileName, info.fileType);
 
     // Find the cad_file record
     const cadFile = await cadFileService.findCadFile(safeOldFileName, info.fileType);
@@ -347,7 +367,10 @@ export const renameFootprintGroup = async (req, res) => {
   try {
     const { fileNames, newBaseName } = req.body;
     const info = getTypeInfo('footprint');
-    const renameTargets = buildFootprintRenameTargets(fileNames, newBaseName).map((target) => ({
+    const canonicalBaseName = getCadFileBaseName(
+      await canonicalizeRenameFileName(`${newBaseName}.psm`, info.fileType),
+    );
+    const renameTargets = buildFootprintRenameTargets(fileNames, canonicalBaseName).map((target) => ({
       ...target,
       oldFileName: assertSafeLeafName(target.oldFileName, 'oldFileName'),
       newFileName: assertSafeLeafName(target.newFileName, 'newFileName'),

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- File Library single-file and footprint-pair renames now resolve catalog aliases to the canonical final filename before collision checks. The existing disk, `cad_files`, and component TEXT transaction remains intact, and the rename preview identifies package canonicalization as server-authoritative.
+
 - Package catalog reads and administrator-only package, alias, and canonical-name promotion APIs are now mounted through the guarded route registry. Public catalog reads return active packages only, and unresolved vendor package text is returned as a sanitized pass-through value instead of failing a component workflow.
 
 - Package catalog seed data now keeps TSOT-23-5 distinct from SOT-23-5, consistently uses common package names for diode and power aliases, and includes the full imperial passive-chip series without ambiguous bare metric aliases.

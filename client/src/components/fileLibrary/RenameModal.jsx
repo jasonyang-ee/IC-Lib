@@ -80,7 +80,7 @@ const RenameModal = ({
             {showPreview && (
               <div className="mt-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
                 <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
-                  Footprint names are normalized (lowercase, no dots in base) — will be saved as
+                  Footprint storage normalization preview; package aliases are canonicalized by the server before rename
                 </p>
                 <div className="space-y-1">
                   {previewNames.map((name) => (

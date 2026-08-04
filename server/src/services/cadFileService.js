@@ -11,10 +11,13 @@ import {
 import {
   FOOTPRINT_PRIMARY_EXTENSIONS,
   FOOTPRINT_SECONDARY_EXTENSION,
+  canonicalizeCadUploadFilename,
   getCadFileBaseName,
+  isCanonicalPackageFileType,
 } from '../utils/footprintFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 import { logError, logInfo, logWarn } from '../utils/logger.js';
+import { listPackages } from './packageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -302,7 +305,17 @@ export async function renameCadFile(cadFileId, newFileName) {
   const cadFile = cfResult.rows[0];
   const oldFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
   const subdir = TYPE_SUBDIR[cadFile.file_type];
-  const safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+  let safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+
+  if (isCanonicalPackageFileType(cadFile.file_type)) {
+    let catalog = [];
+    try {
+      catalog = await listPackages();
+    } catch (error) {
+      logError('CadFile', `Failed to load package catalog: ${error.message}`);
+    }
+    safeNewFileName = canonicalizeCadUploadFilename(safeNewFileName, cadFile.file_type, catalog);
+  }
 
   if (!subdir) throw new Error(`Invalid file type: ${cadFile.file_type}`);
 

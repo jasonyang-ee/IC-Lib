@@ -72,6 +72,10 @@ export function normalizeCadUploadFilename(fileName) {
 
 const CANONICAL_PACKAGE_FILE_TYPES = new Set(['footprint', 'symbol', 'model']);
 
+export function isCanonicalPackageFileType(fileType) {
+  return CANONICAL_PACKAGE_FILE_TYPES.has(fileType);
+}
+
 const findCatalogPackage = (catalog, matchedAliasKey) => (
   (Array.isArray(catalog) ? catalog : []).find((packageRow) => (
     [packageRow?.short_name, ...(packageRow?.aliases || []).map((entry) => entry?.alias || entry)]
@@ -86,7 +90,7 @@ const findCatalogPackage = (catalog, matchedAliasKey) => (
  */
 export function canonicalizeCadUploadFilename(fileName, fileType, catalog) {
   const normalizedFilename = normalizeCadUploadFilename(fileName);
-  if (!CANONICAL_PACKAGE_FILE_TYPES.has(fileType)) return normalizedFilename;
+  if (!isCanonicalPackageFileType(fileType)) return normalizedFilename;
 
   const parsed = parsePackageInput(getCadFileBaseName(normalizedFilename), catalog);
   if (!parsed) return normalizedFilename;
