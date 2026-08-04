@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The OIDC schema test no longer leaks a `decoy` schema into the shared CI database. `CREATE SCHEMA` ignores `search_path`, so the decoy escaped the per-run schema and made the second suite pass of the same job fail with `schema "decoy" already exists`; it is now uniquely named per run and dropped in cleanup.
 
-- The Library bulk-delete test waits for each row checkbox instead of assuming every row is committed once the first part number appears, removing a CI-only failure on `Select PROD-00001`.
+- Client tests now start with a clean, deterministic in-memory `localStorage`/`sessionStorage`. Library view preferences persist the status filter, so one test switching the Production filter off leaked into a later test and hid `PROD-00001`; Node 22+ injects a partly implemented global `localStorage` that masked the leak locally while CI failed on it.
+
+- CI now runs Node 25, matching the `node:25-alpine` image the Dockerfile builds and runs. The previous Node 20 skew meant CI exercised different web-storage behaviour than production.
 
 - CI installs the PostgreSQL 18 server binaries (`initdb`, `postgres`, `pg_ctl`) on the runner, so the OIDC password-ownership schema test that spins up its own scratch cluster no longer fails with `spawnSync initdb ENOENT`.
 

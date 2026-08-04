@@ -316,9 +316,9 @@ describe('Library bulk-delete wiring (F7)', () => {
     await screen.findByText('NEW-00001');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Components' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select NEW-00001' }));
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select PROD-00001' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Selected (2)' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select NEW-00001' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select PROD-00001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Selected (2)' }));
 
     const deleteButton = screen.getByRole('button', { name: 'Delete' });
     fireEvent.click(deleteButton);
