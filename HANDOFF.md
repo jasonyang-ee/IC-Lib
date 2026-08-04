@@ -12,29 +12,30 @@ Full rules: /encode-docs skill.
 
 # HANDOFF 2026-08-04
 
-branch test | last commit 6e2e210 | tests pass 683/683 (`bash ./test.sh`; 1 pre-existing server lint warning)
+branch test | last commit 767c3c0 | tests pass 692/692 (`bash ./test.sh`; 1 pre-existing server lint warning)
 uncommitted: none
 
 ## done this session
 
-F3.T4-T5: vendor fixture coverage + client naming mirror/shortcut parity -> 6e2e210
+F4.T1: catalog-resolved CAD upload/ZIP/finalize/rename/vendor ingress, staged-name client path + regressions -> 767c3c0
 
 ## in progress (exact stop point)
 
-F4.T1: `fileUploadController.js` ingress points at 178, 260, 351, 424, 434, and 699 use only `normalizeCadUploadFilename`; add one catalog-row-aware canonicalizer before each, preserving staged preview name, plus/422 behavior, collision behavior, and pad/pspice pass-through.
-mid-edit files: `PLAN.md`, `HANDOFF.md` - F4.T1 status + session baton only
+F4.T2: read File Library rename boundary tests, then canonicalize proposed names before collision checks while preserving `cadFileService.renameCadFile` transaction and footprint-pair grouping.
+mid-edit files: none
 
 ## next
 
-F4.T1 | preconditions: read boundary tests; add focused upload/ZIP/finalize coverage before implementation.
+F4.T2 | preconditions: read `fileLibraryController.js`, `cadFileService.js`, `RenameModal.jsx`, and transaction tests; name focused test cases before implementation.
 
 ## deviations & decisions
 
 - T4 restored after prior 11/15 fixture gap; 15 vendor rows + canonical outputs now covered. PLAN.md updated: y
+- F4.T1 catalog query failure falls back to existing sanitized filename behavior; PLAN.md updated: n.
 
 ## watchouts
 
-- `extractSmartZipToTemp` and `moveToCategory` are synchronous; catalog resolution is async. Preserve visible staged name and avoid per-file catalog queries.
+- `extractSmartZipToTemp` now awaits one request-scoped catalog; preserve this no-per-file-query boundary in later work.
 - `parsePackageInput` returns `null` for `N/A` and ambiguous IPC hidden/deleted/reverse forms; F4 passes unresolved text through, F5 reports unsupported variants.
 - `packageService` keeps DB lookup/catalog CRUD; `packageNaming.js` gets catalog rows only.
 - Full suite expected mocked-error/network stdout + 1 server lint warning do not indicate failure.
