@@ -151,7 +151,7 @@ verify: applies clean on a scratch PG18 cluster from both paths — fresh `init-
 exit: migration + init parity proven on scratch PG18. ⊥ touch the live DB.
 next: F2.T2
 
-T2|.|seed the catalog idempotently
+T2|x|seed the catalog idempotently
 touch: `database/init-settings.sql`
 details: convert the F1.T1 dataset to `INSERT ... ON CONFLICT DO NOTHING` for `packages` then `package_aliases` (§V4: this file re-runs every boot). aliases resolve their `package_id` by `short_name` subquery so ordering is stable. mark seeded rows `is_builtin = true`.
 **! insert a SELF-ALIAS row for every package** (`alias` = its own `short_name`) in addition to its synonyms — D1 step 4a looks up `package_aliases` ONLY, so without a self-alias row a canonical input like `SOIC` or `QFN` fails to resolve at all. This also makes D8 promotion a single `packages.short_name` update, since both names already own alias rows. (found during /review-plan; §V62.) honor D5 on admin-deleted builtin rows: a deleted builtin is soft-disabled (`is_active=false`, row retained) ∴ `ON CONFLICT DO NOTHING` no-ops on the retained row instead of resurrecting it.
