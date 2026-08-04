@@ -19,11 +19,15 @@ const mocks = vi.hoisted(() => ({
     registerCadFile: vi.fn(async (fileName, fileType) => ({ id: 'cf-1', file_name: fileName, file_type: fileType })),
     linkCadFileToComponentByMPN: vi.fn(async () => ({})),
   },
+  packages: {
+    listPackages: vi.fn(),
+  },
 }));
 
 vi.mock('fs', () => ({ default: mocks.fs }));
 vi.mock('../config/database.js', () => ({ default: mocks.pool }));
 vi.mock('../services/cadFileService.js', () => ({ default: mocks.cad }));
+vi.mock('../services/packageService.js', () => ({ listPackages: mocks.packages.listPackages }));
 
 const { finalizeTempFile } = await import('../controllers/fileUploadController.js');
 
@@ -58,6 +62,9 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.cad.registerCadFile.mockImplementation(async (fileName, fileType) => ({ id: 'cf-1', file_name: fileName, file_type: fileType }));
+    mocks.packages.listPackages.mockResolvedValue([
+      { short_name: 'SOIC', count_policy: 'append', aliases: [{ alias: 'SOIC' }] },
+    ]);
   });
 
   it('moves the temp file into the category dir under its normalized name and registers + links it', async () => {
@@ -82,6 +89,26 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
       message: 'Files finalized',
       results: [{ filename: 'mypart.psm', type: 'footprint', collision: false }],
     });
+  });
+
+  it('moves a staged vendor filename under its catalog-canonical name', async () => {
+    configureFs(['123-456-8-SOIC_N.PSM']);
+
+    const req = mockReq({
+      body: {
+        files: [{ tempFilename: '123-456-8-SOIC_N.PSM', category: 'footprint' }],
+        mfgPartNumber: 'RC0402FR-0710KL',
+      },
+    });
+    const res = mockRes();
+
+    await finalizeTempFile(req, res);
+
+    expect(mocks.fsState.has('soic-8_b.psm')).toBe(true);
+    expect(mocks.cad.registerCadFile).toHaveBeenCalledWith('soic-8_b.psm', 'footprint');
+    expect(res.json.mock.calls[0][0].results).toEqual([
+      expect.objectContaining({ filename: 'soic-8_b.psm', collision: false }),
+    ]);
   });
 
   it('reports a collision instead of overwriting when the normalized target already exists', async () => {

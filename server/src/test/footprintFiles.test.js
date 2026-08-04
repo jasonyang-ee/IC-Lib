@@ -4,12 +4,18 @@ import {
   FootprintNameError,
   assertNoPlusInFootprintName,
   buildFootprintRenameTargets,
+  canonicalizeCadUploadFilename,
   normalizeCadUploadFilename,
   normalizeFootprintFilename,
   sanitizeFootprintBaseName,
 } from '../utils/footprintFiles.js';
 
 describe('footprintFiles', () => {
+  const catalog = [
+    { short_name: 'SOIC', count_policy: 'append', aliases: [{ alias: 'SOIC' }] },
+    { short_name: 'QFN', count_policy: 'append', aliases: [{ alias: 'QFN' }] },
+  ];
+
   it('lowercases all footprint filenames (.psm, .bsm, .dra)', () => {
     expect(normalizeFootprintFilename('SOIC8_L.psm')).toBe('soic8_l.psm');
     expect(normalizeFootprintFilename('SOIC8_L.BSM')).toBe('soic8_l.bsm');
@@ -25,6 +31,17 @@ describe('footprintFiles', () => {
   it('leaves non-footprint extensions alone except lowercasing the extension', () => {
     expect(normalizeFootprintFilename('My.Symbol.OLB')).toBe('My.Symbol.olb');
     expect(normalizeCadUploadFilename('Model.V2.STEP')).toBe('Model.V2.step');
+  });
+
+  it('canonicalizes known package filenames with the per-type case policy', () => {
+    expect(canonicalizeCadUploadFilename('8-SOIC_N.PSM', 'footprint', catalog)).toBe('soic-8_b.psm');
+    expect(canonicalizeCadUploadFilename('QFN50P500X500X80-29N.STEP', 'model', catalog)).toBe('QFN-29_B.step');
+    expect(canonicalizeCadUploadFilename('8-SOIC_N.OLB', 'symbol', catalog)).toBe('SOIC-8_B.olb');
+  });
+
+  it('leaves pad and PSpice package names outside canonicalization scope', () => {
+    expect(canonicalizeCadUploadFilename('8-SOIC_N.PAD', 'pad', catalog)).toBe('8-SOIC_N.pad');
+    expect(canonicalizeCadUploadFilename('8-SOIC_N.OLB', 'pspice', catalog)).toBe('8-SOIC_N.olb');
   });
 
   it('rejects "+" in footprint names with a typed error', () => {

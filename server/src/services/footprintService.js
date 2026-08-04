@@ -2,7 +2,8 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { normalizeCadUploadFilename, sanitizeCadBaseName } from '../utils/footprintFiles.js';
+import { listPackages } from './packageService.js';
+import { canonicalizeCadUploadFilename, sanitizeCadBaseName } from '../utils/footprintFiles.js';
 import { logError } from '../utils/logger.js';
 import { VENDOR_HTTP_TIMEOUT_MS } from '../constants/vendorHttp.js';
 
@@ -16,7 +17,13 @@ const TEMP_DIR = path.join(LIBRARY_BASE, 'temp');
 
 async function stageFootprintInTemp(fileName, data) {
   await fs.mkdir(TEMP_DIR, { recursive: true });
-  const filename = normalizeCadUploadFilename(fileName);
+  let catalog = [];
+  try {
+    catalog = await listPackages();
+  } catch (error) {
+    logError('Footprint', `Failed to load package catalog: ${error.message}`);
+  }
+  const filename = canonicalizeCadUploadFilename(fileName, 'footprint', catalog);
   const tempFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${filename}`;
   await fs.writeFile(path.join(TEMP_DIR, tempFilename), data);
   return { filename, tempFilename, category: 'footprint' };

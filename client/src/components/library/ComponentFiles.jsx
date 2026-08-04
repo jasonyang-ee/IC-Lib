@@ -15,6 +15,7 @@ import {
 } from '../../utils/cadFileTypes';
 import { groupFootprintFiles, hasIllegalFootprintPlus, normalizeFootprintFilename, FOOTPRINT_PLUS_ERROR_MESSAGE } from '../../utils/footprintFiles';
 import { collectCadDeleteTargets } from '../../utils/componentCadDelete';
+import { collectCadUploadEntries } from '../../utils/cadUploadEntries';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus, X } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -78,14 +79,6 @@ function mergeSelectedCadFiles(selectedFiles, autoFiles = []) {
   return [...mergedFiles.values()];
 }
 
-function collectUploadResultEntries(results) {
-  const entries = [];
-  forEachUploadResult(results, (entry) => {
-    entries.push(entry);
-  });
-  return entries;
-}
-
 function detectSingleFileConflicts(entries, priorFiles) {
   const conflictingKeys = new Set();
   let firstConflict = null;
@@ -144,24 +137,6 @@ function buildLocalUploadMap(entries) {
   }
 
   return nextLocalUploads;
-}
-
-/**
- * Iterate over all individual upload results (regular + extracted from archives).
- * Calls `fn({ category, filename, tempFilename, type })` for each file.
- */
-function forEachUploadResult(results, fn) {
-  for (const r of results) {
-    if (r.type === 'archive' && r.extracted) {
-      for (const ef of r.extracted) {
-        if (ef.category && ef.filename) {
-          fn({ category: ef.category, filename: ef.filename, tempFilename: ef.tempFilename, type: ef.category });
-        }
-      }
-    } else if (r.type && r.type !== 'archive' && !r.error && r.filename) {
-      fn({ category: r.type, filename: r.filename, tempFilename: r.tempFilename, type: r.type });
-    }
-  }
 }
 
 /**
@@ -418,7 +393,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       const regular = results.filter(r => r.type !== 'archive' && !r.error);
       const errors = results.filter(r => r.error);
 
-      const uploadEntries = collectUploadResultEntries(results);
+      const uploadEntries = collectCadUploadEntries(results);
       const ambiguousOlbEntries = uploadEntries.filter(({ filename }) => isAmbiguousCadUploadFile(filename));
       const regularEntries = uploadEntries.filter(({ filename }) => !isAmbiguousCadUploadFile(filename));
 

@@ -1,4 +1,5 @@
 import path from 'path';
+import { buildCanonicalName, foldAliasKey, parsePackageInput } from './packageNaming.js';
 
 export const FOOTPRINT_PRIMARY_EXTENSIONS = ['.psm', '.bsm'];
 export const FOOTPRINT_SECONDARY_EXTENSION = '.dra';
@@ -67,6 +68,41 @@ export function normalizeFootprintFilename(fileName) {
  */
 export function normalizeCadUploadFilename(fileName) {
   return normalizeFootprintFilename(fileName);
+}
+
+const CANONICAL_PACKAGE_FILE_TYPES = new Set(['footprint', 'symbol', 'model']);
+
+const findCatalogPackage = (catalog, matchedAliasKey) => (
+  (Array.isArray(catalog) ? catalog : []).find((packageRow) => (
+    [packageRow?.short_name, ...(packageRow?.aliases || []).map((entry) => entry?.alias || entry)]
+      .some((alias) => foldAliasKey(alias) === matchedAliasKey)
+  )) || null
+);
+
+/**
+ * Resolve a CAD filename through supplied package catalog rows before applying
+ * existing storage rules. Callers load the catalog once per request so ZIPs
+ * and batches do not issue one query per file.
+ */
+export function canonicalizeCadUploadFilename(fileName, fileType, catalog) {
+  const normalizedFilename = normalizeCadUploadFilename(fileName);
+  if (!CANONICAL_PACKAGE_FILE_TYPES.has(fileType)) return normalizedFilename;
+
+  const parsed = parsePackageInput(getCadFileBaseName(normalizedFilename), catalog);
+  if (!parsed) return normalizedFilename;
+
+  const packageRow = findCatalogPackage(catalog, parsed.matchedAliasKey);
+  if (!packageRow) return normalizedFilename;
+
+  const canonicalBaseName = buildCanonicalName({
+    shortName: packageRow.short_name,
+    pinCount: parsed.pinCount,
+    density: parsed.density,
+    countPolicy: packageRow.count_policy,
+  });
+  if (!canonicalBaseName) return normalizedFilename;
+
+  return normalizeCadUploadFilename(`${canonicalBaseName}${getCadFileExtension(normalizedFilename)}`);
 }
 
 /** `+` is OrCAD-illegal in footprint names — reject, never silently strip. */

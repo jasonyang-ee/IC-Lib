@@ -238,7 +238,7 @@ files: `server/src/controllers/fileUploadController.js`, `server/src/controllers
 
 §T TASKS:
 
-T1|~|upload / ZIP / temp-finalize boundaries
+T1|x|upload / ZIP / temp-finalize boundaries
 touch: `server/src/controllers/fileUploadController.js:178,260,351,424,434,699`, `server/src/services/footprintService.js:19`
 details: those 7 call sites already run `normalizeCadUploadFilename`. add canonicalization ahead of it, catalog-resolved. footprint → lowercase whole name (§V28/§V63). symbol & model → base case as-is, extension forced lowercase (§V63 ruling 5). `pad` & `pspice` → ⊥ canonicalization, existing behavior only (ruling 6). unresolved package → sanitized pass-through, ⊥ a 4xx (§V62). keep `FootprintNameError`/`+` → 422 behavior intact (§V28).
 the staged name the user sees before save ! already be the canonical one — §V53 makes uploads reversible until save/cancel, & that preview is what keeps a silent package-level rename from being a surprise.

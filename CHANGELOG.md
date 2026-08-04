@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CAD upload, ZIP extraction, temp finalization, component-file rename, and vendor footprint staging now resolve known package aliases through the catalog before storing filenames. Footprints remain lowercase, symbol/model bases retain canonical uppercase display identity with lowercase extensions, and pad/PSpice filenames remain outside this canonicalization scope.
+
 - Client CAD rename helpers now mirror package naming behavior at user-input boundaries, remapping legacy IPC density letters, preserving canonical underscore suffixes, lowercasing footprint names and CAD extensions, and checking every package grammar fixture against the server implementation.
 
 - Added the pure server package-naming core for catalog-driven CAD sanitization: it folds aliases, applies the IPC M/N/L density remap, respects package count policy, resolves vendor leading/trailing counts and terminal modifiers, and safely leaves ambiguous IPC dimensional variants uncanonicalized.
