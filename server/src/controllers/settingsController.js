@@ -2,9 +2,15 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { gzipSync, gunzipSync } from 'zlib';
+import { gzipSync } from 'zlib';
 import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
+import {
+  BackupValidationError,
+  EXPORT_TABLES,
+  exportBackupSnapshot,
+  parseBackupFile,
+} from '../services/databaseBackupService.js';
 import { logUserActivity } from '../services/activityLogService.js';
 import {
   DEFAULT_ECO_PDF_HEADER,
@@ -1959,42 +1965,7 @@ export const deleteUserRecords = async (req, res) => {
 
 // Tables to export, in dependency order for correct import. Membership is
 // locked to EXPECTED_SCHEMA_TABLES by dbTableLists.test.js (D11).
-export const EXPORT_TABLES = [
-  'users',
-  'activity_types',
-  'component_categories',
-  'manufacturers',
-  'packages',
-  'package_aliases',
-  'distributors',
-  'components',
-  'category_specifications',
-  'cad_files',
-  'eco_approval_stages',
-  'eco_settings',
-  'projects',
-  'component_specification_values',
-  'components_alternative',
-  'inventory',
-  'inventory_alternative',
-  'distributor_info',
-  'footprint_sources',
-  'component_cad_files',
-  'footprint_related_cad_files',
-  'activity_log',
-  'user_activity_log',
-  'project_components',
-  'eco_orders',
-  'eco_stage_approvers',
-  'eco_approvals',
-  'eco_changes',
-  'eco_distributors',
-  'eco_alternative_parts',
-  'eco_specifications',
-  'smtp_settings',
-  'email_notification_preferences',
-  'email_log',
-];
+export { EXPORT_TABLES } from '../services/databaseBackupService.js';
 
 /**
  * GET /api/settings/database/export - Export entire database as gzipped JSON
@@ -2002,17 +1973,7 @@ export const EXPORT_TABLES = [
 export const exportDatabase = async (req, res) => {
   try {
     logInfo('Settings', 'Starting database export...');
-    const data = { _exportVersion: 1, _exportDate: new Date().toISOString(), tables: {} };
-
-    for (const table of EXPORT_TABLES) {
-      try {
-        const result = await pool.query(`SELECT * FROM "${table}"`);
-        data.tables[table] = result.rows;
-      } catch {
-        // Table may not exist in older schemas — skip silently
-        data.tables[table] = [];
-      }
-    }
+    const data = await exportBackupSnapshot(pool);
 
     const json = JSON.stringify(data);
     const compressed = gzipSync(Buffer.from(json, 'utf-8'));
@@ -2048,18 +2009,14 @@ export const importDatabase = async (req, res) => {
 
     const compressed = req.file.buffer;
 
-    // Decompress
     let data;
     try {
-      const json = gunzipSync(compressed).toString('utf-8');
-      data = JSON.parse(json);
-    } catch {
-      return res.status(400).json({ error: 'Invalid backup file: could not decompress or parse JSON' });
-    }
-
-    // Validate structure
-    if (!data.tables || typeof data.tables !== 'object') {
-      return res.status(400).json({ error: 'Invalid backup file: missing tables object' });
+      data = parseBackupFile(compressed);
+    } catch (error) {
+      if (error instanceof BackupValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
     }
 
     const client = await pool.connect();

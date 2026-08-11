@@ -98,7 +98,7 @@ files: `server/src/controllers/settingsController.js`; new `server/src/services/
 
 §T TASKS:
 
-T1|.|make export fail closed from one connected Repeatable Read read-only snapshot; bound import decompression and reject unsupported/incomplete/malformed v1 shape before DB connection or mutation.
+T1|x|make export fail closed from one connected Repeatable Read read-only snapshot; bound import decompression and reject unsupported/incomplete/malformed v1 shape before DB connection or mutation.
 touch: `server/src/controllers/settingsController.js`; new `server/src/services/databaseBackupService.js`; `server/src/routes/settings.js`; new `server/src/test/databaseBackupController.test.js`; new `server/src/test/databaseBackupService.test.js`
 details: extract validation/export/restore DB logic into `databaseBackupService.js`; controller owns HTTP/gzip only. Export all `EXPORT_TABLES` through one client/txn; any table SELECT error rolls back + returns failure, ⊥ encode `[]`. Import uses `gunzipSync(...,{maxOutputLength:268435456})`; require `_exportVersion===1`, plain `tables`, every supported table own array, every row plain object. Keep compressed multer cap + admin gate.
 verify: `server/src/test/databaseBackupService.test.js` cases `"exports every supported table from one repeatable-read transaction"`, `"rolls back export when a table read fails"`, `"rejects incomplete or malformed v1 payloads before connecting"`; `server/src/test/databaseBackupController.test.js` cases `"sends no gzip when snapshot export fails"`, `"rejects oversized decompression before DB access"`.

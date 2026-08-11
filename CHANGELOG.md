@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Database exports now read every supported table from one repeatable-read, read-only transaction and fail rather than silently writing an empty table. Backup imports bound decompression to 256 MiB and reject unsupported, incomplete, or malformed v1 payloads before opening a database transaction.
+
 - Staged footprint-pair renames now make one authenticated all-or-nothing request: both original temp tokens are validated before either move, original upload prefixes remain intact, and a failed second move restores the first. Link Existing now previews only a unique, non-missing pad or 3D-model candidate for unoccupied slots; persisted links run the primary link, related-file auto-link, TEXT regeneration, and history sync in one transaction.
 
 ## [1.11.0] - 2026-08-04
