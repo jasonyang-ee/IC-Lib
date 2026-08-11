@@ -120,14 +120,14 @@ files: touched implementation/tests; `CHANGELOG.md`; `HANDOFF.md`.
 
 §T TASKS:
 
-T1|.|run focused client/server regressions then `bash ./test.sh`; inspect lint autofix drift, test output, error paths, request validation, transaction/revert behavior, and legacy compatibility.
+T1|x|run focused client/server regressions then `bash ./test.sh`; inspect lint autofix drift, test output, error paths, request validation, transaction/revert behavior, and legacy compatibility.
 touch: `server/src/test/*`; `client/src/test/*`; `test.sh`
 details: classify every relevant §V/§I and each §T HOLD|VIOLATE|UNVERIFIABLE with file/test evidence; resolve failures before close. Verify supplied backup remains untracked/read-only + ∄ values copied; inspect only hash/structure offline.
 verify: focused test commands + `bash ./test.sh` exit 0; diff limited to planned paths; `git status --short` lists supplied gzip separately as intentionally untracked evidence.
 exit: evidence ready for handoff.
 next: F4.T2
 
-T2|.|update release notes and durable docs only when justified; self-review coherence; commit single summary without push/tag.
+T2|x|update release notes and durable docs only when justified; self-review coherence; commit single summary without push/tag.
 touch: `CHANGELOG.md`; `SPEC.md` only if durable behavior changed; `PLAN.md`; `HANDOFF.md`
 details: record `Unreleased` bug fixes; stage explicit planned paths only, ⊥ `git add -A`; supplied gzip remains untracked; no live-server operation.
 verify: git diff/status, commit sha, final HANDOFF verification table; post-commit status shows only supplied gzip untracked.
