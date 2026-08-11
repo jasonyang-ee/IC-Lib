@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF
 
-branch `test` | last commit `467b92d fix(backup): make export fail closed` | tests PASS: server lint; focused Vitest 3 files/9 tests
+branch `test` | last commit `97f04ca docs: hand off backup restore work` | tests PASS: `bash ./test.sh` (client 37 files/215; server 61 files/550; scripts dry-run)
 uncommitted: `iclib-backup-2026-08-10T21-35-58.json.gz` — user-supplied sensitive evidence, untracked, ⊥ commit
 
 ## done this session
@@ -37,7 +37,7 @@ F3.T2 | preconditions: F3.T1 committed; ⊥ live DB/shared-drive changes.
 
 - supplied backup: 34 tables/3614 rows; all 205 `package_aliases` rows carry generated `alias_key` ∴ exact current failure. File also contains password hashes/encrypted SMTP auth/user data.
 - current restore still disables all triggers, weakly preflights, omits generated-column handling + owned sequence sync. F3.T2 must replace it; ⊥ test live DB.
-- F3.T1 evidence: `npm.cmd run lint`; `npm.cmd run test:run -- src/test/databaseBackupService.test.js src/test/databaseBackupController.test.js src/test/dbTableLists.test.js` → 3 files/9 tests green. Expected mock error log `snapshot failed` proves export failure path.
+- F3.T1 evidence: focused server lint + 3 files/9 tests green; `bash ./test.sh` 2026-08-10 green (client 37/215; server 61/550; scripts dry-run). Expected failure-path logs + pre-existing nested-button warning remain.
 
 ## final verification
 
