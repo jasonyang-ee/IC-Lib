@@ -8,7 +8,7 @@ Tracked: planning status ∈ {new, work-in-progress, done} — keyed to EXECUTIO
 Encoding: same symbol set as SPEC.md. Preserve code/paths/ids verbatim.
 Executable cold: a phase ⊥ readable without chat history is ⊥ finished.
 Full rules: /encode-docs skill.
-planning status: new
+planning status: work-in-progress
 -->
 
 # PLAN
@@ -47,21 +47,21 @@ files: `client/src/components/library/ComponentFiles.jsx`, `server/src/controlle
 
 §T TASKS:
 
-T1|.|re-confirm staged pair root + server group contract: logical lowercase `.dra` compared case-sensitively against original-case opaque temp token; serial client requests expose primary-only success.
+T1|x|re-confirm staged pair root + server group contract: logical lowercase `.dra` compared case-sensitively against original-case opaque temp token; serial client requests expose primary-only success.
 touch: `client/src/components/library/ComponentFiles.jsx`; `server/src/controllers/fileUploadController.js`; `server/src/controllers/fileLibraryController.js`; `server/src/test/cadFileServiceTransactions.test.js`
 details: preserve each distinct multer prefix; validate both temp leaves against their canonical logical filenames before either move; reuse group-target + reverse-order rollback patterns without routing temp files through live tracked-file/ECO behavior.
 verify: contracts: `server/src/test/stagedCadRename.test.js` `"renames an original-case staged footprint pair atomically with distinct prefixes"`, `"rejects an invalid staged pair before moving either file"`, `"restores the first temp file when the second move fails"`; `client/src/test/componentFilesRename.test.jsx` `"updates both staged names only after one group rename succeeds"`, `"keeps both names and shows one error when group rename fails"`.
 exit: F2.T1 executable without inference.
 next: F1.T2
 
-T2|.|re-confirm add/edit related-link contract: create save remains authoritative; add preview keeps only 1 non-missing candidate/type; persisted direct link runs primary + unique auto-link + text regen + history learning in 1 txn.
+T2|x|re-confirm add/edit related-link contract: create save remains authoritative; add preview keeps only 1 non-missing candidate/type; persisted direct link runs primary + unique auto-link + text regen + history learning in 1 txn.
 touch: `client/src/components/library/ComponentFiles.jsx`; `client/src/components/library/CadFilePickerModal.jsx`; `server/src/controllers/fileLibraryController.js`; `server/src/services/cadFileService.js`
 details: preserve existing pad/model, pair grouping, duplicate idempotence, ambiguity skip, and ECO semantics. Direct pad/model link after footprint must learn history; footprint link must return newly auto-linked pad/model.
 verify: contracts: `server/src/test/cadFileService.test.js` `"auto-links historical pad and 3D model files for a component footprint"`; `server/src/test/fileLibraryController.test.js` `"links a footprint and its unique related files in one transaction"`, `"rolls back direct linking when related-link regeneration fails"`; `client/src/test/componentFilesLinkExisting.test.jsx` `"previews one unique related file per type for an unsaved part"`, `"skips ambiguous and already occupied related types"`; `client/src/test/cadFilePickerModal.test.jsx` `"returns stored footprint pair and related files"`.
 exit: F2.T2 executable.
 next: F1.T3
 
-T3|.|re-confirm backup contract against supplied v1 artifact + §R27-§R31: one-snapshot fail-closed export; 268435456-byte decompression cap; complete v1/table/row preflight; generated omission; identity/serial preservation; FK-on import; user-trigger suppression; bounded insert batches; transactional sequence restart.
+T3|x|re-confirm backup contract against supplied v1 artifact + §R27-§R31: one-snapshot fail-closed export; 268435456-byte decompression cap; complete v1/table/row preflight; generated omission; identity/serial preservation; FK-on import; user-trigger suppression; bounded insert batches; transactional sequence restart.
 touch: `server/src/controllers/settingsController.js`; new `server/src/services/databaseBackupService.js`; `server/src/routes/settings.js`; `server/src/test/dbTableLists.test.js`; new `server/src/test/databaseBackupController.test.js`; new `server/src/test/databaseBackupService.test.js`; new `server/src/test/databaseBackupPostgres.test.js`; `database/init-schema.sql`
 details: require every `EXPORT_TABLES` key as array; allow unknown backup columns + target default/nullable additions, reject absent table/non-object row/unsupported version before mutation. Use `information_schema.columns` `is_generated|is_identity|identity_generation|column_default|is_nullable`; ⊥ hard-code `alias_key`. Keep FK constraint triggers active; suppress `components` USER triggers only. Chunk @ ≤10000 bind params. Advance owned sequences to safe next value via transactional restart.
 verify: named controller/service mocks cover SQL/order/error contracts; `server/src/test/databaseBackupPostgres.test.js` `"round-trips generated columns, FK constraints, and owned sequences on PostgreSQL 18"` rejects dangling FK + proves rollback restores rows/next sequence. Supplied sensitive backup ⊥ test fixture.
