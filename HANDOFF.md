@@ -12,21 +12,23 @@ Full rules: /encode-docs skill.
 
 # HANDOFF
 
-branch `test` | last pre-review commit `93f9901 docs: package notes` | tests PASS: client 35 files/211 tests; server 57 files/539 tests; scripts dry-run (`bash ./test.sh`)
+branch `test` | last commit `f935129 docs(plan): confirm repair contracts` | tests PASS: client 35 files/211 tests; server 57 files/539 tests; scripts dry-run (`bash ./test.sh --test-only`)
 uncommitted: `iclib-backup-2026-08-10T21-35-58.json.gz` — user-supplied sensitive evidence, untracked, ⊥ commit
 
 ## done this session
 
-review-plan: resolved staged rename case-mismatch, related-link call graph, supplied backup structure, export snapshot, shape/decompression, FK-trigger, generated/identity/sequence gaps; PLAN/SPEC tightened via encode-docs.
+F1.T1: staged temp-pair root + atomic contract confirmed → `f935129`
+F1.T2: add/edit related-link transaction + ambiguity contract confirmed → `f935129`
+F1.T3: DB snapshot/preflight/restore contract confirmed → `f935129`
 
 ## in progress (exact stop point)
 
-F1.T1: review evidence complete; cook re-confirms named contract before edits.
+F2.T1: add authenticated staged-group rename endpoint, client request, and named regressions.
 mid-edit files: none
 
 ## next
 
-F1.T1 | preconditions: `/cook` starts cycle, flips PLAN status to `work-in-progress`; ⊥ live DB/shared-drive changes.
+F2.T1 | preconditions: F1 complete; ⊥ live DB/shared-drive changes.
 
 ## deviations & decisions
 
@@ -40,8 +42,8 @@ F1.T1 | preconditions: `/cook` starts cycle, flips PLAN status to `work-in-progr
 - supplied backup: 34 tables/3614 rows; all 205 `package_aliases` rows carry generated `alias_key` ∴ exact current failure. File also contains password hashes/encrypted SMTP auth/user data.
 - current export can silently encode failed table reads as empty + spans independent snapshots. Current import has unbounded decompression/weak preflight, disables FK triggers, omits sequence sync. ⊥ test live DB.
 - Link Existing differs by `componentId`; create already server-auto-links, edit direct endpoint does not. Add preview ! unique candidate/type; edit ! txn + auto-link + regen + history.
-- F1 all unknowns resolved; removal candidate on next `/prep`, but current plan remains executable as a short evidence gate.
-- baseline check: lint passed; `bash ./test.sh --test-only` client 35 files/211 tests passed, server `scimRoutes.test.js` failed `fetch failed`/`bad port`; earlier full run had server 57 files/539 tests passed before wrapper timeout. Rerun/reclassify before final repair close.
+- F1 contracts confirmed: staged temp flow needs distinct-prefix group endpoint; persisted direct link needs one txn; backup service isolates HTTP from DB restore.
+- `bash ./test.sh --test-only` 2026-08-10: client 35 files/211, server 57 files/539, scripts dry-run passed. Expected test logs + pre-existing nested-button warning remain; no failure.
 
 ## final verification
 
