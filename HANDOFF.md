@@ -12,38 +12,32 @@ Full rules: /encode-docs skill.
 
 # HANDOFF
 
-branch `test` | last commit `558f901 fix(cad): make staged links atomic` | tests PASS: client 2 files/4 tests; server 3 files/15 tests (focused Vitest)
+branch `test` | last commit `467b92d fix(backup): make export fail closed` | tests PASS: server lint; focused Vitest 3 files/9 tests
 uncommitted: `iclib-backup-2026-08-10T21-35-58.json.gz` — user-supplied sensitive evidence, untracked, ⊥ commit
 
 ## done this session
 
-F1.T1: staged temp-pair root + atomic contract confirmed → `f935129`
-F1.T2: add/edit related-link transaction + ambiguity contract confirmed → `f935129`
-F1.T3: DB snapshot/preflight/restore contract confirmed → `f935129`
+F3.T1: one-client Repeatable Read export + bounded v1 preflight → `467b92d`
 
 ## in progress (exact stop point)
 
-F3.T1: extract bounded backup validation/export into `server/src/services/databaseBackupService.js`, wire `settingsController.js`, add controller/service tests.
+F3.T2: preflight schema + restore in `server/src/services/databaseBackupService.js`; replace controller restore loop; add metadata, rollback, and PostgreSQL 18 regressions.
 mid-edit files: none
 
 ## next
 
-F2.T1 | preconditions: F1 complete; ⊥ live DB/shared-drive changes.
+F3.T2 | preconditions: F3.T1 committed; ⊥ live DB/shared-drive changes.
 
 ## deviations & decisions
 
-- include ingested backlog auto-link repair in same cycle: same §V8 surface, disjoint verification.
-- §V65 rewritten; §R28-§R31 added. Backup scope now includes consistent fail-closed export, bounded/versioned preflight, FK-on import, USER-trigger suppression, generated/identity/serial handling.
-- supplied gzip inspected structurally only; ∄ row values copied. Keep untracked; ⊥ stage via broad git command.
+- stale `next: F2.T1` contradicted completed F2 rows + F3 in-progress marker → resumed F3.T1; plan corrected.
+- F3.T1 moved backup table list, snapshot export, and bounded v1 parsing into service; old restore stays controller-owned until F3.T2.
 
 ## watchouts
 
-- temp prefixes differ; `.dra` temp suffix retains original uppercase while logical filename is lowercase. Preserve opaque prefixes + canonical-compare suffix; one server group request only.
 - supplied backup: 34 tables/3614 rows; all 205 `package_aliases` rows carry generated `alias_key` ∴ exact current failure. File also contains password hashes/encrypted SMTP auth/user data.
-- current export can silently encode failed table reads as empty + spans independent snapshots. Current import has unbounded decompression/weak preflight, disables FK triggers, omits sequence sync. ⊥ test live DB.
-- Link Existing differs by `componentId`; create already server-auto-links, edit direct endpoint does not. Add preview ! unique candidate/type; edit ! txn + auto-link + regen + history.
-- F1 contracts confirmed: staged temp flow needs distinct-prefix group endpoint; persisted direct link needs one txn; backup service isolates HTTP from DB restore.
-- `bash ./test.sh --test-only` 2026-08-10: client 35 files/211, server 57 files/539, scripts dry-run passed. Expected test logs + pre-existing nested-button warning remain; no failure.
+- current restore still disables all triggers, weakly preflights, omits generated-column handling + owned sequence sync. F3.T2 must replace it; ⊥ test live DB.
+- F3.T1 evidence: `npm.cmd run lint`; `npm.cmd run test:run -- src/test/databaseBackupService.test.js src/test/databaseBackupController.test.js src/test/dbTableLists.test.js` → 3 files/9 tests green. Expected mock error log `snapshot failed` proves export failure path.
 
 ## final verification
 
