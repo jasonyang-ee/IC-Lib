@@ -7,9 +7,9 @@ import * as databaseService from '../services/databaseService.js';
 import pool from '../config/database.js';
 import {
   BackupValidationError,
-  EXPORT_TABLES,
   exportBackupSnapshot,
   parseBackupFile,
+  restoreBackupSnapshot,
 } from '../services/databaseBackupService.js';
 import { logUserActivity } from '../services/activityLogService.js';
 import {
@@ -2019,89 +2019,7 @@ export const importDatabase = async (req, res) => {
       throw error;
     }
 
-    const client = await pool.connect();
-    const importStats = { tablesImported: 0, rowsImported: 0, errors: [] };
-
-    try {
-      await client.query('BEGIN');
-
-      // Disable triggers only within this transaction to avoid side effects during import.
-      await client.query('SET LOCAL session_replication_role = replica');
-
-      // Clear existing data in reverse dependency order
-      for (let i = EXPORT_TABLES.length - 1; i >= 0; i--) {
-        const table = EXPORT_TABLES[i];
-        try {
-          await client.query(`DELETE FROM "${table}"`);
-        } catch {
-          // Table may not exist
-        }
-      }
-
-      // Import data in dependency order
-      for (const table of EXPORT_TABLES) {
-        const rows = data.tables[table];
-        if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
-
-        try {
-          // Get column info for this table
-          const colResult = await client.query(`
-            SELECT column_name, data_type
-            FROM information_schema.columns
-            WHERE table_schema = 'public' AND table_name = $1
-            ORDER BY ordinal_position
-          `, [table]);
-          const validColumns = new Set(colResult.rows.map(c => c.column_name));
-          const columnTypes = Object.fromEntries(colResult.rows.map(c => [c.column_name, c.data_type]));
-
-          // Filter row keys to only valid columns
-          const sampleRow = rows[0];
-          const columns = Object.keys(sampleRow).filter(k => validColumns.has(k));
-          if (columns.length === 0) continue;
-
-          // Build batch insert
-          const placeholders = [];
-          const values = [];
-          let paramIndex = 1;
-
-          for (const row of rows) {
-            const rowPlaceholders = [];
-            for (const col of columns) {
-              let val = row[col];
-              // Convert JSONB strings back to proper format
-              if (val !== null && typeof val === 'object' && (columnTypes[col] === 'jsonb' || columnTypes[col] === 'json')) {
-                val = JSON.stringify(val);
-              }
-              rowPlaceholders.push(`$${paramIndex++}`);
-              values.push(val);
-            }
-            placeholders.push(`(${rowPlaceholders.join(', ')})`);
-          }
-
-          const quotedColumns = columns.map(c => `"${c}"`).join(', ');
-          const insertResult = await client.query(
-            `INSERT INTO "${table}" (${quotedColumns}) VALUES ${placeholders.join(', ')}`,
-            values,
-          );
-
-          importStats.tablesImported++;
-          importStats.rowsImported += insertResult.rowCount;
-        } catch (err) {
-          importStats.errors.push({ table, error: err.message });
-          logError('Settings', `Import table ${table}: ${err.message}`);
-          err.message = `Import failed for table ${table}: ${err.message}`;
-          err.details = [{ table, error: err.message }];
-          throw err;
-        }
-      }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    const importStats = await restoreBackupSnapshot(pool, data);
 
     logInfo('Settings', `Database import complete: ${importStats.tablesImported} tables, ${importStats.rowsImported} rows`);
     res.json({

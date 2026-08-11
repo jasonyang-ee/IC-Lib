@@ -4,6 +4,7 @@ const poolMocks = vi.hoisted(() => ({ connect: vi.fn() }));
 const backupMocks = vi.hoisted(() => ({
   exportBackupSnapshot: vi.fn(),
   parseBackupFile: vi.fn(),
+  restoreBackupSnapshot: vi.fn(),
   BackupValidationError: class BackupValidationError extends Error {},
 }));
 
@@ -13,6 +14,7 @@ vi.mock('../services/databaseBackupService.js', () => ({
   BackupValidationError: backupMocks.BackupValidationError,
   exportBackupSnapshot: (...args) => backupMocks.exportBackupSnapshot(...args),
   parseBackupFile: (...args) => backupMocks.parseBackupFile(...args),
+  restoreBackupSnapshot: (...args) => backupMocks.restoreBackupSnapshot(...args),
 }));
 
 const { exportDatabase, importDatabase } = await import('../controllers/settingsController.js');
@@ -48,5 +50,20 @@ describe('database backup controllers', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(poolMocks.connect).not.toHaveBeenCalled();
+  });
+
+  it('returns a safe table error and never reports failed restore as success', async () => {
+    backupMocks.parseBackupFile.mockReturnValueOnce({ _exportDate: '2026-08-10T00:00:00.000Z', tables: { users: [] } });
+    backupMocks.restoreBackupSnapshot.mockRejectedValueOnce(new Error('Backup restore incompatible with table users'));
+    const res = makeResponse();
+
+    await importDatabase({ file: { buffer: Buffer.from('compressed') } }, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenLastCalledWith(expect.objectContaining({
+      error: 'Failed to import database',
+      message: 'Backup restore incompatible with table users',
+    }));
+    expect(res.json).not.toHaveBeenCalledWith(expect.objectContaining({ success: true }));
   });
 });
