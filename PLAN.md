@@ -76,7 +76,7 @@ files: `client/src/components/library/ComponentFiles.jsx`; `client/src/utils/api
 
 §T TASKS:
 
-T1|.|replace serial best-effort staged footprint-pair rename with atomic server-backed behavior or verified rollback; preserve each original temp prefix, normalize pair names, return a single all-or-nothing outcome.
+T1|~|replace serial best-effort staged footprint-pair rename with atomic server-backed behavior or verified rollback; preserve each original temp prefix, normalize pair names, return a single all-or-nothing outcome.
 touch: `client/src/components/library/ComponentFiles.jsx`; `client/src/utils/api.js`; `server/src/controllers/fileUploadController.js`; `server/src/routes/fileUpload.js`; new `server/src/test/stagedCadRename.test.js`; new `client/src/test/componentFilesRename.test.jsx`
 details: add 1 authenticated staged-group request carrying both exact temp tokens + desired base; canonical-compare temp suffixes case-insensitively, validate pair/extensions + all sources/targets before mutation, retain unique prefixes, reverse exact moves on later failure. Client updates callbacks/local state only after complete response; ⊥ conflate live tracked rename/ECO with staged rename.
 verify: `server/src/test/stagedCadRename.test.js` cases `"renames an original-case staged footprint pair atomically with distinct prefixes"`, `"rejects an invalid staged pair before moving either file"`, `"restores the first temp file when the second move fails"`; `client/src/test/componentFilesRename.test.jsx` cases `"updates both staged names only after one group rename succeeds"`, `"keeps both names and shows one error when group rename fails"`.
