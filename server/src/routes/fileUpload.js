@@ -4,6 +4,7 @@ import {
   upload,
   uploadTempFile,
   finalizeTempFile,
+  renameStagedFootprintGroup,
   cleanupTempFiles,
   checkCollisionsBatch,
   listFiles,
@@ -38,6 +39,9 @@ router.post('/upload-temp', authenticate, canWrite, handleUploadMiddleware, uplo
 
 // Finalize temp files — move from temp to category directories and register in DB
 router.post('/finalize-temp', authenticate, canWrite, finalizeTempFile);
+
+// Rename a staged .psm/.dra pair before either file enters the live library.
+router.put('/rename-staged-footprint-group', authenticate, canWrite, renameStagedFootprintGroup);
 
 // Cleanup temp files — delete staged files that were not finalized (cancel flow)
 router.post('/cleanup-temp', authenticate, canWrite, cleanupTempFiles);

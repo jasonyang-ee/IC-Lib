@@ -76,14 +76,14 @@ files: `client/src/components/library/ComponentFiles.jsx`; `client/src/utils/api
 
 §T TASKS:
 
-T1|~|replace serial best-effort staged footprint-pair rename with atomic server-backed behavior or verified rollback; preserve each original temp prefix, normalize pair names, return a single all-or-nothing outcome.
+T1|x|replace serial best-effort staged footprint-pair rename with atomic server-backed behavior or verified rollback; preserve each original temp prefix, normalize pair names, return a single all-or-nothing outcome.
 touch: `client/src/components/library/ComponentFiles.jsx`; `client/src/utils/api.js`; `server/src/controllers/fileUploadController.js`; `server/src/routes/fileUpload.js`; new `server/src/test/stagedCadRename.test.js`; new `client/src/test/componentFilesRename.test.jsx`
 details: add 1 authenticated staged-group request carrying both exact temp tokens + desired base; canonical-compare temp suffixes case-insensitively, validate pair/extensions + all sources/targets before mutation, retain unique prefixes, reverse exact moves on later failure. Client updates callbacks/local state only after complete response; ⊥ conflate live tracked rename/ECO with staged rename.
 verify: `server/src/test/stagedCadRename.test.js` cases `"renames an original-case staged footprint pair atomically with distinct prefixes"`, `"rejects an invalid staged pair before moving either file"`, `"restores the first temp file when the second move fails"`; `client/src/test/componentFilesRename.test.jsx` cases `"updates both staged names only after one group rename succeeds"`, `"keeps both names and shows one error when group rename fails"`.
 exit: all F2.T1 tests green; no partial rename reachable.
 next: F2.T2
 
-T2|.|repair Link Existing auto-association of uniquely learned footprint pad/3D files for unsaved add and persisted edit flows.
+T2|x|repair Link Existing auto-association of uniquely learned footprint pad/3D files for unsaved add and persisted edit flows.
 touch: `client/src/components/library/ComponentFiles.jsx`; `server/src/controllers/fileLibraryController.js`; `server/src/services/cadFileService.js`; `server/src/test/cadFileService.test.js`; new `server/src/test/fileLibraryController.test.js`; `client/src/test/cadFilePickerModal.test.jsx`; new `client/src/test/componentFilesLinkExisting.test.jsx`
 details: add preview derives max 1 non-missing related file/type; create save remains authoritative via existing `allowFootprintAutoLink|allowFootprintHistoryLearning`. Persisted direct link uses one DB client/txn: primary link, unique related auto-link, regen all affected types, history sync, commit, return primary+added files; rollback/release on failure. Existing pad/model, ambiguous candidates, duplicate links, ECO staging unchanged.
 verify: `server/src/test/cadFileService.test.js` case `"auto-links historical pad and 3D model files for a component footprint"`; `server/src/test/fileLibraryController.test.js` cases `"links a footprint and its unique related files in one transaction"`, `"learns history when a related file is linked directly"`, `"rolls back direct linking when related-link regeneration fails"`; `client/src/test/componentFilesLinkExisting.test.jsx` cases `"previews one unique related file per type for an unsaved part"`, `"skips ambiguous and already occupied related types"`.

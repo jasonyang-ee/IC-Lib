@@ -745,6 +745,7 @@ export const getCadFilesForComponent = async (req, res) => {
  * Link an existing CAD file to a component.
  */
 export const linkFileToComponent = async (req, res) => {
+  let client;
   try {
     const { cadFileId, componentId } = req.body;
 
@@ -752,29 +753,53 @@ export const linkFileToComponent = async (req, res) => {
       return res.status(400).json({ error: 'cadFileId and componentId are required' });
     }
 
-    const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
     if (cfResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'CAD file not found' });
     }
 
     const cadFile = cfResult.rows[0];
-    const linkedCadFiles = await cadFileService.linkCadFileToComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
+    const linkedCadFiles = await cadFileService.linkCadFileToComponent(
+      cadFileId,
+      componentId,
+      cadFile.file_type,
+      cadFile.file_name,
+      client,
+    );
+    const autoLinkedCadFiles = await cadFileService.autoLinkRelatedCadFilesForComponent(componentId, client);
+    const affectedFileTypes = new Set(autoLinkedCadFiles.map((file) => file.file_type));
+
+    for (const fileType of affectedFileTypes) {
+      await cadFileService.regenerateCadText(componentId, fileType, client);
+    }
+    await cadFileService.syncFootprintRelatedCadFilesForComponent(componentId, client);
 
     // Clear missing flag when user manually links a file (indicates server-side file management)
     if (cadFile.missing) {
-      await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [cadFileId]);
+      await client.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [cadFileId]);
     }
+
+    await client.query('COMMIT');
 
     logInfo('FileLibrary', `Linked "${cadFile.file_name}" to component ${componentId}`);
 
     res.json({
       success: true,
       cadFile,
-      linkedCadFiles: linkedCadFiles.map((file) => mapCadFileResponse(file)),
+      linkedCadFiles: [...linkedCadFiles, ...autoLinkedCadFiles].map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    }
     logError('FileLibrary', 'Error linking file to component:', error.message);
     res.status(500).json({ error: 'Failed to link file to component' });
+  } finally {
+    client?.release();
   }
 };
 

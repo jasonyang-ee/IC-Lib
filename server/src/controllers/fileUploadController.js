@@ -537,6 +537,118 @@ export async function cleanupTempFiles(req, res) {
  * Batch collision check — check multiple temp files against their target category directories.
  * Called at save time before finalization.
  */
+function getStagedFootprintRenameEntry(file, tempDir, canonicalBaseName) {
+  if (!file || typeof file !== 'object') {
+    throw new Error('Each staged file must include a temp filename and logical filename');
+  }
+
+  const tempFilename = assertSafeLeafName(file.tempFilename, 'temp filename');
+  const oldFilename = assertSafeLeafName(file.filename, 'filename');
+  const extension = path.extname(oldFilename).toLowerCase();
+  if (!['.psm', '.dra'].includes(extension)) {
+    throw new Error('Staged footprint rename requires one .psm file and one .dra file');
+  }
+
+  // Multer preserves original suffix case while logical names are normalized.
+  const suffix = `-${oldFilename}`;
+  const suffixIndex = tempFilename.toLowerCase().lastIndexOf(suffix.toLowerCase());
+  if (suffixIndex <= 0 || suffixIndex + suffix.length !== tempFilename.length) {
+    throw new Error('Selected temp file does not match the requested filename');
+  }
+
+  const prefix = tempFilename.substring(0, suffixIndex + 1);
+  const newFilename = `${canonicalBaseName}${extension}`;
+  const newTempFilename = `${prefix}${newFilename}`;
+  return {
+    tempFilename,
+    oldFilename,
+    newFilename,
+    newTempFilename,
+    oldPath: path.join(tempDir, tempFilename),
+    newPath: path.join(tempDir, newTempFilename),
+  };
+}
+
+/** Rename a staged .psm/.dra pair before either file enters the live library. */
+export async function renameStagedFootprintGroup(req, res) {
+  try {
+    const { files, newBaseName } = req.body;
+    if (!Array.isArray(files) || files.length !== 2 || typeof newBaseName !== 'string') {
+      return res.status(400).json({ error: 'Exactly two staged footprint files and a new base name are required' });
+    }
+
+    const sanitizedBaseName = sanitizeCadBaseName(newBaseName);
+    if (!sanitizedBaseName) {
+      return res.status(400).json({ error: 'Invalid filename after sanitization' });
+    }
+
+    const canonicalPsmFilename = canonicalizeCadUploadFilename(
+      `${sanitizedBaseName}.psm`,
+      'footprint',
+      await loadPackageCatalog(),
+    );
+    assertNoPlusInFootprintName(canonicalPsmFilename);
+    const canonicalBaseName = getCadFileBaseName(canonicalPsmFilename);
+    const tempDir = path.join(LIBRARY_BASE, 'temp');
+    const entries = files.map((file) => getStagedFootprintRenameEntry(file, tempDir, canonicalBaseName));
+    const extensions = new Set(entries.map((entry) => path.extname(entry.oldFilename).toLowerCase()));
+    const tempNames = new Set(entries.map((entry) => entry.tempFilename));
+    const targets = new Set(entries.map((entry) => entry.newTempFilename));
+
+    if (extensions.size !== 2 || !extensions.has('.psm') || !extensions.has('.dra') || tempNames.size !== 2 || targets.size !== 2) {
+      return res.status(400).json({ error: 'Staged footprint rename requires one distinct .psm/.dra pair' });
+    }
+
+    // Validate all sources and targets before the first filesystem mutation.
+    for (const entry of entries) {
+      if (!fs.existsSync(entry.oldPath)) {
+        return res.status(404).json({ error: 'Temp file not found' });
+      }
+      if (entry.oldPath !== entry.newPath && fs.existsSync(entry.newPath)) {
+        return res.status(409).json({ error: `A file named "${entry.newFilename}" already exists` });
+      }
+    }
+
+    const movedEntries = [];
+    try {
+      for (const entry of entries) {
+        if (entry.oldPath === entry.newPath) continue;
+        fs.renameSync(entry.oldPath, entry.newPath);
+        movedEntries.push(entry);
+      }
+    } catch (moveError) {
+      for (const entry of [...movedEntries].reverse()) {
+        try {
+          fs.renameSync(entry.newPath, entry.oldPath);
+        } catch (rollbackError) {
+          logError('FileUpload', `Failed to restore staged footprint ${entry.tempFilename}: ${rollbackError.message}`);
+        }
+      }
+      throw moveError;
+    }
+
+    return res.json({
+      message: 'Staged footprint pair renamed',
+      renamedFiles: entries.map(({ oldFilename, newFilename, tempFilename, newTempFilename }) => ({
+        oldFilename,
+        newFilename,
+        oldTempFilename: tempFilename,
+        newTempFilename,
+        isTemp: true,
+      })),
+    });
+  } catch (error) {
+    if (error instanceof FootprintNameError) {
+      return res.status(422).json({ error: error.message });
+    }
+    if (/^(Invalid |Selected temp file|Each staged file|Staged footprint rename|Exactly two staged footprint)/.test(error.message || '')) {
+      return res.status(400).json({ error: error.message });
+    }
+    logError('FileUpload', 'Error renaming staged footprint pair:', error);
+    return res.status(500).json({ error: 'Failed to rename staged footprint pair' });
+  }
+}
+
 export function checkCollisionsBatch(req, res) {
   try {
     const { files } = req.body;

@@ -79,6 +79,30 @@ function mergeSelectedCadFiles(selectedFiles, autoFiles = []) {
   return [...mergedFiles.values()];
 }
 
+export function getUniqueRelatedAutoFiles(selectedFiles, autoFiles, currentFiles) {
+  const occupiedTypes = new Set([
+    ...selectedFiles.map((file) => file?.file_type),
+    ...Object.entries(currentFiles || {})
+      .filter(([, files]) => Array.isArray(files) && files.length > 0)
+      .map(([fileType]) => fileType),
+  ]);
+  const candidatesByType = new Map();
+
+  for (const file of autoFiles) {
+    if (!file?.id || file.missing || !['pad', 'model'].includes(file.file_type) || occupiedTypes.has(file.file_type)) {
+      continue;
+    }
+    if (!candidatesByType.has(file.file_type)) {
+      candidatesByType.set(file.file_type, new Map());
+    }
+    candidatesByType.get(file.file_type).set(file.id, file);
+  }
+
+  return [...candidatesByType.values()]
+    .filter((candidates) => candidates.size === 1)
+    .flatMap((candidates) => [...candidates.values()]);
+}
+
 function detectSingleFileConflicts(entries, priorFiles) {
   const conflictingKeys = new Set();
   let firstConflict = null;
@@ -476,6 +500,23 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   // Rename mutation
   const renameMutation = useMutation({
     mutationFn: async ({ category, oldFilename, newFilename, tempFilename, pairedFilename, pairedNewFilename, pairedTempFilename }) => {
+      if (category === 'footprint' && tempFilename && pairedFilename && pairedNewFilename && pairedTempFilename) {
+        const newBaseName = newFilename.substring(0, newFilename.lastIndexOf('.'));
+        const response = await api.renameStagedFootprintGroup([
+          { tempFilename, filename: oldFilename },
+          { tempFilename: pairedTempFilename, filename: pairedFilename },
+        ], newBaseName);
+        const renamedFiles = response.data?.renamedFiles || [];
+        const primaryData = renamedFiles.find((file) => file.oldFilename === oldFilename);
+        const pairedData = renamedFiles.find((file) => file.oldFilename === pairedFilename);
+
+        if (!primaryData || !pairedData) {
+          throw new Error('Staged footprint rename returned an incomplete pair');
+        }
+
+        return { primaryData, pairedData, pairedRenameError: null };
+      }
+
       const primaryData = (await api.renameComponentFile(category, mfgPartNumber, oldFilename, newFilename, tempFilename)).data;
       let pairedData = null;
       let pairedRenameError = null;
@@ -1425,7 +1466,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
           }
 
           const shouldIncludeAutoFiles = !componentId;
-          let linkedFiles = mergeSelectedCadFiles(selectedFiles, shouldIncludeAutoFiles ? autoFiles : []);
+          const previewAutoFiles = shouldIncludeAutoFiles
+            ? getUniqueRelatedAutoFiles(selectedFiles, autoFiles, filesRef.current)
+            : [];
+          let linkedFiles = mergeSelectedCadFiles(selectedFiles, previewAutoFiles);
           if (!ecoMode && componentId) {
             try {
               const result = await linkMutation.mutateAsync({ cadFiles: selectedFiles });

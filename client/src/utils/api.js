@@ -303,6 +303,8 @@ export const api = {
     apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
   renameComponentFile: (category, mfgPartNumber, oldFilename, newFilename, tempFilename) =>
     apiClient.put('/files/rename', { category, mfgPartNumber, oldFilename, newFilename, tempFilename }),
+  renameStagedFootprintGroup: (files, newBaseName) =>
+    apiClient.put('/files/rename-staged-footprint-group', { files, newBaseName }),
   getFileDownloadUrl: (category, mfgPartNumber, filename) =>
     `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
   getFileExportUrl: (mfgPartNumber) =>
