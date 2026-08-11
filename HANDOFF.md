@@ -12,7 +12,7 @@ Full rules: /encode-docs skill.
 
 # HANDOFF
 
-branch `test` | last commit `f935129 docs(plan): confirm repair contracts` | tests PASS: client 35 files/211 tests; server 57 files/539 tests; scripts dry-run (`bash ./test.sh --test-only`)
+branch `test` | last commit `c1e9895 docs(plan): start staged rename repair` | tests PASS: client 35 files/211 tests; server 57 files/539 tests; scripts dry-run (`bash ./test.sh --test-only`)
 uncommitted: `iclib-backup-2026-08-10T21-35-58.json.gz` — user-supplied sensitive evidence, untracked, ⊥ commit
 
 ## done this session
@@ -23,7 +23,7 @@ F1.T3: DB snapshot/preflight/restore contract confirmed → `f935129`
 
 ## in progress (exact stop point)
 
-F2.T1: add authenticated staged-group rename endpoint, client request, and named regressions.
+F2.T1: add `renameStagedFootprintGroup` in `server/src/controllers/fileUploadController.js`, route/API client call, then named server/client regressions.
 mid-edit files: none
 
 ## next
