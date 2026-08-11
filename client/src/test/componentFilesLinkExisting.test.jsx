@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getUniqueRelatedAutoFiles } from '../components/library/ComponentFiles';
+import { getUniqueRelatedAutoFiles } from '../utils/cadFileRelatedLinks';
 
 describe('ComponentFiles Link Existing preview', () => {
   it('previews one unique related file per type for an unsaved part', () => {

@@ -16,6 +16,7 @@ import {
 import { groupFootprintFiles, hasIllegalFootprintPlus, normalizeFootprintFilename, FOOTPRINT_PLUS_ERROR_MESSAGE } from '../../utils/footprintFiles';
 import { collectCadDeleteTargets } from '../../utils/componentCadDelete';
 import { collectCadUploadEntries } from '../../utils/cadUploadEntries';
+import { getUniqueRelatedAutoFiles } from '../../utils/cadFileRelatedLinks';
 import { useNotification } from '../../contexts/NotificationContext';
 import { Download, AlertCircle, Plus, X } from 'lucide-react';
 import ConfirmationModal from '../common/ConfirmationModal';
@@ -77,30 +78,6 @@ function mergeSelectedCadFiles(selectedFiles, autoFiles = []) {
   });
 
   return [...mergedFiles.values()];
-}
-
-export function getUniqueRelatedAutoFiles(selectedFiles, autoFiles, currentFiles) {
-  const occupiedTypes = new Set([
-    ...selectedFiles.map((file) => file?.file_type),
-    ...Object.entries(currentFiles || {})
-      .filter(([, files]) => Array.isArray(files) && files.length > 0)
-      .map(([fileType]) => fileType),
-  ]);
-  const candidatesByType = new Map();
-
-  for (const file of autoFiles) {
-    if (!file?.id || file.missing || !['pad', 'model'].includes(file.file_type) || occupiedTypes.has(file.file_type)) {
-      continue;
-    }
-    if (!candidatesByType.has(file.file_type)) {
-      candidatesByType.set(file.file_type, new Map());
-    }
-    candidatesByType.get(file.file_type).set(file.id, file);
-  }
-
-  return [...candidatesByType.values()]
-    .filter((candidates) => candidates.size === 1)
-    .flatMap((candidates) => [...candidates.values()]);
 }
 
 function detectSingleFileConflicts(entries, priorFiles) {

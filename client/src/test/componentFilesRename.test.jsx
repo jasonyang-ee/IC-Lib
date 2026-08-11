@@ -48,9 +48,10 @@ vi.mock('@tanstack/react-query', () => ({
 
 import ComponentFiles from '../components/library/ComponentFiles';
 
-function renderFiles(onFileRenamed = vi.fn()) {
+function renderFiles() {
+  const onFileRenamed = vi.fn();
   render(<ComponentFiles mfgPartNumber="TEST-1" canEdit onFileRenamed={onFileRenamed} />);
-  return onFileRenamed;
+  return { onFileRenamed };
 }
 
 describe('ComponentFiles staged footprint rename', () => {
@@ -84,7 +85,7 @@ describe('ComponentFiles staged footprint rename', () => {
   it('keeps both names and shows one error when group rename fails', async () => {
     api.renameStagedFootprintGroup.mockRejectedValue({ response: { data: { error: 'Pair rename failed' } } });
 
-    const onFileRenamed = renderFiles();
+    const { onFileRenamed } = renderFiles();
     fireEvent.click(screen.getByTitle('Rename file pair'));
     fireEvent.change(screen.getByDisplayValue('old'), { target: { value: 'new' } });
     fireEvent.click(screen.getByText('Save'));
