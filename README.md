@@ -84,6 +84,8 @@ services:
 
   Set the reverse proxy subdirectory path if the app is not able to run with sub CNAME routing. For example, if the app is served at `https://domain.tld/anypath/`, set `CONFIG_SUBDIRECTORY_PATH=/anypath/` to ensure the frontend router and asset paths work correctly.
 
+  While subdirectory routing is supported, it is not the recommended deployment method. If you can, use a 2nd level subdomain (e.g., `iclib.domain.tld`) and leave both variables unset. Subdirectory routing is only needed when you cannot use a subdomain.
+
 - `RATE_LIMIT_*` / `TRUST_PROXY_HOPS`
 
   Optional rate-limit tuning (defaults apply when unset). Three budgets are enforced independently, so exhausting one never locks out the others:
@@ -177,6 +179,8 @@ This is a single-tenant integration: requests carrying an object id from any oth
 ## Reverse Proxy with Subdirectory Support
 
 Set `CONFIG_SUBDIRECTORY_PATH` to the public mount path when you deploy the app behind a subdirectory, for example `CONFIG_SUBDIRECTORY_PATH=/anypath/`. Keep `CONFIG_BASE_URL` set to the full public URL when email links should point back into that same path.
+
+While subdirectory routing is supported, it is not the recommended deployment method. If you can, use a 2nd level subdomain (e.g., `iclib.domain.tld`) and leave both variables unset. Subdirectory routing is only needed when you cannot use a subdomain.
 
 ### Caddy
 
