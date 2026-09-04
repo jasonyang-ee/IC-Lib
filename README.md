@@ -67,6 +67,9 @@ services:
 ### Web Interface
 
 - Access the web interface at `http://<host_ip>:80`
+- Default Login Credentials:
+  - Username: `admin`
+  - Password: `admin123` (Change this immediately after first login)
 
 ### Environment Variables
 - `CONFIG_ECO=true`
