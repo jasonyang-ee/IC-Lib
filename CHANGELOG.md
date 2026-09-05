@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- 
+
+### Fixed
+
+- 
+
+## [1.11.1] - 2026-09-05
+
+### Added
+
+- 
+
+### Changed
+
 - Repo-local workflow guidance now matches the current skill templates: `AGENTS.md` uses the updated `/cater`, `/review-code`, and support-command wording, and the baked headers in `SPEC.md`, `PLAN.md`, and `HANDOFF.md` now align with `encode-header`.
 
 ### Fixed
