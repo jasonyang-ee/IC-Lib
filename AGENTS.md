@@ -13,11 +13,11 @@
 2. `/prep` → iterative PLAN.md + HANDOFF.md + SPEC.md handoff
 3. `/review-plan` → research/refute plan → GO/NO-GO
 4. `/cook` → execute all remaining phases in order → verify → commit → handoff after each phase. Optional phase arg → target one phase. Single main agent.
-5. `/cater` → same phases via sub-agents, parallel when file sets ⊥ intersect. 4 | 5 exclusive per phase, ⊥ both.
+5. `/cater` → adapt per ready phase: direct via loaded `cook` when delegation lacks material benefit | sub-agents when parallelism, context isolation, or specialist capability pays; before dispatch show scope, agent type, model, effort, rationale. Top-level 4 | 5 exclusive; one phase ⊥ direct + delegated.
 6. `/garnish` → SPEC.md cleanup → blank PLAN.md + HANDOFF.md to template
-7. `/review-code` → baseline code sweep → prep
+7. `/review-code` → baseline code sweep → prep for accepted, authorized follow-up work
 
-support: `/handoff` session baton | `/encode-docs` sole mutator of `SPEC.md`, `PLAN.md`, and `HANDOFF.md` | `encode-header` header template | `/encode-commit` commit summary | `/encode-pr` PR review comments
+support: `/handoff` session baton | `/encode-docs` sole mutator of `SPEC.md`, `PLAN.md`, and `HANDOFF.md` | `encode-header` header template | `/encode-agent` bounded sub-agent prompt | `/encode-commit` commit summary | `/encode-pr` PR review comments
 
 ## Encoding Symbols
 

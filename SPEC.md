@@ -1,15 +1,13 @@
 <!-- SPEC FORMAT (baked by /encode-docs — keep; makes this file self-describing)
-Sections, fixed order: §G goal | §C constraints | §I interfaces | §R research? | §V invariants
-Symbols: → leads to | ∴ therefore | ∀ every | ∃ some | ! must | ? may/unknown | ⊥ never | ≠ | ∈ | ∉ | ≤ | ≥ | & and | § section
-Durable truth only. Mutable: add sparingly (high bar), prune freely on evidence.
-Address §<S>.<n> — §V.2 = invariants item 2. Commits/PRs cite by §.
-Encoding: drop articles/filler/aux verbs. Fragments fine. Short synonyms (fix > implement).
-Preserve verbatim: code, paths, identifiers, URLs, numbers, error strings, SQL, regex.
-Tables (§C/§I/§R/§V): pipe-delimited, id-keyed; header row + GFM delimiter row (|---|---|), one cell per column. Escape literal \| . Empty cell = -
-ids: monotonic, never reused — take the next from `next:` below, ⊥ from the highest row (rows get pruned)
+Sections: §G goal | §C constraints | §I interfaces | §R research? | §V invariants.
+Symbols: → leads to | ∴ therefore | ∀ every | ∃ exists | ! required | ? unknown/optional | ⊥ forbidden/absent | ≠ differs | ∈ member | ∉ not member | ≤ at most | ≥ at least | & and | § section.
+Durable truth only. Add sparingly; correct/prune on evidence. A violated requirement is not automatically obsolete.
+Address V2 as §V.2. Never renumber or reuse ids; allocate from next counters, then advance them. Deletion leaves counters unchanged.
+Preserve literals, conditions, negation, uncertainty, quantities, and requirement strength.
+Tables: header + delimiter row, matching columns; escape literal pipes. Empty cell = -.
 next: C14 I14 R32 V66
-One file rule: >1000 lines → prune stale §V, ⊥ split into more files.
-Full rules: /encode-docs skill. Cutting a word that loses a fact ⊥ allowed.
+Keep one file; prune stale/redundant facts without losing live requirements.
+Full rules: /encode-docs. Compression must preserve meaning.
 -->
 
 # IC-Lib SPEC
