@@ -207,10 +207,13 @@ async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
     if (VALID_CAD_CATEGORIES.has(category)) {
       const cadFile = await cadFileService.registerCadFile(filename, category);
       await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, category, filename);
+      return cadFile;
     }
   } catch (error) {
     logError('FileUpload', `Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
   }
+
+  return null;
 }
 
 /**
@@ -435,10 +438,12 @@ export async function finalizeTempFile(req, res) {
           const rawFilename = safeName.replace(/^\d+-\d+-/, '');
           const filename = canonicalizeCadUploadFilename(rawFilename, category, catalog);
           fs.unlinkSync(tempPath);
-          if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
-            await autoLinkFileToComponent(category, filename, mfgPartNumber);
-          }
-          results.push({ filename, type: category, collision: true, linked: true });
+          const linkedCadFile = mfgPartNumber && VALID_CAD_CATEGORIES.has(category)
+            ? await autoLinkFileToComponent(category, filename, mfgPartNumber)
+            : VALID_CAD_CATEGORIES.has(category)
+              ? await cadFileService.registerCadFile(filename, category)
+              : null;
+          results.push({ filename, type: category, collision: true, linked: true, cadFileId: linkedCadFile?.id || null });
           continue;
         }
 
@@ -458,6 +463,7 @@ export async function finalizeTempFile(req, res) {
         }
 
         const filename = moveResult.filename;
+        let registeredCadFile = null;
 
         // Register in DB and optionally link to component.
         // Move-then-register is intentional: the filesystem is the source of
@@ -465,10 +471,10 @@ export async function finalizeTempFile(req, res) {
         // admin library scan re-registers anything a transient DB error misses,
         // so a register failure here is self-healing and never strands a DB row.
         if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
-          await autoLinkFileToComponent(category, filename, mfgPartNumber);
+          registeredCadFile = await autoLinkFileToComponent(category, filename, mfgPartNumber);
         } else if (VALID_CAD_CATEGORIES.has(category)) {
           try {
-            await cadFileService.registerCadFile(filename, category);
+            registeredCadFile = await cadFileService.registerCadFile(filename, category);
           } catch (err) {
             logError('FileUpload', `Failed to register ${filename}: ${err.message}`);
           }
@@ -478,6 +484,7 @@ export async function finalizeTempFile(req, res) {
           filename,
           type: category,
           collision: moveResult.collision || false,
+          cadFileId: registeredCadFile?.id || null,
         });
       }
     }
@@ -489,8 +496,8 @@ export async function finalizeTempFile(req, res) {
 
         try {
           const safeFilename = assertSafeLeafName(filename, 'filename');
-          await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
-          results.push({ filename: safeFilename, type: category, collision: true, linked: true });
+          const linkedCadFile = await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
+          results.push({ filename: safeFilename, type: category, collision: true, linked: true, cadFileId: linkedCadFile?.id || null });
         } catch (err) {
           logError('FileUpload', `Failed to link collision file ${filename}: ${err.message}`);
           results.push({ filename, type: category, collision: true, error: err.message });

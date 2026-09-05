@@ -27,9 +27,23 @@ vi.mock('../config/database.js', () => ({
 vi.mock('../services/digikeyService.js', () => ({}));
 vi.mock('../services/mouserService.js', () => ({}));
 
-const syncCadFilesMock = vi.hoisted(() => vi.fn());
+const cadServiceMocks = vi.hoisted(() => ({
+  syncComponentCadFiles: vi.fn(),
+  getCadFilesByIds: vi.fn(),
+  linkCadFilesToComponentByIds: vi.fn(),
+  autoLinkRelatedCadFilesForComponent: vi.fn(),
+  regenerateAllCadText: vi.fn(),
+  syncFootprintRelatedCadFilesForComponent: vi.fn(),
+}));
 vi.mock('../services/cadFileService.js', () => ({
-  default: { syncComponentCadFiles: (...args) => syncCadFilesMock(...args) },
+  default: {
+    syncComponentCadFiles: (...args) => cadServiceMocks.syncComponentCadFiles(...args),
+    getCadFilesByIds: (...args) => cadServiceMocks.getCadFilesByIds(...args),
+    linkCadFilesToComponentByIds: (...args) => cadServiceMocks.linkCadFilesToComponentByIds(...args),
+    autoLinkRelatedCadFilesForComponent: (...args) => cadServiceMocks.autoLinkRelatedCadFilesForComponent(...args),
+    regenerateAllCadText: (...args) => cadServiceMocks.regenerateAllCadText(...args),
+    syncFootprintRelatedCadFilesForComponent: (...args) => cadServiceMocks.syncFootprintRelatedCadFilesForComponent(...args),
+  },
 }));
 vi.mock('../services/specificationService.js', () => ({
   getComponentCategoryId: vi.fn(),
@@ -78,7 +92,12 @@ const txnCommands = () => queryMock.mock.calls
 describe('createComponent atomicity (V7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    syncCadFilesMock.mockResolvedValue(undefined);
+    cadServiceMocks.syncComponentCadFiles.mockResolvedValue(undefined);
+    cadServiceMocks.getCadFilesByIds.mockResolvedValue([]);
+    cadServiceMocks.linkCadFilesToComponentByIds.mockResolvedValue([]);
+    cadServiceMocks.autoLinkRelatedCadFilesForComponent.mockResolvedValue([]);
+    cadServiceMocks.regenerateAllCadText.mockResolvedValue(undefined);
+    cadServiceMocks.syncFootprintRelatedCadFilesForComponent.mockResolvedValue([]);
   });
 
   it('commits once and returns 201 when every write succeeds', async () => {
@@ -121,7 +140,7 @@ describe('createComponent atomicity (V7)', () => {
 
   it('rolls back when the CAD sync fails, so no component survives without its junction rows', async () => {
     queryMock.mockImplementation(sqlDispatch(createRoutes()));
-    syncCadFilesMock.mockRejectedValue(new Error('cad sync rejected'));
+    cadServiceMocks.syncComponentCadFiles.mockRejectedValue(new Error('cad sync rejected'));
     const res = mockRes();
     const next = vi.fn();
 
@@ -137,11 +156,10 @@ describe('createComponent atomicity (V7)', () => {
 
     await createComponent(mockReq({ body: createBody }), mockRes(), vi.fn());
 
-    expect(syncCadFilesMock).toHaveBeenCalledWith(
+    expect(cadServiceMocks.syncComponentCadFiles).toHaveBeenCalledWith(
       'comp-1',
       expect.any(Object),
       expect.objectContaining({ query: expect.any(Function), release: releaseMock }),
-      expect.objectContaining({ allowFootprintAutoLink: true }),
     );
   });
 });
@@ -157,12 +175,17 @@ describe('updateComponent atomicity (V8)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    syncCadFilesMock.mockResolvedValue(undefined);
+    cadServiceMocks.syncComponentCadFiles.mockResolvedValue(undefined);
+    cadServiceMocks.getCadFilesByIds.mockResolvedValue([]);
+    cadServiceMocks.linkCadFilesToComponentByIds.mockResolvedValue([]);
+    cadServiceMocks.autoLinkRelatedCadFilesForComponent.mockResolvedValue([]);
+    cadServiceMocks.regenerateAllCadText.mockResolvedValue(undefined);
+    cadServiceMocks.syncFootprintRelatedCadFilesForComponent.mockResolvedValue([]);
   });
 
   it('rolls back the TEXT update when the CAD sync fails', async () => {
     queryMock.mockImplementation(sqlDispatch(updateRoutes()));
-    syncCadFilesMock.mockRejectedValue(new Error('cad sync rejected'));
+    cadServiceMocks.syncComponentCadFiles.mockRejectedValue(new Error('cad sync rejected'));
     const res = mockRes();
     const next = vi.fn();
 
@@ -181,7 +204,7 @@ describe('updateComponent atomicity (V8)', () => {
     await updateComponent(mockReq({ params: { id: 'comp-1' }, body: { description: 'x' } }), res, next);
 
     expect(txnCommands()).toEqual(['BEGIN', 'COMMIT']);
-    expect(syncCadFilesMock).toHaveBeenCalledTimes(1);
+    expect(cadServiceMocks.syncComponentCadFiles).toHaveBeenCalledTimes(1);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 'comp-1' }));
     expect(next).not.toHaveBeenCalled();
   });

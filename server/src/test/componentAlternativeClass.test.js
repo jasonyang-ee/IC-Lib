@@ -15,9 +15,23 @@ vi.mock('../config/database.js', () => ({
 vi.mock('../services/digikeyService.js', () => ({}));
 vi.mock('../services/mouserService.js', () => ({}));
 
-const syncCadFilesMock = vi.hoisted(() => vi.fn());
+const cadServiceMocks = vi.hoisted(() => ({
+  syncComponentCadFiles: vi.fn(),
+  getCadFilesByIds: vi.fn(),
+  linkCadFilesToComponentByIds: vi.fn(),
+  autoLinkRelatedCadFilesForComponent: vi.fn(),
+  regenerateAllCadText: vi.fn(),
+  syncFootprintRelatedCadFilesForComponent: vi.fn(),
+}));
 vi.mock('../services/cadFileService.js', () => ({
-  default: { syncComponentCadFiles: (...args) => syncCadFilesMock(...args) },
+  default: {
+    syncComponentCadFiles: (...args) => cadServiceMocks.syncComponentCadFiles(...args),
+    getCadFilesByIds: (...args) => cadServiceMocks.getCadFilesByIds(...args),
+    linkCadFilesToComponentByIds: (...args) => cadServiceMocks.linkCadFilesToComponentByIds(...args),
+    autoLinkRelatedCadFilesForComponent: (...args) => cadServiceMocks.autoLinkRelatedCadFilesForComponent(...args),
+    regenerateAllCadText: (...args) => cadServiceMocks.regenerateAllCadText(...args),
+    syncFootprintRelatedCadFilesForComponent: (...args) => cadServiceMocks.syncFootprintRelatedCadFilesForComponent(...args),
+  },
 }));
 vi.mock('../services/specificationService.js', () => ({
   getComponentCategoryId: vi.fn(),
@@ -59,6 +73,12 @@ const sqlOf = (needle) => queryMock.mock.calls.find(([sql]) => typeof sql === 's
 describe('component alternative class writes (F7.T5, V59, V15)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cadServiceMocks.syncComponentCadFiles.mockResolvedValue(undefined);
+    cadServiceMocks.getCadFilesByIds.mockResolvedValue([]);
+    cadServiceMocks.linkCadFilesToComponentByIds.mockResolvedValue([]);
+    cadServiceMocks.autoLinkRelatedCadFilesForComponent.mockResolvedValue([]);
+    cadServiceMocks.regenerateAllCadText.mockResolvedValue(undefined);
+    cadServiceMocks.syncFootprintRelatedCadFilesForComponent.mockResolvedValue([]);
     delete process.env.CONFIG_ECO;
   });
 

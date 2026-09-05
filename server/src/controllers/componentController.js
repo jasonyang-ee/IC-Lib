@@ -28,7 +28,30 @@ const toTextList = (val) => {
  */
 const parseCadField = (val) => val ? val.split(',').filter(Boolean) : [];
 
+const CAD_TEXT_FIELD_TO_FILE_TYPE = {
+  pcb_footprint: 'footprint',
+  schematic: 'symbol',
+  step_model: 'model',
+  pspice: 'pspice',
+  pad_file: 'pad',
+};
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const normalizeCadFileIds = (cadFileIds) => [...new Set(
+  (Array.isArray(cadFileIds) ? cadFileIds : [cadFileIds])
+    .map((cadFileId) => String(cadFileId || '').trim())
+    .filter(Boolean),
+)];
+
+const getCadBaseName = (fileName) => String(fileName || '').replace(/\.[^.]+$/, '').toLowerCase();
+
+const filterExplicitCadBaseNames = (cadNames, fileType, explicitCadBaseNamesByType) => (
+  (Array.isArray(cadNames) ? cadNames : []).filter((cadName) => {
+    const explicitBaseNames = explicitCadBaseNamesByType.get(fileType);
+    return !explicitBaseNames?.has(String(cadName || '').toLowerCase());
+  })
+);
 
 const normalizeUuidInput = (value) => {
   if (value == null) return null;
@@ -250,6 +273,7 @@ export const createComponent = async (req, res, next) => {
       datasheet_url,
       approval_status,
       alt_class,
+      selected_cad_file_ids,
     } = req.body;
 
     // §V59: reject out-of-domain classes at the API boundary; the DB CHECK
@@ -261,6 +285,11 @@ export const createComponent = async (req, res, next) => {
 
     // Use whichever field name was provided (prioritize manufacturer_part_number from frontend)
     const mfrPartNumber = manufacturer_part_number || manufacturer_pn;
+    const selectedCadFileIds = normalizeCadFileIds(selected_cad_file_ids);
+
+    if (selected_cad_file_ids != null && (!Array.isArray(selected_cad_file_ids) || selectedCadFileIds.some((cadFileId) => !UUID_PATTERN.test(cadFileId)))) {
+      return res.status(400).json({ error: 'selected_cad_file_ids must be an array of CAD file ids' });
+    }
 
     // Convert empty strings to NULL for UUID fields
     const validManufacturerId = manufacturer_id && manufacturer_id.trim() !== '' ? manufacturer_id : null;
@@ -319,17 +348,39 @@ export const createComponent = async (req, res, next) => {
       ON CONFLICT (component_id) DO NOTHING
     `, [component.id]);
 
+    const selectedCadFiles = selectedCadFileIds.length > 0
+      ? await cadFileService.getCadFilesByIds(selectedCadFileIds, client)
+      : [];
+
+    if (selectedCadFiles.length !== selectedCadFileIds.length) {
+      await client.query('ROLLBACK');
+      client.release();
+      client = null;
+      return res.status(400).json({ error: 'One or more selected CAD files were not found' });
+    }
+
+    const explicitCadBaseNamesByType = new Map(
+      Object.values(CAD_TEXT_FIELD_TO_FILE_TYPE).map((fileType) => [fileType, new Set()]),
+    );
+    selectedCadFiles.forEach((cadFile) => {
+      explicitCadBaseNamesByType.get(cadFile.file_type)?.add(getCadBaseName(cadFile.file_name));
+    });
+
     // Sync CAD files to cad_files table
     await cadFileService.syncComponentCadFiles(component.id, {
-      pcb_footprint: parseCadField(component.pcb_footprint),
-      schematic: parseCadField(component.schematic),
-      step_model: parseCadField(component.step_model),
-      pspice: parseCadField(component.pspice),
-      pad_file: parseCadField(component.pad_file),
-    }, client, {
-      allowFootprintAutoLink: true,
-      allowFootprintHistoryLearning: true,
-    });
+      pcb_footprint: filterExplicitCadBaseNames(parseCadField(component.pcb_footprint), 'footprint', explicitCadBaseNamesByType),
+      schematic: filterExplicitCadBaseNames(parseCadField(component.schematic), 'symbol', explicitCadBaseNamesByType),
+      step_model: filterExplicitCadBaseNames(parseCadField(component.step_model), 'model', explicitCadBaseNamesByType),
+      pspice: filterExplicitCadBaseNames(parseCadField(component.pspice), 'pspice', explicitCadBaseNamesByType),
+      pad_file: filterExplicitCadBaseNames(parseCadField(component.pad_file), 'pad', explicitCadBaseNamesByType),
+    }, client);
+
+    if (selectedCadFileIds.length > 0) {
+      await cadFileService.linkCadFilesToComponentByIds(component.id, selectedCadFileIds, client);
+    }
+    await cadFileService.autoLinkRelatedCadFilesForComponent(component.id, client);
+    await cadFileService.regenerateAllCadText(component.id, client);
+    await cadFileService.syncFootprintRelatedCadFilesForComponent(component.id, client);
 
     await client.query('COMMIT');
     client.release();

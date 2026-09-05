@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Staged footprint-pair renames now make one authenticated all-or-nothing request: both original temp tokens are validated before either move, original upload prefixes remain intact, and a failed second move restores the first. Link Existing now previews only a unique, non-missing pad or 3D-model candidate for unoccupied slots; persisted links run the primary link, related-file auto-link, TEXT regeneration, and history sync in one transaction.
 
+- Library add/edit now preserves selected existing footprint, pad, and 3D-model links through part creation, prompts for an explicit pad or 3D-model choice when learned footprint history is ambiguous, and lets File Library related-link editors upload a new same-type pad or 3D-model file inline before saving. The Library browse list now shows status through the P/N text color only and no longer exposes alt class or a bulk Set Alternative Class action.
+
 ## [1.11.0] - 2026-08-04
 
 ### Changed

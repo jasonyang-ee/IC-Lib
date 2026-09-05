@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, X } from 'lucide-react';
 import { api } from '../../utils/api';
-import { THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
+import { MODEL_FILE_EXTENSIONS, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const ROUTE_TYPE_BY_RELATED_FILE_TYPE = {
   pad: 'pad',
@@ -12,6 +13,11 @@ const ROUTE_TYPE_BY_RELATED_FILE_TYPE = {
 const LABEL_BY_RELATED_FILE_TYPE = {
   pad: 'Pad',
   model: THREE_D_MODEL_LABEL,
+};
+
+const ACCEPT_BY_RELATED_FILE_TYPE = {
+  pad: '.pad',
+  model: MODEL_FILE_EXTENSIONS.join(','),
 };
 
 const sortFilesByName = (files) => files.slice().sort((left, right) => (
@@ -29,8 +35,12 @@ export default function FootprintLinkEditorModal({
   initialFiles = [],
   isSaving = false,
 }) {
+  const { showError, showSuccess } = useNotification();
+  const fileInputRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFileIds, setSelectedFileIds] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -39,12 +49,13 @@ export default function FootprintLinkEditorModal({
 
     setSearchQuery('');
     setSelectedFileIds((Array.isArray(initialFiles) ? initialFiles : []).map((file) => file.id).filter(Boolean));
+    setUploadedFiles([]);
   }, [initialFiles, isOpen, relatedFileType]);
 
   const routeType = ROUTE_TYPE_BY_RELATED_FILE_TYPE[relatedFileType] || null;
   const relatedFileLabel = LABEL_BY_RELATED_FILE_TYPE[relatedFileType] || 'File';
 
-  const { data: files = [], isLoading } = useQuery({
+  const { data: files = [], isLoading, refetch } = useQuery({
     queryKey: ['available-cad-files', routeType, searchQuery],
     queryFn: async () => {
       const response = await api.getAvailableFiles(routeType, searchQuery || undefined);
@@ -60,7 +71,7 @@ export default function FootprintLinkEditorModal({
   const selectedIdSet = useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
 
   const fileById = useMemo(() => {
-    const allFiles = [...(Array.isArray(initialFiles) ? initialFiles : []), ...files];
+    const allFiles = [...(Array.isArray(initialFiles) ? initialFiles : []), ...files, ...uploadedFiles];
     const nextMap = new Map();
 
     allFiles.forEach((file) => {
@@ -70,7 +81,7 @@ export default function FootprintLinkEditorModal({
     });
 
     return nextMap;
-  }, [files, initialFiles]);
+  }, [files, initialFiles, uploadedFiles]);
 
   const linkedFiles = useMemo(() => sortFilesByName(
     selectedFileIds.map((fileId) => fileById.get(fileId)).filter(Boolean),
@@ -88,6 +99,8 @@ export default function FootprintLinkEditorModal({
     return selectedFileIds.some((fileId) => !initialIdSet.has(fileId));
   }, [initialIdSet, selectedFileIds]);
 
+  const isBusy = isSaving || isUploading;
+
   if (!isOpen) {
     return null;
   }
@@ -100,6 +113,72 @@ export default function FootprintLinkEditorModal({
     setSelectedFileIds((current) => current.filter((currentFileId) => currentFileId !== fileId));
   };
 
+  const handleUploadFiles = async (event) => {
+    const inputFiles = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (inputFiles.length === 0 || !routeType) {
+      return;
+    }
+
+    const formData = new FormData();
+    inputFiles.forEach((file) => formData.append('files', file));
+
+    setIsUploading(true);
+    try {
+      const uploadResponse = await api.uploadTempFiles(formData);
+      const stagedFiles = (uploadResponse.data?.results || []).filter((result) => (
+        result?.tempFilename && result.type === relatedFileType
+      ));
+
+      if (stagedFiles.length === 0) {
+        const firstError = (uploadResponse.data?.results || []).find((result) => result?.error)?.error;
+        throw new Error(firstError || `No ${relatedFileLabel.toLowerCase()} files were staged`);
+      }
+
+      const finalizeResponse = await api.finalizeTempFiles({
+        files: stagedFiles.map((file) => ({
+          tempFilename: file.tempFilename,
+          category: relatedFileType,
+        })),
+      });
+
+      const finalizedFiles = (finalizeResponse.data?.results || [])
+        .filter((result) => result?.type === relatedFileType && result?.cadFileId && !result?.error)
+        .map((result) => ({
+          id: result.cadFileId,
+          file_name: result.filename,
+          file_type: relatedFileType,
+          component_count: 0,
+          missing: false,
+        }));
+
+      if (finalizedFiles.length === 0) {
+        const firstError = (finalizeResponse.data?.results || []).find((result) => result?.error)?.error;
+        throw new Error(firstError || `No ${relatedFileLabel.toLowerCase()} files were finalized`);
+      }
+
+      setUploadedFiles((current) => {
+        const nextFiles = [...current];
+        finalizedFiles.forEach((file) => {
+          if (!nextFiles.some((existingFile) => existingFile.id === file.id)) {
+            nextFiles.push(file);
+          }
+        });
+        return nextFiles;
+      });
+      setSelectedFileIds((current) => [...new Set([...current, ...finalizedFiles.map((file) => file.id)])]);
+
+      await refetch();
+
+      showSuccess(`Added ${finalizedFiles.length} ${relatedFileLabel.toLowerCase()} file${finalizedFiles.length !== 1 ? 's' : ''}`);
+    } catch (error) {
+      showError(`Failed to upload ${relatedFileLabel.toLowerCase()} file${inputFiles.length !== 1 ? 's' : ''}: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSave = () => {
     const addFileIds = selectedFileIds.filter((fileId) => !initialIdSet.has(fileId));
     const removeFileIds = [...initialIdSet].filter((fileId) => !selectedIdSet.has(fileId));
@@ -110,7 +189,7 @@ export default function FootprintLinkEditorModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={() => {
-        if (!isSaving) {
+        if (!isBusy) {
           onClose();
         }
       }}
@@ -130,7 +209,7 @@ export default function FootprintLinkEditorModal({
           </div>
           <button
             onClick={onClose}
-            disabled={isSaving}
+            disabled={isBusy}
             className="text-gray-400 transition-colors hover:text-gray-600 disabled:opacity-50 dark:hover:text-gray-200"
             title="Close"
           >
@@ -174,16 +253,38 @@ export default function FootprintLinkEditorModal({
 
           <div className="rounded-lg border border-gray-200 dark:border-[#3a3a3a]">
             <div className="border-b border-gray-200 px-4 py-3 dark:border-[#3a3a3a]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={`Search ${relatedFileLabel.toLowerCase()} files...`}
-                  className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-[#444444] dark:bg-[#333333] dark:text-gray-100"
-                  autoFocus
-                />
+              <div className="flex items-start gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder={`Search ${relatedFileLabel.toLowerCase()} files...`}
+                    className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-transparent focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-[#444444] dark:bg-[#333333] dark:text-gray-100"
+                    autoFocus
+                  />
+                </div>
+                <div className="shrink-0">
+                  <input
+                    ref={fileInputRef}
+                    data-testid="footprint-link-upload-input"
+                    type="file"
+                    multiple
+                    accept={ACCEPT_BY_RELATED_FILE_TYPE[relatedFileType] || undefined}
+                    onChange={handleUploadFiles}
+                    disabled={isBusy}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isBusy}
+                    className="rounded-md bg-primary-600 px-3 py-2 text-sm text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {isUploading ? 'Uploading...' : `Upload New ${relatedFileLabel}`}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="max-h-80 space-y-2 overflow-y-auto p-3">
@@ -224,14 +325,14 @@ export default function FootprintLinkEditorModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              disabled={isSaving}
+              disabled={isBusy}
               className="rounded-md bg-gray-100 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50 dark:bg-[#333333] dark:text-gray-300 dark:hover:bg-[#404040]"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              disabled={!hasChanges || isSaving}
+              disabled={!hasChanges || isBusy}
               className="rounded-md bg-primary-600 px-4 py-2 text-sm text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {isSaving ? 'Saving...' : 'Save Links'}

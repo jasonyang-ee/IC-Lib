@@ -56,6 +56,7 @@ const ComponentEditForm = ({
   onCadFileAdded,
   onCadFileRemoved,
   onCadFileRenamed,
+  onCadSelectionChange,
   setEditData,
 }) => (
   <>
@@ -324,6 +325,7 @@ const ComponentEditForm = ({
           onCadFileAdded={onCadFileAdded}
           onCadFileRemoved={onCadFileRemoved}
           onCadFileRenamed={onCadFileRenamed}
+          onCadSelectionChange={onCadSelectionChange}
           onFileUploaded={(category, filename) => {
             // Map upload category to editData field name
             const fieldMap = { footprint: 'pcb_footprint', symbol: 'schematic', model: 'step_model', pspice: 'pspice', pad: 'pad_file' };

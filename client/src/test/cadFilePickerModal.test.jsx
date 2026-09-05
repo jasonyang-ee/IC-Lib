@@ -94,6 +94,59 @@ describe('CadFilePickerModal', () => {
     }));
   });
 
+  it('asks for an explicit related-file choice when a footprint has ambiguous pad candidates', () => {
+    queryState.data = [
+      {
+        id: 'footprint-1',
+        file_name: 'SOIC8.psm',
+        file_type: 'footprint',
+        component_count: 1,
+        related_files: [
+          { id: 'pad-1', file_name: 'one.pad', file_type: 'pad' },
+          { id: 'pad-2', file_name: 'two.pad', file_type: 'pad' },
+          { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model' },
+        ],
+      },
+      {
+        id: 'footprint-2',
+        file_name: 'SOIC8.dra',
+        file_type: 'footprint',
+        component_count: 1,
+        related_files: [
+          { id: 'pad-1', file_name: 'one.pad', file_type: 'pad' },
+          { id: 'pad-2', file_name: 'two.pad', file_type: 'pad' },
+          { id: 'model-1', file_name: 'SOIC8.step', file_type: 'model' },
+        ],
+      },
+    ];
+
+    const onSelect = vi.fn();
+    render(
+      <CadFilePickerModal
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        fileType="footprint"
+      />,
+    );
+
+    fireEvent.click(screen.getByText('SOIC8'));
+
+    expect(screen.getByText('Choose Related Files')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('two.pad'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Files' }));
+
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'pair',
+      selectedRelatedFiles: [
+        expect.objectContaining({ id: 'pad-2', file_name: 'two.pad', file_type: 'pad' }),
+      ],
+      autoFiles: expect.arrayContaining([
+        expect.objectContaining({ id: 'model-1', file_name: 'SOIC8.step', file_type: 'model' }),
+      ]),
+    }));
+  });
+
   it('lists a footprint uppercase but hands the stored names to onSelect', () => {
     queryState.data = [
       { id: 'footprint-1', file_name: 'max17761atp.psm', file_type: 'footprint', component_count: 1 },

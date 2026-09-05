@@ -10,15 +10,13 @@ import SpecificationsEditor from '../components/library/SpecificationsEditor';
 import AlternativePartsEditor from '../components/library/AlternativePartsEditor';
 import SpecificationsView from '../components/library/SpecificationsView';
 import FileConflictModal from '../components/library/FileConflictModal';
-import BulkAlternativeClassModal from '../components/library/BulkAlternativeClassModal';
 import { AssignedProjectsView, ComponentEditForm, ComponentDetailView, DistributorInfoSection } from '../components/library';
-import { AlternativeClassBadge } from '../components/common';
 import { Search, Edit, Trash2, Plus, X, Check, Package, ChevronLeft, ChevronRight, FileEdit, ExternalLink, FolderOpen, Layers } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { canAccessFileLibrary, canBulkSetAlternativeClass, canDirectEditLibraryComponents } from '../utils/accessControl';
+import { canAccessFileLibrary, canDirectEditLibraryComponents } from '../utils/accessControl';
 import { getEcoStatusProposalOptions } from '../utils/ecoStatusProposalOptions';
 import { isString, loadSessionValue, loadViewPrefs, oneOf, saveSessionValue, saveViewPrefs, subsetOf } from '../utils/viewPrefs';
 
@@ -31,6 +29,17 @@ const LIBRARY_STATUS_FILTERS = [
   { value: 'archived', label: 'Archived' },
 ];
 const DEFAULT_LIBRARY_STATUSES = ['new', 'reviewing', 'prototype', 'production'];
+const LIBRARY_STATUS_TEXT_CLASS = {
+  new: 'text-amber-700 dark:text-amber-300',
+  reviewing: 'text-sky-700 dark:text-sky-300',
+  prototype: 'text-teal-700 dark:text-teal-300',
+  production: 'text-emerald-700 dark:text-emerald-300',
+  archived: 'text-gray-500 dark:text-gray-400',
+};
+
+const getLibraryStatusTextClass = (approvalStatus) => (
+  LIBRARY_STATUS_TEXT_CLASS[approvalStatus] || 'text-gray-900 dark:text-gray-100'
+);
 
 // View-preference persistence (per browser; search term is per tab)
 const LIBRARY_VIEW_PREFS_KEY = 'viewPrefs:library';
@@ -116,15 +125,10 @@ const Library = () => {
   const [isAddMode, setIsAddMode] = useState(false);
   const [isECOMode, setIsECOMode] = useState(false); // New state for ECO edit mode
   const [editData, setEditData] = useState({});
-  // One selection for every bulk action. bulkActionMode names what the list
-  // checkboxes are collecting for ('delete' | 'alt-class'); null means the
-  // list is in ordinary browse mode.
+  // List checkboxes are used only for bulk delete; null means ordinary browse mode.
   const [bulkActionMode, setBulkActionMode] = useState(null);
   const [selectedForBulk, setSelectedForBulk] = useState(new Set());
   const [bulkDeleteSnapshot, setBulkDeleteSnapshot] = useState([]);
-  const [bulkClassSnapshot, setBulkClassSnapshot] = useState(null);
-  const [showBulkClassModal, setShowBulkClassModal] = useState(false);
-  const bulkClassRequestInFlightRef = useRef(false);
   const deleteRequestInFlightRef = useRef(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ show: false, type: '', count: 0, componentName: '' });
   const [warningModal, setWarningModal] = useState({ show: false, message: '' });
@@ -145,6 +149,7 @@ const Library = () => {
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
+  const [selectedCadFilesForCreate, setSelectedCadFilesForCreate] = useState([]);
 
   // File conflict modal state (save-time collision resolution)
   const [fileConflictModal, setFileConflictModal] = useState({ show: false, conflicts: [] });
@@ -866,30 +871,6 @@ const Library = () => {
     },
     onSettled: () => {
       deleteRequestInFlightRef.current = false;
-    },
-  });
-
-  // §V59: one all-or-none call for the whole selection. The server locks every
-  // target row and rejects the batch outright if any row is missing or is a
-  // controlled part this user may not direct-edit, so nothing lands partway.
-  const bulkAlternativeClassMutation = useMutation({
-    mutationFn: ({ ids, altClass }) => api.bulkSetComponentAlternativeClass(ids, altClass),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['componentDetails']);
-      setShowBulkClassModal(false);
-      setBulkClassSnapshot(null);
-      setBulkActionMode(null);
-      setSelectedForBulk(new Set());
-    },
-    onError: (error) => {
-      setWarningModal({
-        show: true,
-        message: error.response?.data?.error || 'Failed to set the alternative class.',
-      });
-    },
-    onSettled: () => {
-      bulkClassRequestInFlightRef.current = false;
     },
   });
 
@@ -1941,7 +1922,7 @@ const Library = () => {
   };
 
   const handleBulkDelete = () => {
-    const ids = getCurrentVisibleBulkIds('delete');
+    const ids = getCurrentVisibleBulkIds();
     if (ids.length > 0) {
       setBulkDeleteSnapshot(ids);
       setDeleteConfirmation({ 
@@ -1979,6 +1960,7 @@ const Library = () => {
     setIsAddMode(true);
     setIsEditMode(false);
     setSelectedComponent(null);
+    setSelectedCadFilesForCreate([]);
     
     // Reset manufacturer input for type-ahead
     setManufacturerInput('');
@@ -2417,6 +2399,9 @@ const Library = () => {
         
         // Update component data with actual manufacturer ID
         componentData.manufacturer_id = manufacturerId;
+        if (selectedCadFilesForCreate.length > 0) {
+          componentData.selected_cad_file_ids = selectedCadFilesForCreate.map((file) => file.id);
+        }
         
         // Create component
         const response = await addMutation.mutateAsync(componentData);
@@ -2503,6 +2488,7 @@ const Library = () => {
         setIsAddMode(false);
         setEditData({});
         setSelectedComponent(null);
+        setSelectedCadFilesForCreate([]);
         setManufacturerInput('');
         setAltManufacturerInputs({});
       }
@@ -2527,6 +2513,7 @@ const Library = () => {
     }
     setIsAddMode(false);
     setEditData({});
+    setSelectedCadFilesForCreate([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
     setEcoCadStagedFiles([]);
@@ -2546,6 +2533,7 @@ const Library = () => {
       setDeletedFiles([]);
     }
     setIsEditMode(false);
+    setSelectedCadFilesForCreate([]);
     setManufacturerInput('');
     setAltManufacturerInputs({});
     setEcoCadStagedFiles([]);
@@ -2576,23 +2564,14 @@ const Library = () => {
     resolvedConflicts.current = null;
   };
 
-  // Entering, switching, or leaving a bulk mode always starts from an empty
-  // selection: carrying rows across modes would let a delete selection become
-  // a class change (or the reverse) without the operator re-confirming it.
+  // Entering or leaving bulk delete always starts from an empty selection.
   const toggleBulkActionMode = (mode) => {
     setBulkActionMode((current) => (current === mode ? null : mode));
     setSelectedForBulk(new Set());
     setBulkDeleteSnapshot([]);
-    setBulkClassSnapshot(null);
-    setShowBulkClassModal(false);
   };
 
   const toggleSelectForBulk = (id) => {
-    if (bulkActionMode === 'alt-class') {
-      const component = sortedComponents.find((item) => item.id === id);
-      if (!component || !canBulkSetClass(component)) return;
-    }
-
     const newSet = new Set(selectedForBulk);
     if (newSet.has(id)) {
       newSet.delete(id);
@@ -2600,45 +2579,6 @@ const Library = () => {
       newSet.add(id);
     }
     setSelectedForBulk(newSet);
-  };
-
-  const canBulkSetClass = (component) => (
-    canBulkSetAlternativeClass(user?.role, component.approval_status, isECOEnabled)
-  );
-
-  // Select-all covers the rows the operator can actually see (filtered and
-  // sorted), never the whole unfiltered result set - a bulk write must not
-  // reach parts that are off screen.
-  const selectableForBulk = (list) => (
-    bulkActionMode === 'alt-class' ? list.filter(canBulkSetClass) : list
-  );
-
-  const openBulkClassModal = () => {
-    const ids = getCurrentVisibleBulkIds('alt-class');
-    if (ids.length === 0) return;
-
-    setBulkClassSnapshot({
-      ids,
-      excludedCount: sortedComponents.filter((component) => !canBulkSetClass(component)).length,
-    });
-    setShowBulkClassModal(true);
-  };
-
-  const applyBulkAlternativeClass = (altClass) => {
-    if (bulkClassRequestInFlightRef.current || bulkAlternativeClassMutation.isPending) return;
-
-    const ids = bulkClassSnapshot?.ids || [];
-    if (ids.length === 0) return;
-
-    bulkClassRequestInFlightRef.current = true;
-    bulkAlternativeClassMutation.mutate({ ids, altClass });
-  };
-
-  const closeBulkClassModal = () => {
-    if (bulkClassRequestInFlightRef.current || bulkAlternativeClassMutation.isPending) return;
-
-    setShowBulkClassModal(false);
-    setBulkClassSnapshot(null);
   };
 
   const handleFieldChange = (field, value) => {
@@ -3115,14 +3055,13 @@ const Library = () => {
     });
   }, [components, selectedApprovalStatuses, sortBy, sortOrder]);
 
-  const getCurrentVisibleBulkIds = (mode) => getVisibleBulkIds(
+  const getCurrentVisibleBulkIds = () => getVisibleBulkIds(
     selectedForBulk,
     sortedComponents,
-    mode === 'alt-class' ? canBulkSetClass : undefined,
   );
-  const visibleSelectedBulkIds = getCurrentVisibleBulkIds(bulkActionMode);
+  const visibleSelectedBulkIds = getCurrentVisibleBulkIds();
   const visibleSelectedBulkIdSet = new Set(visibleSelectedBulkIds);
-  const visibleSelectableComponents = selectableForBulk(sortedComponents);
+  const visibleSelectableComponents = sortedComponents;
 
   const toggleApprovalStatusFilter = (status) => {
     setSelectedApprovalStatuses((currentStatuses) => (
@@ -3365,25 +3304,14 @@ const Library = () => {
                 </>
               ) : bulkActionMode ? (
                 <>
-                  {bulkActionMode === 'delete' ? (
-                    <button
-                      onClick={handleBulkDelete}
-                      disabled={visibleSelectedBulkIds.length === 0}
-                      className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete Selected ({visibleSelectedBulkIds.length})
-                    </button>
-                  ) : (
-                    <button
-                      onClick={openBulkClassModal}
-                      disabled={visibleSelectedBulkIds.length === 0}
-                      className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Layers className="w-4 h-4" />
-                      Set Class ({visibleSelectedBulkIds.length})
-                    </button>
-                  )}
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={visibleSelectedBulkIds.length === 0}
+                    className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({visibleSelectedBulkIds.length})
+                  </button>
                   <button
                     onClick={() => toggleBulkActionMode(bulkActionMode)}
                     className="w-full bg-gray-300 hover:bg-gray-400 dark:bg-[#333333] dark:hover:bg-[#3a3a3a] text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -3450,18 +3378,6 @@ const Library = () => {
                       )}
                     </>
                   )}
-
-                  {/* Available under both ECO settings: with ECO on the server
-                      and the selection both restrict which parts qualify. */}
-                  {canWrite() && (
-                    <button
-                      onClick={() => toggleBulkActionMode('alt-class')}
-                      className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Layers className="w-4 h-4" />
-                      Set Alternative Class
-                    </button>
-                  )}
                 </>
               )}
             </div>
@@ -3477,7 +3393,6 @@ const Library = () => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Components ({sortedComponents.length})
                   {bulkActionMode === 'delete' && <span className="text-sm text-red-600 dark:text-red-400 ml-2">(Select to delete)</span>}
-                  {bulkActionMode === 'alt-class' && <span className="text-sm text-primary-600 dark:text-primary-400 ml-2">(Select to set alternative class)</span>}
                 </h3>
               </div>
             <div ref={componentListRef} className="overflow-y-auto custom-scrollbar flex-1">
@@ -3511,7 +3426,6 @@ const Library = () => {
                     <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">MFG P/N</div>
                     <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Value</div>
                     <div className="flex-1 min-w-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Description</div>
-                    <div className="w-24 shrink-0 px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Class</div>
                   </div>
                   {/* Virtual rows */}
                   <div style={{ position: 'relative', height: `${rowVirtualizer.getTotalSize()}px` }}>
@@ -3534,20 +3448,15 @@ const Library = () => {
                                 type="checkbox"
                                 aria-label={`Select ${component.part_number}`}
                                 checked={visibleSelectedBulkIdSet.has(component.id)}
-                                disabled={bulkActionMode === 'alt-class' && !canBulkSetClass(component)}
-                                title={bulkActionMode === 'alt-class' && !canBulkSetClass(component)
-                                  ? 'This part is under change control - use an ECO to change its class'
-                                  : undefined}
                                 onChange={() => toggleSelectForBulk(component.id)}
-                                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                               />
                             </div>
                           )}
-                          <div className="flex-1 min-w-0 px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{component.part_number}</div>
+                          <div className={`flex-1 min-w-0 px-4 py-3 text-sm font-medium truncate ${getLibraryStatusTextClass(component.approval_status)}`}>{component.part_number}</div>
                           <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.manufacturer_pn || component.manufacturer_part_number || 'N/A'}</div>
                           <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.value || 'N/A'}</div>
                           <div className="flex-1 min-w-0 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 truncate">{component.description?.substring(0, 80) || 'N/A'}</div>
-                          <div className="w-24 shrink-0 px-4 py-3"><AlternativeClassBadge value={component.alt_class} /></div>
                         </div>
                       );
                     })}
@@ -3677,6 +3586,7 @@ const Library = () => {
                     if (!isECOMode) return;
                     trackEcoCadRenamedFile(info);
                   }}
+                  onCadSelectionChange={setSelectedCadFilesForCreate}
                   setEditData={setEditData}
                 />
               ) : (
@@ -3920,15 +3830,6 @@ const Library = () => {
       <WarningModal
         warningModal={warningModal}
         onClose={() => setWarningModal({ show: false, message: '' })}
-      />
-
-      <BulkAlternativeClassModal
-        isOpen={showBulkClassModal}
-        selectedCount={bulkClassSnapshot?.ids.length || 0}
-        excludedCount={bulkClassSnapshot?.excludedCount || 0}
-        isPending={bulkAlternativeClassMutation.isPending}
-        onApply={applyBulkAlternativeClass}
-        onClose={closeBulkClassModal}
       />
 
       {fileConflictModal.show && (

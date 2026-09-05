@@ -87,7 +87,7 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
     expect(mocks.cad.linkCadFileToComponentByMPN).toHaveBeenCalledWith('cf-1', 'RC0402FR-0710KL', 'footprint', 'mypart.psm');
     expect(res.json).toHaveBeenCalledWith({
       message: 'Files finalized',
-      results: [{ filename: 'mypart.psm', type: 'footprint', collision: false }],
+      results: [{ filename: 'mypart.psm', type: 'footprint', collision: false, cadFileId: 'cf-1' }],
     });
   });
 
@@ -107,7 +107,7 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
     expect(mocks.fsState.has('soic-8_b.psm')).toBe(true);
     expect(mocks.cad.registerCadFile).toHaveBeenCalledWith('soic-8_b.psm', 'footprint');
     expect(res.json.mock.calls[0][0].results).toEqual([
-      expect.objectContaining({ filename: 'soic-8_b.psm', collision: false }),
+      expect.objectContaining({ filename: 'soic-8_b.psm', collision: false, cadFileId: 'cf-1' }),
     ]);
   });
 
@@ -129,7 +129,7 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
     expect(mocks.fsState.has('mypart.psm')).toBe(true);
     expect(mocks.fsState.has('123-456-MyPart.PSM')).toBe(false);
     expect(res.json.mock.calls[0][0].results).toEqual([
-      expect.objectContaining({ filename: 'mypart.psm', collision: true }),
+      expect.objectContaining({ filename: 'mypart.psm', collision: true, cadFileId: 'cf-1' }),
     ]);
   });
 
@@ -149,7 +149,7 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
     expect(mocks.fs.unlinkSync).toHaveBeenCalledTimes(1); // the old target
     expect(mocks.fs.renameSync).toHaveBeenCalledTimes(1); // temp -> target
     expect(res.json.mock.calls[0][0].results).toEqual([
-      expect.objectContaining({ filename: 'mypart.psm', collision: false }),
+      expect.objectContaining({ filename: 'mypart.psm', collision: false, cadFileId: 'cf-1' }),
     ]);
   });
 
@@ -170,7 +170,7 @@ describe('finalizeTempFile (T4, V8/V25/V28)', () => {
     expect(mocks.fsState.has('123-456-MyPart.PSM')).toBe(false);
     expect(mocks.cad.linkCadFileToComponentByMPN).toHaveBeenCalledWith('cf-1', 'RC0402FR-0710KL', 'footprint', 'mypart.psm');
     expect(res.json.mock.calls[0][0].results).toEqual([
-      expect.objectContaining({ filename: 'mypart.psm', collision: true, linked: true }),
+      expect.objectContaining({ filename: 'mypart.psm', collision: true, linked: true, cadFileId: 'cf-1' }),
     ]);
   });
 

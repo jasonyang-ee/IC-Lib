@@ -544,6 +544,20 @@ export async function getCadFilesByIds(cadFileIds, db = pool) {
   return result.rows;
 }
 
+export async function linkCadFilesToComponentByIds(componentId, cadFileIds, db = pool) {
+  const cadFiles = await getCadFilesByIds(cadFileIds, db);
+
+  for (const cadFile of cadFiles) {
+    await db.query(`
+      INSERT INTO component_cad_files (component_id, cad_file_id)
+      VALUES ($1, $2)
+      ON CONFLICT (component_id, cad_file_id) DO NOTHING
+    `, [componentId, cadFile.id]);
+  }
+
+  return cadFiles;
+}
+
 export async function getCadFilesByNames(fileNames, fileType, db = pool) {
   const normalizedFileNames = uniqueValues(fileNames);
   if (!fileType || normalizedFileNames.length === 0) {
@@ -1100,6 +1114,7 @@ export default {
   searchCadFiles,
   getCadFilesForComponentGrouped,
   getCadFilesByIds,
+  linkCadFilesToComponentByIds,
   getCadFilesByNames,
   getLinkedCadFilesMap,
   getLinkedCadFiles,
