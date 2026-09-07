@@ -14,6 +14,7 @@ import { regenerateCadText } from './cadFileService.js';
 import { listPackages } from './packageService.js';
 import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
+import { logError } from '../utils/logger.js';
 import {
   assertNoPlusInFootprintName,
   canonicalizeCadUploadFilename,
@@ -103,7 +104,6 @@ const consumeNextEcoNumber = async (client) => {
 export const createMassFileRenameEco = async (client, {
   user,
   files,
-  affectedComponents,
   notes = null,
 } = {}) => {
   if (!user?.id) {
@@ -119,16 +119,39 @@ export const createMassFileRenameEco = async (client, {
     : [];
   files = canonicalizeMassFileRenameFiles(files, packageCatalog);
 
-  if (!Array.isArray(affectedComponents) || affectedComponents.length === 0) {
-    throw new Error('At least one affected component is required');
+  // Caller snapshots precede BEGIN and may already be stale. Lock the files
+  // first, then capture current consumers/statuses in this staging transaction.
+  const fileIds = [...new Set(files.map((file) => file.cad_file_id))];
+  const currentFiles = await client.query(`
+    SELECT id, file_name, file_type FROM cad_files
+    WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE
+  `, [fileIds]);
+  for (const file of files) {
+    const current = currentFiles.rows.find((row) => row.id === file.cad_file_id);
+    if (!current || current.file_name !== file.old_file_name || current.file_type !== file.file_type) {
+      const error = new Error('CAD file changed before shared rename staging; refresh and retry');
+      error.status = 409;
+      throw error;
+    }
   }
+  const affectedResult = await client.query(`
+    SELECT c.id, c.part_number, c.approval_status FROM components c
+    WHERE EXISTS (
+      SELECT 1 FROM component_cad_files ccf
+      WHERE ccf.component_id = c.id AND ccf.cad_file_id = ANY($1::uuid[])
+    )
+    ORDER BY c.id FOR UPDATE OF c
+  `, [fileIds]);
+  const affectedComponents = affectedResult.rows;
 
   const stagedComponents = affectedComponents.filter((component) => (
     shouldStageSharedRenameForStatus(component.approval_status)
   ));
 
   if (stagedComponents.length === 0) {
-    throw new Error('At least one non-new affected component is required for a shared file rename ECO');
+    const error = new Error('No controlled components remain for shared rename staging; refresh and retry');
+    error.status = 409;
+    throw error;
   }
 
   const pipelineTypes = resolveMassFileRenamePipelineTypes(
@@ -235,6 +258,7 @@ export const createMassFileRenameEco = async (client, {
     summary,
     pipelineTypes,
     stagedComponents,
+    affectedComponents,
   };
 };
 
@@ -364,13 +388,23 @@ export const restoreMassFileRenameStatuses = async (client, ecoId, actorId = nul
   return result.rows;
 };
 
-export const applyMassFileRenameEco = async (client, ecoId, actorId = null) => {
+export const rollbackMassFileRenames = (renamedPaths) => {
+  for (const { oldPath, newPath } of renamedPaths.splice(0).reverse()) {
+    try {
+      fs.renameSync(newPath, oldPath);
+    } catch (error) {
+      logError('ECO', `Failed to restore renamed CAD file ${newPath} -> ${oldPath}: ${error.message}`);
+    }
+  }
+};
+
+// The outer approval transaction retains this journal until COMMIT succeeds.
+export const applyMassFileRenameEco = async (client, ecoId, actorId = null, renamedPaths = []) => {
   const context = await getMassFileRenameContext(client, ecoId);
   if (!context) {
     throw new Error(`Shared file rename ECO ${ecoId} has no staged files`);
   }
 
-  const renamedPaths = [];
   const fileTypesByComponentId = new Map();
 
   try {
@@ -384,7 +418,7 @@ export const applyMassFileRenameEco = async (client, ecoId, actorId = null) => {
       const newFileName = assertSafeLeafName(file.new_file_name, 'newFileName');
 
       const currentFileResult = await client.query(
-        'SELECT id, file_name, file_type FROM cad_files WHERE id = $1',
+        'SELECT id, file_name, file_type FROM cad_files WHERE id = $1 FOR UPDATE',
         [file.cad_file_id],
       );
 
@@ -452,17 +486,7 @@ export const applyMassFileRenameEco = async (client, ecoId, actorId = null) => {
       affectedComponentsRestored: restoredComponents.length,
     };
   } catch (error) {
-    for (let index = renamedPaths.length - 1; index >= 0; index -= 1) {
-      const renamedPath = renamedPaths[index];
-      try {
-        if (fs.existsSync(renamedPath.newPath)) {
-          fs.renameSync(renamedPath.newPath, renamedPath.oldPath);
-        }
-      } catch {
-        // Best-effort filesystem rollback while the database transaction rolls back.
-      }
-    }
-
+    rollbackMassFileRenames(renamedPaths);
     throw error;
   }
 };

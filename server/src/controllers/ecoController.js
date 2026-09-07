@@ -39,6 +39,7 @@ import {
   buildMassFileRenameCadRows,
   getMassFileRenameContext,
   restoreMassFileRenameStatuses,
+  rollbackMassFileRenames,
 } from '../services/massFileRenameEcoService.js';
 import {
   getAllowedEcoStatusProposals,
@@ -92,6 +93,7 @@ const validateECOAlternativeClassChanges = (changes) => {
 // Whitelist of valid component field names to prevent SQL injection
 // Helper function to log ECO activities
 const logECOActivity = async (client, ecoOrder, activityType, details, userId) => {
+  await client.query('SAVEPOINT eco_activity_log');
   try {
     await logActivity(client, {
       componentId: ecoOrder.component_id,
@@ -106,8 +108,10 @@ const logECOActivity = async (client, ecoOrder, activityType, details, userId) =
       },
     });
   } catch (error) {
+    await client.query('ROLLBACK TO SAVEPOINT eco_activity_log');
     logError('ECO', 'Error logging ECO activity:', error);
   }
+  await client.query('RELEASE SAVEPOINT eco_activity_log');
 };
 
 // Helper to get ECO with full details for email notifications
@@ -320,7 +324,9 @@ const buildApprovedEcoPdfAttachment = async (client, ecoId) => {
   };
 };
 
-const notifyApprovedECOCompletion = async (ecoId, approvedByName) => {
+const notifyApprovedECOCompletion = async (ecoId, actorId) => {
+  const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [actorId]);
+  const approvedByName = approverResult.rows[0]?.display_name || 'Unknown';
   const ecoForEmail = await getECOForEmail(pool, ecoId);
   await sendECONotification(ecoForEmail, 'eco_approved', { approved_by_name: approvedByName });
 
@@ -340,6 +346,13 @@ const notifyApprovedECOCompletion = async (ecoId, approvedByName) => {
     approvedByName,
     attachment,
   });
+};
+
+const notifyRejectedECO = async (ecoId, actorId) => {
+  const rejecterResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [actorId]);
+  const rejecterName = rejecterResult.rows[0]?.display_name || 'Unknown';
+  const ecoForEmail = await getECOForEmail(pool, ecoId);
+  await sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName });
 };
 
 const resolveCadFileId = async (client, cadFile) => {
@@ -1440,10 +1453,11 @@ export const createECO = async (req, res) => {
     await client.query('COMMIT');
     
     // Send email notification (async, don't block the response)
-    const ecoForEmail = await getECOForEmail(pool, ecoResult.rows[0].id);
-    sendECONotification(ecoForEmail, 'eco_created').catch(err => {
-      logError('ECO', 'Error sending ECO creation notification:', err);
-    });
+    getECOForEmail(pool, ecoResult.rows[0].id)
+      .then(ecoForEmail => sendECONotification(ecoForEmail, 'eco_created'))
+      .catch(err => {
+        logError('ECO', 'Error sending ECO creation notification:', err);
+      });
     
     res.status(201).json(ecoResult.rows[0]);
   } catch (error) {
@@ -1920,14 +1934,17 @@ const applyECOChanges = async (client, eco, id) => {
 // Approve ECO order (vote-based multi-stage)
 export const approveECO = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
+  const renamedPaths = [];
   try {
     await client.query('BEGIN');
+    transactionStarted = true;
 
     const { id } = req.params;
     const { comments } = req.body;
 
     // Get ECO order
-    const ecoResult = await client.query('SELECT * FROM eco_orders WHERE id = $1', [id]);
+    const ecoResult = await client.query('SELECT * FROM eco_orders WHERE id = $1 FOR UPDATE', [id]);
     if (ecoResult.rows.length === 0) {
       return res.status(404).json({ error: 'ECO order not found' });
     }
@@ -1950,7 +1967,7 @@ export const approveECO = async (req, res) => {
     if (currentStageOrder === null) {
       // No stages configured — fall back to single-approval (backward compat)
       const result = massFileRenameContext
-        ? await applyMassFileRenameEco(client, id, req.user.id)
+        ? await applyMassFileRenameEco(client, id, req.user.id, renamedPaths)
         : await applyECOChanges(client, eco, id);
 
       await client.query(`
@@ -1966,10 +1983,9 @@ export const approveECO = async (req, res) => {
       }, req.user.id);
 
       await client.query('COMMIT');
+      transactionStarted = false;
 
-      const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
-      const approverName = approverResult.rows[0]?.display_name || 'Unknown';
-      notifyApprovedECOCompletion(id, approverName).catch(err => {
+      notifyApprovedECOCompletion(id, req.user.id).catch(err => {
         logError('ECO', 'Error sending approved ECO completion notifications:', err);
       });
 
@@ -2065,13 +2081,13 @@ export const approveECO = async (req, res) => {
         }, req.user.id);
 
         await client.query('COMMIT');
+        transactionStarted = false;
 
         // Send stage advancement notification
-        const ecoForEmail = await getECOForEmail(pool, id);
-        sendECONotification(ecoForEmail, 'eco_stage_advanced', {
+        getECOForEmail(pool, id).then(ecoForEmail => sendECONotification(ecoForEmail, 'eco_stage_advanced', {
           from_stage: currentStageNames,
           to_stage: nextNames,
-        }).catch(err => {
+        })).catch(err => {
           logError('ECO', 'Error sending stage advancement notification:', err);
         });
 
@@ -2084,7 +2100,7 @@ export const approveECO = async (req, res) => {
 
       // All stages complete — apply changes and approve
       const result = massFileRenameContext
-        ? await applyMassFileRenameEco(client, id, req.user.id)
+        ? await applyMassFileRenameEco(client, id, req.user.id, renamedPaths)
         : await applyECOChanges(client, eco, id);
       const finalStageNames = currentStages.map(s => s.stage_name).join(', ');
 
@@ -2102,10 +2118,9 @@ export const approveECO = async (req, res) => {
       }, req.user.id);
 
       await client.query('COMMIT');
+      transactionStarted = false;
 
-      const approverResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
-      const approverName = approverResult.rows[0]?.display_name || 'Unknown';
-      notifyApprovedECOCompletion(id, approverName).catch(err => {
+      notifyApprovedECOCompletion(id, req.user.id).catch(err => {
         logError('ECO', 'Error sending approved ECO completion notifications:', err);
       });
 
@@ -2115,19 +2130,21 @@ export const approveECO = async (req, res) => {
       });
     }
 
-    // Not all stages complete yet — vote recorded
-    await client.query('COMMIT');
+    // Not all stages complete yet — build the response before committing.
 
     // Get current approval count for the stage the user voted on
-    const currentApprovalCount = await pool.query(
+    const currentApprovalCount = await client.query(
       "SELECT COUNT(*) as count FROM eco_approvals WHERE eco_id = $1 AND stage_id = $2 AND decision = 'approved'",
       [id, eligibleStage.id],
     );
     const approvalCount = parseInt(currentApprovalCount.rows[0].count);
 
-    const totalStages = (await pool.query(
+    const totalStages = (await client.query(
       'SELECT COUNT(*) as count FROM eco_approval_stages WHERE is_active = true',
     )).rows[0].count;
+
+    await client.query('COMMIT');
+    transactionStarted = false;
 
     return res.json({
       message: `Approval vote recorded for "${eligibleStage.stage_name}" (${approvalCount}/${eligibleStage.required_approvals}).`,
@@ -2138,25 +2155,33 @@ export const approveECO = async (req, res) => {
       total_stages: parseInt(totalStages),
     });
   } catch (error) {
-    await client.query('ROLLBACK');
     logError('ECO', 'Error approving ECO order:', error);
     res.status(500).json({ error: 'Failed to approve ECO order' });
   } finally {
-    client.release();
+    try {
+      if (transactionStarted) {
+        rollbackMassFileRenames(renamedPaths);
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
   }
 };
 
 // Reject ECO order (vote-based, records rejection at current stage)
 export const rejectECO = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
   try {
     await client.query('BEGIN');
+    transactionStarted = true;
 
     const { id } = req.params;
     const { rejection_reason } = req.body;
 
     // Get ECO order
-    const ecoResult = await client.query('SELECT * FROM eco_orders WHERE id = $1', [id]);
+    const ecoResult = await client.query('SELECT * FROM eco_orders WHERE id = $1 FOR UPDATE', [id]);
     if (ecoResult.rows.length === 0) {
       return res.status(404).json({ error: 'ECO order not found' });
     }
@@ -2225,22 +2250,25 @@ export const rejectECO = async (req, res) => {
     }, req.user.id);
 
     await client.query('COMMIT');
+    transactionStarted = false;
 
     // Send email notification (async)
-    const rejecterResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
-    const rejecterName = rejecterResult.rows[0]?.display_name || 'Unknown';
-    const ecoForEmail = await getECOForEmail(pool, id);
-    sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName }).catch(err => {
+    notifyRejectedECO(id, req.user.id).catch(err => {
       logError('ECO', 'Error sending ECO rejection notification:', err);
     });
 
     res.json(result.rows[0]);
   } catch (error) {
-    await client.query('ROLLBACK');
     logError('ECO', 'Error rejecting ECO order:', error);
     res.status(500).json({ error: 'Failed to reject ECO order' });
   } finally {
-    client.release();
+    try {
+      if (transactionStarted) {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
   }
 };
 
@@ -2275,11 +2303,11 @@ export const generateECOPDFEndpoint = async (req, res) => {
 // Delete ECO order (only if pending/in_review and created by user, or admin)
 export const deleteECO = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
   try {
     const { id } = req.params;
     await client.query('BEGIN');
-
-    const massFileRenameContext = await getMassFileRenameContext(client, id);
+    transactionStarted = true;
 
     // Check if user can delete (must be creator or admin)
     let selectQuery = `
@@ -2295,13 +2323,14 @@ export const deleteECO = async (req, res) => {
       params.push(req.user.id);
     }
 
+    selectQuery += ' FOR UPDATE';
     const result = await client.query(selectQuery, params);
 
     if (result.rows.length === 0) {
-      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'ECO order not found or cannot be deleted' });
     }
 
+    const massFileRenameContext = await getMassFileRenameContext(client, id);
     if (massFileRenameContext) {
       await restoreMassFileRenameStatuses(client, id, req.user.id);
     }
@@ -2309,14 +2338,20 @@ export const deleteECO = async (req, res) => {
     await client.query('DELETE FROM eco_orders WHERE id = $1', [id]);
 
     await client.query('COMMIT');
+    transactionStarted = false;
 
     res.json({ message: 'ECO order deleted successfully' });
   } catch (error) {
-    await client.query('ROLLBACK');
     logError('ECO', 'Error deleting ECO order:', error);
     res.status(500).json({ error: 'Failed to delete ECO order' });
   } finally {
-    client.release();
+    try {
+      if (transactionStarted) {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
   }
 };
 
@@ -2625,6 +2660,7 @@ export const deleteApprovalStage = async (req, res) => {
       );
 
       if (parseInt(inUse.rows[0].count) > 0) {
+        await client.query('ROLLBACK');
         return res.status(400).json({
           error: 'Cannot delete this stage — it is the only stage at its order level and is currently in use by active ECO orders.',
         });
@@ -2641,18 +2677,8 @@ export const deleteApprovalStage = async (req, res) => {
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
-    // Re-order remaining stages to fill gaps
-    await client.query(`
-      WITH ordered AS (
-        SELECT id, ROW_NUMBER() OVER (ORDER BY stage_order) as new_order
-        FROM eco_approval_stages
-      )
-      UPDATE eco_approval_stages
-      SET stage_order = ordered.new_order
-      FROM ordered
-      WHERE eco_approval_stages.id = ordered.id
-    `);
-
+    // Stage orders identify parallel groups and are referenced by active ECOs.
+    // Preserve the remaining values; gaps are supported by pipeline traversal.
     await client.query('COMMIT');
     res.json({ message: 'Approval stage deleted successfully' });
   } catch (error) {
@@ -2689,15 +2715,15 @@ export const reorderApprovalStages = async (req, res) => {
         );
       }
     } else {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Either stage_ids (array) or stage_orders (object) is required' });
     }
 
-    await client.query('COMMIT');
-
     // Return updated stages
-    const result = await pool.query(
+    const result = await client.query(
       'SELECT * FROM eco_approval_stages ORDER BY stage_order ASC, id ASC',
     );
+    await client.query('COMMIT');
     res.json(result.rows);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2722,15 +2748,17 @@ export const setStageApprovers = async (req, res) => {
     const { user_ids } = req.body; // Array of user UUIDs
 
     if (!Array.isArray(user_ids)) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'user_ids array is required' });
     }
 
     // Verify stage exists
     const stageResult = await client.query(
-      'SELECT id FROM eco_approval_stages WHERE id = $1',
+      'SELECT id FROM eco_approval_stages WHERE id = $1 FOR UPDATE',
       [id],
     );
     if (stageResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
@@ -2746,10 +2774,8 @@ export const setStageApprovers = async (req, res) => {
       );
     }
 
-    await client.query('COMMIT');
-
     // Return updated approvers
-    const result = await pool.query(`
+    const result = await client.query(`
       SELECT u.id as user_id, u.username, u.role
       FROM eco_stage_approvers esa
       JOIN users u ON esa.user_id = u.id
@@ -2757,6 +2783,7 @@ export const setStageApprovers = async (req, res) => {
       ORDER BY u.username
     `, [id]);
 
+    await client.query('COMMIT');
     res.json(result.rows);
   } catch (error) {
     await client.query('ROLLBACK');

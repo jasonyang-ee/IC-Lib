@@ -296,7 +296,7 @@ export const renamePhysicalFile = async (req, res) => {
       try {
         await client.query('BEGIN');
 
-        const { eco, summary, stagedComponents } = await createMassFileRenameEco(client, {
+        const { eco, summary, stagedComponents, affectedComponents: currentComponents } = await createMassFileRenameEco(client, {
           user: req.user,
           files: [{
             cad_file_id: cadFile.id,
@@ -304,7 +304,6 @@ export const renamePhysicalFile = async (req, res) => {
             old_file_name: safeOldFileName,
             new_file_name: safeNewFileName,
           }],
-          affectedComponents: ecoAffectedComponents,
           notes: `File Library rename staged: "${safeOldFileName}" -> "${safeNewFileName}"`,
         });
 
@@ -320,8 +319,8 @@ export const renamePhysicalFile = async (req, res) => {
           summary,
           oldFileName: safeOldFileName,
           newFileName: safeNewFileName,
-          affectedCount: affectedBefore.length,
-          skippedCount: affectedBefore.length - stagedComponents.length,
+          affectedCount: currentComponents.length,
+          skippedCount: currentComponents.length - stagedComponents.length,
           updatedCount: stagedComponents.length,
           updatedComponents: stagedComponents.map((component) => ({
             id: component.id,
@@ -354,11 +353,11 @@ export const renamePhysicalFile = async (req, res) => {
       return res.status(422).json({ error: error.message });
     }
     logError('FileLibrary', 'Error renaming physical file:', error.message);
-    const status = error.message?.includes('already exists')
+    const status = error.status || (error.message?.includes('already exists')
       ? 409
       : /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '')
         ? 400
-        : 500;
+        : 500);
     res.status(status).json({ error: status === 500 ? 'Failed to rename file' : error.message });
   }
 };
@@ -429,7 +428,7 @@ export const renameFootprintGroup = async (req, res) => {
       await client.query('BEGIN');
       transactionStarted = true;
 
-      const { eco, summary, stagedComponents } = await createMassFileRenameEco(client, {
+      const { eco, summary, stagedComponents, affectedComponents: currentComponents } = await createMassFileRenameEco(client, {
         user: req.user,
         files: cadFiles.map((file) => ({
           cad_file_id: file.cadFile.id,
@@ -437,7 +436,6 @@ export const renameFootprintGroup = async (req, res) => {
           old_file_name: file.cadFile.file_name,
           new_file_name: file.newFileName,
         })),
-        affectedComponents: ecoAffectedComponents,
         notes: `File Library footprint rename staged (${cadFiles.length} files)`,
       });
 
@@ -456,8 +454,8 @@ export const renameFootprintGroup = async (req, res) => {
           oldFileName: file.cadFile.file_name,
           newFileName: file.newFileName,
         })),
-        affectedCount: affectedComponentIds.size,
-        skippedCount: allAffectedComponents.length - stagedComponents.length,
+        affectedCount: currentComponents.length,
+        skippedCount: currentComponents.length - stagedComponents.length,
         updatedCount: stagedComponents.length,
         updatedComponents: stagedComponents.map((component) => ({
           id: component.id,
@@ -518,7 +516,7 @@ export const renameFootprintGroup = async (req, res) => {
 
     logError('FileLibrary', 'Error renaming footprint group:', error.message);
 
-    const status = error instanceof FootprintNameError
+    const status = error.status || (error instanceof FootprintNameError
       ? 422
       : error.message?.includes('not found')
         ? 404
@@ -526,7 +524,7 @@ export const renameFootprintGroup = async (req, res) => {
           ? 409
           : /requires|Invalid filename/.test(error.message || '')
             ? 400
-            : 500;
+            : 500);
 
     res.status(status).json({ error: status === 500 ? 'Failed to rename footprint files' : error.message });
   } finally {

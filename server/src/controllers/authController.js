@@ -313,11 +313,12 @@ export const createUser = async (req, res) => {
     }
 
     const shouldSendWelcomeEmail = email && role !== 'read-only';
+    let emailSent = false;
 
     // Send welcome email if email is provided for eligible roles
     if (shouldSendWelcomeEmail) {
       try {
-        await sendWelcomeEmail({
+        const delivery = await sendWelcomeEmail({
           to: email,
           username,
           role,
@@ -325,7 +326,12 @@ export const createUser = async (req, res) => {
           password: userPassword,
           passwordWasGenerated,
         });
-        logInfo('AuthController', `Welcome email sent to ${email}`);
+        emailSent = delivery?.success === true;
+        if (emailSent) {
+          logInfo('AuthController', `Welcome email sent to ${email}`);
+        } else {
+          logWarn('AuthController', `Welcome email not sent: ${delivery?.error || delivery?.reason || 'Delivery unsuccessful'}`);
+        }
       } catch (emailError) {
         logWarn('AuthController', `Failed to send welcome email: ${emailError.message}`);
         // Don't fail the request if email fails
@@ -335,7 +341,7 @@ export const createUser = async (req, res) => {
     res.status(201).json({
       ...newUser,
       passwordGenerated: passwordWasGenerated,
-      emailSent: !!shouldSendWelcomeEmail,
+      emailSent,
     });
   } catch (error) {
     logError('Auth', 'Create user error:', error);

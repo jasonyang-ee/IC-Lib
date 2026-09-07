@@ -229,7 +229,9 @@ describe('ComponentFiles rendered selection orchestration', () => {
     expect(api.cleanupTempFiles).toHaveBeenCalledWith({ tempFilenames: ['temp-old.step'] });
     expect(utils.onTempFileRemoved).toHaveBeenCalledWith('temp-old.step');
     expect(api.deleteComponentFile).not.toHaveBeenCalled();
-    expect(utils.onCadSelectionChange.mock.lastCall[0].map((file) => file.id).sort()).toEqual([...pair, pad, model].map((file) => file.id).sort());
+    // Selection publication runs in an effect after the immediate add callbacks.
+    await waitFor(() => expect(utils.onCadSelectionChange.mock.lastCall[0].map((file) => file.id).sort())
+      .toEqual([...pair, pad, model].map((file) => file.id).sort()));
   });
 });
 

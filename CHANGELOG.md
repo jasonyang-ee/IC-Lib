@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Shared rename ECOs capture current filenames, consumers, and original approval statuses under transaction locks. Approval retains physical rename recovery through the outer commit, including later database failures.
+- ECO approve/reject/delete decisions serialize competing requests and close transactions on early exits. Best-effort audit failures no longer silently roll back successful work, and notification lookup failures no longer report a committed ECO creation or decision as failed.
+- Approval-stage deletion preserves parallel groups and active ECO order references. Invalid stage-management requests close their transactions, and concurrent approver-assignment saves replace the set consistently.
+- User creation reports welcome-email delivery accurately when SMTP is disabled, rejects the message, or fails during lookup.
 - CAD ZIP uploads enforce entry and expanded-size limits, validate decompressed sizes and checksums, skip nested archives, and clean up partial extraction after corrupt data or disk-write failure. Upload errors show the specific rejection reason while preserving successful files in the batch.
 - Updated the ZIP dependency to `adm-zip` 0.6.0, which fixes the declared-size allocation vulnerability CVE-2026-39244.
 - Standalone CAD link/unlink requests recheck the component's ECO edit policy while holding its row lock, preventing a concurrent status change from bypassing approval control.

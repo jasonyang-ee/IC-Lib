@@ -35,7 +35,9 @@ const {
   changePassword,
   updateUser,
   deleteUser,
+  createUser,
 } = await import('../controllers/authController.js');
+const { sendWelcomeEmail } = await import('../services/emailService.js');
 
 const mockReq = (overrides = {}) => ({
   body: {},
@@ -270,6 +272,27 @@ describe('authController cookie auth', () => {
 describe('authController local user authority', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each([
+    [{ success: true }, true],
+    [{ success: false, reason: 'SMTP not configured' }, false],
+    [{ success: false, error: 'SMTP rejected recipient' }, false],
+    [new Error('SMTP lookup failed'), false],
+  ])('reports actual welcome-email delivery: %j', async (delivery, emailSent) => {
+    queryMock.mockReset();
+    queryMock.mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'new-user', username: 'newuser', role: 'read-write' }] })
+      .mockResolvedValue({ rows: [] });
+    hashMock.mockResolvedValue('hashed-password');
+    sendWelcomeEmail.mockImplementation(async () => {
+      if (delivery instanceof Error) throw delivery;
+      return delivery;
+    });
+    const res = mockRes();
+    await createUser(mockReq({ body: { username: 'newuser', password: 'password', role: 'read-write', email: 'user@example.test' } }), res);
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.lastCall[0]).toMatchObject({ id: 'new-user', emailSent });
   });
 
   it("admin changes an OIDC user's local role and active state without changing identity", async () => {
