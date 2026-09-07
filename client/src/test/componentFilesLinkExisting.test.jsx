@@ -115,6 +115,36 @@ describe('ComponentFiles rendered selection orchestration', () => {
     expect(api.linkFileToComponent).not.toHaveBeenCalled();
   });
 
+  it.each(['add', 'eco'])('%s removal preserves shared pads/models until the last variant is removed', async (mode) => {
+    const variants = ['a', 'b', 'c'].flatMap((variant) => ['psm', 'dra'].map((extension) => ({
+      ...cad(`${variant}-${extension}`, `part_${variant}.${extension}`, 'footprint'), related_files: [pad, model],
+    })));
+    available = variants;
+    const utils = await renderSelection(mode);
+    for (const variant of ['A', 'B', 'C']) {
+      await selectPair({ name: `PART_${variant}` });
+    }
+    await screen.findByTitle('part_c.psm');
+    utils.onCadFileRemoved.mockClear();
+    fireEvent.click(screen.getAllByTitle('Delete file')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));
+    await waitFor(() => expect(utils.onCadFileRemoved).toHaveBeenCalledTimes(2));
+    expect(utils.onCadFileRemoved.mock.calls.map(([file]) => file.filename).sort()).toEqual(['part_a.dra', 'part_a.psm']);
+    expect(screen.getByTitle('chosen.pad')).toBeInTheDocument();
+    expect(screen.getByTitle('new.step')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle('Delete file')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));
+    await waitFor(() => expect(utils.onCadFileRemoved).toHaveBeenCalledTimes(4));
+    expect(screen.getByTitle('chosen.pad')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTitle('Delete file')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));
+    await waitFor(() => expect(utils.onCadFileRemoved).toHaveBeenCalledTimes(8));
+    expect(screen.queryByTitle('chosen.pad')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('new.step')).not.toBeInTheDocument();
+    expect(api.linkFileToComponent).not.toHaveBeenCalled();
+    expect(api.deleteComponentFile).not.toHaveBeenCalled();
+  });
+
   it('cancels the related-file picker without staging changes', async () => {
     const utils = await renderSelection('eco');
     await openCategory('Footprint');

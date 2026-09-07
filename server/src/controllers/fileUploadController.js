@@ -22,6 +22,8 @@ import {
 } from '../utils/footprintFiles.js';
 import { assertSafeLeafName } from '../utils/safeFsPaths.js';
 import { logError } from '../utils/logger.js';
+import { isEcoEnabled } from '../utils/featureFlags.js';
+import { canDirectEditComponentInEcoMode } from '../services/componentLifecycleService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -801,6 +803,7 @@ export async function renameFile(req, res) {
     if (!category || !mfgPartNumber || !oldFilename || !newFilename) {
       return res.status(400).json({ error: 'Category, part number, old filename, and new filename are required' });
     }
+    assertSafeLeafName(oldFilename, 'oldFilename');
 
     // Validate category
     const config = FILE_CATEGORIES[category];
@@ -935,15 +938,17 @@ export async function renameFile(req, res) {
     if (error instanceof FootprintNameError) {
       return res.status(422).json({ error: error.message });
     }
+    if (/^Invalid oldFilename/.test(error.message || '')) {
+      return res.status(400).json({ error: error.message });
+    }
     logError('FileUpload', 'Error renaming file:', error);
     res.status(500).json({ error: 'Failed to rename file' });
   }
 }
 
 /**
- * Delete a file (soft-delete with shared-file protection)
- * - If file is shared (linked to multiple components): unlink from requesting component only
- * - If file is sole-use or orphan: move to temp folder (soft-delete) for potential restore
+ * Unlink a file or footprint group from the requesting component only.
+ * Shared library files and reusable relationship history remain intact.
  */
 export async function deleteFile(req, res) {
   try {
@@ -969,21 +974,29 @@ export async function deleteFile(req, res) {
       return res.status(404).json({ error: 'CAD file not found' });
     }
 
-    const compResult = await pool.query(
-      'SELECT id FROM components WHERE manufacturer_pn = $1',
-      [mfgPartNumber],
-    );
-    const componentId = compResult.rows[0]?.id;
-
-    if (!componentId) {
-      return res.status(404).json({ error: 'Component not found' });
-    }
-
     const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
+
+      const compResult = await client.query(
+        'SELECT id, approval_status FROM components WHERE manufacturer_pn = $1 FOR UPDATE',
+        [mfgPartNumber],
+      );
+      const component = compResult.rows[0];
+      if (!component) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Component not found' });
+      }
+      if (isEcoEnabled() && !canDirectEditComponentInEcoMode({
+        role: req.user?.role,
+        currentApprovalStatus: component.approval_status,
+      })) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Direct edits require ECO approval unless the part is still in new status' });
+      }
+      const componentId = component.id;
 
       const cadFilesToUnlink = new Map([[cadFile.id, cadFile]]);
       if (category === 'footprint') {
@@ -1007,12 +1020,22 @@ export async function deleteFile(req, res) {
         });
 
         if (groupedFootprintCadFileIds.length > 0) {
-          const relatedFilesByCadFileId = await cadFileService.getLinkedCadFilesMap(groupedFootprintCadFileIds, client);
+          const relatedFilesByCadFileId = await cadFileService.getLinkedCadFilesMap(
+            componentCadFiles.filter((file) => file.file_type === 'footprint').map((file) => file.id), client,
+          );
           const componentCadFileById = new Map(componentCadFiles.map((file) => [file.id, file]));
+          const retainedRelatedIds = new Set();
+          for (const [footprintId, relatedFiles] of relatedFilesByCadFileId) {
+            if (!groupedFootprintCadFileIds.includes(footprintId)) {
+              relatedFiles.forEach((file) => retainedRelatedIds.add(file.id));
+            }
+          }
 
-          for (const relatedFiles of relatedFilesByCadFileId.values()) {
+          for (const footprintId of groupedFootprintCadFileIds) {
+            const relatedFiles = relatedFilesByCadFileId.get(footprintId) || [];
             for (const relatedFile of relatedFiles) {
-              if ((relatedFile.file_type === 'pad' || relatedFile.file_type === 'model') && componentCadFileById.has(relatedFile.id)) {
+              if ((relatedFile.file_type === 'pad' || relatedFile.file_type === 'model')
+                && componentCadFileById.has(relatedFile.id) && !retainedRelatedIds.has(relatedFile.id)) {
                 cadFilesToUnlink.set(relatedFile.id, componentCadFileById.get(relatedFile.id));
               }
             }

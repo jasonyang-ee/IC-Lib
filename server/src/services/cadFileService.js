@@ -201,14 +201,22 @@ export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, file
  * Removes junction record and regenerates TEXT column.
  */
 export async function unlinkCadFileFromComponent(cadFileId, componentId, fileType, _fileName) {
-  // Remove junction record
-  await pool.query(`
-    DELETE FROM component_cad_files
-    WHERE component_id = $1 AND cad_file_id = $2
-  `, [componentId, cadFileId]);
-
-  // Regenerate TEXT column from junction table
-  await regenerateCadText(componentId, fileType);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM components WHERE id = $1 FOR UPDATE', [componentId]);
+    await client.query(`
+      DELETE FROM component_cad_files
+      WHERE component_id = $1 AND cad_file_id = $2
+    `, [componentId, cadFileId]);
+    await regenerateCadText(componentId, fileType, client);
+    await client.query('COMMIT');
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -378,63 +386,65 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
   }
 }
 
+// Reuse the same definition for orphan discovery and the locked delete check.
+const CAD_FILE_IN_USE_SQL = `
+  EXISTS (SELECT 1 FROM component_cad_files ccf WHERE ccf.cad_file_id = cf.id)
+  OR EXISTS (
+    SELECT 1 FROM eco_cad_files ecf JOIN eco_orders eo ON eo.id = ecf.eco_id
+    WHERE ecf.cad_file_id = cf.id AND eo.status IN ('pending', 'in_review')
+  )
+  OR EXISTS (
+    SELECT 1 FROM eco_file_rename_files erf JOIN eco_orders eo ON eo.id = erf.eco_id
+    WHERE erf.cad_file_id = cf.id AND eo.status IN ('pending', 'in_review')
+  )
+`;
+
 /**
- * Delete a CAD file from the system.
- * The cad_files record removal (which cascades junction rows) and TEXT-column
- * regeneration run inside a transaction; the physical file is only unlinked
- * after that transaction commits. Ordering is deliberate: a crash after commit
- * leaves a harmless on-disk orphan (re-surfaced by the library scan) rather than
- * a cad_files row pointing at a file that no longer exists.
+ * Delete unused CAD files as a group. Lock every parent row before rechecking
+ * references: FK key-share locks serialize concurrent component/ECO inserts.
+ * No live junction or active staging row may be cascaded away by this operation.
+ * Unlink disk files only after commit; failures leave recoverable disk orphans.
  */
-export async function deleteCadFile(cadFileId) {
-  const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
-
-  if (cfResult.rows.length === 0) {
-    throw new Error('CAD file not found');
-  }
-
-  const cadFile = cfResult.rows[0];
-  const subdir = TYPE_SUBDIR[cadFile.file_type];
-  const safeFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
-
-  // Linked components are read before the transaction so we know which TEXT
-  // columns to regenerate after the junction rows cascade away.
-  const linkedComponents = await getComponentsByCadFile(cadFileId);
-
+export async function deleteCadFiles(cadFileIds) {
+  const ids = uniqueValues(cadFileIds);
+  if (ids.length === 0) return [];
   const client = await pool.connect();
-  let transactionStarted = false;
-
+  let files;
   try {
     await client.query('BEGIN');
-    transactionStarted = true;
-
-    // Junction records are removed via ON DELETE CASCADE on the cad_files FK.
-    await client.query('DELETE FROM cad_files WHERE id = $1', [cadFileId]);
-
-    for (const comp of linkedComponents) {
-      await regenerateCadText(comp.id, cadFile.file_type, client);
+    const locked = await client.query('SELECT * FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
+    if (locked.rows.length !== ids.length) {
+      throw Object.assign(new Error('CAD file not found'), { status: 404 });
     }
-
+    files = locked.rows.map((file) => ({
+      fileName: assertSafeLeafName(file.file_name, 'fileName'),
+      fileType: file.file_type,
+      filePath: resolvePathWithinBase(LIBRARY_BASE, TYPE_SUBDIR[file.file_type], file.file_name),
+      linkedComponents: [],
+    }));
+    // Separate statement obtains a fresh READ COMMITTED snapshot after lock waits.
+    const inUse = await client.query(`SELECT cf.id FROM cad_files cf
+      WHERE cf.id = ANY($1::uuid[]) AND (${CAD_FILE_IN_USE_SQL})`, [ids]);
+    if (inUse.rows.length > 0) {
+      throw Object.assign(new Error('Files linked to components or active ECOs cannot be deleted from File Library'), { status: 409 });
+    }
+    await client.query('DELETE FROM cad_files WHERE id = ANY($1::uuid[])', [ids]);
     await client.query('COMMIT');
-    transactionStarted = false;
   } catch (error) {
-    if (transactionStarted) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
-    }
+    try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
     throw error;
   } finally {
     client.release();
   }
 
-  // Physical deletion only after the DB row is gone (see ordering note above).
-  if (subdir) {
-    const filePath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeFileName);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+  for (const file of files) {
+    if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
   }
+  return files.map(({ filePath: _filePath, ...file }) => file);
+}
 
-  return { fileName: cadFile.file_name, fileType: cadFile.file_type, linkedComponents };
+export async function deleteCadFile(cadFileId) {
+  return (await deleteCadFiles([cadFileId]))[0];
 }
 
 /**
@@ -450,13 +460,7 @@ export async function getOrphanCadFiles(fileType = null) {
       created_at(cf.id) as created_at,
       cf.updated_at
     FROM cad_files cf
-    LEFT JOIN component_cad_files ccf ON cf.id = ccf.cad_file_id
-    LEFT JOIN eco_cad_files ecf ON ecf.cad_file_id = cf.id
-      AND ecf.action = 'link'
-    LEFT JOIN eco_orders eo ON ecf.eco_id = eo.id
-      AND eo.status IN ('pending', 'in_review')
-    WHERE ccf.id IS NULL
-      AND ecf.id IS NULL
+    WHERE NOT (${CAD_FILE_IN_USE_SQL})
   `;
   const params = [];
 
@@ -1110,6 +1114,7 @@ export default {
   getComponentsByFileName,
   renameCadFile,
   deleteCadFile,
+  deleteCadFiles,
   getOrphanCadFiles,
   searchCadFiles,
   getCadFilesForComponentGrouped,

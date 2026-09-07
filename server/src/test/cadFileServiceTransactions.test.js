@@ -28,13 +28,14 @@ function base(p) {
   return path.basename(String(p));
 }
 
-function makeClient({ failOn } = {}) {
+function makeClient({ failOn, cadFiles = [] } = {}) {
   const client = {
     query: vi.fn(async (sql) => {
       if (failOn && typeof sql === 'string' && sql.includes(failOn)) {
         throw new Error('injected DB failure');
       }
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('SELECT * FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles };
       if (typeof sql === 'string' && sql.includes('as base_name')) return { rows: [{ base_name: 'old' }] };
       return { rows: [] };
     }),
@@ -260,7 +261,7 @@ describe('deleteCadFile (transactional, unlink after commit)', () => {
       cadFile: { id: 'cf-9', file_name: 'del.psm', file_type: 'footprint' },
       affected: [],
     });
-    const client = makeClient();
+    const client = makeClient({ cadFiles: [{ id: 'cf-9', file_name: 'del.psm', file_type: 'footprint' }] });
     mocks.pool.connect.mockResolvedValue(client);
 
     const result = await deleteCadFile('cf-9');
@@ -281,7 +282,7 @@ describe('deleteCadFile (transactional, unlink after commit)', () => {
       cadFile: { id: 'cf-9', file_name: 'del.psm', file_type: 'footprint' },
       affected: [],
     });
-    const client = makeClient({ failOn: 'DELETE FROM cad_files' });
+    const client = makeClient({ failOn: 'DELETE FROM cad_files', cadFiles: [{ id: 'cf-9', file_name: 'del.psm', file_type: 'footprint' }] });
     mocks.pool.connect.mockResolvedValue(client);
 
     await expect(deleteCadFile('cf-9')).rejects.toThrow('injected DB failure');

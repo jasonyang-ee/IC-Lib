@@ -55,7 +55,7 @@ router.get('/list/:mfgPartNumber', authenticate, listFiles);
 // Rename a file
 router.put('/rename', authenticate, canWrite, renameFile);
 
-// Delete a file (soft-delete with shared-file protection)
+// Unlink a component file/group; handler checks locked component ECO policy.
 router.delete('/delete', authenticate, canWrite, deleteFile);
 
 // Download a file

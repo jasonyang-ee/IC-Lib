@@ -584,7 +584,7 @@ export const deletePhysicalFile = async (req, res) => {
     });
   } catch (error) {
     logError('FileLibrary', 'Error deleting physical file:', error.message);
-    const status = /Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500;
+    const status = error.status || (/Invalid .*Name|Resolved path escapes base directory/.test(error.message || '') ? 400 : 500);
     res.status(status).json({ error: status === 500 ? 'Failed to delete file' : error.message });
   }
 };
@@ -626,9 +626,7 @@ export const deleteFileGroup = async (req, res) => {
       cadFiles.push(cadFile);
     }
 
-    for (const cadFile of cadFiles) {
-      await cadFileService.deleteCadFile(cadFile.id);
-    }
+    await cadFileService.deleteCadFiles(cadFiles.map((file) => file.id));
 
     res.json({
       success: true,
@@ -639,7 +637,7 @@ export const deleteFileGroup = async (req, res) => {
     });
   } catch (error) {
     logError('FileLibrary', 'Error deleting file group:', error.message);
-    res.status(500).json({ error: 'Failed to delete file group' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to delete file group' });
   }
 };
 
@@ -704,17 +702,8 @@ export const bulkDeleteOrphanFiles = async (req, res) => {
       });
     }
 
-    const deletedFiles = [];
-
-    for (const fileName of requestedFileNames) {
-      const cadFile = orphanFileMap.get(fileName);
-      if (!cadFile) {
-        continue;
-      }
-
-      await cadFileService.deleteCadFile(cadFile.id);
-      deletedFiles.push(fileName);
-    }
+    await cadFileService.deleteCadFiles(requestedFileNames.map((fileName) => orphanFileMap.get(fileName).id));
+    const deletedFiles = requestedFileNames;
 
     res.json({
       success: true,
@@ -723,7 +712,7 @@ export const bulkDeleteOrphanFiles = async (req, res) => {
     });
   } catch (error) {
     logError('FileLibrary', 'Error bulk deleting orphan files:', error.message);
-    res.status(500).json({ error: 'Failed to bulk delete orphan files' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to bulk delete orphan files' });
   }
 };
 

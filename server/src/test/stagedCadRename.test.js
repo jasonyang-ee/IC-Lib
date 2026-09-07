@@ -18,7 +18,7 @@ vi.mock('../config/database.js', () => ({ default: { query: vi.fn(), connect: vi
 vi.mock('../services/cadFileService.js', () => ({ default: {} }));
 vi.mock('../services/packageService.js', () => ({ listPackages: mocks.packages.listPackages }));
 
-const { renameStagedFootprintGroup } = await import('../controllers/fileUploadController.js');
+const { renameFile, renameStagedFootprintGroup } = await import('../controllers/fileUploadController.js');
 
 const base = (filePath) => path.basename(String(filePath));
 const directoryNames = new Set(['footprint', 'symbol', 'model', 'pspice', 'pad', 'temp', 'library']);
@@ -65,6 +65,18 @@ beforeEach(() => {
 });
 
 describe('renameStagedFootprintGroup', () => {
+  it.each(['../outside.psm', '..\\outside.psm', '/outside.psm', 'C:\\outside.psm'])(
+    'rejects a legacy rename source path %s before filesystem access', async (oldFilename) => {
+      const res = mockRes();
+      await renameFile(mockReq({ body: {
+        category: 'footprint', mfgPartNumber: 'PART', oldFilename, newFilename: 'next.psm',
+      } }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mocks.fs.existsSync).not.toHaveBeenCalled();
+      expect(mocks.fs.renameSync).not.toHaveBeenCalled();
+    },
+  );
+
   it('renames an original-case staged footprint pair atomically with distinct prefixes', async () => {
     configureFs(['100-200-SI7852ADPT1GE3.PSM', '300-400-SI7852ADPT1GE3.DRA']);
     const res = mockRes();

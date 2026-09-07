@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removing a footprint variant retains pads and 3D models used by the part's remaining variants in direct editing, new-part selection, and ECO staging; unbound files and reusable binding history remain intact.
+- Legacy part-file unlinking enforces the ECO policy on the locked part, and standalone CAD unlinking rolls back its junction change when derived TEXT regeneration fails.
+- File Library deletion rechecks component and active ECO references under database locks and validates entire file groups before deleting their records. Historical completed/rejected ECO links no longer hide unused files from orphan cleanup.
+- Legacy part-file renames reject source paths with traversal or directory segments before accessing the filesystem.
 - File Library selection, copy, and orphan-delete controls are separate native buttons, eliminating nested interactive controls and exposing selection state to assistive technology.
 - Project lines reject invalid quantities before saving, and Consume All rejects existing nonpositive quantities without changing stock. Missing projects return 404; database failures return a safe server error, roll back deductions, and release failed connections safely.
 - Concurrent first-time alternative inventory edits use an atomic upsert, preserving independently supplied quantity, location, and minimum-stock fields instead of losing one save to a duplicate-row error.

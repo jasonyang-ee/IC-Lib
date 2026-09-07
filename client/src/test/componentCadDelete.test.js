@@ -53,4 +53,33 @@ describe('collectCadDeleteTargets', () => {
       { category: 'model', filename: 'SOIC8.step' },
     ]);
   });
+
+  it('retains pads and models needed by remaining density variants', () => {
+    const pad = { id: 'shared-pad', file_type: 'pad', file_name: 'shared.pad' };
+    const model = { id: 'model', file_type: 'model', file_name: 'body.step' };
+    const exclusive = { id: 'a-pad', file_type: 'pad', file_name: 'a.pad' };
+    const files = {
+      footprint: ['a', 'b', 'c'].flatMap((variant) => ['psm', 'dra'].map((ext) => ({
+        id: `${variant}-${ext}`, name: `part_${variant}.${ext}`,
+        related_files: variant === 'a' ? [pad, model, exclusive] : [pad, model],
+      }))),
+      pad: [pad, exclusive, { id: 'unbound', file_name: 'unbound.pad' }],
+      model: [model],
+    };
+    expect(collectCadDeleteTargets(files, 'footprint', 'part_a.psm')).toEqual([
+      { category: 'footprint', filename: 'part_a.psm' },
+      { category: 'footprint', filename: 'part_a.dra' },
+      { category: 'pad', filename: 'a.pad' },
+    ]);
+  });
+
+  it('does not infer pad removals for multiple variants with no bindings', () => {
+    const files = {
+      footprint: ['a', 'b', 'c'].map((variant) => ({ name: `part_${variant}.psm` })),
+      pad: [{ name: 'part_a.pad' }, { name: 'part_b.pad' }, { name: 'thermal.pad' }],
+    };
+    expect(collectCadDeleteTargets(files, 'footprint', 'part_a.psm')).toEqual([
+      { category: 'footprint', filename: 'part_a.psm' },
+    ]);
+  });
 });

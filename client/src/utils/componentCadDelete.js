@@ -59,6 +59,14 @@ export function collectCadDeleteTargets(filesByCategory, category, filename) {
 
   footprintTargets.forEach((file) => addTarget('footprint', file));
 
+  const retainedRelatedKeys = new Set();
+  for (const footprintFile of footprintFiles.filter((file) => !footprintTargets.includes(file))) {
+    for (const relatedFile of footprintFile.related_files || []) {
+      const currentFile = findCurrentCadFile(filesByCategory, relatedFile);
+      if (currentFile) retainedRelatedKeys.add(buildCadDeleteKey(relatedFile.file_type, currentFile));
+    }
+  }
+
   for (const footprintFile of footprintTargets) {
     for (const relatedFile of Array.isArray(footprintFile?.related_files) ? footprintFile.related_files : []) {
       if (!COMPONENT_FOOTPRINT_RELATED_TYPES.has(relatedFile?.file_type)) {
@@ -66,7 +74,7 @@ export function collectCadDeleteTargets(filesByCategory, category, filename) {
       }
 
       const currentFile = findCurrentCadFile(filesByCategory, relatedFile);
-      if (currentFile) {
+      if (currentFile && !retainedRelatedKeys.has(buildCadDeleteKey(relatedFile.file_type, currentFile))) {
         addTarget(relatedFile.file_type, currentFile);
       }
     }
