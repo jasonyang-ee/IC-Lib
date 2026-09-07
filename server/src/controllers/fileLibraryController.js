@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cadFileService from '../services/cadFileService.js';
-import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
+import { createMassFileRenameEco, lockFileRenameContext, rollbackMassFileRenames } from '../services/massFileRenameEcoService.js';
 import { listPackages } from '../services/packageService.js';
 import {
   SANITIZE_CONFIRMATION_TOKEN,
@@ -77,6 +77,81 @@ function getTypeInfo(type) {
 
 function shouldStageSharedFileRename(req, affectedCount, ecoAffectedCount) {
   return isEcoEnabled() && req.user?.role !== 'admin' && affectedCount > 1 && ecoAffectedCount > 0;
+}
+
+async function renameTrackedLibraryFiles(req, files, notes) {
+  const client = await pool.connect();
+  const renamedPaths = [];
+  let transactionStarted = false;
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const affectedComponents = await lockFileRenameContext(client, files);
+    const targets = files.map((file) => {
+      const subdir = CAD_TYPE_SUBDIR[file.file_type];
+      const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, assertSafeLeafName(file.old_file_name, 'oldFileName'));
+      const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, assertSafeLeafName(file.new_file_name, 'newFileName'));
+      if (!fs.existsSync(oldPath)) {
+        throw Object.assign(new Error(`File "${file.old_file_name}" not found on disk`), { status: 404 });
+      }
+      if (file.old_file_name !== file.new_file_name && fs.existsSync(newPath)
+        && !cadFileService.isSameExistingFile(oldPath, newPath)) {
+        throw Object.assign(new Error(`File "${file.new_file_name}" already exists in the ${file.file_type} directory`), { status: 409 });
+      }
+      return { ...file, subdir, oldPath, newPath };
+    });
+    const controlledCount = affectedComponents.filter(component => component.approval_status !== 'new').length;
+    let result;
+    if (shouldStageSharedFileRename(req, affectedComponents.length, controlledCount)) {
+      const { eco, summary, stagedComponents, affectedComponents: currentComponents } = await createMassFileRenameEco(client, {
+        user: req.user, files, notes,
+      });
+      result = {
+        stagedEco: true,
+        ecoId: eco.id,
+        ecoNumber: eco.eco_number,
+        summary,
+        affectedCount: currentComponents.length,
+        skippedCount: currentComponents.length - stagedComponents.length,
+        updatedCount: stagedComponents.length,
+        updatedComponents: stagedComponents.map(component => ({
+          id: component.id, part_number: component.part_number, original_status: component.approval_status,
+        })),
+      };
+    } else {
+      for (const file of targets) {
+        if (file.old_file_name === file.new_file_name) continue;
+        fs.renameSync(file.oldPath, file.newPath);
+        renamedPaths.push({ oldPath: file.oldPath, newPath: file.newPath });
+        await client.query(`
+          UPDATE cad_files SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $3
+        `, [file.new_file_name, `${file.subdir}/${file.new_file_name}`, file.cad_file_id]);
+      }
+      for (const component of affectedComponents) {
+        for (const fileType of new Set(files.map(file => file.file_type))) {
+          await cadFileService.regenerateCadText(component.id, fileType, client);
+        }
+      }
+      result = {
+        updatedCount: affectedComponents.length,
+        updatedComponents: affectedComponents.map(component => ({ id: component.id, part_number: component.part_number })),
+      };
+    }
+    await client.query('COMMIT');
+    transactionStarted = false;
+    renamedPaths.length = 0;
+    return result;
+  } catch (error) {
+    // Recover physical names before releasing locks to another writer.
+    rollbackMassFileRenames(renamedPaths);
+    if (transactionStarted) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function canonicalizeRenameFileName(fileName, fileType) {
@@ -241,7 +316,7 @@ export const searchFiles = async (req, res) => {
 
 /**
  * Rename a physical file on disk and update cad_files + TEXT columns.
- * Uses cadFileService.renameCadFile which handles junction + TEXT regen.
+ * Shares locked routing and recovery with grouped footprint renames.
  */
 export const renamePhysicalFile = async (req, res) => {
   try {
@@ -286,68 +361,14 @@ export const renamePhysicalFile = async (req, res) => {
       return res.json({ success: true, oldFileName: safeOldFileName, newFileName: safeNewFileName, updatedCount: 0, updatedComponents: [] });
     }
 
-    // Get affected components before rename
-    const affectedBefore = await cadFileService.getComponentsByCadFile(cadFile.id);
-    const ecoAffectedComponents = affectedBefore.filter((component) => component.approval_status !== 'new');
+    const result = await renameTrackedLibraryFiles(req, [{
+      cad_file_id: cadFile.id,
+      file_type: cadFile.file_type,
+      old_file_name: safeOldFileName,
+      new_file_name: safeNewFileName,
+    }], `File Library rename staged: "${safeOldFileName}" -> "${safeNewFileName}"`);
 
-    if (shouldStageSharedFileRename(req, affectedBefore.length, ecoAffectedComponents.length)) {
-      const client = await pool.connect();
-
-      try {
-        await client.query('BEGIN');
-
-        const { eco, summary, stagedComponents, affectedComponents: currentComponents } = await createMassFileRenameEco(client, {
-          user: req.user,
-          files: [{
-            cad_file_id: cadFile.id,
-            file_type: cadFile.file_type,
-            old_file_name: safeOldFileName,
-            new_file_name: safeNewFileName,
-          }],
-          notes: `File Library rename staged: "${safeOldFileName}" -> "${safeNewFileName}"`,
-        });
-
-        await client.query('COMMIT');
-
-        logInfo('FileLibrary', `Staged shared rename ECO ${eco.eco_number}: "${safeOldFileName}" -> "${safeNewFileName}" (${stagedComponents.length} controlled components)`);
-
-        return res.json({
-          success: true,
-          stagedEco: true,
-          ecoId: eco.id,
-          ecoNumber: eco.eco_number,
-          summary,
-          oldFileName: safeOldFileName,
-          newFileName: safeNewFileName,
-          affectedCount: currentComponents.length,
-          skippedCount: currentComponents.length - stagedComponents.length,
-          updatedCount: stagedComponents.length,
-          updatedComponents: stagedComponents.map((component) => ({
-            id: component.id,
-            part_number: component.part_number,
-            original_status: component.approval_status,
-          })),
-        });
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
-    }
-
-    // Rename via cadFileService (handles physical rename + cad_files update + TEXT regen)
-    await cadFileService.renameCadFile(cadFile.id, safeNewFileName);
-
-    logInfo('FileLibrary', `Physical rename: "${safeOldFileName}" -> "${safeNewFileName}", updated ${affectedBefore.length} components`);
-
-    res.json({
-      success: true,
-      oldFileName: safeOldFileName,
-      newFileName: safeNewFileName,
-      updatedCount: affectedBefore.length,
-      updatedComponents: affectedBefore.map(c => ({ id: c.id, part_number: c.part_number })),
-    });
+    res.json({ success: true, oldFileName: safeOldFileName, newFileName: safeNewFileName, ...result });
   } catch (error) {
     if (error instanceof FootprintNameError) {
       return res.status(422).json({ error: error.message });
@@ -366,156 +387,34 @@ export const renamePhysicalFile = async (req, res) => {
  * Rename a grouped footprint pair (.psm/.bsm + .dra) together.
  */
 export const renameFootprintGroup = async (req, res) => {
-  const client = await pool.connect();
-  const renamedPaths = [];
-  let transactionStarted = false;
-
   try {
     const { fileNames, newBaseName } = req.body;
     const info = getTypeInfo('footprint');
     const canonicalBaseName = getCadFileBaseName(
       await canonicalizeRenameFileName(`${newBaseName}.psm`, info.fileType),
     );
-    const renameTargets = buildFootprintRenameTargets(fileNames, canonicalBaseName).map((target) => ({
-      ...target,
-      oldFileName: assertSafeLeafName(target.oldFileName, 'oldFileName'),
-      newFileName: assertSafeLeafName(target.newFileName, 'newFileName'),
-    }));
-    const affectedComponentIds = new Set();
-    const affectedComponents = new Map();
-    const cadFiles = [];
-
+    const renameTargets = buildFootprintRenameTargets(fileNames, canonicalBaseName);
+    const files = [];
     for (const target of renameTargets) {
-      const cadFile = await cadFileService.findCadFile(target.oldFileName, info.fileType);
+      const oldFileName = assertSafeLeafName(target.oldFileName, 'oldFileName');
+      const newFileName = assertSafeLeafName(target.newFileName, 'newFileName');
+      const cadFile = await cadFileService.findCadFile(oldFileName, info.fileType);
       if (!cadFile) {
-        return res.status(404).json({ error: `File "${target.oldFileName}" not found in database` });
+        return res.status(404).json({ error: `File "${oldFileName}" not found in database` });
       }
-
-      const oldPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, assertSafeLeafName(cadFile.file_name, 'fileName'));
-      if (!fs.existsSync(oldPath)) {
-        return res.status(404).json({ error: `File "${target.oldFileName}" not found on disk` });
-      }
-
-      const newPath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, target.newFileName);
-      if (
-        target.newFileName !== cadFile.file_name
-        && fs.existsSync(newPath)
-        && !cadFileService.isSameExistingFile(oldPath, newPath)
-      ) {
-        return res.status(409).json({ error: `File "${target.newFileName}" already exists in the footprint directory` });
-      }
-
-      const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);
-      linkedComponents.forEach((component) => {
-        affectedComponentIds.add(component.id);
-        if (!affectedComponents.has(component.id)) {
-          affectedComponents.set(component.id, component);
-        }
-      });
-
-      cadFiles.push({
-        cadFile,
-        oldPath,
-        newPath,
-        newFileName: target.newFileName,
+      files.push({
+        cad_file_id: cadFile.id, file_type: cadFile.file_type,
+        old_file_name: oldFileName, new_file_name: newFileName,
       });
     }
-
-    const allAffectedComponents = [...affectedComponents.values()];
-    const ecoAffectedComponents = allAffectedComponents.filter((component) => component.approval_status !== 'new');
-
-    if (shouldStageSharedFileRename(req, affectedComponentIds.size, ecoAffectedComponents.length)) {
-      await client.query('BEGIN');
-      transactionStarted = true;
-
-      const { eco, summary, stagedComponents, affectedComponents: currentComponents } = await createMassFileRenameEco(client, {
-        user: req.user,
-        files: cadFiles.map((file) => ({
-          cad_file_id: file.cadFile.id,
-          file_type: file.cadFile.file_type,
-          old_file_name: file.cadFile.file_name,
-          new_file_name: file.newFileName,
-        })),
-        notes: `File Library footprint rename staged (${cadFiles.length} files)`,
-      });
-
-      await client.query('COMMIT');
-      transactionStarted = false;
-
-      logInfo('FileLibrary', `Staged shared footprint rename ECO ${eco.eco_number} (${stagedComponents.length} controlled components)`);
-
-      return res.json({
-        success: true,
-        stagedEco: true,
-        ecoId: eco.id,
-        ecoNumber: eco.eco_number,
-        summary,
-        renamedFiles: cadFiles.map((file) => ({
-          oldFileName: file.cadFile.file_name,
-          newFileName: file.newFileName,
-        })),
-        affectedCount: currentComponents.length,
-        skippedCount: currentComponents.length - stagedComponents.length,
-        updatedCount: stagedComponents.length,
-        updatedComponents: stagedComponents.map((component) => ({
-          id: component.id,
-          part_number: component.part_number,
-          original_status: component.approval_status,
-        })),
-      });
-    }
-
-    await client.query('BEGIN');
-    transactionStarted = true;
-
-    for (const file of cadFiles) {
-      if (file.cadFile.file_name === file.newFileName) {
-        continue;
-      }
-
-      fs.renameSync(file.oldPath, file.newPath);
-      renamedPaths.push({ oldPath: file.oldPath, newPath: file.newPath });
-
-      await client.query(`
-        UPDATE cad_files
-        SET file_name = $1, file_path = $2, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
-      `, [file.newFileName, `${info.subdir}/${file.newFileName}`, file.cadFile.id]);
-    }
-
-    for (const componentId of affectedComponentIds) {
-      await cadFileService.regenerateCadText(componentId, info.fileType, client);
-    }
-
-    await client.query('COMMIT');
-    transactionStarted = false;
-
+    const result = await renameTrackedLibraryFiles(req, files, `File Library footprint rename staged (${files.length} files)`);
     res.json({
       success: true,
-      renamedFiles: cadFiles.map((file) => ({
-        oldFileName: file.cadFile.file_name,
-        newFileName: file.newFileName,
-      })),
-      updatedCount: affectedComponentIds.size,
+      renamedFiles: files.map(file => ({ oldFileName: file.old_file_name, newFileName: file.new_file_name })),
+      ...result,
     });
   } catch (error) {
-    if (transactionStarted) {
-      await client.query('ROLLBACK');
-    }
-
-    for (let index = renamedPaths.length - 1; index >= 0; index -= 1) {
-      const renamedPath = renamedPaths[index];
-      try {
-        if (fs.existsSync(renamedPath.newPath)) {
-          fs.renameSync(renamedPath.newPath, renamedPath.oldPath);
-        }
-      } catch {
-        // Best-effort rollback of physical file names.
-      }
-    }
-
     logError('FileLibrary', 'Error renaming footprint group:', error.message);
-
     const status = error.status || (error instanceof FootprintNameError
       ? 422
       : error.message?.includes('not found')
@@ -525,10 +424,7 @@ export const renameFootprintGroup = async (req, res) => {
           : /requires|Invalid filename/.test(error.message || '')
             ? 400
             : 500);
-
     res.status(status).json({ error: status === 500 ? 'Failed to rename footprint files' : error.message });
-  } finally {
-    client.release();
   }
 };
 

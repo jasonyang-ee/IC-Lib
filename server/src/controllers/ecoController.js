@@ -1217,9 +1217,34 @@ export const getLastRejectedECOByComponent = async (req, res) => {
   }
 };
 
+async function validateEcoAlternativeOwnership(client, componentId, alternatives = [], distributors = [], status = 400) {
+  alternatives = alternatives || [];
+  distributors = distributors || [];
+  if (alternatives.some(alt => alt.action !== 'add' && !alt.alternative_id)) {
+    throw Object.assign(new Error('Existing alternative changes require an alternative_id'), { status });
+  }
+  const alternativeIds = [...new Set([...alternatives, ...distributors].map(row => row.alternative_id).filter(Boolean))];
+  if (alternativeIds.length === 0) return;
+  const result = await client.query(`
+    SELECT id FROM components_alternative
+    WHERE component_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE
+  `, [componentId, alternativeIds]);
+  if (result.rows.length !== alternativeIds.length) {
+    throw Object.assign(new Error('An ECO alternative no longer belongs to this component; refresh and retry'), { status });
+  }
+}
+
 // Create new ECO order
 export const createECO = async (req, res) => {
-  const requestBody = req.body || {};
+  const requestBody = { ...req.body };
+  if (Array.isArray(requestBody.changes)) {
+    requestBody.changes = requestBody.changes.map(change => change?.field_name === 'approval_status'
+      ? { ...change, field_name: '_status_proposal' }
+      : change);
+    if (requestBody.changes.filter(change => change?.field_name === '_status_proposal').length > 1) {
+      return res.status(400).json({ error: 'An ECO may contain only one status proposal' });
+    }
+  }
   try {
     validateECOAlternativeClassChanges(requestBody.changes);
   } catch {
@@ -1263,7 +1288,7 @@ export const createECO = async (req, res) => {
       : null;
 
     const componentContextResult = await client.query(
-      'SELECT category_id, approval_status FROM components WHERE id = $1',
+      'SELECT category_id, approval_status FROM components WHERE id = $1 FOR UPDATE',
       [component_id],
     );
 
@@ -1273,8 +1298,14 @@ export const createECO = async (req, res) => {
     }
 
     const componentContext = componentContextResult.rows[0];
+    await validateEcoAlternativeOwnership(client, component_id, alternatives, distributors);
     const specificationCategoryId = categoryChange?.new_value || componentContext.category_id || null;
     const proposedApprovalStatus = statusProposal?.new_value || null;
+
+    if (statusProposal && !proposedApprovalStatus) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'A status proposal requires a target status' });
+    }
 
     if (componentContext.approval_status === 'new' && !proposedApprovalStatus) {
       await client.query('ROLLBACK');
@@ -1463,7 +1494,7 @@ export const createECO = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     logError('ECO', 'Error creating ECO order:', error);
-    res.status(500).json({ error: error.message || 'Failed to create ECO order' });
+    res.status(error.status || 500).json({ error: error.message || 'Failed to create ECO order' });
   } finally {
     client.release();
   }
@@ -1472,7 +1503,7 @@ export const createECO = async (req, res) => {
 // Helper: Apply all ECO changes to the component (called when final stage is complete)
 const applyECOChanges = async (client, eco, id) => {
   const componentResult = await client.query(
-    'SELECT id FROM components WHERE id = $1',
+    'SELECT id, approval_status FROM components WHERE id = $1 FOR UPDATE',
     [eco.component_id],
   );
 
@@ -1485,9 +1516,22 @@ const applyECOChanges = async (client, eco, id) => {
     'SELECT * FROM eco_changes WHERE eco_id = $1',
     [id],
   );
+  const distributorsResult = await client.query('SELECT * FROM eco_distributors WHERE eco_id = $1', [id]);
+  const alternativesResult = await client.query('SELECT * FROM eco_alternative_parts WHERE eco_id = $1', [id]);
+  await validateEcoAlternativeOwnership(client, eco.component_id, alternativesResult.rows, distributorsResult.rows, 409);
 
   // Extract special changes
   const statusProposal = changesResult.rows.find(c => c.field_name === '_status_proposal');
+  if (changesResult.rows.some(change => change.field_name === 'approval_status')
+    || changesResult.rows.filter(change => change.field_name === '_status_proposal').length > 1) {
+    throw Object.assign(new Error('This ECO contains unvalidated status fields; resubmit it with one status proposal'), { status: 409 });
+  }
+  if (statusProposal && !isEcoStatusProposalAllowed({
+    currentApprovalStatus: componentResult.rows[0].approval_status,
+    proposedStatus: statusProposal.new_value,
+  })) {
+    throw Object.assign(new Error('The status proposal is no longer allowed from the current component status; refresh and retry'), { status: 409 });
+  }
   const categoryChange = changesResult.rows.find(c => c.field_name === 'category_id');
   const regularChanges = changesResult.rows.filter(c =>
     c.field_name !== '_status_proposal' &&
@@ -1497,6 +1541,7 @@ const applyECOChanges = async (client, eco, id) => {
 
   let newPartNumber = null;
   let newComponentId = null;
+  const copiedAlternativeIds = new Map();
 
   // --- 1. Apply status proposal ---
   if (statusProposal) {
@@ -1513,6 +1558,10 @@ const applyECOChanges = async (client, eco, id) => {
       'SELECT prefix, leading_zeros FROM component_categories WHERE id = $1',
       [categoryChange.new_value],
     );
+
+    if (categoryResult.rows.length === 0) {
+      throw Object.assign(new Error('The ECO target category no longer exists; refresh and retry'), { status: 409 });
+    }
 
     if (categoryResult.rows.length > 0) {
       const { prefix: newPrefix, leading_zeros } = categoryResult.rows[0];
@@ -1543,6 +1592,7 @@ const applyECOChanges = async (client, eco, id) => {
       if (overrides.manufacturer_id && typeof overrides.manufacturer_id === 'string' && overrides.manufacturer_id.startsWith('NEW:')) {
         overrides.manufacturer_id = await getOrCreateManufacturer(client, overrides.manufacturer_id.substring(4));
       }
+      const copiedValue = (field) => Object.hasOwn(overrides, field) ? overrides[field] : old[field];
 
       // Create new component in the new category
       const newCompResult = await client.query(`
@@ -1557,18 +1607,18 @@ const applyECOChanges = async (client, eco, id) => {
       `, [
         categoryChange.new_value,
         newPartNumber,
-        overrides.manufacturer_id || old.manufacturer_id,
-        overrides.manufacturer_pn || old.manufacturer_pn,
-        overrides.description || old.description,
-        overrides.value || old.value,
-        overrides.pcb_footprint || old.pcb_footprint,
-        overrides.package_size || old.package_size,
+        copiedValue('manufacturer_id'),
+        copiedValue('manufacturer_pn'),
+        copiedValue('description'),
+        copiedValue('value'),
+        copiedValue('pcb_footprint'),
+        copiedValue('package_size'),
         null, null, null, null, // Reset subcategories for new category
-        overrides.schematic || old.schematic,
-        overrides.step_model || old.step_model,
-        overrides.pspice || old.pspice,
-        overrides.pad_file || old.pad_file,
-        overrides.datasheet_url || old.datasheet_url,
+        copiedValue('schematic'),
+        copiedValue('step_model'),
+        copiedValue('pspice'),
+        copiedValue('pad_file'),
+        copiedValue('datasheet_url'),
         statusProposal ? statusProposal.new_value : old.approval_status,
         // §V59: the class follows the part into its new category. `||` would
         // lose a deliberate clear, so branch on whether it was staged at all.
@@ -1607,12 +1657,12 @@ const applyECOChanges = async (client, eco, id) => {
         const newAlt = await client.query(`
           INSERT INTO components_alternative (component_id, manufacturer_id, manufacturer_pn)
           VALUES ($1, $2, $3)
-          ON CONFLICT (component_id, manufacturer_id, manufacturer_pn) DO NOTHING
           RETURNING id
         `, [newComponentId, alt.manufacturer_id, alt.manufacturer_pn]);
 
         // Copy alternative's distributors
         if (newAlt.rows.length > 0) {
+          copiedAlternativeIds.set(alt.id, newAlt.rows[0].id);
           const altDists = await client.query(
             'SELECT * FROM distributor_info WHERE alternative_id = $1',
             [alt.id],
@@ -1714,8 +1764,8 @@ const applyECOChanges = async (client, eco, id) => {
 
   // --- 4. Apply distributor changes ---
   const targetComponentId = newComponentId || eco.component_id;
-  const distributorsResult = await client.query('SELECT * FROM eco_distributors WHERE eco_id = $1', [id]);
-  for (const dist of distributorsResult.rows) {
+  for (const stagedDist of distributorsResult.rows) {
+    const dist = { ...stagedDist, alternative_id: copiedAlternativeIds.get(stagedDist.alternative_id) || stagedDist.alternative_id };
     let priceBreaks = dist.price_breaks;
     if (typeof priceBreaks === 'string') {
       try { priceBreaks = JSON.parse(priceBreaks); } catch { priceBreaks = []; }
@@ -1781,8 +1831,8 @@ const applyECOChanges = async (client, eco, id) => {
   }
 
   // --- 5. Apply alternative parts changes ---
-  const alternativesResult = await client.query('SELECT * FROM eco_alternative_parts WHERE eco_id = $1', [id]);
-  for (const alt of alternativesResult.rows) {
+  for (const stagedAlt of alternativesResult.rows) {
+    const alt = { ...stagedAlt, alternative_id: copiedAlternativeIds.get(stagedAlt.alternative_id) || stagedAlt.alternative_id };
     let altDistributors = alt.distributors || [];
     if (typeof altDistributors === 'string') {
       try { altDistributors = JSON.parse(altDistributors); } catch { altDistributors = []; }
@@ -1827,8 +1877,8 @@ const applyECOChanges = async (client, eco, id) => {
       await client.query(`
         UPDATE components_alternative
         SET manufacturer_id = $1, manufacturer_pn = $2, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
-      `, [resolvedManufacturerId, alt.manufacturer_pn, alt.alternative_id]);
+        WHERE id = $3 AND component_id = $4
+      `, [resolvedManufacturerId, alt.manufacturer_pn, alt.alternative_id, targetComponentId]);
 
       // Apply embedded distributor updates for existing alternative
       if (altDistributors.length > 0) {
@@ -1857,7 +1907,7 @@ const applyECOChanges = async (client, eco, id) => {
         }
       }
     } else if (alt.action === 'delete') {
-      await client.query('DELETE FROM components_alternative WHERE id = $1', [alt.alternative_id]);
+      await client.query('DELETE FROM components_alternative WHERE id = $1 AND component_id = $2', [alt.alternative_id, targetComponentId]);
     }
   }
 
@@ -2156,7 +2206,8 @@ export const approveECO = async (req, res) => {
     });
   } catch (error) {
     logError('ECO', 'Error approving ECO order:', error);
-    res.status(500).json({ error: 'Failed to approve ECO order' });
+    const status = error.status || 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to approve ECO order' : error.message });
   } finally {
     try {
       if (transactionStarted) {

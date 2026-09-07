@@ -101,6 +101,33 @@ const consumeNextEcoNumber = async (client) => {
   return ecoNumber;
 };
 
+// Used before choosing direct rename versus ECO staging. Caller owns the
+// transaction and must retain these locks through all effects and COMMIT.
+export const lockFileRenameContext = async (client, files) => {
+  const fileIds = [...new Set(files.map((file) => file.cad_file_id))];
+  const currentFiles = await client.query(`
+    SELECT id, file_name, file_type FROM cad_files
+    WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE
+  `, [fileIds]);
+  for (const file of files) {
+    const current = currentFiles.rows.find((row) => row.id === file.cad_file_id);
+    if (!current || current.file_name !== file.old_file_name || current.file_type !== file.file_type) {
+      const error = new Error('CAD file changed before rename; refresh and retry');
+      error.status = 409;
+      throw error;
+    }
+  }
+  const affectedResult = await client.query(`
+    SELECT c.id, c.part_number, c.approval_status FROM components c
+    WHERE EXISTS (
+      SELECT 1 FROM component_cad_files ccf
+      WHERE ccf.component_id = c.id AND ccf.cad_file_id = ANY($1::uuid[])
+    )
+    ORDER BY c.id FOR UPDATE OF c
+  `, [fileIds]);
+  return affectedResult.rows;
+};
+
 export const createMassFileRenameEco = async (client, {
   user,
   files,
@@ -118,31 +145,7 @@ export const createMassFileRenameEco = async (client, {
     ? await listPackages()
     : [];
   files = canonicalizeMassFileRenameFiles(files, packageCatalog);
-
-  // Caller snapshots precede BEGIN and may already be stale. Lock the files
-  // first, then capture current consumers/statuses in this staging transaction.
-  const fileIds = [...new Set(files.map((file) => file.cad_file_id))];
-  const currentFiles = await client.query(`
-    SELECT id, file_name, file_type FROM cad_files
-    WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE
-  `, [fileIds]);
-  for (const file of files) {
-    const current = currentFiles.rows.find((row) => row.id === file.cad_file_id);
-    if (!current || current.file_name !== file.old_file_name || current.file_type !== file.file_type) {
-      const error = new Error('CAD file changed before shared rename staging; refresh and retry');
-      error.status = 409;
-      throw error;
-    }
-  }
-  const affectedResult = await client.query(`
-    SELECT c.id, c.part_number, c.approval_status FROM components c
-    WHERE EXISTS (
-      SELECT 1 FROM component_cad_files ccf
-      WHERE ccf.component_id = c.id AND ccf.cad_file_id = ANY($1::uuid[])
-    )
-    ORDER BY c.id FOR UPDATE OF c
-  `, [fileIds]);
-  const affectedComponents = affectedResult.rows;
+  const affectedComponents = await lockFileRenameContext(client, files);
 
   const stagedComponents = affectedComponents.filter((component) => (
     shouldStageSharedRenameForStatus(component.approval_status)

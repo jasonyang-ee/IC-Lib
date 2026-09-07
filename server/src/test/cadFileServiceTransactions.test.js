@@ -37,7 +37,7 @@ function makeClient({ failOn, cadFiles = [] } = {}) {
         throw new Error('injected DB failure');
       }
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-      if (sql.includes('SELECT * FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles.length ? cadFiles : [mocks.cadFile].filter(Boolean) };
+      if (sql.includes('FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles.length ? cadFiles : [mocks.cadFile].filter(Boolean) };
       if (sql.includes('FROM components c')) return { rows: mocks.affected };
       if (typeof sql === 'string' && sql.includes('as base_name')) return { rows: [{ base_name: 'old' }] };
       return { rows: [] };
@@ -238,7 +238,10 @@ describe('renameFootprintGroup', () => {
         aliases: [{ alias: 'SOIC' }],
       }],
     });
-    const client = makeClient();
+    const client = makeClient({ cadFiles: [
+      { id: 'cf-psm', file_name: '8-SOIC_N.psm', file_type: 'footprint' },
+      { id: 'cf-dra', file_name: '8-SOIC_N.dra', file_type: 'footprint' },
+    ] });
     mocks.pool.connect.mockResolvedValue(client);
     const res = makeResponse();
 

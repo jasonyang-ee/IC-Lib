@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- File Library pad/model binding uploads expose partial failures, retain failed temp tokens for retry, and clean them up on discard or cancel while preserving successful selections.
+- File Library single-file and footprint-pair renames choose direct changes or ECO staging from locked current consumers. Competing renames reject stale source names; pair failures restore both files and their database references.
+- ECO alternative and distributor changes validate component ownership at submission and approval. Category-change ECOs edit the copied alternatives rather than archived originals, and preserve explicitly cleared field values.
+- Legacy ECO status fields use the validated status-proposal path. Conflicting status fields, stale status transitions, and missing target categories reject instead of applying or silently skipping invalid changes.
 - Shared rename ECOs capture current filenames, consumers, and original approval statuses under transaction locks. Approval retains physical rename recovery through the outer commit, including later database failures.
 - ECO approve/reject/delete decisions serialize competing requests and close transactions on early exits. Best-effort audit failures no longer silently roll back successful work, and notification lookup failures no longer report a committed ECO creation or decision as failed.
 - Approval-stage deletion preserves parallel groups and active ECO order references. Invalid stage-management requests close their transactions, and concurrent approver-assignment saves replace the set consistently.

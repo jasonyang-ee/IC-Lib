@@ -25,6 +25,7 @@ const sortFilesByName = (files) => files.slice().sort((left, right) => (
 ));
 
 const getComponentCount = (file) => Number(file?.component_count || 0);
+const EMPTY_FILES = [];
 
 export default function FootprintLinkEditorModal({
   isOpen,
@@ -32,7 +33,7 @@ export default function FootprintLinkEditorModal({
   onSave,
   selectedEntry,
   relatedFileType,
-  initialFiles = [],
+  initialFiles = EMPTY_FILES,
   isSaving = false,
 }) {
   const { showError, showSuccess } = useNotification();
@@ -41,6 +42,7 @@ export default function FootprintLinkEditorModal({
   const [selectedFileIds, setSelectedFileIds] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState([]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -50,6 +52,7 @@ export default function FootprintLinkEditorModal({
     setSearchQuery('');
     setSelectedFileIds((Array.isArray(initialFiles) ? initialFiles : []).map((file) => file.id).filter(Boolean));
     setUploadedFiles([]);
+    setPendingUploads([]);
   }, [initialFiles, isOpen, relatedFileType]);
 
   const routeType = ROUTE_TYPE_BY_RELATED_FILE_TYPE[relatedFileType] || null;
@@ -113,11 +116,71 @@ export default function FootprintLinkEditorModal({
     setSelectedFileIds((current) => current.filter((currentFileId) => currentFileId !== fileId));
   };
 
+  const finalizeUploads = async (stagedFiles) => {
+    setPendingUploads(stagedFiles);
+    try {
+      const response = await api.finalizeTempFiles({
+        files: stagedFiles.map(file => ({ tempFilename: file.tempFilename, category: relatedFileType })),
+      });
+      const results = response.data?.results || [];
+      const completed = results.filter(result => result?.type === relatedFileType && result.cadFileId && !result.error
+        && stagedFiles.some(file => file.tempFilename === result.tempFilename));
+      const completedTokens = new Set(completed.map(result => result.tempFilename));
+      const remaining = stagedFiles.filter(file => !completedTokens.has(file.tempFilename)).map(file => ({
+        ...file,
+        error: results.find(result => result?.tempFilename === file.tempFilename)?.error || 'File was not finalized',
+      }));
+      setPendingUploads(remaining);
+      const finalizedFiles = completed.map(result => ({
+        id: result.cadFileId, file_name: result.filename, file_type: relatedFileType, component_count: 0, missing: false,
+      }));
+      setUploadedFiles(current => [...new Map([...current, ...finalizedFiles].map(file => [file.id, file])).values()]);
+      setSelectedFileIds(current => [...new Set([...current, ...finalizedFiles.map(file => file.id)])]);
+      if (remaining.length > 0) {
+        showError(remaining.map(file => `${file.filename}: ${file.error}`).join('; '));
+      }
+      if (finalizedFiles.length > 0) {
+        showSuccess(`Added ${finalizedFiles.length} ${relatedFileLabel.toLowerCase()} file${finalizedFiles.length !== 1 ? 's' : ''}`);
+        await refetch();
+      }
+    } catch (error) {
+      const message = error.response?.data?.error || error.message;
+      setPendingUploads(current => current.map(file => ({ ...file, error: message })));
+      showError(`Failed to finalize uploads: ${message}`);
+    }
+  };
+
+  const handleRetryUploads = async () => {
+    if (isBusy) return;
+    setIsUploading(true);
+    try { await finalizeUploads(pendingUploads); } finally { setIsUploading(false); }
+  };
+
+  const discardPendingUploads = async () => {
+    if (pendingUploads.length > 0) {
+      await api.cleanupTempFiles({ tempFilenames: pendingUploads.map(file => file.tempFilename) });
+      setPendingUploads([]);
+    }
+  };
+
+  const handleDiscardUploads = async (close = false) => {
+    if (isBusy) return;
+    setIsUploading(true);
+    try {
+      await discardPendingUploads();
+      if (close) onClose();
+    } catch (error) {
+      showError(`Failed to clean up uploads: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleUploadFiles = async (event) => {
     const inputFiles = Array.from(event.target.files || []);
     event.target.value = '';
 
-    if (inputFiles.length === 0 || !routeType) {
+    if (inputFiles.length === 0 || !routeType || isBusy || pendingUploads.length > 0) {
       return;
     }
 
@@ -130,48 +193,17 @@ export default function FootprintLinkEditorModal({
       const stagedFiles = (uploadResponse.data?.results || []).filter((result) => (
         result?.tempFilename && result.type === relatedFileType
       ));
+      const uploadErrors = (uploadResponse.data?.results || []).filter(result => result?.error);
+      if (uploadErrors.length > 0) {
+        showError(uploadErrors.map(result => `${result.filename || 'File'}: ${result.error}`).join('; '));
+      }
 
       if (stagedFiles.length === 0) {
         const firstError = (uploadResponse.data?.results || []).find((result) => result?.error)?.error;
         throw new Error(firstError || `No ${relatedFileLabel.toLowerCase()} files were staged`);
       }
 
-      const finalizeResponse = await api.finalizeTempFiles({
-        files: stagedFiles.map((file) => ({
-          tempFilename: file.tempFilename,
-          category: relatedFileType,
-        })),
-      });
-
-      const finalizedFiles = (finalizeResponse.data?.results || [])
-        .filter((result) => result?.type === relatedFileType && result?.cadFileId && !result?.error)
-        .map((result) => ({
-          id: result.cadFileId,
-          file_name: result.filename,
-          file_type: relatedFileType,
-          component_count: 0,
-          missing: false,
-        }));
-
-      if (finalizedFiles.length === 0) {
-        const firstError = (finalizeResponse.data?.results || []).find((result) => result?.error)?.error;
-        throw new Error(firstError || `No ${relatedFileLabel.toLowerCase()} files were finalized`);
-      }
-
-      setUploadedFiles((current) => {
-        const nextFiles = [...current];
-        finalizedFiles.forEach((file) => {
-          if (!nextFiles.some((existingFile) => existingFile.id === file.id)) {
-            nextFiles.push(file);
-          }
-        });
-        return nextFiles;
-      });
-      setSelectedFileIds((current) => [...new Set([...current, ...finalizedFiles.map((file) => file.id)])]);
-
-      await refetch();
-
-      showSuccess(`Added ${finalizedFiles.length} ${relatedFileLabel.toLowerCase()} file${finalizedFiles.length !== 1 ? 's' : ''}`);
+      await finalizeUploads(stagedFiles);
     } catch (error) {
       showError(`Failed to upload ${relatedFileLabel.toLowerCase()} file${inputFiles.length !== 1 ? 's' : ''}: ${error.response?.data?.error || error.message}`);
     } finally {
@@ -180,6 +212,7 @@ export default function FootprintLinkEditorModal({
   };
 
   const handleSave = () => {
+    if (isBusy || pendingUploads.length > 0) return;
     const addFileIds = selectedFileIds.filter((fileId) => !initialIdSet.has(fileId));
     const removeFileIds = [...initialIdSet].filter((fileId) => !selectedIdSet.has(fileId));
     onSave({ relatedFileType, addFileIds, removeFileIds });
@@ -190,7 +223,7 @@ export default function FootprintLinkEditorModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={() => {
         if (!isBusy) {
-          onClose();
+          void handleDiscardUploads(true);
         }
       }}
     >
@@ -208,7 +241,7 @@ export default function FootprintLinkEditorModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => handleDiscardUploads(true)}
             disabled={isBusy}
             className="text-gray-400 transition-colors hover:text-gray-600 disabled:opacity-50 dark:hover:text-gray-200"
             title="Close"
@@ -273,13 +306,13 @@ export default function FootprintLinkEditorModal({
                     multiple
                     accept={ACCEPT_BY_RELATED_FILE_TYPE[relatedFileType] || undefined}
                     onChange={handleUploadFiles}
-                    disabled={isBusy}
+                    disabled={isBusy || pendingUploads.length > 0}
                     className="hidden"
                   />
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isBusy}
+                    disabled={isBusy || pendingUploads.length > 0}
                     className="rounded-md bg-primary-600 px-3 py-2 text-sm text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
                   >
                     {isUploading ? 'Uploading...' : `Upload New ${relatedFileLabel}`}
@@ -318,13 +351,25 @@ export default function FootprintLinkEditorModal({
           </div>
         </div>
 
+        {pendingUploads.length > 0 && !isUploading && (
+          <div className="mx-5 mb-4 rounded-md border border-red-300 p-3 dark:border-red-800">
+            <div role="alert" className="text-sm text-red-700 dark:text-red-300">
+              {pendingUploads.map(file => <p key={file.tempFilename}>{file.filename}: {file.error || 'Awaiting finalization'}</p>)}
+            </div>
+            <div className="mt-2 flex gap-3">
+              <button type="button" disabled={isBusy} onClick={handleRetryUploads} className="text-sm underline">Retry Failed Uploads</button>
+              <button type="button" disabled={isBusy} onClick={() => handleDiscardUploads()} className="text-sm underline">Discard Failed Uploads</button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-[#3a3a3a]">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Save to update the selected footprint's {relatedFileLabel.toLowerCase()} links.
           </p>
           <div className="flex items-center gap-3">
             <button
-              onClick={onClose}
+              onClick={() => handleDiscardUploads(true)}
               disabled={isBusy}
               className="rounded-md bg-gray-100 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50 dark:bg-[#333333] dark:text-gray-300 dark:hover:bg-[#404040]"
             >
@@ -332,7 +377,7 @@ export default function FootprintLinkEditorModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={!hasChanges || isBusy}
+              disabled={!hasChanges || isBusy || pendingUploads.length > 0}
               className="rounded-md bg-primary-600 px-4 py-2 text-sm text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
             >
               {isSaving ? 'Saving...' : 'Save Links'}
