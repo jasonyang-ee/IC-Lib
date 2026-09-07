@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CAD ZIP uploads enforce entry and expanded-size limits, validate decompressed sizes and checksums, skip nested archives, and clean up partial extraction after corrupt data or disk-write failure. Upload errors show the specific rejection reason while preserving successful files in the batch.
+- Updated the ZIP dependency to `adm-zip` 0.6.0, which fixes the declared-size allocation vulnerability CVE-2026-39244.
+- Standalone CAD link/unlink requests recheck the component's ECO edit policy while holding its row lock, preventing a concurrent status change from bypassing approval control.
+- SCIM HTTP tests use a transport that accepts OS-assigned listener ports and reset pending mock responses between cases, preventing intermittent bad-port failures and cascading false results.
 - CAD finalization and legacy restore check the target component's current ECO edit policy while holding its row lock. Library edits finalize by stable component ID; new-part uploads remain unlinked until creation, preventing accidental writes to an existing part with the same manufacturer number.
 - Upload finalization rejects live overwrite when ECO is enabled, retains unresolved collisions and failed uploads for retry, and commits registration, component links, and derived CAD text together. Failed overwrites preserve the prior file contents; successful batch items no longer hide failed items in Library save/retry/cancel flows.
 - Legacy live CAD renames enforce the ECO policy across every linked part under transaction locks; tracked single-file renames read the filename and affected components inside their transaction.

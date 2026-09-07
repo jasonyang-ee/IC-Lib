@@ -16,7 +16,7 @@ vi.mock('fs', async (importOriginal) => {
   return { ...actual, default: { ...actual.default, ...disk } };
 });
 import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile } from '../controllers/fileUploadController.js';
-import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles } from '../controllers/fileLibraryController.js';
+import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles, linkFileToComponent, unlinkFileFromComponent } from '../controllers/fileLibraryController.js';
 import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent } from '../services/cadFileService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
@@ -112,6 +112,67 @@ describe('CAD removal on scratch PostgreSQL', () => {
     await database.query('INSERT INTO cad_files (id, file_name, file_type) VALUES ($1, $2, $3)', [id(n), name, type]);
     return id(n);
   };
+  it.each([
+    ['new', 'lab', true, false],
+    ['reviewing', 'lab', true, true],
+    ['prototype', 'read-write', true, true],
+    ['production', 'approver', true, true],
+    ['archived', 'read-write', true, true],
+    ['production', 'admin', true, false],
+    ['production', 'read-write', false, false],
+  ])('checks direct link/unlink for %s / %s / ECO %s', async (status, role, eco, denied) => {
+    vi.stubEnv('CONFIG_ECO', String(eco));
+    await database.query('UPDATE components SET approval_status = $1 WHERE id = $2', [status, componentId]);
+    const fileId = await addFile(1, 'part.psm', 'footprint');
+    const req = { body: { cadFileId: fileId, componentId }, user: { role } };
+    const expectedResponse = denied
+      ? { error: 'Direct CAD edits require ECO approval unless the part is still in new status' }
+      : { success: true };
+    const linked = response();
+    await linkFileToComponent(req, linked);
+    expect(linked.json.mock.lastCall[0]).toEqual(expect.objectContaining(expectedResponse));
+    expect(await linkedNames()).toEqual(denied ? [] : ['part.psm']);
+    if (denied) await link(fileId);
+    await regenerateAllCadText(componentId);
+    const unlinked = response();
+    await unlinkFileFromComponent(req, unlinked);
+    expect(unlinked.json.mock.lastCall[0]).toEqual(expect.objectContaining(expectedResponse));
+    expect(await linkedNames()).toEqual(denied ? ['part.psm'] : []);
+  });
+  it.each([
+    ['link', linkFileToComponent], ['unlink', unlinkFileFromComponent],
+  ])('rechecks the ECO policy when %s waits behind a status change', async (operation, handler) => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    const fileId = await addFile(1, 'part.psm', 'footprint');
+    if (operation === 'unlink') await link(fileId);
+    await regenerateAllCadText(componentId);
+    const before = (await database.query('SELECT pcb_footprint FROM components WHERE id = $1', [componentId])).rows;
+    const writer = await database.connect();
+    let request;
+    const res = response();
+    try {
+      // Middleware could have read "new" before this writer changed the row.
+      await writer.query('BEGIN');
+      await writer.query("UPDATE components SET approval_status = 'reviewing' WHERE id = $1", [componentId]);
+      request = handler({ body: { cadFileId: fileId, componentId }, user: { role: 'read-write' } }, res);
+      let waiting = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const result = await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'");
+        if (result.rowCount) { waiting = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      expect(waiting).toBe(true);
+      await writer.query('COMMIT');
+      await request;
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(await linkedNames()).toEqual(operation === 'unlink' ? ['part.psm'] : []);
+      expect((await database.query('SELECT pcb_footprint FROM components WHERE id = $1', [componentId])).rows).toEqual(before);
+    } finally {
+      await writer.query('ROLLBACK');
+      writer.release();
+      await request;
+    }
+  });
   const link = async (fileId, db = database) => db.query(
     'INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ($1, $2)', [componentId, fileId],
   );

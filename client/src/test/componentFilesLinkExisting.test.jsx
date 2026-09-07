@@ -93,6 +93,20 @@ describe('ComponentFiles rendered selection orchestration', () => {
     expect(api.deleteComponentFile).not.toHaveBeenCalled();
   });
 
+  it('shows archive rejection reasons while retaining successful staged files', async () => {
+    api.uploadTempFiles.mockResolvedValue({ data: { results: [
+      { originalName: 'large.zip', error: 'Archive exceeds the 250 MiB expanded-size limit' },
+      { type: 'pad', filename: 'good.pad', tempFilename: 'temp-good.pad' },
+    ] } });
+    const utils = await renderSelection('add');
+    fireEvent.drop(screen.getByText('Drag and drop files here, or click to browse'), {
+      dataTransfer: { files: [new File(['zip'], 'large.zip'), new File(['pad'], 'good.pad')] },
+    });
+    await waitFor(() => expect(notifications.showError).toHaveBeenCalledWith('large.zip: Archive exceeds the 250 MiB expanded-size limit'));
+    expect(notifications.showSuccess).toHaveBeenCalledWith('1 file(s) uploaded.');
+    expect(utils.onTempFileStaged).toHaveBeenCalledWith(expect.objectContaining({ filename: 'good.pad', tempFilename: 'temp-good.pad' }));
+  });
+
   it('honors Skip for ambiguous related candidates', async () => {
     const utils = await renderSelection('eco');
     await selectPair({ choose: false });

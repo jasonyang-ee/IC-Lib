@@ -12,6 +12,7 @@ import {
 } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
+import { CadArchiveError, getBoundedArchiveEntries, readBoundedArchiveEntry } from '../services/cadArchiveService.js';
 import { listPackages } from '../services/packageService.js';
 import {
   FootprintNameError,
@@ -174,7 +175,7 @@ function findLibraryFile(category, filename, mfgPartNumber) {
  */
 async function extractSmartZipToTemp(zipPath, catalog) {
   const zip = new AdmZip(zipPath);
-  const entries = zip.getEntries();
+  const entries = getBoundedArchiveEntries(zip);
   const extractedFiles = [];
   const collisions = [];
   const rejected = [];
@@ -202,67 +203,93 @@ async function extractSmartZipToTemp(zipPath, catalog) {
   ]);
 
   const tempDir = ensureDir(path.join(LIBRARY_BASE, 'temp'));
+  const createdPaths = [];
 
-  for (const entry of entries) {
-    if (entry.isDirectory) continue;
+  try {
+    for (const entry of entries) {
+      if (entry.isDirectory) continue;
 
-    const entryName = normalizeArchivePath(entry.entryName);
-    let filename = getArchiveBaseName(entryName);
-    if (!filename) continue;
-    const ext = path.extname(filename).toLowerCase();
+      const entryName = normalizeArchivePath(entry.entryName);
+      let filename = getArchiveBaseName(entryName);
+      if (!filename) continue;
+      const ext = path.extname(filename).toLowerCase();
 
-    if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
-    if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
+      if (filename.startsWith('.') || entryName.includes('__MACOSX')) continue;
+      if (['.txt', '.pdf', '.html', '.htm', '.css', '.bat', '.sh', '.scr', '.cfg', '.bin', '.xml'].includes(ext)) continue;
 
-    let category = getFileCategory(filename);
+      let category = getFileCategory(filename);
 
-    const lowerPath = entryName.toLowerCase();
-    if (!category && validEDAExtensions.has(ext)) {
-      if (lowerPath.includes('footprint') || lowerPath.includes('pcbfootprint') || (lowerPath.includes('pcb') && !lowerPath.includes('pcblib'))) {
-        category = 'footprint';
-      } else if (lowerPath.includes('symbol') || lowerPath.includes('schematic') || lowerPath.includes('capture')) {
-        category = 'symbol';
-      } else if (lowerPath.includes('3d') || lowerPath.includes('step') || lowerPath.includes('model')) {
-        category = 'model';
-      } else if (lowerPath.includes('spice') || lowerPath.includes('simulation')) {
-        category = 'pspice';
-      } else if (lowerPath.includes('padstack')) {
-        category = 'pad';
+      const lowerPath = entryName.toLowerCase();
+      if (!category && validEDAExtensions.has(ext)) {
+        if (lowerPath.includes('footprint') || lowerPath.includes('pcbfootprint') || (lowerPath.includes('pcb') && !lowerPath.includes('pcblib'))) {
+          category = 'footprint';
+        } else if (lowerPath.includes('symbol') || lowerPath.includes('schematic') || lowerPath.includes('capture')) {
+          category = 'symbol';
+        } else if (lowerPath.includes('3d') || lowerPath.includes('step') || lowerPath.includes('model')) {
+          category = 'model';
+        } else if (lowerPath.includes('spice') || lowerPath.includes('simulation')) {
+          category = 'pspice';
+        } else if (lowerPath.includes('padstack')) {
+          category = 'pad';
+        }
+      }
+
+      if (category && category !== 'libraries') {
+        filename = canonicalizeCadUploadFilename(filename, category, catalog);
+        assertSafeLeafName(filename);
+
+        // "+" is OrCAD-illegal in footprint names — reject the entry, don't rename silently
+        if (isFootprintFileExtension(filename) && filename.includes('+')) {
+          rejected.push({ filename, category, error: '"+" is not allowed in OrCAD footprint names' });
+          continue;
+        }
+
+        // Skip duplicate files (same filename+category from different subdirs in ZIP)
+        const dedupeKey = `${category}:${filename.toLowerCase()}`;
+        if (seenTempFiles.has(dedupeKey)) continue;
+        seenTempFiles.add(dedupeKey);
+
+        // Extract to temp with unique prefix (collision check deferred to save time)
+        const data = await readBoundedArchiveEntry(entry);
+        const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const tempFilename = uniquePrefix + '-' + filename;
+        const tempPath = path.join(tempDir, tempFilename);
+        const descriptor = fs.openSync(tempPath, 'wx');
+        createdPaths.push(tempPath);
+        try {
+          fs.writeFileSync(descriptor, data);
+        } finally {
+          fs.closeSync(descriptor);
+        }
+
+        extractedFiles.push({
+          tempFilename,
+          filename,
+          category,
+          source,
+        });
       }
     }
 
-    if (category) {
-      filename = canonicalizeCadUploadFilename(filename, category, catalog);
+    // Clean up the zip file
+    fs.unlinkSync(zipPath);
 
-      // "+" is OrCAD-illegal in footprint names — reject the entry, don't rename silently
-      if (isFootprintFileExtension(filename) && filename.includes('+')) {
-        rejected.push({ filename, category, error: '"+" is not allowed in OrCAD footprint names' });
-        continue;
+    return { extractedFiles, collisions, rejected };
+  } catch (error) {
+    let cleanupFailed = false;
+    for (const tempPath of createdPaths) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (cleanupError) {
+        if (cleanupError.code !== 'ENOENT') {
+          cleanupFailed = true;
+          logError('FileUpload', 'Failed to clean extracted temp file:', cleanupError);
+        }
       }
-
-      // Skip duplicate files (same filename+category from different subdirs in ZIP)
-      const dedupeKey = `${category}:${filename.toLowerCase()}`;
-      if (seenTempFiles.has(dedupeKey)) continue;
-      seenTempFiles.add(dedupeKey);
-
-      // Extract to temp with unique prefix (collision check deferred to save time)
-      const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const tempFilename = uniquePrefix + '-' + filename;
-      zip.extractEntryTo(entry, tempDir, false, true, false, tempFilename);
-
-      extractedFiles.push({
-        tempFilename,
-        filename,
-        category,
-        source,
-      });
     }
+    if (cleanupFailed) throw new CadArchiveError('Failed to extract archive; temporary file cleanup incomplete');
+    throw error;
   }
-
-  // Clean up the zip file
-  fs.unlinkSync(zipPath);
-
-  return { extractedFiles, collisions, rejected };
 }
 
 async function loadPackageCatalog() {
@@ -304,10 +331,19 @@ export async function uploadTempFile(req, res) {
           });
         } catch (error) {
           logError('FileUpload', 'Error extracting ZIP to temp:', error);
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+          let cleanupFailed = false;
+          try {
+            fs.unlinkSync(file.path);
+          } catch (cleanupError) {
+            if (cleanupError.code !== 'ENOENT') {
+              cleanupFailed = true;
+              logError('FileUpload', 'Failed to clean uploaded archive:', cleanupError);
+            }
+          }
           results.push({
             originalName: file.originalname,
-            error: 'Failed to extract archive',
+            error: cleanupFailed ? 'Failed to extract archive; uploaded archive cleanup incomplete'
+              : error instanceof CadArchiveError ? error.message : 'Failed to extract archive',
           });
         }
       } else {

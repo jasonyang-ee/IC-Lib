@@ -202,11 +202,11 @@ export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, file
  * Unlink a CAD file from a component.
  * Removes junction record and regenerates TEXT column.
  */
-export async function unlinkCadFileFromComponent(cadFileId, componentId, fileType, _fileName) {
+export async function unlinkCadFileFromComponent(cadFileId, componentId, fileType, _fileName, user) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('SELECT id FROM components WHERE id = $1 FOR UPDATE', [componentId]);
+    await lockDirectCadComponent(client, componentId, user);
     await client.query(`
       DELETE FROM component_cad_files
       WHERE component_id = $1 AND cad_file_id = $2
@@ -219,6 +219,20 @@ export async function unlinkCadFileFromComponent(cadFileId, componentId, fileTyp
   } finally {
     client.release();
   }
+}
+
+// Route middleware is only an early check. Hold current policy stable through
+// the junction change and derived TEXT writes, including concurrent requests.
+export async function lockDirectCadComponent(client, componentId, user) {
+  const result = await client.query('SELECT id, approval_status FROM components WHERE id = $1 FOR UPDATE', [componentId]);
+  const component = result.rows[0];
+  if (!component) throw Object.assign(new Error('Component not found'), { status: 404 });
+  if (isEcoEnabled() && !canDirectEditComponentInEcoMode({
+    role: user?.role, currentApprovalStatus: component.approval_status,
+  })) {
+    throw Object.assign(new Error('Direct CAD edits require ECO approval unless the part is still in new status'), { status: 403 });
+  }
+  return component;
 }
 
 /**
@@ -1119,6 +1133,7 @@ export default {
   linkCadFileToComponent,
   linkCadFileToComponentByMPN,
   unlinkCadFileFromComponent,
+  lockDirectCadComponent,
   getCadFilesByType,
   getComponentsByCadFile,
   getComponentsByFileName,

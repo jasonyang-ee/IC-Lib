@@ -1,6 +1,7 @@
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appBodyParsers } from '../middleware/bodyParsers.js';
+import { requestLocal as fetch } from './fixtures/requestLocal.js';
 
 // §V60/§I12: the SCIM read surface. Every route is bearer-only, answers
 // `application/scim+json`, and can see a user only through the configured
@@ -61,7 +62,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
   let origin;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     process.env.SCIM_TENANT_ID = TENANT;
     process.env.SCIM_BEARER_TOKEN = TOKEN;
 

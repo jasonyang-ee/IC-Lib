@@ -447,9 +447,11 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         const totalExtracted = extracted.reduce((sum, e) => sum + (e.filesExtracted || 0), 0);
         message += `${totalExtracted} file(s) extracted from ZIP. `;
       }
-      if (errors.length > 0) message += `${errors.length} file(s) failed.`;
-
       if (message) showSuccess(message.trim());
+      const failures = [...errors, ...extracted.flatMap(result => result.rejected || [])];
+      if (failures.length > 0) {
+        showError(failures.map(result => `${result.originalName || result.filename}: ${result.error}`).join('; '));
+      }
     },
     onError: (error) => {
       showError('Upload failed: ' + (error.response?.data?.error || error.message));

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   client: { query: vi.fn(), release: vi.fn() },
   pool: { connect: vi.fn() },
   cad: {
+    lockDirectCadComponent: vi.fn(),
     linkCadFileToComponent: vi.fn(),
     autoLinkRelatedCadFilesForComponent: vi.fn(),
     regenerateCadText: vi.fn(),

@@ -3,11 +3,13 @@ import { mockReq, mockRes } from './fixtures/controllerTestKit.js';
 
 const mocks = vi.hoisted(() => ({
   entries: [],
-  extractEntryTo: vi.fn(),
   fs: {
     existsSync: vi.fn(() => true),
     mkdirSync: vi.fn(),
     unlinkSync: vi.fn(),
+    openSync: vi.fn(() => 1),
+    writeFileSync: vi.fn(),
+    closeSync: vi.fn(),
   },
   packages: { listPackages: vi.fn() },
 }));
@@ -24,8 +26,8 @@ vi.mock('adm-zip', () => ({
       return mocks.entries;
     }
 
-    extractEntryTo(...args) {
-      return mocks.extractEntryTo(...args);
+    getEntryCount() {
+      return mocks.entries.length;
     }
   },
 }));
@@ -36,7 +38,11 @@ const { uploadTempFile } = await import('../controllers/fileUploadController.js'
 describe('uploadTempFile package canonicalization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.entries = [{ isDirectory: false, entryName: 'footprint/8-SOIC_N.PSM' }];
+    mocks.entries = [{
+      isDirectory: false, entryName: 'footprint/8-SOIC_N.PSM',
+      header: { size: 0, compressedSize: 0, method: 0, flags: 0, crc: 0 },
+      getCompressedData: () => Buffer.alloc(0),
+    }];
     mocks.packages.listPackages.mockResolvedValue([
       { short_name: 'SOIC', count_policy: 'append', aliases: [{ alias: 'SOIC' }] },
     ]);

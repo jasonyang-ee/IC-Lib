@@ -745,6 +745,7 @@ export const linkFileToComponent = async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
 
+    await cadFileService.lockDirectCadComponent(client, componentId, req.user);
     const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
     if (cfResult.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -786,6 +787,7 @@ export const linkFileToComponent = async (req, res) => {
       try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
     }
     logError('FileLibrary', 'Error linking file to component:', error.message);
+    if (error.status === 403 || error.status === 404) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to link file to component' });
   } finally {
     client?.release();
@@ -895,13 +897,14 @@ export const unlinkFileFromComponent = async (req, res) => {
     }
 
     const cadFile = cfResult.rows[0];
-    await cadFileService.unlinkCadFileFromComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name);
+    await cadFileService.unlinkCadFileFromComponent(cadFileId, componentId, cadFile.file_type, cadFile.file_name, req.user);
 
     logInfo('FileLibrary', `Unlinked "${cadFile.file_name}" from component ${componentId}`);
 
     res.json({ success: true });
   } catch (error) {
     logError('FileLibrary', 'Error unlinking file from component:', error.message);
+    if (error.status === 403 || error.status === 404) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: 'Failed to unlink file from component' });
   }
 };
