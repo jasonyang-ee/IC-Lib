@@ -1,4 +1,6 @@
 import pool from '../config/database.js';
+import { isEcoEnabled } from '../utils/featureFlags.js';
+import { canDirectEditComponentInEcoMode } from './componentLifecycleService.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -149,8 +151,8 @@ export async function regenerateAllCadText(componentId, db = pool) {
  * Register a CAD file in the cad_files table.
  * Returns the cad_file record (existing or newly created).
  */
-export async function registerCadFile(fileName, fileType, fileSize = null) {
-  const result = await pool.query(`
+export async function registerCadFile(fileName, fileType, fileSize = null, db = pool) {
+  const result = await db.query(`
     INSERT INTO cad_files (file_name, file_type, file_path, file_size, missing)
     VALUES ($1, $2, $3, $4, FALSE)
     ON CONFLICT (file_name, file_type) DO UPDATE SET
@@ -308,51 +310,59 @@ export function isSameExistingFile(firstPath, secondPath) {
  * catalog there would map the old name straight back onto the name being
  * undone.
  */
-export async function renameCadFile(cadFileId, newFileName, { canonicalize = true } = {}) {
-  const cfResult = await pool.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
-
-  if (cfResult.rows.length === 0) {
-    throw new Error('CAD file not found');
-  }
-
-  const cadFile = cfResult.rows[0];
-  const oldFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
-  const subdir = TYPE_SUBDIR[cadFile.file_type];
-  let safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
-
-  if (canonicalize && isCanonicalPackageFileType(cadFile.file_type)) {
-    let catalog = [];
-    try {
-      catalog = await listPackages();
-    } catch (error) {
+export async function renameCadFile(cadFileId, newFileName, { canonicalize = true, user } = {}) {
+  let catalog = [];
+  if (canonicalize) {
+    try { catalog = await listPackages(); } catch (error) {
       logError('CadFile', `Failed to load package catalog: ${error.message}`);
     }
-    safeNewFileName = canonicalizeCadUploadFilename(safeNewFileName, cadFile.file_type, catalog);
   }
-
-  if (!subdir) throw new Error(`Invalid file type: ${cadFile.file_type}`);
-
-  const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, oldFileName);
-  const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeNewFileName);
-  const isRename = safeNewFileName !== oldFileName;
-
-  // Collision check (skip when the target is the same physical file, e.g. a
-  // case-only rename on a case-insensitive filesystem).
-  if (isRename && fs.existsSync(newPath) && !isSameExistingFile(oldPath, newPath)) {
-    throw new Error(`File "${safeNewFileName}" already exists in the ${cadFile.file_type} directory`);
-  }
-
-  // Affected components are read before the transaction so we know which TEXT
-  // columns to regenerate; the set does not change during the rename.
-  const affectedComponents = await getComponentsByCadFile(cadFileId);
-
   const client = await pool.connect();
   let physicalRenamed = null;
   let transactionStarted = false;
-
   try {
     await client.query('BEGIN');
     transactionStarted = true;
+    const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1 FOR UPDATE', [cadFileId]);
+
+    if (cfResult.rows.length === 0) {
+      throw new Error('CAD file not found');
+    }
+
+    const cadFile = cfResult.rows[0];
+    const oldFileName = assertSafeLeafName(cadFile.file_name, 'fileName');
+    const subdir = TYPE_SUBDIR[cadFile.file_type];
+    let safeNewFileName = assertSafeLeafName(newFileName, 'newFileName');
+
+    if (canonicalize && isCanonicalPackageFileType(cadFile.file_type)) {
+      safeNewFileName = canonicalizeCadUploadFilename(safeNewFileName, cadFile.file_type, catalog);
+    }
+
+    if (!subdir) throw new Error(`Invalid file type: ${cadFile.file_type}`);
+
+    const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, oldFileName);
+    const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeNewFileName);
+    const isRename = safeNewFileName !== oldFileName;
+
+    // Collision check (skip when the target is the same physical file, e.g. a
+    // case-only rename on a case-insensitive filesystem).
+    if (isRename && fs.existsSync(newPath) && !isSameExistingFile(oldPath, newPath)) {
+      throw new Error(`File "${safeNewFileName}" already exists in the ${cadFile.file_type} directory`);
+    }
+
+    // Lock the file before reading its consumers: new FK links wait until the
+    // rename commits, then derive TEXT from the committed filename.
+    const affectedResult = await client.query(`
+      SELECT c.id, c.approval_status FROM components c
+      JOIN component_cad_files ccf ON ccf.component_id = c.id
+      WHERE ccf.cad_file_id = $1 ORDER BY c.id FOR UPDATE OF c
+    `, [cadFileId]);
+    const affectedComponents = affectedResult.rows;
+    if (user && isEcoEnabled() && affectedComponents.some(component => !canDirectEditComponentInEcoMode({
+      role: user.role, currentApprovalStatus: component.approval_status,
+    }))) {
+      throw Object.assign(new Error('Renaming files used by controlled parts requires ECO approval'), { status: 403 });
+    }
 
     if (isRename && fs.existsSync(oldPath)) {
       fs.renameSync(oldPath, newPath);
@@ -374,11 +384,11 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
 
     return { oldFileName, newFileName: safeNewFileName, fileType: cadFile.file_type };
   } catch (error) {
-    if (transactionStarted) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore rollback failure */ }
-    }
     if (physicalRenamed && fs.existsSync(physicalRenamed.newPath)) {
       try { fs.renameSync(physicalRenamed.newPath, physicalRenamed.oldPath); } catch { /* best-effort revert */ }
+    }
+    if (transactionStarted) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
     }
     throw error;
   } finally {

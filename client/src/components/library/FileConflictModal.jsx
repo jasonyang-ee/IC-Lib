@@ -14,7 +14,7 @@ const CATEGORY_LABELS = {
  * Modal for resolving file conflicts at save time.
  * Shows all conflicting files (grouped by footprint pairs) with per-file resolution options.
  */
-const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
+const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing, allowOverwrite = true }) => {
   // Map: conflict key -> 'use_existing' | 'overwrite'
   const [resolutions, setResolutions] = useState({});
 
@@ -85,6 +85,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4 shrink-0">
           {conflicts.length} file{conflicts.length !== 1 ? 's' : ''} already exist in the library. Choose how to handle each conflict:
         </p>
+        {!allowOverwrite && <p className="text-sm text-gray-500 mb-3">ECO is enabled. Use the existing file, or cancel and rename your upload.</p>}
 
         {/* Apply to All */}
         <div className="flex items-center gap-2 mb-3 shrink-0">
@@ -97,6 +98,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
           </button>
           <button
             onClick={() => handleApplyToAll('overwrite')}
+            disabled={!allowOverwrite}
             className="flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#444] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333] transition-colors"
           >
             Overwrite with new upload
@@ -153,6 +155,7 @@ const FileConflictModal = ({ conflicts, onResolve, onAbort, isProcessing }) => {
                       type="radio"
                       name={group.key}
                       checked={selected === 'overwrite'}
+                      disabled={!allowOverwrite}
                       onChange={() => handleSelect(group.key, 'overwrite')}
                       className="text-primary-600 focus:ring-primary-500"
                     />

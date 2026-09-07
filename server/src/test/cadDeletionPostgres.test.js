@@ -8,14 +8,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const { poolProxy, disk } = vi.hoisted(() => ({
   poolProxy: { connect: vi.fn(), query: vi.fn() },
-  disk: { existsSync: vi.fn(() => true), unlinkSync: vi.fn() },
+  disk: { existsSync: vi.fn(() => true), unlinkSync: vi.fn(), renameSync: vi.fn() },
 }));
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, default: { ...actual.default, ...disk } };
 });
-import { deleteFile } from '../controllers/fileUploadController.js';
+import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile } from '../controllers/fileUploadController.js';
 import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles } from '../controllers/fileLibraryController.js';
 import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent } from '../services/cadFileService.js';
 
@@ -98,6 +98,8 @@ describe('CAD removal on scratch PostgreSQL', () => {
   beforeEach(async () => {
     vi.stubEnv('CONFIG_ECO', 'false');
     disk.unlinkSync.mockClear();
+    disk.renameSync.mockClear();
+    disk.existsSync.mockReturnValue(true);
     await database.query(`
       TRUNCATE components, cad_files, component_cad_files, footprint_related_cad_files, eco_orders,
         eco_cad_files, eco_file_rename_files;
@@ -259,5 +261,120 @@ describe('CAD removal on scratch PostgreSQL', () => {
       writer.release();
       await deletion;
     }
+  });
+
+  const finalizeExisting = async (role = 'lab', extra = {}) => {
+    const res = response();
+    await finalizeTempFile({ user: { role }, body: {
+      files: [{ tempFilename: '100-200-part_a.psm', category: 'footprint', resolution: 'use_existing' }],
+      componentId, mfgPartNumber: 'PART', ...extra,
+    } }, res);
+    return res.json.mock.calls[0][0].results[0];
+  };
+
+  it.each(['reviewing', 'prototype', 'production', 'archived'])('protects %s components in finalize and restore', async status => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    await database.query('UPDATE components SET approval_status = $1', [status]);
+    const finalized = await finalizeExisting();
+    expect(finalized.error).toContain('ECO approval');
+    const res = response();
+    await restoreDeletedFile({ user: { role: 'lab' }, body: { files: [{
+      tempFilename: '100-200-part_a.psm', filename: 'part_a.psm', category: 'footprint', mfgPartNumber: 'PART',
+    }] } }, res);
+    expect(res.json.mock.calls[0][0].results[0].error).toContain('ECO approval');
+    expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(0);
+    expect(await linkedNames()).toEqual([]);
+    expect(disk.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('allows new-part links, unlinked ECO registration and the admin exception', async () => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    const linked = await finalizeExisting();
+    expect(linked).toMatchObject({ filename: 'part_a.psm', linked: true });
+    expect(await linkedNames()).toEqual(['part_a.psm']);
+    expect((await database.query('SELECT pcb_footprint FROM components')).rows[0].pcb_footprint).toBe('part_a');
+    await database.query('DELETE FROM component_cad_files');
+    await database.query("UPDATE components SET approval_status = 'production'");
+    expect((await finalizeExisting('lab', { componentId: undefined, mfgPartNumber: undefined })).error).toBeUndefined();
+    expect(await linkedNames()).toEqual([]);
+    expect((await finalizeExisting('admin')).error).toBeUndefined();
+    expect(await linkedNames()).toEqual(['part_a.psm']);
+  });
+
+  it('rolls back registration and junction writes when TEXT regeneration fails', async () => {
+    await database.query('ALTER TABLE components ADD CONSTRAINT upload_text_failure CHECK (pcb_footprint IS NULL)');
+    try {
+      const result = await finalizeExisting();
+      expect(result.error).toContain('retained for retry');
+      expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(0);
+      expect(await linkedNames()).toEqual([]);
+      expect(disk.unlinkSync).not.toHaveBeenCalled();
+    } finally {
+      await database.query('ALTER TABLE components DROP CONSTRAINT upload_text_failure');
+    }
+  });
+
+  it('rejects ambiguous MPNs but honors the selected component ID', async () => {
+    await database.query("INSERT INTO components (id, manufacturer_pn, approval_status) VALUES ($1, 'PART', 'new')", [id(101)]);
+    const ambiguous = await finalizeExisting('lab', { componentId: undefined, mfgPartNumber: 'PART' });
+    expect(ambiguous.error).toContain('ambiguous');
+    expect(await linkedNames()).toEqual([]);
+    const exact = await finalizeExisting();
+    expect(exact.error).toBeUndefined();
+    expect((await database.query('SELECT component_id FROM component_cad_files')).rows).toEqual([{ component_id: componentId }]);
+  });
+
+  it('rechecks a component status change committed while finalization waits for its lock', async () => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    const writer = await database.connect();
+    let upload;
+    try {
+      await writer.query('BEGIN');
+      await writer.query("UPDATE components SET approval_status = 'reviewing' WHERE id = $1", [componentId]);
+      upload = finalizeExisting();
+      let blocked = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const waiting = await database.query(`SELECT 1 FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid() AND wait_event_type = 'Lock'
+          AND query LIKE '%SELECT id, approval_status FROM components%FOR UPDATE%'`);
+        if (waiting.rowCount) { blocked = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      expect(blocked).toBe(true);
+      await writer.query('COMMIT');
+      expect((await upload).error).toContain('ECO approval');
+      expect(await linkedNames()).toEqual([]);
+      expect(disk.unlinkSync).not.toHaveBeenCalled();
+    } finally {
+      await writer.query('ROLLBACK');
+      writer.release();
+      await upload;
+    }
+  });
+
+  it.each(['lab', 'read-write', 'approver'])('blocks legacy shared rename by %s even when the supplied MPN is new', async role => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    disk.existsSync.mockImplementation(filename => !String(filename).endsWith('next.psm'));
+    const fileId = await addFile(1, 'part_a.psm', 'footprint');
+    await link(fileId);
+    await database.query("INSERT INTO components (id, manufacturer_pn, approval_status) VALUES ($1, 'CONTROLLED', 'production')", [id(101)]);
+    await database.query('INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ($1, $2)', [id(101), fileId]);
+    const res = response();
+    await renameFile({ user: { role }, body: { category: 'footprint', mfgPartNumber: 'PART', oldFilename: 'part_a.psm', newFilename: 'next.psm' } }, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await database.query('SELECT file_name FROM cad_files')).rows[0].file_name).toBe('part_a.psm');
+    expect(disk.renameSync).not.toHaveBeenCalled();
+  });
+
+  it.each(['new', 'production'])('retains the admin legacy rename exception for %s consumers', async status => {
+    vi.stubEnv('CONFIG_ECO', 'true');
+    disk.existsSync.mockImplementation(filename => !String(filename).endsWith('next.psm'));
+    await link(await addFile(1, 'part_a.psm', 'footprint'));
+    await database.query('UPDATE components SET approval_status = $1', [status]);
+    const res = response();
+    await renameFile({ user: { role: 'admin' }, body: { category: 'footprint', mfgPartNumber: 'PART', oldFilename: 'part_a.psm', newFilename: 'next.psm' } }, res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect((await database.query('SELECT pcb_footprint FROM components')).rows[0].pcb_footprint).toBe('next');
+    expect(disk.renameSync).toHaveBeenCalledTimes(1);
   });
 });

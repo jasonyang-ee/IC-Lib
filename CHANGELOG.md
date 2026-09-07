@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CAD finalization and legacy restore check the target component's current ECO edit policy while holding its row lock. Library edits finalize by stable component ID; new-part uploads remain unlinked until creation, preventing accidental writes to an existing part with the same manufacturer number.
+- Upload finalization rejects live overwrite when ECO is enabled, retains unresolved collisions and failed uploads for retry, and commits registration, component links, and derived CAD text together. Failed overwrites preserve the prior file contents; successful batch items no longer hide failed items in Library save/retry/cancel flows.
+- Legacy live CAD renames enforce the ECO policy across every linked part under transaction locks; tracked single-file renames read the filename and affected components inside their transaction.
 - Removing a footprint variant retains pads and 3D models used by the part's remaining variants in direct editing, new-part selection, and ECO staging; unbound files and reusable binding history remain intact.
 - Legacy part-file unlinking enforces the ECO policy on the locked part, and standalone CAD unlinking rolls back its junction change when derived TEXT regeneration fails.
 - File Library deletion rechecks component and active ECO references under database locks and validates entire file groups before deleting their records. Historical completed/rejected ECO links no longer hide unused files from orphan cleanup.

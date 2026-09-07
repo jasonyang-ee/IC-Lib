@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Models a simple filesystem keyed by basename so the service's real path
 // resolution still works while we observe rename/unlink/exists behavior.
 const mocks = vi.hoisted(() => ({
+  cadFile: null,
+  affected: [],
   fsState: new Set(),
   fs: {
     existsSync: vi.fn(),
@@ -35,7 +37,8 @@ function makeClient({ failOn, cadFiles = [] } = {}) {
         throw new Error('injected DB failure');
       }
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-      if (sql.includes('SELECT * FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles };
+      if (sql.includes('SELECT * FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles.length ? cadFiles : [mocks.cadFile].filter(Boolean) };
+      if (sql.includes('FROM components c')) return { rows: mocks.affected };
       if (typeof sql === 'string' && sql.includes('as base_name')) return { rows: [{ base_name: 'old' }] };
       return { rows: [] };
     }),
@@ -72,6 +75,8 @@ function configureFs(initialBasenames) {
 }
 
 function configurePool({ cadFile, cadFilesByName = {}, affected = [], packages = [] }) {
+  mocks.cadFile = cadFile;
+  mocks.affected = affected;
   mocks.pool.query.mockImplementation(async (sql, values = []) => {
     if (typeof sql === 'string' && sql.includes('SELECT * FROM cad_files WHERE id')) {
       return { rows: cadFile ? [cadFile] : [] };
@@ -99,6 +104,7 @@ function makeResponse() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.pool.connect.mockResolvedValue(makeClient());
 });
 
 describe('renameCadFile (transactional)', () => {
@@ -196,7 +202,9 @@ describe('renameCadFile (transactional)', () => {
 
     await expect(renameCadFile('cf-1', 'new.psm')).rejects.toThrow('already exists');
     expect(mocks.fs.renameSync).not.toHaveBeenCalled();
-    expect(mocks.pool.connect).not.toHaveBeenCalled();
+    const client = await mocks.pool.connect.mock.results[0].value;
+    expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 
   it('collides on the normalized name — two distinct inputs, one target, no silent overwrite', async () => {

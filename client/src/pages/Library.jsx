@@ -257,12 +257,7 @@ const Library = () => {
       })),
     });
 
-    const failedFiles = (response.data?.results || []).filter(result => result.error);
-    if (failedFiles.length > 0) {
-      throw new Error(failedFiles.map(file => `${file.filename}: ${file.error}`).join(', '));
-    }
-
-    setTempFiles([]);
+    acceptFinalizedUploads(response);
     return true;
   };
   const packageRef = useRef(null);
@@ -1064,6 +1059,20 @@ const Library = () => {
    * Finalize temp files and confirm soft-deletes.
    * Returns false if interrupted by conflict resolution modal (caller should return early).
    */
+  const acceptFinalizedUploads = (response) => {
+    const results = response.data?.results || [];
+    const completed = new Set(results.filter(result => !result.error && result.cadFileId).map(result => result.tempFilename));
+    const remaining = tempFiles.filter(file => !completed.has(file.tempFilename));
+    setTempFiles(remaining);
+    if (remaining.length > 0) {
+      const errors = remaining.map(file => {
+        const result = results.find(item => item.tempFilename === file.tempFilename);
+        return `${file.filename}: ${result?.error || 'Finalization was not confirmed; retry the upload'}`;
+      });
+      throw new Error(errors.join(', '));
+    }
+  };
+
   const finalizeFiles = async (callerName) => {
     if (tempFiles.length > 0) {
       const preResolved = resolvedConflicts.current;
@@ -1083,15 +1092,17 @@ const Library = () => {
         ? new Map(preResolved.map(r => [r.tempFilename, r.resolution]))
         : null;
 
-      await api.finalizeTempFiles({
+      const response = await api.finalizeTempFiles({
         files: tempFiles.map(f => ({
           tempFilename: f.tempFilename,
           category: f.category,
           resolution: collisionSet?.get(f.tempFilename),
         })),
-        mfgPartNumber: editData.manufacturer_pn,
+        // New parts have no live identity yet. Existing edits use the stable ID,
+        // even when the manufacturer part number is being changed.
+        ...(isAddMode ? {} : { componentId: selectedComponent.id }),
       });
-      setTempFiles([]);
+      acceptFinalizedUploads(response);
     }
 
     if (deletedFiles.length > 0) {
@@ -1292,7 +1303,7 @@ const Library = () => {
         setAltManufacturerInputs({});
       } catch (error) {
         console.error('Error saving component:', error);
-        setWarningModal({ show: true, message: 'Failed to save component. Please try again.' });
+        setWarningModal({ show: true, message: error.response?.data?.error || error.message || 'Failed to save component. Please try again.' });
       }
     }
   };
@@ -2494,7 +2505,7 @@ const Library = () => {
       }
     } catch (error) {
       console.error('Error adding component:', error);
-      showError('Failed to add component. Please try again.');
+      showError(error.response?.data?.error || error.message || 'Failed to add component. Please try again.');
     }
   };
 
@@ -3838,6 +3849,7 @@ const Library = () => {
           onResolve={resolveFileConflicts}
           onAbort={abortFileConflicts}
           isProcessing={false}
+          allowOverwrite={!isECOEnabled}
         />
       )}
 

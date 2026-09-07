@@ -11,6 +11,7 @@ import {
   PSPICE_SYMBOL_FILE_EXTENSIONS,
 } from '../constants/cadFiles.js';
 import cadFileService from '../services/cadFileService.js';
+import { finalizeCadUpload } from '../services/cadUploadService.js';
 import { listPackages } from '../services/packageService.js';
 import {
   FootprintNameError,
@@ -161,58 +162,6 @@ function findLibraryFile(category, filename, mfgPartNumber) {
     const sanitizedPN = sanitizePartNumber(mfgPartNumber);
     const nestedPath = path.join(LIBRARY_BASE, config.subdir, sanitizedPN, filename);
     if (fs.existsSync(nestedPath)) return nestedPath;
-  }
-
-  return null;
-}
-
-/**
- * Move file to appropriate category directory (flat structure)
- * Returns { collision, path, filename } or null
- */
-function moveToCategory(sourcePath, category, catalog, overwrite = false) {
-  const config = FILE_CATEGORIES[category];
-  if (!config) return null;
-
-  // Flat storage: no MPN subdirectory
-  const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
-  const rawFilename = path.basename(sourcePath).replace(/^\d+-\d+-/, ''); // Remove temp prefix
-  // Lowercase extension + footprint naming rules
-  const filename = canonicalizeCadUploadFilename(rawFilename, category, catalog);
-  const targetPath = path.join(targetDir, filename);
-
-  // Collision check: reject if file already exists (unless overwrite)
-  if (fs.existsSync(targetPath)) {
-    if (overwrite) {
-      fs.unlinkSync(targetPath);
-    } else {
-      // Clean up temp file
-      if (fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
-      return { collision: true, filename };
-    }
-  }
-
-  fs.renameSync(sourcePath, targetPath);
-  return { collision: false, path: targetPath, filename };
-}
-
-/**
- * Auto-link an uploaded filename to the component via cad_files junction table.
- * Registers the file in cad_files table and creates junction record,
- * which regenerates the TEXT column automatically.
- */
-async function autoLinkFileToComponent(category, filename, mfgPartNumber) {
-  const dbColumn = CATEGORY_TO_COLUMN[category];
-  if (!dbColumn) return;
-
-  try {
-    if (VALID_CAD_CATEGORIES.has(category)) {
-      const cadFile = await cadFileService.registerCadFile(filename, category);
-      await cadFileService.linkCadFileToComponentByMPN(cadFile.id, mfgPartNumber, category, filename);
-      return cadFile;
-    }
-  } catch (error) {
-    logError('FileUpload', `Failed to auto-link ${filename} to ${mfgPartNumber}: ${error.message}`);
   }
 
   return null;
@@ -410,104 +359,33 @@ export async function uploadTempFile(req, res) {
  */
 export async function finalizeTempFile(req, res) {
   try {
-    const { files, mfgPartNumber, collisions } = req.body;
-
-    const hasFiles = files && Array.isArray(files) && files.length > 0;
-    const hasCollisions = collisions && Array.isArray(collisions) && collisions.length > 0;
-
-    if (!hasFiles && !hasCollisions) {
+    const { files = [], collisions = [], mfgPartNumber, componentId } = req.body;
+    if (!Array.isArray(files) || !Array.isArray(collisions) || (!files.length && !collisions.length)) {
       return res.status(400).json({ error: 'No files to finalize' });
     }
-
     const results = [];
     const catalog = await loadPackageCatalog();
-
-    // Process temp files (move from temp to category directory)
-    if (hasFiles) {
-      for (const { tempFilename, category, resolution } of files) {
-        const safeName = path.basename(tempFilename); // prevent traversal
-        const tempPath = path.join(LIBRARY_BASE, 'temp', safeName);
-
-        if (!fs.existsSync(tempPath)) {
-          // File might have been cleaned up or already moved — skip
-          results.push({ filename: safeName, error: 'Temp file not found' });
-          continue;
-        }
-
-        // Handle "use_existing" resolution: drop temp file, link existing file
-        // (legacy names on disk are grandfathered — normalize, never reject)
-        if (resolution === 'use_existing') {
-          const rawFilename = safeName.replace(/^\d+-\d+-/, '');
-          const filename = canonicalizeCadUploadFilename(rawFilename, category, catalog);
-          fs.unlinkSync(tempPath);
-          const linkedCadFile = mfgPartNumber && VALID_CAD_CATEGORIES.has(category)
-            ? await autoLinkFileToComponent(category, filename, mfgPartNumber)
-            : VALID_CAD_CATEGORIES.has(category)
-              ? await cadFileService.registerCadFile(filename, category)
-              : null;
-          results.push({ filename, type: category, collision: true, linked: true, cadFileId: linkedCadFile?.id || null });
-          continue;
-        }
-
-        // New file entering the library: footprint names must not contain "+"
-        const pendingFilename = canonicalizeCadUploadFilename(safeName.replace(/^\d+-\d+-/, ''), category, catalog);
-        if (isFootprintFileExtension(pendingFilename) && pendingFilename.includes('+')) {
-          results.push({ filename: pendingFilename, error: '"+" is not allowed in OrCAD footprint names' });
-          continue;
-        }
-
-        // Move from temp to category directory (overwrite if resolution says so)
-        const moveResult = moveToCategory(tempPath, category, catalog, resolution === 'overwrite');
-
-        if (!moveResult) {
-          results.push({ filename: safeName, error: 'Invalid category' });
-          continue;
-        }
-
-        const filename = moveResult.filename;
-        let registeredCadFile = null;
-
-        // Register in DB and optionally link to component.
-        // Move-then-register is intentional: the filesystem is the source of
-        // truth, registerCadFile is idempotent (ON CONFLICT), and the startup /
-        // admin library scan re-registers anything a transient DB error misses,
-        // so a register failure here is self-healing and never strands a DB row.
-        if (mfgPartNumber && VALID_CAD_CATEGORIES.has(category)) {
-          registeredCadFile = await autoLinkFileToComponent(category, filename, mfgPartNumber);
-        } else if (VALID_CAD_CATEGORIES.has(category)) {
-          try {
-            registeredCadFile = await cadFileService.registerCadFile(filename, category);
-          } catch (err) {
-            logError('FileUpload', `Failed to register ${filename}: ${err.message}`);
-          }
-        }
-
-        results.push({
-          filename,
-          type: category,
-          collision: moveResult.collision || false,
-          cadFileId: registeredCadFile?.id || null,
-        });
+    const entries = [...files, ...collisions.map(file => ({ ...file, resolution: 'use_existing' }))];
+    for (const entry of entries) {
+      let filename = entry?.filename || entry?.tempFilename;
+      try {
+        if (!entry || typeof entry !== 'object') throw new Error('Invalid file entry');
+        const { tempFilename, category, resolution } = entry;
+        const rawName = tempFilename
+          ? assertSafeLeafName(tempFilename, 'tempFilename').replace(/^\d+-\d+-/, '')
+          : assertSafeLeafName(entry.filename, 'filename');
+        filename = tempFilename ? canonicalizeCadUploadFilename(rawName, category, catalog) : rawName;
+        if (resolution !== 'use_existing' && isFootprintFileExtension(filename)) assertNoPlusInFootprintName(filename);
+        const result = await finalizeCadUpload({ tempFilename, filename, category, resolution, componentId, mfgPartNumber, user: req.user });
+        results.push({ ...result, ...(tempFilename ? { tempFilename } : {}) });
+      } catch (error) {
+        logError('FileUpload', `Failed to finalize ${filename}: ${error.message}`);
+        results.push({ filename, type: entry?.category, tempFilename: entry?.tempFilename,
+          error: error.status || error instanceof FootprintNameError || /^Invalid /.test(error.message)
+            ? error.message : 'Failed to finalize file; upload retained for retry' });
       }
     }
-
-    // Process collision files (already exist on disk — register in DB and link to component)
-    if (hasCollisions && mfgPartNumber) {
-      for (const { filename, category } of collisions) {
-        if (!VALID_CAD_CATEGORIES.has(category)) continue;
-
-        try {
-          const safeFilename = assertSafeLeafName(filename, 'filename');
-          const linkedCadFile = await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
-          results.push({ filename: safeFilename, type: category, collision: true, linked: true, cadFileId: linkedCadFile?.id || null });
-        } catch (err) {
-          logError('FileUpload', `Failed to link collision file ${filename}: ${err.message}`);
-          results.push({ filename, type: category, collision: true, error: err.message });
-        }
-      }
-    }
-
-    res.json({ message: 'Files finalized', results });
+    res.json({ message: 'Files processed', results });
   } catch (error) {
     logError('FileUpload', 'Error finalizing temp files:', error);
     res.status(500).json({ error: 'Failed to finalize files' });
@@ -906,7 +784,7 @@ export async function renameFile(req, res) {
       // Tracked file: the shared CAD data path renames physical + cad_files +
       // TEXT regen atomically (rollback + best-effort physical revert on failure).
       try {
-        await cadFileService.renameCadFile(cadFile.id, sanitizedNewFilename);
+        await cadFileService.renameCadFile(cadFile.id, sanitizedNewFilename, { user: req.user });
       } catch (renameError) {
         if (renameError.message?.includes('already exists')) {
           return res.status(409).json({ error: renameError.message });
@@ -914,6 +792,9 @@ export async function renameFile(req, res) {
         throw renameError;
       }
     } else {
+      if (isEcoEnabled() && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Scan untracked library files before renaming with ECO enabled' });
+      }
       // Untracked file (e.g. legacy nested location): physical-only rename into
       // the flat directory.
       const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
@@ -941,6 +822,7 @@ export async function renameFile(req, res) {
     if (/^Invalid oldFilename/.test(error.message || '')) {
       return res.status(400).json({ error: error.message });
     }
+    if (error.status === 403) return res.status(403).json({ error: error.message });
     logError('FileUpload', 'Error renaming file:', error);
     res.status(500).json({ error: 'Failed to rename file' });
   }
@@ -1203,55 +1085,22 @@ export async function exportFiles(req, res) {
  * Called when user cancels an edit to undo file deletions
  */
 export async function restoreDeletedFile(req, res) {
-  try {
-    const { files } = req.body;
-    if (!files || !Array.isArray(files)) {
-      return res.status(400).json({ error: 'files array is required' });
+  const { files } = req.body;
+  if (!Array.isArray(files)) return res.status(400).json({ error: 'files array is required' });
+  const results = [];
+  for (const file of files) {
+    try {
+      // Preserve the exact historical name; never restore over a live target.
+      const result = await finalizeCadUpload({ ...file, resolution: undefined, user: req.user });
+      results.push({ filename: result.filename, tempFilename: file.tempFilename, restored: true });
+    } catch (error) {
+      logError('FileUpload', 'Failed to restore file:', error);
+      results.push({ filename: file?.filename, tempFilename: file?.tempFilename,
+        error: error.status || /^Invalid /.test(error.message)
+          ? error.message : 'Failed to restore file; upload retained for retry' });
     }
-
-    const results = [];
-    for (const { tempFilename, category, filename, mfgPartNumber } of files) {
-      const config = FILE_CATEGORIES[category];
-      if (!config) {
-        results.push({ filename, error: 'Invalid category' });
-        continue;
-      }
-
-      let safeFilename;
-      try {
-        safeFilename = assertSafeLeafName(filename, 'filename');
-      } catch (err) {
-        results.push({ filename, error: err.message });
-        continue;
-      }
-
-      const tempPath = path.join(LIBRARY_BASE, 'temp', path.basename(tempFilename));
-      const targetPath = path.join(LIBRARY_BASE, config.subdir, safeFilename);
-
-      if (!fs.existsSync(tempPath)) {
-        results.push({ filename: safeFilename, error: 'Temp file not found' });
-        continue;
-      }
-
-      // Never restore over a file that reappeared at the target in the meantime
-      if (fs.existsSync(targetPath)) {
-        results.push({ filename: safeFilename, error: 'A file with this name already exists in the library' });
-        continue;
-      }
-
-      fs.renameSync(tempPath, targetPath);
-
-      // Re-register in cad_files and re-link to component
-      await autoLinkFileToComponent(category, safeFilename, mfgPartNumber);
-
-      results.push({ filename: safeFilename, restored: true });
-    }
-
-    res.json({ results });
-  } catch (error) {
-    logError('FileUpload', 'Error restoring deleted files:', error);
-    res.status(500).json({ error: 'Failed to restore files' });
   }
+  res.json({ results });
 }
 
 /**
