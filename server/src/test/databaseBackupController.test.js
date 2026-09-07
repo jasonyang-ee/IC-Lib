@@ -29,6 +29,15 @@ const makeResponse = () => {
 };
 
 describe('database backup controllers', () => {
+  it('reports incompatible retained staging as an actionable validation error', async () => {
+    backupMocks.parseBackupFile.mockReturnValueOnce({ tables: {} });
+    const message = 'Backup conflicts with retained ECO staging: eco_orders owner changed';
+    backupMocks.restoreBackupSnapshot.mockRejectedValueOnce(new backupMocks.BackupValidationError(message));
+    const res = makeResponse();
+    await importDatabase({ file: { buffer: Buffer.from('compressed') } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: message });
+  });
   it('sends no gzip when snapshot export fails', async () => {
     backupMocks.exportBackupSnapshot.mockRejectedValueOnce(new Error('snapshot failed'));
     const res = makeResponse();

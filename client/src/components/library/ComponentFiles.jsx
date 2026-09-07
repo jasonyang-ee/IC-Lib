@@ -135,7 +135,7 @@ function getFirstCadLinkConflict(cadFiles, priorFiles) {
     }
 
     const occupants = getSlotOccupants(slot, priorFiles);
-    if (occupants.length === 0) {
+    if (occupants.length === 0 || occupants.some((occupant) => occupant.name === filename)) {
       continue;
     }
 
@@ -290,6 +290,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [localUploads, setLocalUploads] = useState({});
   const [fileConflict, setFileConflict] = useState(null);
   const [conflictPending, setConflictPending] = useState(false);
+  const conflictInFlight = useRef(false);
   const [stagedRemovals, setStagedRemovals] = useState({});
   const [olbAssignment, setOlbAssignment] = useState({ show: false, files: [] });
   const [olbAssignmentPending, setOlbAssignmentPending] = useState(false);
@@ -771,7 +772,13 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         throw new Error('Selected file is not registered in the CAD library yet');
       }
 
-      const responses = await Promise.all(cadFiles.map((file) => api.linkFileToComponent(file.id, componentId)));
+      // Occupy explicit related slots before footprint auto-linking can fill them.
+      const linkOrder = (file) => getCadFileSlot(file.file_type, file.file_name) ? 0 : file.file_type === 'footprint' ? 2 : 1;
+      const orderedFiles = [...cadFiles].sort((left, right) => linkOrder(left) - linkOrder(right));
+      const responses = [];
+      for (const file of orderedFiles) {
+        responses.push(await api.linkFileToComponent(file.id, componentId));
+      }
       const linkedFiles = new Map();
 
       responses.forEach((response) => {
@@ -798,9 +805,71 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       showSuccess(linkedCount > 1 ? `${linkedCount} files linked successfully` : 'File linked successfully');
     },
     onError: (error) => {
+      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
       showError('Link failed: ' + (error.response?.data?.error || error.message));
     },
   });
+
+  const applyCadSelection = async ({ filesToLink, previewFiles, category: cat }) => {
+    let linkedFiles = previewFiles;
+    if (!ecoMode && componentId && filesToLink.length) {
+      const result = await linkMutation.mutateAsync({ cadFiles: filesToLink });
+      if (result?.linkedFiles?.length) linkedFiles = result.linkedFiles;
+    }
+    for (const file of linkedFiles) {
+      const fileCategory = file.file_type || cat;
+      if (onFileUploaded && file.file_name) {
+        onFileUploaded(fileCategory, file.file_name);
+      }
+      if (file.file_name) {
+        notifyCadFileAdded(fileCategory, file.file_name);
+        clearStagedRemoval(fileCategory, file.file_name);
+      }
+    }
+
+    setLocalUploads(prev => {
+      const updated = { ...prev };
+      for (const file of linkedFiles) {
+        if (!file.file_name) continue;
+        const fileCategory = file.file_type || cat;
+        updated[fileCategory] = [...(updated[fileCategory] || [])];
+        if (!updated[fileCategory].find(existingFile => existingFile.name === file.file_name)) {
+          updated[fileCategory].push({
+            id: file.id || null,
+            name: file.file_name,
+            size: 0,
+            storage: 'local',
+            file_type: file.file_type || fileCategory,
+            related_files: Array.isArray(file.related_files) ? file.related_files : [],
+          });
+        }
+      }
+      return updated;
+    });
+  };
+
+  const selectCadFiles = async (selection) => {
+    const cat = linkPicker.category;
+    const selectedFiles = Array.isArray(selection?.files) ? selection.files : [selection];
+    if (!cat || !selectedFiles.length) return;
+    const related = getSelectedRelatedCadFiles(selectedFiles, selection?.autoFiles || [], selection?.selectedRelatedFiles, filesRef.current);
+    const pendingSelection = {
+      category: cat,
+      filesToLink: mergeSelectedCadFiles(selectedFiles, selection?.selectedRelatedFiles || []),
+      previewFiles: mergeSelectedCadFiles(selectedFiles, related),
+    };
+    const conflict = getFirstCadLinkConflict(pendingSelection.previewFiles, filesRef.current);
+    if (conflict) {
+      setFileConflict({ ...conflict, pendingSelection });
+      setLinkPicker({ show: false, category: '' });
+      return;
+    }
+    try {
+      await applyCadSelection(pendingSelection);
+    } catch {
+      // The mutation reports failure; no successful local selection is published.
+    }
+  };
 
   const cancelRename = () => {
     setRenaming({ category: '', filename: '', tempFilename: null, newName: '', pairedFilename: null, pairedTempFilename: null });
@@ -906,9 +975,19 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   // Single-file conflict resolution: keep the existing file, discard the new upload
   const handleKeepOriginal = async () => {
-    if (!fileConflict) return;
+    if (!fileConflict || conflictInFlight.current) return;
+    conflictInFlight.current = true;
     setConflictPending(true);
     try {
+      if (fileConflict.pendingSelection) {
+        const keep = (file) => !(file.file_type === fileConflict.category && file.file_name === fileConflict.newFile);
+        await applyCadSelection({
+          ...fileConflict.pendingSelection,
+          filesToLink: fileConflict.pendingSelection.filesToLink.filter(keep),
+          previewFiles: fileConflict.pendingSelection.previewFiles.filter(keep),
+        });
+      }
+
       if (!fileConflict.isLink && fileConflict.newTempFilename) {
         // Upload conflict: clean up the new temp file
         await api.cleanupTempFiles({ tempFilenames: [fileConflict.newTempFilename] });
@@ -925,22 +1004,28 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     } catch (e) {
       console.error('Conflict cleanup failed:', e);
     }
+    conflictInFlight.current = false;
     setConflictPending(false);
     setFileConflict(null);
   };
 
   // Single-file conflict resolution: replace existing file with the new one
   const handleUseNew = async () => {
-    if (!fileConflict) return;
+    if (!fileConflict || conflictInFlight.current) return;
+    conflictInFlight.current = true;
     setConflictPending(true);
     try {
-      if (ecoMode) {
-        const existingLocalFile = localUploads[fileConflict.category]?.find(file => file.name === fileConflict.existingFile);
+      const existingLocalFile = localUploads[fileConflict.category]?.find(file => file.name === fileConflict.existingFile);
+      const replacingTemp = fileConflict.pendingSelection && existingLocalFile?.tempFilename;
+      if (replacingTemp) {
+        await api.cleanupTempFiles({ tempFilenames: [existingLocalFile.tempFilename] });
+        onTempFileRemoved?.(existingLocalFile.tempFilename);
+      }
+      if (ecoMode || (!componentId && fileConflict.pendingSelection) || replacingTemp) {
         if (existingLocalFile) {
           removeLocalUpload(fileConflict.category, fileConflict.existingFile);
-        } else {
-          stageRemoval(fileConflict.category, fileConflict.existingFile);
         }
+        stageRemoval(fileConflict.category, fileConflict.existingFile);
         if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
         notifyCadFileRemoved(fileConflict.category, fileConflict.existingFile);
       } else {
@@ -955,32 +1040,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
         // Remove old file from localUploads
         removeLocalUpload(fileConflict.category, fileConflict.existingFile);
+        stageRemoval(fileConflict.category, fileConflict.existingFile);
         // Remove old file from editData
         if (onFileDeleted) onFileDeleted(fileConflict.category, fileConflict.existingFile);
+        notifyCadFileRemoved(fileConflict.category, fileConflict.existingFile);
       }
 
-      if (fileConflict.isLink) {
-        // Link conflict: now perform the deferred link
-        if (!ecoMode && fileConflict.cadFileId && componentId) {
-          linkMutation.mutate({
-            cadFiles: [{
-              id: fileConflict.cadFileId,
-              file_name: fileConflict.newFile,
-              file_type: fileConflict.category,
-            }],
-          });
-        }
-        if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
-        notifyCadFileAdded(fileConflict.category, fileConflict.newFile);
-        // Add to localUploads
-        setLocalUploads(prev => {
-          const updated = { ...prev };
-          if (!updated[fileConflict.category]) updated[fileConflict.category] = [];
-          if (!updated[fileConflict.category].find(f => f.name === fileConflict.newFile)) {
-            updated[fileConflict.category].push({ name: fileConflict.newFile, size: 0, storage: 'local' });
-          }
-          return updated;
-        });
+      if (fileConflict.pendingSelection) {
+        await applyCadSelection(fileConflict.pendingSelection);
       } else {
         // Upload conflict: register the new file (was deferred in onSuccess)
         if (onFileUploaded) onFileUploaded(fileConflict.category, fileConflict.newFile);
@@ -999,6 +1066,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     } catch (e) {
       showError('Failed to replace file: ' + (e.response?.data?.error || e.message));
     }
+    conflictInFlight.current = false;
     setConflictPending(false);
     setFileConflict(null);
   };
@@ -1342,6 +1410,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                 <button
                   type="button"
                   onClick={() => setLinkPicker({ show: true, category })}
+                  aria-label={`Link existing ${CATEGORY_LABELS[category] || category} file`}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 mt-1"
                 >
                   <Plus className="w-3 h-3" />
@@ -1369,6 +1438,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                 <button
                   type="button"
                   onClick={() => setLinkPicker({ show: true, category })}
+                  aria-label={`Link existing ${CATEGORY_LABELS[category] || category} file`}
                   className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3" />
@@ -1452,69 +1522,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       <CadFilePickerModal
         isOpen={linkPicker.show}
         onClose={() => setLinkPicker({ show: false, category: '' })}
-        onSelect={async (selection) => {
-          const cat = linkPicker.category;
-          const selectedFiles = Array.isArray(selection?.files) ? selection.files : [selection];
-          const autoFiles = Array.isArray(selection?.autoFiles) ? selection.autoFiles : [];
-          const selectedRelatedFiles = Array.isArray(selection?.selectedRelatedFiles) ? selection.selectedRelatedFiles : [];
-          if (!cat || selectedFiles.length === 0) {
-            return;
-          }
-
-          const filesToLink = mergeSelectedCadFiles(selectedFiles, selectedRelatedFiles);
-          const linkConflict = getFirstCadLinkConflict(filesToLink, filesRef.current);
-          if (linkConflict) {
-            setFileConflict(linkConflict);
-            setLinkPicker({ show: false, category: '' });
-            return;
-          }
-
-          const previewRelatedFiles = !componentId
-            ? getSelectedRelatedCadFiles(selectedFiles, autoFiles, selectedRelatedFiles, filesRef.current)
-            : [];
-          let linkedFiles = mergeSelectedCadFiles(selectedFiles, previewRelatedFiles);
-          if (!ecoMode && componentId) {
-            try {
-              const result = await linkMutation.mutateAsync({ cadFiles: filesToLink });
-              if (Array.isArray(result?.linkedFiles) && result.linkedFiles.length > 0) {
-                linkedFiles = result.linkedFiles;
-              }
-            } catch {
-              return;
-            }
-          }
-
-          for (const file of linkedFiles) {
-            const fileCategory = file.file_type || cat;
-            if (onFileUploaded && file.file_name) {
-              onFileUploaded(fileCategory, file.file_name);
-            }
-            if (file.file_name) {
-              notifyCadFileAdded(fileCategory, file.file_name);
-              clearStagedRemoval(fileCategory, file.file_name);
-            }
-          }
-
-          setLocalUploads(prev => {
-            const updated = { ...prev };
-            for (const file of linkedFiles) {
-              if (!file.file_name) continue;
-              const fileCategory = file.file_type || cat;
-              if (!updated[fileCategory]) updated[fileCategory] = [];
-              if (!updated[fileCategory].find(existingFile => existingFile.name === file.file_name)) {
-                updated[fileCategory].push({
-                  id: file.id || null,
-                  name: file.file_name,
-                  size: 0,
-                  storage: 'local',
-                  file_type: file.file_type || fileCategory,
-                  related_files: Array.isArray(file.related_files) ? file.related_files : [],
-                });
-              }
-            }
-            return updated;
-          });
-        }}
+        onSelect={selectCadFiles}
         fileType={linkPicker.category || undefined}
         excludeFileIds={[]}
       />

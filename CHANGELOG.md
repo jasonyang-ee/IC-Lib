@@ -17,7 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 
+- Database restore preserves excluded ECO CAD and shared-rename staging in the same transaction, blocks concurrent staging writes during replacement, and rejects incompatible parent ownership or CAD identity without data loss.
+- Database restore handles forward and cyclic user references and ECO retry lineage across insert batches while retaining foreign-key validation and rollback guarantees.
+- CAD selection carries explicit related pad/model choices into ECO staging and retains the complete footprint group through model replacement. Keep Original adds the nonconflicting files; cancel changes nothing. Add-mode selections retain persisted CAD IDs, and failed direct links no longer publish successful replacement callbacks.
+- Repository text-policy checks skip Git-reported working-tree deletions while continuing to reject invalid shebangs and unreadable retained files.
 
 ## [1.11.1] - 2026-09-05
 

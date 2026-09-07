@@ -51,6 +51,15 @@ const isPlainObject = (value) => value !== null
 const quoteIdentifier = (identifier) => `"${identifier.replaceAll('"', '""')}"`;
 const quoteQualifiedIdentifier = (identifier) => identifier.split('.').map(quoteIdentifier).join('.');
 const MAX_BIND_PARAMETERS = 10000;
+const STAGING_TABLES = ['eco_cad_files', 'eco_file_rename_files', 'eco_file_rename_components'];
+const SELF_REFERENCES = { users: ['delegation', 'created_by'], eco_orders: ['parent_eco_id'] };
+
+// Retained staging must still refer to the same owner and CAD identity.
+const STAGING_PARENTS = {
+  eco_orders: ['component_id', 'initiated_by', 'status', 'pipeline_type', 'pipeline_types'],
+  cad_files: ['file_type', 'file_name'],
+  components: ['part_number'],
+};
 
 const metadataQuery = `
   SELECT column_name, data_type, is_generated, is_identity, identity_generation,
@@ -159,6 +168,55 @@ const restartOwnedSequences = async (client, table, columns) => {
   }
 };
 
+const preserveStaging = async (client, tables) => {
+  if (!tables.includes('eco_orders')) return [];
+  for (const table of STAGING_TABLES) {
+    await client.query(`CREATE TEMP TABLE ${quoteIdentifier(`backup_${table}`)} ON COMMIT DROP AS SELECT * FROM ${quoteIdentifier(table)}`);
+  }
+  const references = {
+    eco_orders: STAGING_TABLES.map((table) => `SELECT eco_id FROM ${quoteIdentifier(table)}`).join(' UNION '),
+    cad_files: 'SELECT cad_file_id FROM eco_cad_files UNION SELECT cad_file_id FROM eco_file_rename_files',
+    components: 'SELECT component_id FROM eco_file_rename_components UNION SELECT component_id FROM eco_orders WHERE id IN (SELECT eco_id FROM eco_cad_files)',
+  };
+  for (const [table, names] of Object.entries(STAGING_PARENTS)) {
+    await client.query(`CREATE TEMP TABLE ${quoteIdentifier(`backup_owner_${table}`)} ON COMMIT DROP AS
+      SELECT ${['id', ...names].map(quoteIdentifier).join(', ')} FROM ${quoteIdentifier(table)} WHERE id IN (${references[table]})`);
+  }
+  return STAGING_TABLES;
+};
+
+const restoreStaging = async (client, staging) => {
+  if (staging.length === 0) return;
+  for (const [table, names] of Object.entries(STAGING_PARENTS)) {
+    const changed = await client.query(`SELECT saved.id FROM ${quoteIdentifier(`backup_owner_${table}`)} saved
+      LEFT JOIN ${quoteIdentifier(table)} restored ON restored.id = saved.id
+      WHERE restored.id IS NULL OR ${names.map((name) => `saved.${quoteIdentifier(name)} IS DISTINCT FROM restored.${quoteIdentifier(name)}`).join(' OR ')} LIMIT 1`);
+    if (changed.rows.length) {
+      throw new BackupValidationError(`Backup conflicts with retained ECO staging: ${table} ${changed.rows[0].id} is missing or has changed ownership/identity`);
+    }
+  }
+  for (const table of staging) {
+    const metadata = await client.query(metadataQuery, [table]);
+    const names = metadata.rows.filter((column) => column.is_generated === 'NEVER').map((column) => quoteIdentifier(column.column_name)).join(', ');
+    await client.query(`DELETE FROM ${quoteIdentifier(table)}`);
+    await client.query(`INSERT INTO ${quoteIdentifier(table)} (${names}) SELECT ${names} FROM ${quoteIdentifier(`backup_${table}`)}`);
+  }
+};
+
+const restoreSelfReferences = async (client, table, columns, rows) => {
+  for (const name of SELF_REFERENCES[table] || []) {
+    if (!columns.some((column) => column.column_name === name)) continue;
+    // jsonb_populate_recordset supplies the table's actual types, including UUIDs.
+    const updates = rows.filter((row) => Object.hasOwn(row, name) && row[name] !== null)
+      .map((row) => ({ id: row.id, [name]: row[name] }));
+    for (let start = 0; start < updates.length; start += MAX_BIND_PARAMETERS / 2) {
+      await client.query(`UPDATE ${quoteIdentifier(table)} target SET ${quoteIdentifier(name)} = source.${quoteIdentifier(name)}
+        FROM jsonb_populate_recordset(NULL::${quoteIdentifier(table)}, $1::jsonb) source WHERE target.id = source.id`,
+      [JSON.stringify(updates.slice(start, start + MAX_BIND_PARAMETERS / 2))]);
+    }
+  }
+};
+
 export const exportBackupSnapshot = async (db, tables = EXPORT_TABLES, now = () => new Date()) => {
   const client = await db.connect();
   let transactionStarted = false;
@@ -216,12 +274,16 @@ export const restoreBackupSnapshot = async (db, data, tables = EXPORT_TABLES) =>
     await client.query('BEGIN');
     transactionStarted = true;
 
+    // Take all write locks before capture; staging writers resume only after commit/rollback.
+    const lockedTables = [...new Set([...tables, ...(tables.includes('eco_orders') ? STAGING_TABLES : [])])].sort();
+    await client.query(`LOCK TABLE ${lockedTables.map(quoteIdentifier).join(', ')} IN ACCESS EXCLUSIVE MODE`);
     const schema = new Map();
     for (const table of tables) {
       const result = await client.query(metadataQuery, [table]);
       schema.set(table, getWritableColumns(result.rows, data.tables[table], table));
     }
 
+    const staging = await preserveStaging(client, tables);
     await client.query('ALTER TABLE "components" DISABLE TRIGGER USER');
     for (const table of [...tables].reverse()) {
       await client.query(`DELETE FROM ${quoteIdentifier(table)}`);
@@ -230,12 +292,30 @@ export const restoreBackupSnapshot = async (db, data, tables = EXPORT_TABLES) =>
     const stats = { tablesImported: 0, rowsImported: 0, errors: [] };
     for (const table of tables) {
       const rows = data.tables[table];
-      const imported = await insertRows(client, table, schema.get(table), rows);
+      const deferred = (SELF_REFERENCES[table] || []).filter((name) => schema.get(table).some((column) => column.column_name === name));
+      for (const name of deferred) {
+        if (schema.get(table).find((column) => column.column_name === name).is_nullable !== 'YES') {
+          throw new BackupValidationError(`Backup restore requires nullable self-reference ${table}.${name}`);
+        }
+      }
+      const insertableRows = rows.map((row) => {
+        const copy = { ...row };
+        for (const name of deferred) {
+          if (row[name] != null && row.id == null) {
+            throw new BackupValidationError(`Backup restore requires id for self-reference ${table}.${name}`);
+          }
+          if (Object.hasOwn(copy, name)) copy[name] = null;
+        }
+        return copy;
+      });
+      const imported = await insertRows(client, table, schema.get(table), insertableRows);
+      await restoreSelfReferences(client, table, schema.get(table), rows);
       if (rows.length > 0) stats.tablesImported++;
       stats.rowsImported += imported;
       await restartOwnedSequences(client, table, schema.get(table));
     }
 
+    await restoreStaging(client, staging);
     await client.query('ALTER TABLE "components" ENABLE TRIGGER USER');
     await client.query('COMMIT');
     return stats;

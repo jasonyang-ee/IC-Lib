@@ -46,18 +46,18 @@ describe('FootprintLinkEditorModal', () => {
     showErrorMock.mockReset();
   });
 
-  it('uploads a new same-type file, selects it, and saves the new CAD id', async () => {
+  it.each([['model', 'step', '3d model'], ['pad', 'pad', 'pad']])('uploads a new %s file, selects it, and saves the new CAD id', async (fileType, extension, label) => {
     apiMocks.uploadTempFiles.mockResolvedValue({
       data: {
         results: [
-          { type: 'model', filename: 'new.step', tempFilename: '123-new.step' },
+          { type: fileType, filename: `new.${extension}`, tempFilename: `123-new.${extension}` },
         ],
       },
     });
     apiMocks.finalizeTempFiles.mockResolvedValue({
       data: {
         results: [
-          { type: 'model', filename: 'new.step', cadFileId: 'model-2', collision: false },
+          { type: fileType, filename: `new.${extension}`, cadFileId: `${fileType}-2`, collision: false },
         ],
       },
     });
@@ -69,7 +69,7 @@ describe('FootprintLinkEditorModal', () => {
         onClose={vi.fn()}
         onSave={onSave}
         selectedEntry={{ displayName: 'SOIC8' }}
-        relatedFileType="model"
+        relatedFileType={fileType}
         initialFiles={[]}
       />,
     );
@@ -77,21 +77,21 @@ describe('FootprintLinkEditorModal', () => {
     const input = screen.getByTestId('footprint-link-upload-input');
     fireEvent.change(input, {
       target: {
-        files: [new File(['step'], 'new.step', { type: 'application/step' })],
+        files: [new File(['step'], `new.${extension}`, { type: 'application/step' })],
       },
     });
 
     await waitFor(() => expect(apiMocks.uploadTempFiles).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(apiMocks.finalizeTempFiles).toHaveBeenCalledWith({
-      files: [{ tempFilename: '123-new.step', category: 'model' }],
+      files: [{ tempFilename: `123-new.${extension}`, category: fileType }],
     }));
-    expect(showSuccessMock).toHaveBeenCalledWith('Added 1 3d model file');
+    expect(showSuccessMock).toHaveBeenCalledWith(`Added 1 ${label} file`);
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Links' }));
 
     expect(onSave).toHaveBeenCalledWith({
-      relatedFileType: 'model',
-      addFileIds: ['model-2'],
+      relatedFileType: fileType,
+      addFileIds: [`${fileType}-2`],
       removeFileIds: [],
     });
   });

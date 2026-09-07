@@ -9,7 +9,7 @@ Reopened work → work-in-progress. garnish resets header-only new. Empty new �
 Symbols: → leads to | ∴ therefore | ∀ every | ∃ exists | ! required | ? unknown/optional | ⊥ forbidden/absent | ≠ differs | ∈ member | ∉ not member | ≤ at most | ≥ at least | & and | § section.
 Preserve literals, conditions, negation, uncertainty, quantities, and requirement strength. Tables need delimiter rows.
 Executable without chat history. Full rules: /encode-docs.
-planning status: new
+planning status: done
 -->
 
 # PLAN
@@ -55,7 +55,7 @@ depends: none
 ### §T tasks
 id|status|description|cites
 |---|---|---|---|
-T1|.|Confirm RC1-RC4 and preservation boundaries|§V.8 §V.15 §V.26 §V.41 §V.65
+T1|x|Confirm RC1-RC4 and preservation boundaries|§V.8 §V.15 §V.26 §V.41 §V.65
 
 task: T1
 touch: `server/src/services/databaseBackupService.js` | `database/init-schema.sql` | `database/init-users.sql` | `server/src/test/dbTableLists.test.js` | `client/src/components/library/ComponentFiles.jsx` | `client/src/utils/cadFileRelatedLinks.js`
@@ -73,8 +73,8 @@ depends: F1
 ### §T tasks
 id|status|description|cites
 |---|---|---|---|
-T1|.|Preserve excluded ECO staging through parent replacement|§V.65 §V.14 §V.15
-T2|.|Restore cross-batch nullable self-references|§V.65 §V.14
+T1|x|Preserve excluded ECO staging through parent replacement|§V.65 §V.14 §V.15
+T2|x|Restore cross-batch nullable self-references|§V.65 §V.14
 
 task: T1
 touch: `server/src/services/databaseBackupService.js` | `server/src/controllers/settingsController.js` | `server/src/test/databaseBackupPostgres.test.js` | `server/src/test/databaseBackupService.test.js` | `server/src/test/databaseBackupController.test.js` | `server/src/test/dbTableLists.test.js`
@@ -99,8 +99,8 @@ depends: F1
 ### §T tasks
 id|status|description|cites
 |---|---|---|---|
-T1|.|Stage explicitly chosen pad/model files in ECO mode|§V.8 §V.15 §V.22 §V.26 §V.41
-T2|.|Preserve the pending group through replacement decisions|§V.15 §V.25 §V.26 §V.41
+T1|x|Stage explicitly chosen pad/model files in ECO mode|§V.8 §V.15 §V.22 §V.26 §V.41
+T2|x|Preserve the pending group through replacement decisions|§V.15 §V.25 §V.26 §V.41
 
 task: T1
 touch: `client/src/components/library/ComponentFiles.jsx` | `client/src/utils/cadFileRelatedLinks.js` | `client/src/test/componentFilesLinkExisting.test.jsx` | `client/src/test/cadFilePickerModal.test.jsx`
@@ -125,7 +125,7 @@ depends: F1
 ### §T tasks
 id|status|description|cites
 |---|---|---|---|
-T1|.|Handle intentionally deleted tracked files in shebang enumeration|§C.11
+T1|x|Handle intentionally deleted tracked files in shebang enumeration|§C.11
 
 task: T1
 touch: `server/src/test/repositoryTextPolicy.test.js`
@@ -143,8 +143,8 @@ depends: F2 & F3 & F4
 ### §T tasks
 id|status|description|cites
 |---|---|---|---|
-T1|.|Run regression slices and repository gate|§V.8 §V.15 §V.25 §V.26 §V.39 §V.41 §V.45 §V.59 §V.65
-T2|.|Document delivered fixes and close only on current evidence|§V.65 §V.41
+T1|x|Run regression slices and repository gate|§V.8 §V.15 §V.25 §V.26 §V.39 §V.41 §V.45 §V.59 §V.65
+T2|x|Document delivered fixes and close only on current evidence|§V.65 §V.41
 
 task: T1
 touch: `client/src/test/componentFilesLinkExisting.test.jsx` | `client/src/test/cadFilePickerModal.test.jsx` | `client/src/test/footprintLinkEditorModal.test.jsx` | `client/src/test/libraryAlternativeClass.test.jsx` | `server/src/test/databaseBackupPostgres.test.js` | `server/src/test/repositoryTextPolicy.test.js` | `test.sh`

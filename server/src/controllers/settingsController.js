@@ -2030,6 +2030,9 @@ export const importDatabase = async (req, res) => {
     });
   } catch (error) {
     logError('Settings', 'Database import failed:', error.message);
+    if (error instanceof BackupValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({
       error: 'Failed to import database',
       message: error.message,
