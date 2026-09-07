@@ -5,6 +5,14 @@ import { PROJECT_STATUSES, isValidProjectStatus } from '../constants/projectStat
 import { normalizeAlternativeClass } from '../constants/alternativeClass.js';
 
 const INVALID_STATUS_ERROR = `Invalid status. Must be one of: ${PROJECT_STATUSES.join(', ')}`;
+const INVALID_QUANTITY_ERROR = 'Quantity must be a positive integer no greater than 2147483647';
+const isValidQuantity = (quantity) => Number.isInteger(quantity) && quantity > 0 && quantity <= 2147483647;
+
+// Keep integer strings accepted by existing API callers, without coercing
+// booleans, arrays, fractions, or an explicit null into a BOM quantity.
+const parseQuantity = (quantity) => typeof quantity === 'string' && /^\s*\d+\s*$/.test(quantity)
+  ? Number(quantity)
+  : quantity;
 
 // Get all projects
 export const getAllProjects = async (req, res) => {
@@ -287,6 +295,11 @@ export const addComponentToProject = async (req, res) => {
     const { projectId } = req.params;
     const { component_id, alternative_id, quantity, notes, alt_class } = req.body;
 
+    const requestedQuantity = quantity === undefined ? 1 : parseQuantity(quantity);
+    if (!isValidQuantity(requestedQuantity)) {
+      return res.status(400).json({ error: INVALID_QUANTITY_ERROR });
+    }
+
     // Validate that only one of component_id or alternative_id is provided
     if ((component_id && alternative_id) || (!component_id && !alternative_id)) {
       return res.status(400).json({
@@ -320,7 +333,7 @@ export const addComponentToProject = async (req, res) => {
       `INSERT INTO project_components (project_id, component_id, alternative_id, quantity, notes, alt_class)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [projectId, component_id || null, alternative_id || null, quantity || 1, notes || null, altClass.value],
+      [projectId, component_id || null, alternative_id || null, requestedQuantity, notes || null, altClass.value],
     );
     
     const projectComponent = result.rows[0];
@@ -352,7 +365,7 @@ export const addComponentToProject = async (req, res) => {
         project_name: projectInfo.rows[0]?.name,
         component_id: component_id,
         alternative_id: alternative_id,
-        quantity: quantity || 1,
+        quantity: requestedQuantity,
         part_number: componentInfo?.rows[0]?.part_number,
         alt_class: projectComponent.alt_class,
       },
@@ -371,6 +384,11 @@ export const updateProjectComponent = async (req, res) => {
     const { projectId, componentId } = req.params;
     const { quantity, notes, alt_class } = req.body;
 
+    const requestedQuantity = parseQuantity(quantity);
+    if (quantity !== undefined && !isValidQuantity(requestedQuantity)) {
+      return res.status(400).json({ error: INVALID_QUANTITY_ERROR });
+    }
+
     // §V59: an omitted alt_class preserves the stored override; an explicit
     // null (or an emptied form control) clears it back to the parent default.
     const altClass = normalizeAlternativeClass(alt_class);
@@ -385,7 +403,7 @@ export const updateProjectComponent = async (req, res) => {
            alt_class = CASE WHEN $5::boolean THEN $6::char(1) ELSE alt_class END
        WHERE project_id = $3 AND id = $4
        RETURNING *`,
-      [quantity, notes, projectId, componentId, altClass.provided, altClass.value],
+      [requestedQuantity, notes, projectId, componentId, altClass.provided, altClass.value],
     );
     
     if (result.rows.length === 0) {
@@ -467,16 +485,22 @@ export const removeComponentFromProject = async (req, res) => {
 
 // Consume all components in a project (decrement inventory)
 export const consumeProjectComponents = async (req, res) => {
-  const client = await pool.connect();
+  let client;
+  let releaseError;
 
   try {
+    client = await pool.connect();
     const { id } = req.params;
 
     await client.query('BEGIN');
 
     // Get project info
     const projectResult = await client.query('SELECT name FROM projects WHERE id = $1', [id]);
-    const projectName = projectResult.rows[0]?.name || 'Unknown';
+    if (projectResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const projectName = projectResult.rows[0].name;
 
     // Get all project components with part info
     const componentsResult = await client.query(
@@ -492,6 +516,22 @@ export const consumeProjectComponents = async (req, res) => {
 
     const updates = [];
     const errors = [];
+
+    // Existing imports may contain invalid quantities. Reject the entire build
+    // before any deduction, so subtracting a negative value cannot add stock.
+    const invalidLines = componentsResult.rows.filter(pc => !isValidQuantity(pc.quantity));
+    if (invalidLines.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Unable to consume all project components',
+        message: 'Correct invalid project quantities before consuming inventory.',
+        details: invalidLines.map(pc => ({
+          id: pc.component_id || pc.alternative_id,
+          requested_quantity: pc.quantity,
+          error: INVALID_QUANTITY_ERROR,
+        })),
+      });
+    }
 
     const getAvailableQuantity = async ({ componentId, alternativeId }) => {
       if (componentId) {
@@ -510,75 +550,68 @@ export const consumeProjectComponents = async (req, res) => {
     };
 
     for (const pc of componentsResult.rows) {
-      try {
-        if (pc.component_id) {
-          // Update main component inventory
-          const result = await client.query(
-            `UPDATE inventory
-             SET quantity = quantity - $1
-             WHERE component_id = $2 AND quantity >= $1
-             RETURNING quantity`,
-            [pc.quantity, pc.component_id],
-          );
-          if (result.rows.length === 0) {
-            const availableQuantity = await getAvailableQuantity({ componentId: pc.component_id });
-            errors.push({
-              component_id: pc.component_id,
-              part_number: pc.part_number || null,
-              requested_quantity: pc.quantity,
-              available_quantity: availableQuantity,
-              error: availableQuantity === null
-                ? 'Inventory record not found'
-                : `Insufficient inventory: requested ${pc.quantity}, available ${availableQuantity}`,
-            });
-            continue;
-          }
-          updates.push({ component_id: pc.component_id, new_quantity: result.rows[0].quantity });
-
-          // Log consumption
-          if (pc.part_number) {
-            await logActivity(client, {
-              componentId: pc.component_id,
-              userId: req.user?.id || null,
-              partNumber: pc.part_number,
-              activityType: 'inventory_consumed',
-              details: {
-                project_id: id,
-                project_name: projectName,
-                consumed_quantity: pc.quantity,
-                new_quantity: result.rows[0].quantity,
-                source: 'project_consumption',
-              },
-            });
-          }
-        } else if (pc.alternative_id) {
-          // Update alternative inventory
-          const result = await client.query(
-            `UPDATE inventory_alternative
-             SET quantity = quantity - $1
-             WHERE alternative_id = $2 AND quantity >= $1
-             RETURNING quantity`,
-            [pc.quantity, pc.alternative_id],
-          );
-          if (result.rows.length === 0) {
-            const availableQuantity = await getAvailableQuantity({ alternativeId: pc.alternative_id });
-            errors.push({
-              alternative_id: pc.alternative_id,
-              requested_quantity: pc.quantity,
-              available_quantity: availableQuantity,
-              error: availableQuantity === null
-                ? 'Alternative inventory record not found'
-                : `Insufficient alternative inventory: requested ${pc.quantity}, available ${availableQuantity}`,
-            });
-            continue;
-          }
-          updates.push({ alternative_id: pc.alternative_id, new_quantity: result.rows[0].quantity });
+      if (pc.component_id) {
+        // Update main component inventory
+        const result = await client.query(
+          `UPDATE inventory
+           SET quantity = quantity - $1
+           WHERE component_id = $2 AND quantity >= $1
+           RETURNING quantity`,
+          [pc.quantity, pc.component_id],
+        );
+        if (result.rows.length === 0) {
+          const availableQuantity = await getAvailableQuantity({ componentId: pc.component_id });
+          errors.push({
+            component_id: pc.component_id,
+            part_number: pc.part_number || null,
+            requested_quantity: pc.quantity,
+            available_quantity: availableQuantity,
+            error: availableQuantity === null
+              ? 'Inventory record not found'
+              : `Insufficient inventory: requested ${pc.quantity}, available ${availableQuantity}`,
+          });
+          continue;
         }
-      } catch (error) {
-        errors.push({
-          id: pc.component_id || pc.alternative_id,
-          error: error.message,
-        });
+        updates.push({ component_id: pc.component_id, new_quantity: result.rows[0].quantity });
+
+        // Log consumption
+        if (pc.part_number) {
+          await logActivity(client, {
+            componentId: pc.component_id,
+            userId: req.user?.id || null,
+            partNumber: pc.part_number,
+            activityType: 'inventory_consumed',
+            details: {
+              project_id: id,
+              project_name: projectName,
+              consumed_quantity: pc.quantity,
+              new_quantity: result.rows[0].quantity,
+              source: 'project_consumption',
+            },
+          });
+        }
+      } else if (pc.alternative_id) {
+        // Update alternative inventory
+        const result = await client.query(
+          `UPDATE inventory_alternative
+           SET quantity = quantity - $1
+           WHERE alternative_id = $2 AND quantity >= $1
+           RETURNING quantity`,
+          [pc.quantity, pc.alternative_id],
+        );
+        if (result.rows.length === 0) {
+          const availableQuantity = await getAvailableQuantity({ alternativeId: pc.alternative_id });
+          errors.push({
+            alternative_id: pc.alternative_id,
+            requested_quantity: pc.quantity,
+            available_quantity: availableQuantity,
+            error: availableQuantity === null
+              ? 'Alternative inventory record not found'
+              : `Insufficient alternative inventory: requested ${pc.quantity}, available ${availableQuantity}`,
+          });
+          continue;
+        }
+        updates.push({ alternative_id: pc.alternative_id, new_quantity: result.rows[0].quantity });
       }
     }
 
@@ -599,10 +632,17 @@ export const consumeProjectComponents = async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        releaseError = rollbackError;
+        logError('Project', 'Error rolling back project consumption:', rollbackError);
+      }
+    }
     logError('Project', 'Error consuming project components:', error);
     res.status(500).json({ error: 'Failed to consume project components' });
   } finally {
-    client.release();
+    client?.release(releaseError);
   }
 };

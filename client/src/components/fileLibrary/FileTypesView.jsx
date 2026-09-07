@@ -279,18 +279,10 @@ const FileTypesView = ({
                 const isChecked = selectedOrphanEntryKeys.includes(entry.key);
 
                 return (
-                  <button
+                  <div
                     key={`${entry.key}-${virtualRow.index}`}
                     data-index={virtualRow.index}
                     ref={fileVirtualizer.measureElement}
-                    onClick={() => {
-                      if (isOrphanSelectionEnabled) {
-                        onToggleOrphanEntrySelection(entry.key);
-                        return;
-                      }
-
-                      onSelectFile(entry.key);
-                    }}
                     className={`absolute left-0 w-full p-2.5 rounded-lg border text-left transition-colors ${
                       isOrphanSelectionEnabled
                         ? (isChecked
@@ -303,7 +295,19 @@ const FileTypesView = ({
                     style={{ transform: `translateY(${virtualRow.start}px)` }}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <button
+                        type="button"
+                        aria-pressed={isOrphanSelectionEnabled ? isChecked : isSelected}
+                        onClick={() => {
+                          if (isOrphanSelectionEnabled) {
+                            onToggleOrphanEntrySelection(entry.key);
+                            return;
+                          }
+
+                          onSelectFile(entry.key);
+                        }}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                      >
                         {isOrphanSelectionEnabled && (
                           <div
                             aria-hidden="true"
@@ -334,7 +338,7 @@ const FileTypesView = ({
                             )
                           )}
                         </div>
-                      </div>
+                      </button>
                       {!showOrphans && (
                         <div className="flex items-center gap-1 shrink-0 ml-2">
                           <button
@@ -369,7 +373,7 @@ const FileTypesView = ({
                         </button>
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

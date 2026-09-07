@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import CadFieldSection from '../components/library/CadFieldSection';
@@ -81,6 +81,7 @@ describe('footprint display case at the adopted render sites', () => {
 
   it('FileTypesView shows a footprint pair uppercase but copies the stored names', () => {
     const onCopyPath = vi.fn();
+    const onSelectFile = vi.fn();
     const pairEntry = {
       key: 'pair:soic-8_b',
       kind: 'pair',
@@ -105,7 +106,7 @@ describe('footprint display case at the adopted render sites', () => {
         componentsData={{ components: [] }}
         getTypeCount={() => 1}
         onTypeChange={vi.fn()}
-        onSelectFile={vi.fn()}
+        onSelectFile={onSelectFile}
         onOpenRename={vi.fn()}
         onOpenDelete={vi.fn()}
         onCopyPath={onCopyPath}
@@ -129,7 +130,44 @@ describe('footprint display case at the adopted render sites', () => {
     expect(screen.getAllByText('SOIC-8_B.dra').length).toBeGreaterThan(0);
     expect(screen.queryByText('soic-8_b.psm')).not.toBeInTheDocument();
 
+    const selectButton = screen.getByRole('button', { name: /^SOIC-8_B / });
+    expect(within(selectButton).queryByRole('button')).not.toBeInTheDocument();
+    expect(selectButton).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy file paths' }));
+    expect(onCopyPath).toHaveBeenCalledWith(['soic-8_b.dra', 'soic-8_b.psm']);
+    expect(onSelectFile).not.toHaveBeenCalled();
+    fireEvent.click(selectButton);
+    expect(onSelectFile).toHaveBeenCalledWith(pairEntry.key);
+
     fireEvent.click(screen.getByRole('button', { name: 'Copy File Path' }));
     expect(onCopyPath).toHaveBeenCalledWith(['soic-8_b.dra', 'soic-8_b.psm'], 'footprint');
+  });
+
+  it('keeps orphan deletion separate from selection and exposes bulk toggle state', () => {
+    const entry = { key: 'pad-1', displayName: 'test.pad', file_type: 'pad', fileNames: ['test.pad'] };
+    const onSelectFile = vi.fn();
+    const onOpenDelete = vi.fn();
+    const onToggleOrphanEntrySelection = vi.fn();
+    const props = {
+      fileTypes: [], selectedType: 'pad', showOrphans: true,
+      displayedEntries: [entry], selectedOrphanEntryKeys: [], cisFiles: [],
+      canDeleteFiles: () => true, onSelectFile, onOpenDelete, onToggleOrphanEntrySelection,
+    };
+    const { rerender } = render(<FileTypesView {...props} />);
+    const selectButton = screen.getByRole('button', { name: /^test.pad/ });
+    expect(within(selectButton).queryByRole('button')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete orphan file' }));
+    expect(onOpenDelete).toHaveBeenCalledWith(entry);
+    expect(onSelectFile).not.toHaveBeenCalled();
+    fireEvent.click(selectButton);
+    expect(onSelectFile).toHaveBeenCalledWith(entry.key);
+
+    rerender(<FileTypesView {...props} bulkSelectMode selectedOrphanEntryKeys={[entry.key]} />);
+    const toggle = screen.getByRole('button', { name: /^test.pad/ });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'Delete orphan file' })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(onToggleOrphanEntrySelection).toHaveBeenCalledWith(entry.key);
+    expect(onSelectFile).toHaveBeenCalledTimes(1);
   });
 });

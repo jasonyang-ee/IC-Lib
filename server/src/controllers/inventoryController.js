@@ -327,33 +327,18 @@ export const updateAlternativeInventory = async (req, res, next) => {
     const { altId } = req.params;
     const { location, quantity, min_quantity } = req.body;
 
-    // Check if inventory record exists
-    const checkResult = await pool.query(
-      'SELECT id FROM inventory_alternative WHERE alternative_id = $1',
-      [altId],
-    );
-
-    let result;
-    if (checkResult.rows.length > 0) {
-      // Update existing record
-      result = await pool.query(`
-        UPDATE inventory_alternative 
-        SET 
-          location = COALESCE($1, location),
-          quantity = COALESCE($2, quantity),
-          min_quantity = COALESCE($3, min_quantity),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE alternative_id = $4
-        RETURNING *
-      `, [location, quantity, min_quantity, altId]);
-    } else {
-      // Insert new record
-      result = await pool.query(`
-        INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *
-      `, [altId, location || '', quantity || 0, min_quantity || 0]);
-    }
+    // Concurrent first edits must share one row. On conflict, use the supplied
+    // parameters so insert defaults do not overwrite another request's fields.
+    const result = await pool.query(`
+      INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity)
+      VALUES ($1, COALESCE($2, ''), COALESCE($3, 0), COALESCE($4, 0))
+      ON CONFLICT (alternative_id) DO UPDATE SET
+        location = COALESCE($2, inventory_alternative.location),
+        quantity = COALESCE($3, inventory_alternative.quantity),
+        min_quantity = COALESCE($4, inventory_alternative.min_quantity),
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [altId, location, quantity, min_quantity]);
 
     res.json(result.rows[0]);
   } catch (error) {

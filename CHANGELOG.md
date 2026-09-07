@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- File Library selection, copy, and orphan-delete controls are separate native buttons, eliminating nested interactive controls and exposing selection state to assistive technology.
+- Project lines reject invalid quantities before saving, and Consume All rejects existing nonpositive quantities without changing stock. Missing projects return 404; database failures return a safe server error, roll back deductions, and release failed connections safely.
+- Concurrent first-time alternative inventory edits use an atomic upsert, preserving independently supplied quantity, location, and minimum-stock fields instead of losing one save to a duplicate-row error.
 - Database restore preserves excluded ECO CAD and shared-rename staging in the same transaction, blocks concurrent staging writes during replacement, and rejects incompatible parent ownership or CAD identity without data loss.
 - Database restore handles forward and cyclic user references and ECO retry lineage across insert batches while retaining foreign-key validation and rollback guarantees.
 - CAD selection carries explicit related pad/model choices into ECO staging and retains the complete footprint group through model replacement. Keep Original adds the nonconflicting files; cancel changes nothing. Add-mode selections retain persisted CAD IDs, and failed direct links no longer publish successful replacement callbacks.
