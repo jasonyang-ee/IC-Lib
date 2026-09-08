@@ -685,6 +685,7 @@ export const linkFileToComponent = async (req, res) => {
 };
 
 export const linkFootprintRelatedFiles = async (req, res) => {
+  let client;
   try {
     const sourceCadFileIds = normalizeCadFileIds(req.body?.sourceCadFileIds);
     const targetCadFileIds = normalizeCadFileIds(req.body?.targetCadFileIds);
@@ -714,8 +715,11 @@ export const linkFootprintRelatedFiles = async (req, res) => {
       return res.status(400).json({ error: 'Linking requires pad files only or 3D model files only per request' });
     }
 
-    const createdLinks = await cadFileService.linkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds });
-    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const createdLinks = await cadFileService.linkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds }, client);
+    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds, client);
+    await client.query('COMMIT');
 
     res.json({
       success: true,
@@ -724,13 +728,19 @@ export const linkFootprintRelatedFiles = async (req, res) => {
       relatedFileGroups: buildRelatedFileGroups(relatedFiles),
     });
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    }
     logError('FileLibrary', 'Error linking footprint-related files:', error.message);
     const status = /require footprint CAD file ids|require pad or model CAD file ids|require matching related CAD file types/.test(error.message || '') ? 400 : 500;
     res.status(status).json({ error: status === 500 ? 'Failed to link footprint related files' : error.message });
+  } finally {
+    client?.release();
   }
 };
 
 export const unlinkFootprintRelatedFiles = async (req, res) => {
+  let client;
   try {
     const sourceCadFileIds = normalizeCadFileIds(req.body?.sourceCadFileIds);
     const targetCadFileIds = normalizeCadFileIds(req.body?.targetCadFileIds);
@@ -755,8 +765,11 @@ export const unlinkFootprintRelatedFiles = async (req, res) => {
       return res.status(400).json({ error: 'Unlinking requires pad files only or 3D model files only per request' });
     }
 
-    const removedCount = await cadFileService.unlinkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds });
-    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const removedCount = await cadFileService.unlinkFootprintRelatedCadFiles({ footprintCadFileIds, relatedCadFileIds }, client);
+    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceCadFileIds, client);
+    await client.query('COMMIT');
 
     res.json({
       success: true,
@@ -765,8 +778,13 @@ export const unlinkFootprintRelatedFiles = async (req, res) => {
       relatedFileGroups: buildRelatedFileGroups(relatedFiles),
     });
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    }
     logError('FileLibrary', 'Error unlinking footprint-related files:', error.message);
     res.status(500).json({ error: 'Failed to unlink footprint related files' });
+  } finally {
+    client?.release();
   }
 };
 

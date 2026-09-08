@@ -96,7 +96,7 @@ const AuditFilters = ({
 
       {/* Export to CSV */}
       {actions && (
-        <div class="flex items-end justify-end">
+        <div className="flex items-end justify-end">
           {actions}
         </div>
       )}

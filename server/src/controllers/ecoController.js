@@ -355,9 +355,16 @@ const notifyRejectedECO = async (ecoId, actorId) => {
   await sendECONotification(ecoForEmail, 'eco_rejected', { rejected_by_name: rejecterName });
 };
 
-const resolveCadFileId = async (client, cadFile) => {
+const resolveCadFileId = async (client, cadFile, status = 400) => {
   if (cadFile?.cad_file_id) {
-    return cadFile.cad_file_id;
+    const result = await client.query(
+      'SELECT id FROM cad_files WHERE id = $1 AND file_type = $2 FOR SHARE',
+      [cadFile.cad_file_id, cadFile.file_type],
+    );
+    if (!result.rows[0]) {
+      throw Object.assign(new Error('The staged CAD file no longer matches its file type; refresh and retry'), { status });
+    }
+    return result.rows[0].id;
   }
 
   if (!cadFile?.file_name || !cadFile?.file_type) {
@@ -365,7 +372,7 @@ const resolveCadFileId = async (client, cadFile) => {
   }
 
   const result = await client.query(
-    'SELECT id FROM cad_files WHERE file_name = $1 AND file_type = $2 LIMIT 1',
+    'SELECT id FROM cad_files WHERE file_name = $1 AND file_type = $2 LIMIT 1 FOR SHARE',
     [cadFile.file_name, cadFile.file_type],
   );
 
@@ -1330,7 +1337,10 @@ export const createECO = async (req, res) => {
       for (const spec of specifications) {
         const categorySpec = await syncCategorySpecification(client, specificationCategoryId, spec);
         if (!categorySpec?.id) {
-          throw new Error(`Failed to resolve specification definition for "${spec.spec_name || 'Unnamed specification'}"`);
+          throw Object.assign(new Error(`Failed to resolve specification definition for "${spec.spec_name || 'Unnamed specification'}"`), { status: 400 });
+        }
+        if (categorySpec.category_id !== specificationCategoryId) {
+          throw Object.assign(new Error('The ECO specification does not belong to the target category'), { status: 400 });
         }
 
         resolvedSpecifications.push({
@@ -1503,7 +1513,7 @@ export const createECO = async (req, res) => {
 // Helper: Apply all ECO changes to the component (called when final stage is complete)
 const applyECOChanges = async (client, eco, id) => {
   const componentResult = await client.query(
-    'SELECT id, approval_status FROM components WHERE id = $1 FOR UPDATE',
+    'SELECT id, category_id, approval_status FROM components WHERE id = $1 FOR UPDATE',
     [eco.component_id],
   );
 
@@ -1533,6 +1543,17 @@ const applyECOChanges = async (client, eco, id) => {
     throw Object.assign(new Error('The status proposal is no longer allowed from the current component status; refresh and retry'), { status: 409 });
   }
   const categoryChange = changesResult.rows.find(c => c.field_name === 'category_id');
+  const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
+  const targetCategoryId = categoryChange?.new_value || componentResult.rows[0].category_id;
+  for (const spec of specificationsResult.rows) {
+    const definition = await client.query(
+      'SELECT id FROM category_specifications WHERE id = $1 AND category_id = $2 FOR SHARE',
+      [spec.category_spec_id, targetCategoryId],
+    );
+    if (!definition.rows[0]) {
+      throw Object.assign(new Error('The ECO specification no longer belongs to the target category; refresh and retry'), { status: 409 });
+    }
+  }
   const regularChanges = changesResult.rows.filter(c =>
     c.field_name !== '_status_proposal' &&
     c.field_name !== 'category_id' &&
@@ -1720,11 +1741,8 @@ const applyECOChanges = async (client, eco, id) => {
         [newComponentId, id],
       );
 
-      // Delete old spec values (new category has different specs)
-      await client.query(
-        'DELETE FROM component_specification_values WHERE component_id = $1',
-        [eco.component_id],
-      );
+      // The archived source retains its category and specification history.
+      // New-category values are applied only to the replacement part below.
     }
   } else if (regularChanges.length > 0) {
     // --- 3. Regular field changes (no category change) ---
@@ -1912,7 +1930,6 @@ const applyECOChanges = async (client, eco, id) => {
   }
 
   // --- 6. Apply specification changes ---
-  const specificationsResult = await client.query('SELECT * FROM eco_specifications WHERE eco_id = $1', [id]);
   for (const spec of specificationsResult.rows) {
     if (!spec.category_spec_id) continue;
 
@@ -1939,10 +1956,9 @@ const applyECOChanges = async (client, eco, id) => {
   // --- 7. Apply CAD file changes ---
   const cadFilesResult = await client.query('SELECT * FROM eco_cad_files WHERE eco_id = $1', [id]);
   for (const cf of cadFilesResult.rows) {
-    const cadFileId = cf.cad_file_id || await resolveCadFileId(client, cf);
+    const cadFileId = await resolveCadFileId(client, cf, 409);
     if (!cadFileId) {
-      logError('ECO', `Skipping unresolved CAD file action for ${cf.file_name || 'unknown file'} (${cf.file_type || 'unknown type'})`);
-      continue;
+      throw Object.assign(new Error('The staged CAD file no longer exists; refresh and retry'), { status: 409 });
     }
 
     if (cf.action === 'link') {
@@ -2685,6 +2701,10 @@ export const deleteApprovalStage = async (req, res) => {
 
     const { id } = req.params;
 
+    // Serialize sibling deletion/configuration changes before deciding whether
+    // the remaining stages can still handle each active ECO at this order.
+    await client.query('SELECT id FROM eco_approval_stages ORDER BY id FOR UPDATE');
+
     // Get the stage we're about to delete
     const stageResult = await client.query(
       'SELECT * FROM eco_approval_stages WHERE id = $1',
@@ -2696,26 +2716,23 @@ export const deleteApprovalStage = async (req, res) => {
     }
     const stage = stageResult.rows[0];
 
-    // Check if this is the only stage at its stage_order
-    const siblingCount = await client.query(
-      'SELECT COUNT(*) as count FROM eco_approval_stages WHERE stage_order = $1 AND id != $2',
+    const siblings = await client.query(
+      'SELECT * FROM eco_approval_stages WHERE stage_order = $1 AND id != $2 AND is_active = true',
       [stage.stage_order, id],
     );
-    const isOnlyStageAtOrder = parseInt(siblingCount.rows[0].count) === 0;
-
-    // Check if any pending/in_review ECOs are at this stage_order and this is the only stage
-    if (isOnlyStageAtOrder) {
-      const inUse = await client.query(
-        "SELECT COUNT(*) as count FROM eco_orders WHERE current_stage_order = $1 AND status IN ('pending', 'in_review')",
-        [stage.stage_order],
-      );
-
-      if (parseInt(inUse.rows[0].count) > 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          error: 'Cannot delete this stage — it is the only stage at its order level and is currently in use by active ECO orders.',
-        });
-      }
+    const inUse = await client.query(
+      "SELECT * FROM eco_orders WHERE current_stage_order = $1 AND status IN ('pending', 'in_review')",
+      [stage.stage_order],
+    );
+    const removesLastApplicableStage = inUse.rows.some(eco => (
+      stage.is_active && doesStageMatchEcoPipelineTypes(stage.pipeline_types, getEcoPipelineTypes(eco))
+      && !siblings.rows.some(sibling => doesStageMatchEcoPipelineTypes(sibling.pipeline_types, getEcoPipelineTypes(eco)))
+    ));
+    if (removesLastApplicableStage) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: 'Cannot delete this stage — it is the only applicable stage at its order level for an active ECO order.',
+      });
     }
 
     const result = await client.query(

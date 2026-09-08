@@ -64,7 +64,7 @@ export const login = async (req, res) => {
       });
     }
 
-    const user = result.rows[0];
+    let user = result.rows[0];
 
     // Check if user is active
     if (!user.is_active) {
@@ -96,10 +96,16 @@ export const login = async (req, res) => {
     }
 
     // Update last login timestamp
-    await pool.query(
-      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-      [user.id],
+    const loginResult = await pool.query(
+      `UPDATE users SET last_login = CURRENT_TIMESTAMP
+       WHERE id = $1 AND auth_provider = 'local' AND password_hash = $2 AND is_active = true
+       RETURNING id, username, role, display_name`,
+      [user.id, user.password_hash],
     );
+    if (loginResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+    user = loginResult.rows[0];
 
     // Log activity
     try {
@@ -573,10 +579,15 @@ export const changePassword = async (req, res) => {
     const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
     // Update password
-    await pool.query(
-      'UPDATE users SET password_hash = $1 WHERE id = $2',
-      [newPasswordHash, req.user.userId],
+    const changed = await pool.query(
+      `UPDATE users SET password_hash = $1
+       WHERE id = $2 AND auth_provider = 'local' AND password_hash = $3 AND is_active = true
+       RETURNING id`,
+      [newPasswordHash, req.user.userId, result.rows[0].password_hash],
     );
+    if (changed.rows.length === 0) {
+      return res.status(409).json({ error: 'Credentials changed during this request. Sign in again and retry.' });
+    }
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {

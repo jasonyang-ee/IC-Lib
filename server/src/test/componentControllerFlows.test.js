@@ -146,6 +146,7 @@ describe('componentController create/update flows (T4, V7)', () => {
     const updatedRow = { ...createdRow(), description: '10k 1% resistor' };
     queryMock.mockImplementation(sqlDispatch([
       ['SELECT id FROM components WHERE id = $1', { rows: [{ id: 'comp-1' }] }],
+      ['SELECT * FROM components WHERE id = $1 FOR UPDATE', { rows: [createdRow()] }],
       ['UPDATE components SET', { rows: [updatedRow] }],
       ['SELECT name FROM component_categories', { rows: [{ name: 'Resistors' }] }],
       ['INSERT INTO activity_log', { rows: [] }],

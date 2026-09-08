@@ -10,7 +10,7 @@ const { poolProxy } = vi.hoisted(() => ({ poolProxy: { connect: vi.fn(), query: 
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
 vi.mock('../utils/logger.js', () => ({ logError: vi.fn() }));
 import { consumeProjectComponents } from '../controllers/projectController.js';
-import { updateAlternativeInventory } from '../controllers/inventoryController.js';
+import { updateAlternativeInventory, updateInventory, createInventory } from '../controllers/inventoryController.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
   env: { ...process.env, PG_RESTRICT_EXEC: '1' }, stdio: 'ignore', windowsHide: true,
@@ -55,14 +55,17 @@ describe('stock writes on scratch PostgreSQL', () => {
     poolProxy.connect.mockImplementation(() => database.connect());
     await database.query(`
       CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT);
-      CREATE TABLE components (id INTEGER PRIMARY KEY, part_number TEXT, description TEXT);
+      CREATE TABLE component_categories (id INTEGER PRIMARY KEY, name TEXT);
+      CREATE TABLE components (id INTEGER PRIMARY KEY, part_number TEXT, description TEXT, category_id INTEGER);
       CREATE TABLE components_alternative (id INTEGER PRIMARY KEY, component_id INTEGER REFERENCES components(id));
       CREATE TABLE project_components (
         id INTEGER PRIMARY KEY, project_id INTEGER REFERENCES projects(id),
         component_id INTEGER REFERENCES components(id), alternative_id INTEGER REFERENCES components_alternative(id),
         quantity INTEGER NOT NULL
       );
-      CREATE TABLE inventory (component_id INTEGER UNIQUE REFERENCES components(id), quantity INTEGER);
+      CREATE TABLE inventory (component_id INTEGER UNIQUE REFERENCES components(id), quantity INTEGER,
+        id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, location TEXT, minimum_quantity INTEGER,
+        last_counted TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
       CREATE TABLE inventory_alternative (
         id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         alternative_id INTEGER UNIQUE REFERENCES components_alternative(id),
@@ -94,10 +97,10 @@ describe('stock writes on scratch PostgreSQL', () => {
     await database.query(`
       TRUNCATE projects, components, components_alternative, project_components, inventory, inventory_alternative, activity_log;
       INSERT INTO projects VALUES (1, 'Build');
-      INSERT INTO components VALUES (1, 'PN-1', 'Primary'), (2, 'PN-2', 'Other');
+      INSERT INTO components (id,part_number,description) VALUES (1, 'PN-1', 'Primary'), (2, 'PN-2', 'Other');
       INSERT INTO components_alternative VALUES (1, 2);
       INSERT INTO project_components VALUES (1, 1, 1, NULL, 3), (2, 1, NULL, 1, 4);
-      INSERT INTO inventory VALUES (1, 10);
+      INSERT INTO inventory (component_id, quantity) VALUES (1, 10);
       INSERT INTO inventory_alternative (alternative_id, quantity) VALUES (1, 10);
     `);
   });
@@ -206,4 +209,61 @@ describe('stock writes on scratch PostgreSQL', () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0, location: '', min_quantity: 5 }));
   });
+  it.each([
+    ['create', { quantity: -1 }], ['update', { quantity: -1 }], ['alternative', { quantity: -1 }],
+    ['create', { minimum_quantity: -1 }], ['update', { minimum_quantity: 1.5 }],
+    ['alternative', { min_quantity: -1 }], ['alternative', { quantity: true }],
+    ['update', { quantity: '2oops' }], ['create', { quantity: 2147483648 }],
+  ])('rejects invalid %s stock values %j before writing', async (kind, body) => {
+    const inventoryId = (await database.query('SELECT id FROM inventory')).rows[0].id;
+    const handler = { create: createInventory, update: updateInventory, alternative: updateAlternativeInventory }[kind];
+    const res = response();
+    const next = vi.fn();
+    await handler({ params: { id: inventoryId, altId: 1 }, body: { component_id: 2, ...body } }, res, next);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(next).not.toHaveBeenCalled();
+    expect(await quantities()).toEqual([10, 10]);
+  });
+
+  it('rolls back inventory edits when the audit insert fails', async () => {
+    const inventoryId = (await database.query('SELECT id FROM inventory')).rows[0].id;
+    await database.query(`CREATE FUNCTION fail_stock_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'audit unavailable'; END $$;
+      CREATE TRIGGER fail_stock_audit BEFORE INSERT ON activity_log FOR EACH ROW EXECUTE FUNCTION fail_stock_audit();`);
+    try {
+      const res = response();
+      const next = vi.fn();
+      await updateInventory({ params: { id: inventoryId }, body: { quantity: 3, location: 'Changed' } }, res, next);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'audit unavailable' }));
+      expect(res.json).not.toHaveBeenCalled();
+      expect((await database.query('SELECT quantity,location FROM inventory')).rows).toEqual([{ quantity: 10, location: null }]);
+    } finally {
+      await database.query('DROP TRIGGER fail_stock_audit ON activity_log; DROP FUNCTION fail_stock_audit()');
+    }
+  });
+
+  it('commits an explicit zero stock edit and its accurate audit together', async () => {
+    const inventoryId = (await database.query('SELECT id FROM inventory')).rows[0].id;
+    const res = response();
+    const next = vi.fn();
+    await updateInventory({ params: { id: inventoryId }, body: { quantity: 0, minimum_quantity: 0 } }, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ quantity: 0, minimum_quantity: 0 }));
+    expect((await database.query('SELECT details FROM activity_log')).rows[0].details)
+      .toMatchObject({ old_quantity: 10, new_quantity: 0, change: -10 });
+  });
+
+  it('serializes competing absolute edits so audit values form the committed stock history', async () => {
+    const inventoryId = (await database.query('SELECT id FROM inventory')).rows[0].id;
+    const next = vi.fn();
+    await Promise.all([3, 7].map(quantity => updateInventory({ params: { id: inventoryId }, body: { quantity } }, response(), next)));
+    expect(next).not.toHaveBeenCalled();
+    const final = (await database.query('SELECT quantity FROM inventory')).rows[0].quantity;
+    const audit = (await database.query('SELECT details FROM activity_log')).rows.map(row => row.details);
+    const first = audit.find(entry => entry.old_quantity === 10);
+    const last = audit.find(entry => entry.old_quantity !== 10);
+    expect(first).toBeDefined();
+    expect(last).toMatchObject({ old_quantity: first.new_quantity, new_quantity: final });
+  });
+
 });

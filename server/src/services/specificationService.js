@@ -127,7 +127,12 @@ export const syncCategorySpecification = async (client, categoryId, specificatio
   const specName = normalizeTrimmedString(specification.spec_name);
   let existingSpec = await fetchCategorySpecificationById(client, specification.category_spec_id);
 
-  if (existingSpec && categoryId && existingSpec.category_id !== categoryId && specName) {
+  if (existingSpec && categoryId && existingSpec.category_id !== categoryId) {
+    if (!specName) {
+      const error = new Error('Specification does not belong to the component category');
+      error.status = 400;
+      throw error;
+    }
     existingSpec = null;
   }
 
@@ -146,8 +151,7 @@ export const syncCategorySpecification = async (client, categoryId, specificatio
   const displayOrder = normalizeDisplayOrder(specification.display_order)
     ?? await getNextDisplayOrder(client, categoryId);
 
-  try {
-    const result = await client.query(`
+  const result = await client.query(`
       INSERT INTO category_specifications (
         category_id,
         spec_name,
@@ -157,6 +161,7 @@ export const syncCategorySpecification = async (client, categoryId, specificatio
         is_required
       )
       VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (category_id, spec_name) DO NOTHING
       RETURNING *
     `, [
       categoryId,
@@ -167,17 +172,10 @@ export const syncCategorySpecification = async (client, categoryId, specificatio
       Boolean(specification.is_required),
     ]);
 
-    return result.rows[0] || null;
-  } catch (error) {
-    if (error.code !== '23505') {
-      throw error;
-    }
-
-    const conflictedSpec = await fetchCategorySpecificationByName(client, categoryId, specName);
-    if (!conflictedSpec) {
-      throw error;
-    }
-
-    return updateCategorySpecificationDefinition(client, conflictedSpec, specification);
-  }
+  if (result.rows[0]) return result.rows[0];
+  // A concurrent insert may win after the lookup. ON CONFLICT keeps the
+  // caller's transaction usable; the next statement sees the committed row.
+  const conflictedSpec = await fetchCategorySpecificationByName(client, categoryId, specName);
+  if (!conflictedSpec) throw new Error('Specification changed during creation; retry the save');
+  return updateCategorySpecificationDefinition(client, conflictedSpec, specification);
 };

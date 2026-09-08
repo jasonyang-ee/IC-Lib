@@ -131,6 +131,7 @@ describe('component alternative class writes (F7.T5, V59, V15)', () => {
   describe('updateComponent', () => {
     const updateRoutes = () => sqlDispatch([
       ['SELECT id FROM components WHERE id', { rows: [{ id: ID_A }] }],
+      ['SELECT * FROM components WHERE id = $1 FOR UPDATE', { rows: [componentRow()] }],
       ['UPDATE components SET', { rows: [componentRow()] }],
       ['SELECT name FROM component_categories', { rows: [{ name: 'Resistors' }] }],
       ['INSERT INTO activity_log', { rows: [] }],

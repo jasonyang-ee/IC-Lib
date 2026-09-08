@@ -18,8 +18,9 @@ import { X, Flashlight, FlashlightOff } from 'lucide-react';
 // WASM detector; ~8 fps on a downscaled frame is both faster and more accurate.
 const DETECT_INTERVAL_MS = 125;
 const DETECT_MAX_WIDTH = 640;
+const DEFAULT_FORMATS = ['data_matrix', 'code_128'];
 
-const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128'] }) => {
+const BarcodeScanner = ({ onScan, onClose, formats = DEFAULT_FORMATS }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
@@ -109,6 +110,7 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
 
         video.srcObject = stream;
         await video.play();
+        if (cancelled) return;
 
         // Continuous autofocus + torch capability (sharper frames beat more frames)
         const [track] = stream.getVideoTracks();
@@ -120,6 +122,7 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
             // Focus mode is best-effort
           }
         }
+        if (cancelled) return;
         setTorchSupported(Boolean(capabilities.torch));
         setTorchOn(false);
 
@@ -150,7 +153,7 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                 const barcodes = await detectorRef.current.detect(canvas);
-                if (barcodes.length > 0 && scanningRef.current) {
+                if (barcodes.length > 0 && scanningRef.current && !cancelled) {
                   scanningRef.current = false;
                   cleanup();
                   onScan(barcodes[0].rawValue);
@@ -162,12 +165,13 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
             }
           }
 
-          rafRef.current = requestAnimationFrame(scan);
+          if (!cancelled && scanningRef.current) rafRef.current = requestAnimationFrame(scan);
         };
 
         rafRef.current = requestAnimationFrame(scan);
       } catch (err) {
         if (!cancelled) {
+          cleanup();
           console.error('Camera start error:', err);
           setError('Failed to start camera scanner.');
         }
@@ -222,6 +226,7 @@ const BarcodeScanner = ({ onScan, onClose, formats = ['data_matrix', 'code_128']
           </h3>
           <button
             onClick={handleClose}
+            aria-label="Close camera scanner"
             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <X className="w-6 h-6" />

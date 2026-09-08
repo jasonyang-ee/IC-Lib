@@ -167,6 +167,7 @@ describe('createComponent atomicity (V7)', () => {
 describe('updateComponent atomicity (V8)', () => {
   const updateRoutes = (overrides = {}) => [
     ['SELECT id FROM components WHERE id = $1', { rows: [{ id: 'comp-1' }] }],
+    ['SELECT * FROM components WHERE id = $1 FOR UPDATE', { rows: [createdRow()] }],
     ['UPDATE components SET', { rows: [createdRow()] }],
     ['SELECT name FROM component_categories', { rows: [{ name: 'Resistors' }] }],
     ['INSERT INTO activity_log', overrides.activity ?? { rows: [] }],

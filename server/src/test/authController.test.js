@@ -73,7 +73,7 @@ describe('authController cookie auth', () => {
           auth_provider: 'local',
         }],
       })
-      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'user-1', username: 'tester', role: 'admin', display_name: 'Tester' }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
@@ -124,7 +124,7 @@ describe('authController cookie auth', () => {
           auth_provider: 'local',
         }],
       })
-      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'user-1', username: 'tester', role: 'admin', display_name: 'Tester' }] })
       .mockRejectedValue(new Error('activity_log rejected'));
 
     const res = mockRes();
@@ -252,7 +252,7 @@ describe('authController cookie auth', () => {
   it('changes a local user password after verifying the current password', async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [{ password_hash: 'current-password-hash', auth_provider: 'local' }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ id: 'user-1' }] });
     compareMock.mockResolvedValue(true);
     hashMock.mockResolvedValue('new-password-hash');
     const res = mockRes();
@@ -262,8 +262,8 @@ describe('authController cookie auth', () => {
     expect(compareMock).toHaveBeenCalledWith('current-password', 'current-password-hash');
     expect(hashMock).toHaveBeenCalledWith('new-password', 10);
     expect(queryMock.mock.calls[1]).toEqual([
-      'UPDATE users SET password_hash = $1 WHERE id = $2',
-      ['new-password-hash', 'user-1'],
+      expect.stringContaining("AND auth_provider = 'local' AND password_hash = $3 AND is_active = true"),
+      ['new-password-hash', 'user-1', 'current-password-hash'],
     ]);
     expect(res.json).toHaveBeenCalledWith({ message: 'Password changed successfully' });
   });

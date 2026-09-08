@@ -17,21 +17,16 @@ export const getOrCreateManufacturer = async (db, name) => {
     return existing.rows[0].id;
   }
 
-  try {
-    const created = await db.query(
-      'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
-      [trimmed],
-    );
-    return created.rows[0].id;
-  } catch (error) {
-    // Concurrent create of the same name: fall back to the winner's row.
-    if (error.code !== '23505') {
-      throw error;
-    }
-    const duplicate = await db.query(
-      'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
-      [trimmed],
-    );
-    return duplicate.rows[0]?.id || null;
-  }
+  const created = await db.query(
+    'INSERT INTO manufacturers (name) VALUES ($1) ON CONFLICT DO NOTHING RETURNING id',
+    [trimmed],
+  );
+  if (created.rows[0]) return created.rows[0].id;
+  // Do not abort an enclosing catalog transaction when another insert wins.
+  const duplicate = await db.query(
+    'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)',
+    [trimmed],
+  );
+  if (!duplicate.rows[0]) throw new Error('Manufacturer changed during creation; retry the save');
+  return duplicate.rows[0].id;
 };

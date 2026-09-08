@@ -19,6 +19,14 @@ const INVENTORY_VIEW_PREFS_VALIDATORS = {
   sortOrder: oneOf(['asc', 'desc']),
 };
 
+const getInventoryEdit = item => ({
+  location: item.location || '',
+  quantity: item.quantity || 0,
+  minimum_quantity: item.minimum_quantity || 0,
+  consumeQty: 0,
+  receiveQty: 0,
+});
+
 const Inventory = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -34,6 +42,8 @@ const Inventory = () => {
   const [pendingScanLookup, setPendingScanLookup] = useState(null);
   const [barcodeLibraryHit, setBarcodeLibraryHit] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveInProgress = useRef(false);
   const [editedItems, setEditedItems] = useState({});
   const [copiedLabel, setCopiedLabel] = useState('');
   const [qrCodeModal, setQrCodeModal] = useState(null);
@@ -343,13 +353,7 @@ const Inventory = () => {
       // Entering edit mode - initialize with current values
       const initialEdits = {};
       filteredInventory?.forEach(item => {
-        initialEdits[item.id] = {
-          location: item.location || '',
-          quantity: item.quantity,
-          minimum_quantity: item.minimum_quantity || 0,
-          consumeQty: 0,
-          receiveQty: 0
-        };
+        initialEdits[item.id] = getInventoryEdit(item);
       });
       setEditedItems(initialEdits);
       
@@ -359,13 +363,7 @@ const Inventory = () => {
         const alternatives = alternativesData[item.component_id] || [];
         if (alternatives.length > 0) {
           alternatives.forEach(alt => {
-            initialAltEdits[alt.id] = {
-              location: alt.location || '',
-              quantity: alt.quantity || 0,
-              minimum_quantity: alt.minimum_quantity || 0,
-              consumeQty: 0,
-              receiveQty: 0
-            };
+            initialAltEdits[alt.id] = getInventoryEdit(alt);
           });
         }
       });
@@ -379,21 +377,23 @@ const Inventory = () => {
   };
 
   const handleEditChange = (id, field, value) => {
+    const item = inventory.find(entry => entry.id === id);
+    if (!item) return;
     setEditedItems(prev => ({
       ...prev,
       [id]: {
-        ...prev[id],
+        ...(prev[id] || getInventoryEdit(item)),
         [field]: value
       }
     }));
   };
 
-  const handleSaveAll = async () => {
+  const saveAll = async () => {
     const updates = [];
     
     // Save main inventory items
     for (const [id, changes] of Object.entries(editedItems)) {
-      const originalItem = filteredInventory.find(item => item.id === id);
+      const originalItem = inventory.find(item => item.id === id);
       if (!originalItem) continue;
 
       const updateData = {};
@@ -432,7 +432,7 @@ const Inventory = () => {
       for (const [altId, changes] of Object.entries(editingAlternative)) {
         // Find the original alternative from alternativesData
         let originalAlt = null;
-        for (const item of filteredInventory) {
+        for (const item of inventory) {
           const alternatives = alternativesData[item.component_id] || [];
           originalAlt = alternatives.find(a => a.id === altId);
           if (originalAlt) break;
@@ -474,7 +474,12 @@ const Inventory = () => {
 
     if (updates.length > 0) {
       try {
-        await Promise.all(updates);
+        const outcomes = await Promise.allSettled(updates);
+        const failed = outcomes.filter(outcome => outcome.status === 'rejected');
+        if (failed.length > 0) {
+          showError(`${updates.length - failed.length} change(s) saved; ${failed.length} failed. Your edits are retained for retry: ${failed[0].reason?.response?.data?.error || failed[0].reason?.message || 'Unknown error'}`);
+          return;
+        }
         
         // Refresh main inventory data
         queryClient.invalidateQueries(['inventory']);
@@ -482,7 +487,7 @@ const Inventory = () => {
         
         // Refresh alternatives data for all affected components
         const affectedComponentIds = new Set();
-        for (const item of filteredInventory) {
+        for (const item of inventory) {
           const alternatives = alternativesData[item.component_id] || [];
           if (alternatives.some(alt => editingAlternative?.[alt.id])) {
             affectedComponentIds.add(item.component_id);
@@ -512,6 +517,18 @@ const Inventory = () => {
       setEditMode(false);
       setEditedItems({});
       setEditingAlternative({});
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (saveInProgress.current) return;
+    saveInProgress.current = true;
+    setIsSaving(true);
+    try {
+      await saveAll();
+    } finally {
+      saveInProgress.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -900,10 +917,12 @@ const Inventory = () => {
   });
 
   const handleAlternativeEdit = (altId, field, value) => {
+    const alternative = Object.values(alternativesData).flat().find(alt => alt.id === altId);
+    if (!alternative) return;
     setEditingAlternative(prev => ({
       ...prev,
       [altId]: {
-        ...(prev?.[altId] || {}),
+        ...(prev?.[altId] || getInventoryEdit(alternative)),
         [field]: value
       }
     }));
@@ -1062,6 +1081,7 @@ const Inventory = () => {
       <InventoryTable
         sortedInventory={sortedInventory}
         editMode={editMode}
+        isSaving={isSaving}
         editedItems={editedItems}
         expandedRows={expandedRows}
         alternativesData={alternativesData}

@@ -49,6 +49,9 @@ const setCachedResult = (partNumber, data) => {
         searchCache.delete(k);
       }
     }
+    while (searchCache.size > 100) {
+      searchCache.delete(searchCache.keys().next().value);
+    }
   }
 };
 

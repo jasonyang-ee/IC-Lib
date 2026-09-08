@@ -54,6 +54,23 @@ describe('gracefulShutdown (§V31)', () => {
     }
   });
 
+  it('keeps the deadline while pool shutdown hangs and exits only once', async () => {
+    vi.useFakeTimers();
+    try {
+      let closePool;
+      const pool = { end: vi.fn(() => new Promise(resolve => { closePool = resolve; })) };
+      const exit = vi.fn();
+      gracefulShutdown({ pool, signal: 'SIGTERM', timeoutMs: 5000, exit });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(exit).toHaveBeenCalledWith(1);
+      closePool();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('closes the pool and exits even with no server handle (fault before listen)', async () => {
     const pool = { end: vi.fn(async () => {}) };
     const exit = vi.fn();

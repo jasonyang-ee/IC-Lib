@@ -343,10 +343,12 @@ describe('SCIM discovery and lookup (§V60)', () => {
       });
       queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
 
+      queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [linkedRow()] });
       const first = await send('POST', '/Users', post(OBJECT_ID.toUpperCase()));
       const firstBody = await first.json();
       queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
 
+      queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [linkedRow()] });
       const replay = await send('POST', '/Users', post(OBJECT_ID));
       const replayBody = await replay.json();
 
@@ -356,7 +358,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(replayBody.externalId).toBe(OBJECT_ID);
       expect(firstBody.meta.location).toBe(replayBody.meta.location);
       expect(queryMock.mock.calls[0][1]).toEqual([OBJECT_ID, TENANT]);
-      expect(queryMock.mock.calls[1][1]).toEqual([OBJECT_ID, TENANT]);
+      expect(queryMock.mock.calls[3][1]).toEqual([OBJECT_ID, TENANT]);
     });
 
     it('returns a linked but deactivated user with active false', async () => {
@@ -460,8 +462,8 @@ describe('SCIM discovery and lookup (§V60)', () => {
       expect(body.id).toBe(LOCAL_ID);
       expect(body.displayName).toBe('J Smith');
       expect(res.headers.get('location')).toBe(body.meta.location);
-      expect(updateCall()[0]).toContain('display_name = $1');
-      expect(updateCall()[1]).toEqual(['J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(updateCall()[0]).toContain('display_name = $3');
+      expect(updateCall()[1]).toEqual(['jsmith@contoso.com', true, 'J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
 
       queryMock.mockResolvedValueOnce({ rows: [linkedRow({ display_name: 'J Smith' })] });
       const followed = await fetch(`${origin}${body.meta.location}`, {
@@ -472,7 +474,9 @@ describe('SCIM discovery and lookup (§V60)', () => {
     });
 
     it('is idempotent: a replay of the stored state writes nothing', async () => {
-      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [linkedRow()] });
 
       const res = await send('POST', '/Users', postBody({
         displayName: 'J Smith',
@@ -482,18 +486,19 @@ describe('SCIM discovery and lookup (§V60)', () => {
 
       expect(res.status).toBe(201);
       expect(res.headers.get('location')).toBe(body.meta.location);
-      expect(updateCall()).toBeUndefined();
+      expect(updateCall()[0]).toContain('IS DISTINCT FROM');
+      expect(queryMock.mock.calls[2][1]).toEqual([LOCAL_ID, OBJECT_ID, TENANT]);
     });
 
     it('does not report provisioning success when the linked identity changes after lookup', async () => {
       queryMock.mockResolvedValueOnce({ rows: [linkedRow({ display_name: 'Old Name' })] });
-      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
       const res = await send('POST', '/Users', postBody({ displayName: 'J Smith' }));
 
       expect(res.status).toBe(409);
       expect(res.headers.get('content-type')).toContain(SCIM_CONTENT_TYPE);
-      expect(queryMock.mock.calls[1][1]).toEqual(['J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(queryMock.mock.calls[1][1]).toEqual(['jsmith@contoso.com', true, 'J Smith', LOCAL_ID, TENANT, OBJECT_ID]);
       expect(logUserActivityMock).not.toHaveBeenCalled();
     });
 
@@ -514,7 +519,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
 
       expect(res.status).toBe(201);
       expect(queryMock.mock.calls[0][1]).toEqual([OBJECT_ID, TENANT]);
-      expect(updateCall()[1]).toEqual(['jsmith@contoso.com', 'J Smith', 'new@contoso.com', LOCAL_ID, TENANT, OBJECT_ID]);
+      expect(updateCall()[1]).toEqual(['jsmith@contoso.com', 'J Smith', 'new@contoso.com', true, LOCAL_ID, TENANT, OBJECT_ID]);
     });
 
     it('rejects duplicate case variants before looking up or writing a user', async () => {
@@ -544,14 +549,16 @@ describe('SCIM discovery and lookup (§V60)', () => {
     });
 
     it('ignores POST read-only fields and Entra empty roles, but refuses sensitive first segments', async () => {
-      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] });
+      queryMock.mockResolvedValueOnce({ rows: [linkedRow()] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [linkedRow()] });
       const tolerated = await send('POST', '/Users', postBody({
         id: 'ignored',
         meta: { created: 'ignored' },
         roles: [],
       }));
       expect(tolerated.status).toBe(201);
-      expect(queryMock).toHaveBeenCalledTimes(1);
+      expect(queryMock).toHaveBeenCalledTimes(3);
 
       queryMock.mockClear();
       const attempts = [
@@ -752,7 +759,7 @@ describe('SCIM discovery and lookup (§V60)', () => {
 
     it('does not report patch success when the linked identity changes after lookup', async () => {
       queryMock.mockResolvedValueOnce({ rows: [linkedRow({ is_active: true })] });
-      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
       const res = await patch([{ op: 'replace', path: 'active', value: false }]);
 

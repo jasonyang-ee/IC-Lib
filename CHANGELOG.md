@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Catalog field, specification, distributor, alternative and category writes recheck current ECO edit policy under row locks; distributor/alternative saves roll back partial failures and preserve authoritative zero vendor stock. Concurrent manufacturer/specification creation no longer aborts enclosing saves.
+- ECO CAD actions validate persisted file types and reject missing historical actions; specification changes remain scoped to the target category, and category-copy approval retains archived source specifications. Stage deletion checks applicable active siblings, and related CAD binding batches roll back together.
+- Local login, password changes, verified-email SSO linking and SCIM updates recheck current credentials or identity values when concurrent changes occur.
+- Admin initialization/reset executes complete SQL files and migrations; failed rebuilds and data clears roll back instead of leaving partially destroyed data.
+- Email log failures preserve actual delivery outcomes, ECO delivery logs receive the exact ECO reference, DigiKey search caching enforces its 100-entry limit, and graceful shutdown retains its timeout while closing the database pool.
+- Library saves prevent duplicate submissions and reuse created component/alternative IDs when enrichment is retried. Inventory edits survive filtering and late alternative loading, and pending saves disable repeated submission while partial failures retain edits.
+- Camera scanning keeps its selected stream across torch changes and stops cancelled async work; audit CSV exports escape every field and release download URLs. Camera close and filter controls expose accessible names.
+- Direct inventory writes reject negative, fractional and out-of-range stock/minimum values; primary stock edits and their audit history commit together under a row lock, so an audit failure leaves the stock unchanged.
 - CAD deletion retains filename locks through disk cleanup, preventing concurrent uploads or scans from publishing records or bytes that deletion then removes. Failed disk cleanup remains scan-recoverable, and untracked deletes require a scan and refresh.
 - CAD single/group/shared-ECO renames coordinate source and destination names with uploads and scans, preventing a publication between collision checks and physical moves. Legacy untracked renames recheck registration and restore their original path on transaction failure.
 - Missing-file detection rechecks suspected changes under filename and row locks, so a stale scan cannot mark a successfully renamed or concurrently uploaded file as missing.

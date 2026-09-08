@@ -123,6 +123,19 @@ const Library = () => {
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveInProgress = useRef(false);
+  const runSave = async (save) => {
+    if (saveInProgress.current) return;
+    saveInProgress.current = true;
+    setIsSaving(true);
+    try {
+      await save();
+    } finally {
+      saveInProgress.current = false;
+      setIsSaving(false);
+    }
+  };
   const [isECOMode, setIsECOMode] = useState(false); // New state for ECO edit mode
   const [editData, setEditData] = useState({});
   // List checkboxes are used only for bulk delete; null means ordinary browse mode.
@@ -154,6 +167,7 @@ const Library = () => {
   // File conflict modal state (save-time collision resolution)
   const [fileConflictModal, setFileConflictModal] = useState({ show: false, conflicts: [] });
   const pendingSaveCallback = useRef(null);
+  const createdDraftRef = useRef(null);
   const resolvedConflicts = useRef(null); // Pre-resolved conflict resolutions from modal
 
   // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
@@ -1100,7 +1114,9 @@ const Library = () => {
         })),
         // New parts have no live identity yet. Existing edits use the stable ID,
         // even when the manufacturer part number is being changed.
-        ...(isAddMode ? {} : { componentId: selectedComponent.id }),
+        ...(isAddMode
+          ? (createdDraftRef.current ? { componentId: createdDraftRef.current.id } : {})
+          : { componentId: selectedComponent.id }),
       });
       acceptFinalizedUploads(response);
     }
@@ -1968,6 +1984,7 @@ const Library = () => {
   };
 
   const handleAddNew = () => {
+    createdDraftRef.current = null;
     setIsAddMode(true);
     setIsEditMode(false);
     setSelectedComponent(null);
@@ -2414,9 +2431,15 @@ const Library = () => {
           componentData.selected_cad_file_ids = selectedCadFilesForCreate.map((file) => file.id);
         }
         
-        // Create component
-        const response = await addMutation.mutateAsync(componentData);
-        const newComponentId = response.data?.id;
+        // A later enrichment request can fail after creation has committed.
+        // Retain that identity so retry continues the same part.
+        const response = createdDraftRef.current
+          ? await updateMutation.mutateAsync({ id: createdDraftRef.current.id, data: componentData })
+          : await addMutation.mutateAsync(componentData);
+        const newComponentId = createdDraftRef.current?.id || response.data?.id;
+        if (newComponentId && !createdDraftRef.current) {
+          createdDraftRef.current = { id: newComponentId, alternativeIds: new Set() };
+        }
         
         // Handle specifications
         if (newComponentId) {
@@ -2433,9 +2456,7 @@ const Library = () => {
               is_custom: Boolean(spec.is_custom),
             }));
           
-          if (allSpecs.length > 0) {
-            await api.updateComponentSpecifications(newComponentId, { specifications: allSpecs });
-          }
+          await api.updateComponentSpecifications(newComponentId, { specifications: allSpecs });
         }
         
         // Filter and add distributors (only with valid distributor_id and sku)
@@ -2451,13 +2472,21 @@ const Library = () => {
           price_breaks: dist.price_breaks || []
         })) || [];
         
-        if (newComponentId && validDistributors.length > 0) {
+        if (newComponentId) {
           await api.updateComponentDistributors(newComponentId, { distributors: validDistributors });
+        }
+
+        const currentAlternativeIds = new Set((editData.alternatives || []).map(alt => alt.id).filter(Boolean));
+        for (const altId of createdDraftRef.current?.alternativeIds || []) {
+          if (!currentAlternativeIds.has(altId)) {
+            await api.deleteComponentAlternative(newComponentId, altId);
+            createdDraftRef.current.alternativeIds.delete(altId);
+          }
         }
         
         // Create alternatives if any
         if (newComponentId && editData.alternatives && editData.alternatives.length > 0) {
-          for (const alt of editData.alternatives) {
+          for (const [altIndex, alt] of editData.alternatives.entries()) {
             // Validate required fields
             if (!alt.manufacturer_id || !alt.manufacturer_pn?.trim()) {
               continue; // Skip invalid alternatives
@@ -2479,7 +2508,7 @@ const Library = () => {
               }
             }
             
-            await api.createComponentAlternative(newComponentId, {
+            const alternativePayload = {
               manufacturer_id: altManufacturerId,
               manufacturer_pn: alt.manufacturer_pn,
               distributors: alt.distributors?.filter(d => d.distributor_id && (d.sku?.trim() || d.url?.trim())).map(d => ({
@@ -2487,7 +2516,18 @@ const Library = () => {
                 sku: d.sku || '',
                 url: d.url || ''
               })) || []
-            });
+            };
+            if (alt.id) {
+              await api.updateComponentAlternative(newComponentId, alt.id, alternativePayload);
+            } else {
+              const addedAlternative = await api.createComponentAlternative(newComponentId, alternativePayload);
+              const altId = addedAlternative.data.id;
+              createdDraftRef.current.alternativeIds.add(altId);
+              setEditData(current => ({
+                ...current,
+                alternatives: current.alternatives.map((item, index) => index === altIndex ? { ...item, id: altId, manufacturer_id: altManufacturerId } : item),
+              }));
+            }
           }
         }
         
@@ -2502,14 +2542,21 @@ const Library = () => {
         setSelectedCadFilesForCreate([]);
         setManufacturerInput('');
         setAltManufacturerInputs({});
+        createdDraftRef.current = null;
       }
     } catch (error) {
       console.error('Error adding component:', error);
-      showError(error.response?.data?.error || error.message || 'Failed to add component. Please try again.');
+      const message = error.response?.data?.error || error.message || 'Failed to add component. Please try again.';
+      showError(createdDraftRef.current ? `Component created; some details remain unsaved. Retry to finish this same component. ${message}` : message);
     }
   };
 
   const handleCancelAdd = async () => {
+    if (createdDraftRef.current) {
+      queryClient.invalidateQueries({ queryKey: ['components'] });
+      showInfo('The created component remains in the library. Unsaved details will be discarded.');
+      createdDraftRef.current = null;
+    }
     if (tempFiles.length > 0) {
       try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
       catch (e) { console.error('Cleanup failed:', e); }
@@ -2561,11 +2608,11 @@ const Library = () => {
 
     // Re-invoke the save function — it will see resolvedConflicts and skip collision check
     if (saveType === 'handleConfirmAdd') {
-      handleConfirmAdd();
+      runSave(handleConfirmAdd);
     } else if (saveType === 'handleSave') {
-      handleSave();
+      runSave(handleSave);
     } else if (saveType === 'handleSubmitECO') {
-      handleSubmitECO();
+      runSave(handleSubmitECO);
     }
   };
 
@@ -3092,7 +3139,7 @@ const Library = () => {
   const ecoStatusOptions = getEcoStatusProposalOptions(componentDetails?.approval_status);
 
   return (
-    <div className="h-full flex flex-col library-background" onClick={handlePageClick}>
+    <fieldset disabled={isSaving} className="min-w-0 h-full flex flex-col library-background" onClick={handlePageClick}>
       {/* 5-Column Layout: Left Sidebar | Center List (wider) | Components Details & Distributor Info & Specs | Alternative Parts (edit/add) | Vendor API Data & Specifications */}
       {/* Full screen width layout with wider component list */}
       <div 
@@ -3275,7 +3322,7 @@ const Library = () => {
               {isAddMode ? (
                 <>
                   <button 
-                    onClick={handleConfirmAdd}
+                    onClick={() => runSave(handleConfirmAdd)}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <Check className="w-4 h-4" />
@@ -3298,7 +3345,7 @@ const Library = () => {
                     </div>
                   )}
                   <button
-                    onClick={isECOMode ? handleSubmitECO : handleSave}
+                    onClick={() => runSave(isECOMode ? handleSubmitECO : handleSave)}
                     className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <Check className="w-4 h-4" />
@@ -3879,7 +3926,7 @@ const Library = () => {
         onCreateNewSpecification={handleCreateNewSpecification}
         onUpdateModal={(updates) => setMappingModal(prev => ({ ...prev, ...updates }))}
       />
-    </div>
+    </fieldset>
   );
 };
 

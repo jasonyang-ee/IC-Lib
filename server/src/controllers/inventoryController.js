@@ -1,6 +1,11 @@
 import pool from '../config/database.js';
 import { logActivity } from '../services/activityLogService.js';
 
+const validStockValues = (...values) => values.every(value => value == null
+  || ((typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))
+    && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 2147483647));
+const INVALID_STOCK_ERROR = 'Stock quantities must be whole numbers between 0 and 2147483647';
+
 export const getAllInventory = async (req, res, next) => {
   try {
     const result = await pool.query(`
@@ -81,6 +86,10 @@ export const createInventory = async (req, res, next) => {
       last_counted,
     } = req.body;
 
+    if (!validStockValues(quantity, minimum_quantity)) {
+      return res.status(400).json({ error: INVALID_STOCK_ERROR });
+    }
+
     const result = await pool.query(`
       INSERT INTO inventory (
         component_id, location, quantity, minimum_quantity,
@@ -96,6 +105,8 @@ export const createInventory = async (req, res, next) => {
 };
 
 export const updateInventory = async (req, res, next) => {
+  let client;
+  let releaseError;
   try {
     const { id } = req.params;
     const {
@@ -105,8 +116,14 @@ export const updateInventory = async (req, res, next) => {
       last_counted,
     } = req.body;
 
+    if (!validStockValues(quantity, minimum_quantity)) {
+      return res.status(400).json({ error: INVALID_STOCK_ERROR });
+    }
+    client = await pool.connect();
+    await client.query('BEGIN');
+
     // First, get the old values and component info for activity logging
-    const oldData = await pool.query(`
+    const oldData = await client.query(`
       SELECT 
         i.*,
         c.part_number,
@@ -116,16 +133,18 @@ export const updateInventory = async (req, res, next) => {
       JOIN components c ON i.component_id = c.id
       LEFT JOIN component_categories cat ON c.category_id = cat.id
       WHERE i.id = $1
+      FOR UPDATE OF i
     `, [id]);
 
     if (oldData.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Inventory item not found' });
     }
 
     const oldItem = oldData.rows[0];
 
     // Update the inventory
-    const result = await pool.query(`
+    const result = await client.query(`
       UPDATE inventory SET
         location = COALESCE($1, location),
         quantity = COALESCE($2, quantity),
@@ -139,8 +158,8 @@ export const updateInventory = async (req, res, next) => {
     const updatedItem = result.rows[0];
 
     // Log activity based on what changed
-    if (location !== undefined && location !== oldItem.location) {
-      await logActivity(pool, {
+    if (updatedItem.location !== oldItem.location) {
+      await logActivity(client, {
         componentId: oldItem.component_id,
         userId: req.user?.id || null,
         partNumber: oldItem.part_number,
@@ -149,15 +168,15 @@ export const updateInventory = async (req, res, next) => {
           description: oldItem.description,
           category_name: oldItem.category_name,
           old_location: oldItem.location,
-          new_location: location,
+          new_location: updatedItem.location,
         },
       });
     }
 
-    if (quantity !== undefined && quantity !== oldItem.quantity) {
+    if (updatedItem.quantity !== oldItem.quantity) {
       // Determine if this is a quantity set or consume operation
-      const activityType = quantity < oldItem.quantity ? 'inventory_consumed' : 'inventory_updated';
-      await logActivity(pool, {
+      const activityType = updatedItem.quantity < oldItem.quantity ? 'inventory_consumed' : 'inventory_updated';
+      await logActivity(client, {
         componentId: oldItem.component_id,
         userId: req.user?.id || null,
         partNumber: oldItem.part_number,
@@ -166,15 +185,21 @@ export const updateInventory = async (req, res, next) => {
           description: oldItem.description,
           category_name: oldItem.category_name,
           old_quantity: oldItem.quantity,
-          new_quantity: quantity,
-          change: quantity - oldItem.quantity,
+          new_quantity: updatedItem.quantity,
+          change: updatedItem.quantity - oldItem.quantity,
         },
       });
     }
 
+    await client.query('COMMIT');
     res.json(updatedItem);
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     next(error);
+  } finally {
+    client?.release(releaseError);
   }
 };
 
@@ -326,6 +351,10 @@ export const updateAlternativeInventory = async (req, res, next) => {
   try {
     const { altId } = req.params;
     const { location, quantity, min_quantity } = req.body;
+
+    if (!validStockValues(quantity, min_quantity)) {
+      return res.status(400).json({ error: INVALID_STOCK_ERROR });
+    }
 
     // Concurrent first edits must share one row. On conflict, use the supplied
     // parameters so insert defaults do not overwrite another request's fields.

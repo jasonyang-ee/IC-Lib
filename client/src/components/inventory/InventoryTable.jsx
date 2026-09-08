@@ -4,6 +4,7 @@ import { Edit, Save, X, ChevronDown, ChevronRight, ExternalLink, RefreshCw } fro
 const InventoryTable = ({
   sortedInventory,
   editMode,
+  isSaving = false,
   editedItems,
   expandedRows,
   alternativesData,
@@ -27,7 +28,7 @@ const InventoryTable = ({
   onCopyAlternativeLabelToClipboard,
   onRefetchInventory,
 }) => (
-  <div className="flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
+  <fieldset disabled={isSaving} className="min-w-0 flex-1 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a] flex flex-col overflow-hidden">
     <div className="p-4 border-b border-gray-200 dark:border-[#3a3a3a] flex items-center justify-between shrink-0">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
         Inventory Items ({sortedInventory?.length || 0})
@@ -41,7 +42,7 @@ const InventoryTable = ({
               className="btn-primary flex items-center gap-2 text-sm"
             >
               <Save className="w-4 h-4" />
-              Save All
+              {isSaving ? 'Saving...' : 'Save All'}
             </button>
             <button
               onClick={onCancelEdit}
@@ -453,7 +454,7 @@ const InventoryTable = ({
         </tbody>
       </table>
     </div>
-  </div>
+  </fieldset>
 );
 
 export default InventoryTable;

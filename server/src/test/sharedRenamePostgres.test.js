@@ -23,7 +23,7 @@ vi.mock('../services/emailService.js', () => ({
 vi.mock('../services/packageService.js', () => ({ listPackages: vi.fn().mockResolvedValue([]) }));
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
 import { createECO, approveECO, rejectECO, deleteECO, deleteApprovalStage, reorderApprovalStages, setStageApprovers } from '../controllers/ecoController.js';
-import { renamePhysicalFile, renameFootprintGroup } from '../controllers/fileLibraryController.js';
+import { renamePhysicalFile, renameFootprintGroup, linkFootprintRelatedFiles, unlinkFootprintRelatedFiles } from '../controllers/fileLibraryController.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
@@ -119,6 +119,7 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
       DROP TRIGGER IF EXISTS fail_approval ON eco_orders;
       DROP TRIGGER IF EXISTS fail_audit ON activity_log;
       DROP TRIGGER IF EXISTS fail_cad_rename ON cad_files;
+      DROP TRIGGER IF EXISTS fail_related_write ON footprint_related_cad_files;
       TRUNCATE users, components, cad_files, component_cad_files, eco_settings, eco_orders,
         eco_approval_stages, eco_changes, eco_approvals, eco_stage_approvers, eco_file_rename_files,
         eco_file_rename_components, activity_log, components_alternative, distributor_info,
@@ -249,6 +250,164 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
   const componentEcoRequest = (extra) => ({
     body: { component_id: componentId, part_number: 'PN-1', ...extra },
     user: { id: id(1), role: 'read-write' },
+  });
+
+  it.each(['link', 'unlink'])('rolls back the whole related-file %s request when a later association fails', async operation => {
+    await database.query(`
+      INSERT INTO cad_files (id, file_name, file_type, file_path) VALUES
+        ('${id(11)}', 'second.pad', 'pad', 'pad/second.pad'),
+        ('${id(12)}', 'related.psm', 'footprint', 'footprint/related.psm');
+    `);
+    if (operation === 'unlink') {
+      await database.query(`
+        INSERT INTO footprint_related_cad_files (footprint_cad_file_id, related_cad_file_id, related_file_type)
+        VALUES ('${id(12)}', '${id(10)}', 'pad'), ('${id(12)}', '${id(11)}', 'pad');
+      `);
+    }
+    const before = (await database.query('SELECT footprint_cad_file_id, related_cad_file_id FROM footprint_related_cad_files ORDER BY related_cad_file_id')).rows;
+    await database.query(`
+      CREATE OR REPLACE FUNCTION reject_related_write() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF COALESCE(NEW.related_cad_file_id, OLD.related_cad_file_id) = '${id(11)}'::uuid THEN
+          RAISE EXCEPTION 'injected later association failure';
+        END IF;
+        RETURN COALESCE(NEW, OLD);
+      END $$;
+      CREATE TRIGGER fail_related_write BEFORE INSERT OR DELETE ON footprint_related_cad_files
+      FOR EACH ROW EXECUTE FUNCTION reject_related_write();
+    `);
+    const res = response();
+    const handler = operation === 'link' ? linkFootprintRelatedFiles : unlinkFootprintRelatedFiles;
+    await handler({ body: { sourceCadFileIds: [id(12)], targetCadFileIds: [id(10), id(11)] } }, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect((await database.query('SELECT footprint_cad_file_id, related_cad_file_id FROM footprint_related_cad_files ORDER BY related_cad_file_id')).rows)
+      .toEqual(before);
+  });
+
+  it.each(['link', 'unlink'])('rejects a CAD %s whose staged type differs from its persisted identity', async action => {
+    const res = response();
+    await createECO(componentEcoRequest({ cad_files: [{
+      action, cad_file_id: id(10), file_type: 'symbol', file_name: 'old.pad',
+    }] }), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect((await database.query('SELECT * FROM eco_orders')).rowCount).toBe(0);
+    expect((await database.query('SELECT pad_file FROM components WHERE id = $1', [componentId])).rows)
+      .toEqual([{ pad_file: 'old' }]);
+  });
+
+  it.each(['link', 'unlink'])('refuses historical CAD %s staging with a mismatched persisted type', async action => {
+    const created = await database.query(`
+      INSERT INTO eco_orders (component_id, part_number, initiated_by, eco_number)
+      VALUES ($1, 'PN-1', $2, 'ECO-1') RETURNING id
+    `, [componentId, id(1)]);
+    const ecoId = created.rows[0].id;
+    await database.query(`
+      INSERT INTO eco_cad_files (eco_id, action, cad_file_id, file_type, file_name)
+      VALUES ($1, $2, $3, 'symbol', 'old.pad')
+    `, [ecoId, action, id(10)]);
+    const res = response();
+    await approveECO(request(ecoId), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect((await database.query('SELECT status FROM eco_orders')).rows).toEqual([{ status: 'pending' }]);
+    expect((await database.query('SELECT cad_file_id FROM component_cad_files WHERE component_id = $1', [componentId])).rows)
+      .toEqual([{ cad_file_id: id(10) }]);
+    expect((await database.query('SELECT pad_file FROM components WHERE id = $1', [componentId])).rows)
+      .toEqual([{ pad_file: 'old' }]);
+  });
+
+  const seedSpecifications = async () => {
+    await database.query(`
+      INSERT INTO component_categories (id, name) VALUES ('${id(300)}', 'Current'), ('${id(301)}', 'Other');
+      UPDATE components SET category_id = '${id(300)}' WHERE id = '${componentId}';
+      INSERT INTO category_specifications (id, category_id, spec_name)
+      VALUES ('${id(310)}', '${id(300)}', 'Voltage'), ('${id(311)}', '${id(301)}', 'Other spec');
+    `);
+  };
+
+  it('keeps same-named schematic and PSpice CAD actions isolated through approval', async () => {
+    await database.query(`
+      INSERT INTO cad_files (id, file_name, file_type, file_path) VALUES
+        ('${id(12)}', 'shared.olb', 'symbol', 'symbol/shared.olb'),
+        ('${id(13)}', 'shared.olb', 'pspice', 'pspice/shared.olb');
+      INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ('${componentId}', '${id(12)}');
+      UPDATE components SET schematic = 'shared' WHERE id = '${componentId}';
+    `);
+    const created = response();
+    await createECO(componentEcoRequest({ cad_files: [
+      { action: 'unlink', cad_file_id: id(12), file_type: 'symbol', file_name: 'shared.olb' },
+      { action: 'link', cad_file_id: id(13), file_type: 'pspice', file_name: 'shared.olb' },
+    ] }), created);
+    expect(created.status).toHaveBeenCalledWith(201);
+    const res = response();
+    await approveECO(request(created.json.mock.lastCall[0].id), res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect((await database.query('SELECT schematic, pspice, pad_file FROM components WHERE id = $1', [componentId])).rows)
+      .toEqual([{ schematic: '', pspice: 'shared', pad_file: 'old' }]);
+    expect((await database.query('SELECT cad_file_id FROM component_cad_files WHERE component_id = $1 ORDER BY cad_file_id', [componentId])).rows)
+      .toEqual([{ cad_file_id: id(10) }, { cad_file_id: id(13) }]);
+  });
+
+  it('does not approve a historical unresolved CAD action as a successful no-op', async () => {
+    const created = await database.query(`
+      INSERT INTO eco_orders (component_id, part_number, initiated_by, eco_number)
+      VALUES ($1, 'PN-1', $2, 'ECO-1') RETURNING id
+    `, [componentId, id(1)]);
+    const ecoId = created.rows[0].id;
+    await database.query(`
+      INSERT INTO eco_cad_files (eco_id, action, file_type, file_name)
+      VALUES ($1, 'link', 'model', 'missing.step')
+    `, [ecoId]);
+    const res = response();
+    await approveECO(request(ecoId), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect((await database.query('SELECT status FROM eco_orders')).rows).toEqual([{ status: 'pending' }]);
+  });
+
+  it('rejects an ECO specification from another category without changing its definition', async () => {
+    await seedSpecifications();
+    const res = response();
+    await createECO(componentEcoRequest({ specifications: [{ category_spec_id: id(311), unit: 'changed', new_value: '12' }] }), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect((await database.query('SELECT * FROM eco_orders')).rowCount).toBe(0);
+    expect((await database.query('SELECT unit FROM category_specifications WHERE id = $1', [id(311)])).rows)
+      .toEqual([{ unit: null }]);
+  });
+
+  it('refuses approval when a staged specification no longer belongs to the component category', async () => {
+    await seedSpecifications();
+    const created = response();
+    await createECO(componentEcoRequest({ specifications: [{ category_spec_id: id(310), new_value: '12' }] }), created);
+    expect(created.status).toHaveBeenCalledWith(201);
+    await database.query('UPDATE components SET category_id = $1 WHERE id = $2', [id(301), componentId]);
+    const res = response();
+    await approveECO(request(created.json.mock.lastCall[0].id), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect((await database.query('SELECT * FROM component_specification_values')).rowCount).toBe(0);
+    expect((await database.query('SELECT status FROM eco_orders')).rows).toEqual([{ status: 'pending' }]);
+  });
+
+  it('retains archived source specifications when a category ECO creates the replacement part', async () => {
+    await seedSpecifications();
+    await database.query("UPDATE component_categories SET prefix = 'TGT', leading_zeros = 3 WHERE id = $1", [id(301)]);
+    await database.query('INSERT INTO component_specification_values (component_id, category_spec_id, spec_value) VALUES ($1, $2, $3)',
+      [componentId, id(310), 'original value']);
+    const created = response();
+    await createECO(componentEcoRequest({
+      changes: [{ field_name: 'category_id', new_value: id(301) }],
+      specifications: [{ category_spec_id: id(311), new_value: 'replacement value' }],
+    }), created);
+    expect(created.status).toHaveBeenCalledWith(201);
+    const res = response();
+    await approveECO(request(created.json.mock.lastCall[0].id), res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect((await database.query(`
+      SELECT c.part_number, c.approval_status, csv.spec_value
+      FROM component_specification_values csv JOIN components c ON c.id = csv.component_id
+      ORDER BY c.part_number
+    `)).rows).toEqual([
+      { part_number: 'PN-1', approval_status: 'archived', spec_value: 'original value' },
+      { part_number: 'TGT-001', approval_status: 'production', spec_value: 'replacement value' },
+    ]);
   });
 
   it('routes a legacy approval_status field through status-proposal validation and lifecycle tags', async () => {
@@ -677,6 +836,22 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
       await owned.query('ROLLBACK');
       owned.release();
     }
+  });
+
+  it('does not let an unrelated pipeline sibling justify deleting the only applicable active stage', async () => {
+    await database.query(`
+      INSERT INTO eco_approval_stages (id, stage_name, stage_order, pipeline_types) VALUES
+        ('${id(20)}', 'Shared rename approval', 1, ARRAY['shared_file_rename']),
+        ('${id(21)}', 'Specification approval', 1, ARRAY['spec']);
+    `);
+    const ecoId = await stagedEco();
+    const res = response();
+    await deleteApprovalStage({ params: { id: id(20) } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect((await database.query('SELECT id FROM eco_approval_stages ORDER BY id')).rows)
+      .toEqual([{ id: id(20) }, { id: id(21) }]);
+    expect((await database.query('SELECT current_stage_order FROM eco_orders WHERE id = $1', [ecoId])).rows)
+      .toEqual([{ current_stage_order: 1 }]);
   });
 
   it('serializes concurrent replacement of stage approver assignments', async () => {

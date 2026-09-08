@@ -68,13 +68,35 @@ const normalizeTextInput = (value) => {
   return trimmedValue || null;
 };
 
-const resolveManufacturerId = async (manufacturerId, manufacturerName) => {
+const resolveManufacturerId = async (manufacturerId, manufacturerName, client = pool) => {
   const normalizedManufacturerId = normalizeUuidInput(manufacturerId);
   if (normalizedManufacturerId) {
     return normalizedManufacturerId;
   }
 
-  return getOrCreateManufacturer(pool, normalizeTextInput(manufacturerName));
+  return getOrCreateManufacturer(client, normalizeTextInput(manufacturerName));
+};
+
+// The middleware is an early rejection only. Keep the current component policy
+// locked through every direct catalog mutation and its dependent writes.
+const lockEditableComponent = async (client, req, res) => {
+  const result = await client.query('SELECT * FROM components WHERE id = $1 FOR UPDATE', [req.params.id]);
+  const component = result.rows[0];
+  if (!component) {
+    await client.query('ROLLBACK');
+    res.status(404).json({ error: 'Component not found' });
+    return null;
+  }
+  if (isEcoEnabled() && !canDirectEditComponentInEcoMode({
+    role: req.user?.role,
+    currentApprovalStatus: component.approval_status,
+    requestedApprovalStatus: req.body?.approval_status,
+  })) {
+    await client.query('ROLLBACK');
+    res.status(403).json({ error: 'Access denied', message: 'Direct edits require ECO approval unless the part is still in new status' });
+    return null;
+  }
+  return component;
 };
 
 const normalizeAlternativeDistributors = (distributors) => {
@@ -434,6 +456,8 @@ export const changeComponentCategory = async (req, res, next) => {
 
     await client.query('BEGIN');
 
+    if (!await lockEditableComponent(client, req, res)) return;
+
     // Get current component info
     const componentResult = await client.query(
       'SELECT id, part_number, category_id FROM components WHERE id = $1',
@@ -628,6 +652,8 @@ export const updateComponent = async (req, res, next) => {
     // from must move together, so the UPDATE and the sync share a transaction.
     client = await pool.connect();
     await client.query('BEGIN');
+
+    if (!await lockEditableComponent(client, req, res)) return;
 
     // Update components table directly (no triggers, no category table sync)
     const result = await client.query(`
@@ -996,9 +1022,15 @@ export const updateComponentSpecifications = async (req, res, next) => {
     const { id } = req.params;
     const { specifications } = req.body;
 
+    if (!Array.isArray(specifications)) {
+      return res.status(400).json({ error: 'specifications must be an array' });
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      if (!await lockEditableComponent(client, req, res)) return;
 
       const categoryId = await getComponentCategoryId(client, id);
       if (!categoryId) {
@@ -1030,8 +1062,6 @@ export const updateComponentSpecifications = async (req, res, next) => {
         }
       }
 
-      await client.query('COMMIT');
-
       // Return updated specifications with full details
       const result = await client.query(`
         SELECT 
@@ -1049,6 +1079,7 @@ export const updateComponentSpecifications = async (req, res, next) => {
         ORDER BY cs.display_order, cs.spec_name
       `, [id]);
 
+      await client.query('COMMIT');
       res.json(result.rows);
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1106,6 +1137,7 @@ export const getComponentProjects = async (req, res, next) => {
 };
 
 export const updateDistributorInfo = async (req, res, next) => {
+  let client;
   try {
     const { id } = req.params;
     const { distributors } = req.body;
@@ -1138,7 +1170,7 @@ export const updateDistributorInfo = async (req, res, next) => {
           return {
             ...dist,
             price_breaks: vendorData.pricing,
-            stock_quantity: vendorData.stock || dist.stock_quantity,
+            stock_quantity: vendorData.stock ?? dist.stock_quantity,
             in_stock: (vendorData.stock || 0) > 0,
             url: vendorData.productUrl || dist.url,
           };
@@ -1151,6 +1183,11 @@ export const updateDistributorInfo = async (req, res, next) => {
       return dist;
     }));
 
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const component = await lockEditableComponent(client, req, res);
+    if (!component) return;
+
     // Get list of distributor IDs that should be kept
     const validDistributorIds = distributorsWithPricing
       .filter(dist => dist.distributor_id && (dist.sku || dist.url))
@@ -1159,27 +1196,27 @@ export const updateDistributorInfo = async (req, res, next) => {
     // Delete distributor entries that are not in the provided list
     // This handles the case where a distributor entry needs to be removed
     if (validDistributorIds.length > 0) {
-      await pool.query(`
+      await client.query(`
         DELETE FROM distributor_info 
         WHERE component_id = $1 
         AND distributor_id NOT IN (${validDistributorIds.map((_, i) => `$${i + 2}`).join(',')})
       `, [id, ...validDistributorIds]);
     } else {
       // If no valid distributors, delete all for this component
-      await pool.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
+      await client.query('DELETE FROM distributor_info WHERE component_id = $1', [id]);
     }
 
     // Handle both INSERT (new records) and UPDATE (existing records)
     // IMPORTANT: Each component can have only ONE entry per distributor
     // Using UPSERT with ON CONFLICT (component_id, distributor_id)
-    const updates = distributorsWithPricing.map(async (dist) => {
+    for (const dist of distributorsWithPricing) {
       // Skip if no distributor_id or no data to save
       if (!dist.distributor_id || (!dist.sku && !dist.url)) {
-        return;
+        continue;
       }
 
       // UPSERT: Insert or update based on (component_id, distributor_id) unique constraint
-      await pool.query(`
+      await client.query(`
         INSERT INTO distributor_info (
           component_id,
           distributor_id,
@@ -1209,18 +1246,19 @@ export const updateDistributorInfo = async (req, res, next) => {
         dist.minimum_order_quantity || 1,
         dist.price_breaks ? JSON.stringify(dist.price_breaks) : null,
       ]);
-    });
+    }
 
-    await Promise.all(updates);
+    // Return updated distributor info
+    const result = await client.query(`
+      SELECT di.*, d.name as distributor_name
+      FROM distributor_info di
+      JOIN distributors d ON di.distributor_id = d.id
+      WHERE di.component_id = $1
+    `, [id]);
 
-    // Get component info for audit log
-    const componentResult = await pool.query(
-      'SELECT part_number, description FROM components WHERE id = $1',
-      [id],
-    );
-    
-    const component = componentResult.rows[0];
-    
+    await client.query('COMMIT');
+    client.release();
+    client = null;
     // Log activity
     try {
       await logActivity(pool, {
@@ -1242,17 +1280,12 @@ export const updateDistributorInfo = async (req, res, next) => {
       logError('Component', 'Failed to log distributor update activity:', activityError.message);
     }
 
-    // Return updated distributor info
-    const result = await pool.query(`
-      SELECT di.*, d.name as distributor_name
-      FROM distributor_info di
-      JOIN distributors d ON di.distributor_id = d.id
-      WHERE di.component_id = $1
-    `, [id]);
-
     res.json(result.rows);
   } catch (error) {
+    if (client) await client.query('ROLLBACK');
     next(error);
+  } finally {
+    client?.release();
   }
 };
 
@@ -1424,31 +1457,36 @@ export const getAlternatives = async (req, res, next) => {
 };
 
 export const createAlternative = async (req, res, next) => {
+  let client;
   try {
     const { id } = req.params;
+    client = await pool.connect();
+    await client.query('BEGIN');
+    if (!await lockEditableComponent(client, req, res)) return;
     const {
       manufacturer_id,
       manufacturer_name,
       manufacturer_pn,
       distributors = [],
     } = req.body;
-    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name);
+    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name, client);
     const normalizedDistributors = normalizeAlternativeDistributors(distributors);
 
     // Verify the component exists and get its part_number for logging
-    const componentResult = await pool.query(
+    const componentResult = await client.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
 
     if (componentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Component not found' });
     }
 
     const partNumber = componentResult.rows[0].part_number;
 
     // Create the alternative linked by component_id
-    const result = await pool.query(`
+    const result = await client.query(`
       INSERT INTO components_alternative (
         component_id, manufacturer_id, manufacturer_pn
       )
@@ -1462,7 +1500,7 @@ export const createAlternative = async (req, res, next) => {
     // IMPORTANT: Each alternative can have only ONE entry per distributor
     if (normalizedDistributors.length > 0) {
       for (const dist of normalizedDistributors) {
-        await pool.query(`
+        await client.query(`
           INSERT INTO distributor_info (
             alternative_id, distributor_id, sku, url, currency,
             in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
@@ -1492,6 +1530,10 @@ export const createAlternative = async (req, res, next) => {
       }
     }
     
+    await client.query('COMMIT');
+    client.release();
+    client = null;
+
     // Log activity
     try {
       await logActivity(pool, {
@@ -1511,38 +1553,46 @@ export const createAlternative = async (req, res, next) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (client) await client.query('ROLLBACK');
     if (error.code === '23505') { // Unique constraint violation
       return res.status(409).json({ error: 'This alternative already exists for this component' });
     }
     next(error);
+  } finally {
+    client?.release();
   }
 };
 
 export const updateAlternative = async (req, res, next) => {
+  let client;
   try {
     const { id, altId } = req.params;
+    client = await pool.connect();
+    await client.query('BEGIN');
+    if (!await lockEditableComponent(client, req, res)) return;
     const {
       manufacturer_id,
       manufacturer_name,
       manufacturer_pn,
       distributors = [],
     } = req.body;
-    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name);
+    const resolvedManufacturerId = await resolveManufacturerId(manufacturer_id, manufacturer_name, client);
     const normalizedDistributors = normalizeAlternativeDistributors(distributors);
 
     // Verify the component exists and get part_number for logging
-    const componentResult = await pool.query(
+    const componentResult = await client.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
 
     if (componentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Component not found' });
     }
 
     const partNumber = componentResult.rows[0].part_number;
 
-    const result = await pool.query(`
+    const result = await client.query(`
       UPDATE components_alternative
       SET
         manufacturer_id = COALESCE($1, manufacturer_id),
@@ -1553,6 +1603,7 @@ export const updateAlternative = async (req, res, next) => {
     `, [resolvedManufacturerId, manufacturer_pn, altId, id]);
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Alternative not found' });
     }
     
@@ -1565,21 +1616,21 @@ export const updateAlternative = async (req, res, next) => {
 
       // Delete distributor entries that are not in the provided list
       if (validDistributorIds.length > 0) {
-        await pool.query(`
+        await client.query(`
           DELETE FROM distributor_info 
           WHERE alternative_id = $1 
           AND distributor_id NOT IN (${validDistributorIds.map((_, i) => `$${i + 2}`).join(',')})
         `, [altId, ...validDistributorIds]);
       } else {
         // If no valid distributors, delete all for this alternative
-        await pool.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
+        await client.query('DELETE FROM distributor_info WHERE alternative_id = $1', [altId]);
       }
 
       // UPSERT distributor info
       // Each alternative can have only ONE entry per distributor
       for (const dist of normalizedDistributors) {
         if (dist.sku || dist.url) {
-          await pool.query(`
+          await client.query(`
             INSERT INTO distributor_info (
               alternative_id, distributor_id, sku, url, currency,
               in_stock, stock_quantity, minimum_order_quantity, packaging, price_breaks
@@ -1610,6 +1661,10 @@ export const updateAlternative = async (req, res, next) => {
       }
     }
     
+    await client.query('COMMIT');
+    client.release();
+    client = null;
+
     // Log activity
     try {
       await logActivity(pool, {
@@ -1629,28 +1684,36 @@ export const updateAlternative = async (req, res, next) => {
     
     res.json(result.rows[0]);
   } catch (error) {
+    if (client) await client.query('ROLLBACK');
     next(error);
+  } finally {
+    client?.release();
   }
 };
 
 export const deleteAlternative = async (req, res, next) => {
+  let client;
   try {
     const { id, altId } = req.params;
+    client = await pool.connect();
+    await client.query('BEGIN');
+    if (!await lockEditableComponent(client, req, res)) return;
 
     // Verify the component exists and get part_number for logging
-    const componentResult = await pool.query(
+    const componentResult = await client.query(
       'SELECT part_number FROM components WHERE id = $1',
       [id],
     );
 
     if (componentResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Component not found' });
     }
 
     const partNumber = componentResult.rows[0].part_number;
 
     // Get alternative info before deleting
-    const altResult = await pool.query(
+    const altResult = await client.query(
       'SELECT manufacturer_pn FROM components_alternative WHERE id = $1',
       [altId],
     );
@@ -1658,15 +1721,20 @@ export const deleteAlternative = async (req, res, next) => {
     const alternativePn = altResult.rows[0]?.manufacturer_pn;
 
     // Delete the alternative (distributor_info will be cascade deleted)
-    const result = await pool.query(
+    const result = await client.query(
       'DELETE FROM components_alternative WHERE id = $1 AND component_id = $2 RETURNING *',
       [altId, id],
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Alternative not found' });
     }
     
+    await client.query('COMMIT');
+    client.release();
+    client = null;
+
     // Log activity
     try {
       await logActivity(pool, {
@@ -1685,7 +1753,10 @@ export const deleteAlternative = async (req, res, next) => {
     
     res.json({ message: 'Alternative deleted successfully' });
   } catch (error) {
+    if (client) await client.query('ROLLBACK');
     next(error);
+  } finally {
+    client?.release();
   }
 };
 
@@ -1700,6 +1771,7 @@ export const promoteAlternative = async (req, res, next) => {
     const { id, altId } = req.params;
 
     await client.query('BEGIN');
+    if (!await lockEditableComponent(client, req, res)) return;
 
     // Fetch primary component and alternative data
     const comp = (await client.query(

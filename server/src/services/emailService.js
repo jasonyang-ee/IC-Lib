@@ -516,7 +516,7 @@ export async function createTransporter() {
 /**
  * Send an email
  */
-export async function sendEmail({ to, subject, html, text, attachments }) {
+export async function sendEmail({ to, subject, html, text, attachments, ecoId = null }) {
   const transporter = await createTransporter();
   if (!transporter) {
     logWarn('EmailService', 'SMTP not configured or disabled, skipping email');
@@ -525,6 +525,7 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
 
   const settings = await getSMTPSettings();
 
+  let result;
   try {
     const info = await transporter.sendMail({
       from: `"${settings.from_name}" <${settings.from_address}>`,
@@ -535,25 +536,24 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
       attachments,
     });
 
-    // Log the email
-    await pool.query(`
-      INSERT INTO email_log (recipient_email, subject, template_name, status)
-      VALUES ($1, $2, $3, 'sent')
-    `, [to, subject, 'generic']);
-
     logInfo('EmailService', `Email sent to ${to}: ${subject}`);
-    return { success: true, messageId: info.messageId };
+    result = { success: true, messageId: info.messageId };
   } catch (error) {
     logError('EmailService', `Failed to send email to ${to}: ${error.message}`);
 
-    // Log the failure
-    await pool.query(`
-      INSERT INTO email_log (recipient_email, subject, template_name, status, error_message)
-      VALUES ($1, $2, $3, 'failed', $4)
-    `, [to, subject, 'generic', error.message]);
-
-    return { success: false, error: error.message };
+    result = { success: false, error: error.message };
   }
+
+  // Logging must never change the outcome of an already attempted delivery.
+  try {
+    await pool.query(`
+      INSERT INTO email_log (recipient_email, subject, template_name, status, error_message, eco_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [to, subject, 'generic', result.success ? 'sent' : 'failed', result.error || null, ecoId]);
+  } catch (logFailure) {
+    logError('EmailService', `Failed to log email delivery: ${logFailure.message}`);
+  }
+  return result;
 }
 
 export async function sendWelcomeEmail({ to, username, role, displayName, password, passwordWasGenerated }) {
@@ -667,6 +667,7 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
         subject,
         html,
         text,
+        ecoId: eco.id,
       }).then(result => ({
         ...result,
         recipient: recipient.email,
@@ -678,18 +679,6 @@ export async function sendECONotification(eco, actionType, additionalInfo = {}) 
   const successful = results.filter(r => r.success).length;
   const failed = results.filter(r => !r.success).length;
   logInfo('EmailService', `ECO ${actionType} notifications: ${successful} sent, ${failed} failed`);
-
-  // Log to email_log with ECO reference
-  for (const result of results) {
-    if (result.success) {
-      await pool.query(`
-        UPDATE email_log 
-        SET eco_id = $1 
-        WHERE recipient_email = $2 AND subject = $3 
-        ORDER BY created_at DESC LIMIT 1
-      `, [eco.id, result.recipient, subject]);
-    }
-  }
 
   return results;
 }
@@ -710,6 +699,7 @@ export async function sendApprovedECODocumentControlNotification({ to, eco, appr
     html,
     text,
     attachments: attachment ? [attachment] : undefined,
+    ecoId: eco.id,
   });
 }
 

@@ -203,28 +203,32 @@ const recordLifecycle = async (description, userId = null) => {
 };
 
 /**
- * Apply the parsed changes, skipping columns already at the requested value so
- * a replayed request is a genuine no-op. Column names come from the service's
- * fixed writable map, never from the payload.
+ * Apply all requested values against current persisted state. The database
+ * skips unchanged rows so replays remain no-ops without trusting a stale read.
+ * Column names come from the service's fixed writable map, never the payload.
  */
 const applyChanges = async (row, changes) => {
-  const entries = Object.entries(changes).filter(([column, value]) => row[column] !== value);
+  const entries = Object.entries(changes);
   if (entries.length === 0) {
     return row;
   }
 
   const assignments = entries.map(([column], index) => `${column} = $${index + 1}`);
+  const differences = entries.map(([column], index) => `${column} IS DISTINCT FROM $${index + 1}`);
   const values = entries.map(([, value]) => value);
   const result = await pool.query(
     `UPDATE users SET ${assignments.join(', ')}
      WHERE id = $${values.length + 1}
        AND oidc_tenant_id = $${values.length + 2}
        AND oidc_object_id = $${values.length + 3}
+       AND (${differences.join(' OR ')})
      RETURNING ${SELECT_USER_FIELDS}`,
     [...values, row.id, getScimTenantId(), row.oidc_object_id],
   );
 
-  return result.rows[0] || null;
+  if (result.rows[0]) return result.rows[0];
+  const current = await findLinkedUser('id = $1 AND oidc_object_id = $2', [row.id, row.oidc_object_id]);
+  return current.rows[0] || null;
 };
 
 /** A duplicate username is the caller's conflict to resolve, not a 500. */

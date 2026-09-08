@@ -25,18 +25,21 @@ export function gracefulShutdown({
   logInfo('Server', `${signal} received - draining in-flight requests`);
 
   let done = false;
+  let closingPool = false;
   return new Promise((resolve) => {
     const finish = async () => {
-      if (done) {
+      if (done || closingPool) {
         return;
       }
-      done = true;
-      clearTimeout(forceTimer);
+      closingPool = true;
       try {
         await pool.end();
       } catch (poolErr) {
         logError('Server', `Error closing DB pool: ${poolErr.message}`);
       }
+      if (done) return;
+      done = true;
+      clearTimeout(forceTimer);
       exit(exitCode);
       resolve();
     };

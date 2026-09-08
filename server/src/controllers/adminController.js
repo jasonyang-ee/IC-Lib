@@ -2,7 +2,8 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../config/database.js';
-import { logError, logInfo, logWarn } from '../utils/logger.js';
+import { logError, logInfo } from '../utils/logger.js';
+import { applyFreshDatabaseMigrations } from '../services/databaseService.js';
 
 // Core-schema quick-verify subset (D11): membership locked to
 // EXPECTED_SCHEMA_TABLES by dbTableLists.test.js.
@@ -20,229 +21,65 @@ export const VERIFY_CORE_TABLES = [
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Execute SQL file statement by statement
- */
-const executeSQLFile = async (client, filePath, fileName) => {
-  const sql = readFileSync(filePath, 'utf8');
-  
-  // Better comment removal: preserve newlines, handle inline comments
-  const cleanedSQL = sql
-    .split('\n')
-    .map(line => {
-      // Remove everything after -- (single line comments)
-      const commentIndex = line.indexOf('--');
-      if (commentIndex !== -1) {
-        return line.substring(0, commentIndex);
-      }
-      return line;
-    })
-    .join('\n');
-  
-  // Split by semicolons, but be smarter about it
-  const statements = [];
-  let currentStatement = '';
-  let inString = false;
-  let stringChar = '';
-  
-  for (let i = 0; i < cleanedSQL.length; i++) {
-    const char = cleanedSQL[i];
-    const prevChar = i > 0 ? cleanedSQL[i - 1] : '';
-    
-    // Track if we're inside a string literal
-    if ((char === "'" || char === '"') && prevChar !== '\\') {
-      if (!inString) {
-        inString = true;
-        stringChar = char;
-      } else if (char === stringChar) {
-        inString = false;
-      }
-    }
-    
-    // Only split on semicolon if not in string
-    if (char === ';' && !inString) {
-      currentStatement += char;
-      const trimmed = currentStatement.trim();
-      if (trimmed.length > 0) {
-        statements.push(trimmed);
-      }
-      currentStatement = '';
-    } else {
-      currentStatement += char;
-    }
+// Let PostgreSQL parse complete files, including dollar-quoted functions.
+const initializeSchema = async (client) => {
+  const results = {};
+  for (const [name, file] of [['users', 'init-users.sql'], ['schema', 'init-schema.sql'], ['settings', 'init-settings.sql']]) {
+    const sql = readFileSync(path.join(__dirname, '../../../database', file), 'utf8');
+    const executed = await client.query(sql);
+    const count = Array.isArray(executed) ? executed.length : 1;
+    results[name] = { statementsExecuted: count, totalStatements: count, errors: [] };
   }
-  
-  // Add any remaining statement
-  const trimmed = currentStatement.trim();
-  if (trimmed.length > 0 && trimmed !== ';') {
-    statements.push(trimmed + ';');
-  }
-  
-  let executedCount = 0;
-  const errors = [];
-  
-  for (let i = 0; i < statements.length; i++) {
-    const statement = statements[i];
-    try {
-      await client.query(statement);
-      executedCount++;
-    } catch (error) {
-      const preview = statement.trim().substring(0, 100).replace(/\s+/g, ' ');
-      logError('Admin', `[${fileName}] Statement ${i + 1}/${statements.length} FAILED`);
-      logError('Admin', `[${fileName}] SQL: ${preview}...`);
-      logError('Admin', `[${fileName}] Error: ${error.message}`);
-      errors.push({
-        statementNumber: i + 1,
-        statement: preview + '...',
-        error: error.message,
-        code: error.code,
-      });
-    }
-  }
-  
-  logInfo('Admin', `[${fileName}] Summary: ${executedCount}/${statements.length} successful, ${errors.length} failed`);
-  
-  return { executedCount, errors, totalStatements: statements.length };
+  await applyFreshDatabaseMigrations(client);
+  return results;
 };
 
-// Initialize database with full schema
-export const initializeDatabase = async (req, res, _next) => {
-  const client = await pool.connect();
-  
+export const initializeDatabase = async (req, res) => {
+  let client;
   try {
-    logInfo('Admin', 'Starting database initialization...');
-    
-    // Check if tables already exist
-    const tableCheck = await client.query(`
-      SELECT COUNT(*) as count
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      AND table_type = 'BASE TABLE'
-    `);
-    
-    const tableCount = parseInt(tableCheck.rows[0].count);
-    
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const existing = await client.query(`SELECT COUNT(*) AS count FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`);
+    const tableCount = Number(existing.rows[0].count);
     if (tableCount > 0) {
-      return res.json({
-        success: true,
-        message: `Database already initialized with ${tableCount} tables`,
-        tableCount: tableCount,
-        skipped: true,
-      });
+      await client.query('ROLLBACK');
+      return res.json({ success: true, message: `Database already initialized with ${tableCount} tables`, tableCount, skipped: true });
     }
-    
-    // Execute init-schema.sql
-    const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
-    logInfo('Admin', 'Loading schema from:', schemaPath);
-    
-    const result = await executeSQLFile(client, schemaPath, 'init-schema.sql');
-    
-    // Verify tables were created
-    const finalTableCheck = await client.query(`
-      SELECT COUNT(*) as count
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      AND table_type = 'BASE TABLE'
-    `);
-    
-    const finalTableCount = parseInt(finalTableCheck.rows[0].count);
-    
-    res.json({
-      success: true,
-      message: `Database initialized successfully with ${finalTableCount} tables`,
-      tableCount: finalTableCount,
-      statementsExecuted: result.executedCount,
-      errors: result.errors,
-    });
+    const result = await initializeSchema(client);
+    const final = await client.query(`SELECT COUNT(*) AS count FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`);
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Database initialized successfully', tableCount: Number(final.rows[0].count),
+      statementsExecuted: result.schema.statementsExecuted, errors: [] });
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Rollback failed:', rollbackError.message));
     logError('Admin', 'Database initialization error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to initialize database',
-      message: error.message,
-    });
+    res.status(500).json({ success: false, error: 'Failed to initialize database', message: error.message });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
-// Reset database (drop all tables and recreate)
-export const resetDatabase = async (req, res, _next) => {
-  const client = await pool.connect();
-  
+export const resetDatabase = async (req, res) => {
+  let client;
   try {
-    logInfo('Admin', 'Starting database reset...');
-    
-    // Don't use transaction for schema operations - they're DDL and auto-commit
-    // Drop all tables
+    client = await pool.connect();
+    // PostgreSQL DDL is transactional: a failed rebuild retains the old schema.
+    await client.query('BEGIN');
     await client.query('DROP SCHEMA public CASCADE');
-    logInfo('Admin', 'Dropped existing schema');
-    
-    // Recreate schema
     await client.query('CREATE SCHEMA public');
-    await client.query('GRANT ALL ON SCHEMA public TO postgres');
     await client.query('GRANT ALL ON SCHEMA public TO public');
-    logInfo('Admin', 'Created new schema');
-    
-    // Execute init-schema.sql to recreate tables
-    const schemaPath = path.join(__dirname, '../../../database/init-schema.sql');
-    const schemaResult = await executeSQLFile(client, schemaPath, 'init-schema.sql');
-    logInfo('Admin', `Schema recreated: ${schemaResult.executedCount}/${schemaResult.totalStatements} statements`);
-    if (schemaResult.errors.length > 0) {
-      logError('Admin', 'Schema errors:', schemaResult.errors);
-    }
-    
-    // Initialize users table
-    const usersPath = path.join(__dirname, '../../../database/init-users.sql');
-    const usersResult = await executeSQLFile(client, usersPath, 'init-users.sql');
-    logInfo('Admin', `Users initialized: ${usersResult.executedCount}/${usersResult.totalStatements} statements`);
-    if (usersResult.errors.length > 0) {
-      logError('Admin', 'Users initialization errors:', usersResult.errors);
-    }
-    
-    // Verify users table was created
-    try {
-      const usersCheck = await client.query('SELECT COUNT(*) FROM users');
-      logInfo('Admin', `Users table verified: ${usersCheck.rows[0].count} users`);
-    } catch (error) {
-      logError('Admin', 'Users table verification FAILED:', error.message);
-      throw new Error('Users table was not created successfully');
-    }
-
-    // Check if there were any errors
-    const hasErrors = schemaResult.errors.length > 0 || usersResult.errors.length > 0;
-
-    if (hasErrors) {
-      logWarn('Admin', 'Database reset completed with errors:');
-      if (schemaResult.errors.length > 0) logWarn('Admin', 'Schema errors:', schemaResult.errors.length);
-      if (usersResult.errors.length > 0) logWarn('Admin', 'Users errors:', usersResult.errors.length);
-    }
-
-    res.json({
-      success: !hasErrors,
-      message: hasErrors
-        ? 'Database reset completed with errors - check console for details'
-        : 'Database reset and reinitialized successfully',
-      schema: {
-        statementsExecuted: schemaResult.executedCount,
-        totalStatements: schemaResult.totalStatements,
-        errors: schemaResult.errors,
-      },
-      users: {
-        statementsExecuted: usersResult.executedCount,
-        totalStatements: usersResult.totalStatements,
-        errors: usersResult.errors,
-      },
-    });
+    const result = await initializeSchema(client);
+    await client.query('COMMIT');
+    logInfo('Admin', 'Database reset and reinitialized successfully');
+    res.json({ success: true, message: 'Database reset and reinitialized successfully', ...result });
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Rollback failed:', rollbackError.message));
     logError('Admin', 'Database reset error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to reset database',
-      message: error.message,
-    });
+    res.status(500).json({ success: false, error: 'Failed to reset database', message: error.message });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 

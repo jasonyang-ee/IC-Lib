@@ -5,6 +5,7 @@ const queryMock = vi.fn();
 vi.mock('../config/database.js', () => ({
   default: {
     query: (...args) => queryMock(...args),
+    connect: vi.fn(async () => ({ query: (...args) => queryMock(...args), release: vi.fn() })),
   },
 }));
 
@@ -41,11 +42,13 @@ describe('componentController createAlternative', () => {
 
   it('creates a manufacturer by name and skips blank distributor UUIDs from vendor search', async () => {
     queryMock.mockImplementation(async (sql) => {
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
+      if (sql === 'SELECT * FROM components WHERE id = $1 FOR UPDATE') return { rows: [{ id: 'component-1', approval_status: 'new' }] };
       if (sql === 'SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1)') {
         return { rows: [] };
       }
 
-      if (sql === 'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id') {
+      if (sql === 'INSERT INTO manufacturers (name) VALUES ($1) ON CONFLICT DO NOTHING RETURNING id') {
         return { rows: [{ id: 'manufacturer-1' }] };
       }
 
@@ -93,7 +96,7 @@ describe('componentController createAlternative', () => {
       ['YAGEO'],
     ]);
     expect(queryMock.mock.calls).toContainEqual([
-      'INSERT INTO manufacturers (name) VALUES ($1) RETURNING id',
+      'INSERT INTO manufacturers (name) VALUES ($1) ON CONFLICT DO NOTHING RETURNING id',
       ['YAGEO'],
     ]);
     expect(queryMock.mock.calls).toContainEqual([

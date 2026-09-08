@@ -442,10 +442,11 @@ export const findOrCreateOidcUser = async (claims) => {
                oidc_object_id = $4
            WHERE id = $5
              AND auth_provider = 'local'
+             AND LOWER(email) = LOWER($6)
              AND oidc_issuer IS NULL
              AND oidc_sub IS NULL
            RETURNING ${USER_IDENTITY_COLUMNS}`,
-          [claims.issuer, claims.subject, claims.tenantId, claims.objectId, user.id],
+          [claims.issuer, claims.subject, claims.tenantId, claims.objectId, user.id, claims.email],
         );
 
         if (linkedResult.rows.length === 0) {

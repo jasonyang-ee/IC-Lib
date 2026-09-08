@@ -8,6 +8,7 @@ import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { logError, logInfo } from '../utils/logger.js';
+import { compareMigrationFilenames, parseMigrationFilename } from './migrationNaming.js';
 
 // Deliberate clear-order subsets of the schema (D11): membership is locked to
 // EXPECTED_SCHEMA_TABLES by dbTableLists.test.js; order matters for cascades.
@@ -34,26 +35,25 @@ export const CLEAR_PARTS_PROJECT_TABLES = [
   'components',            // cascades: inventory, inventory_alternative, distributor_info, component_specification_values, components_alternative, component_cad_files
 ];
 
-/**
- * Split SQL content into individual statements
- * Handles multi-line statements and comments properly
- */
-const _splitSQLStatements = (sql) => {
-  // Remove comments
-  const withoutComments = sql.replace(/--[^\n]*\n/g, '\n');
-  
-  // Split by semicolons but preserve them
-  const statements = withoutComments
-    .split(';')
-    .map(stmt => stmt.trim())
-    .filter(stmt => stmt.length > 0)
-    .map(stmt => stmt + ';');
-  
-  return statements;
-};
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Fresh rebuild callers own the transaction, including migration history.
+export const applyFreshDatabaseMigrations = async (client) => {
+  await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    id SERIAL PRIMARY KEY, filename VARCHAR(255) UNIQUE NOT NULL,
+    sequence_number INTEGER, description TEXT, executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`);
+  const directory = join(__dirname, '../../../database/migrations');
+  const files = readdirSync(directory).filter(file => file.endsWith('.sql')).sort(compareMigrationFilenames);
+  for (const filename of files) {
+    const metadata = parseMigrationFilename(filename);
+    await client.query(readFileSync(join(directory, filename), 'utf8'));
+    await client.query(`INSERT INTO schema_migrations (filename, sequence_number, description)
+      VALUES ($1, $2, $3) ON CONFLICT (filename) DO NOTHING`,
+    [filename, metadata.sequenceNumber, metadata.description]);
+  }
+};
 
 // Database configuration from environment or defaults
 const getDbConfig = () => ({
@@ -81,28 +81,32 @@ export const clearDatabaseData = async () => {
   try {
     await client.connect();
     
-    // Disable triggers temporarily to avoid cascade issues
-    await client.query('SET session_replication_role = replica;');
+    await client.query('BEGIN');
     
     for (const table of CLEAR_PARTS_TABLES) {
       try {
+        await client.query('SAVEPOINT clear_table');
         await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         results.clearedTables.push(table);
+        await client.query('RELEASE SAVEPOINT clear_table');
       } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT clear_table');
+        await client.query('RELEASE SAVEPOINT clear_table');
         // Ignore errors for tables that might not exist
         if (error.code !== '42P01') { // undefined_table error
-          results.errors.push({ table, error: error.message });
+          throw error;
         }
       }
     }
-    
-    // Re-enable triggers
-    await client.query('SET session_replication_role = DEFAULT;');
 
+
+    await client.query('COMMIT');
     results.success = true;
     results.message = `Successfully cleared ${results.clearedTables.length} tables. Schema and structure preserved.`;
     
   } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Maintenance rollback failed:', rollbackError.message));
+    results.clearedTables = [];
     results.success = false;
     results.message = `Database clear failed: ${error.message}`;
     results.errors.push({ general: error.message });
@@ -131,12 +135,14 @@ export const resetDatabase = async () => {
     await client.connect();
     results.steps.push('Connected to database');
 
+    await client.query('BEGIN');
+
     // Drop and recreate schema
     await client.query('DROP SCHEMA public CASCADE');
     results.steps.push('Dropped existing schema');
     
     await client.query('CREATE SCHEMA public');
-    await client.query(`GRANT ALL ON SCHEMA public TO ${config.user}`);
+    await client.query(`GRANT ALL ON SCHEMA public TO "${String(config.user).replaceAll('"', '""')}"`);
     await client.query('GRANT ALL ON SCHEMA public TO public');
     results.steps.push('Created new schema');
 
@@ -160,15 +166,18 @@ export const resetDatabase = async () => {
     const settingsSql = readFileSync(settingsPath, 'utf8');
     await client.query(settingsSql);
     results.steps.push('Initialized default distributors, ECO defaults, and specifications');
+    await applyFreshDatabaseMigrations(client);
 
     // Wipe categories so the user starts with a clean slate
     await client.query('TRUNCATE component_categories CASCADE');
     results.steps.push('Cleared category configurations');
 
+    await client.query('COMMIT');
     results.success = true;
     results.message = 'Database reset completed successfully. All tables dropped and schema reinitialized with default admin user.';
     
   } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Maintenance rollback failed:', rollbackError.message));
     results.success = false;
     results.message = `Database reset failed: ${error.message}`;
     results.errors.push({ general: error.message });
@@ -217,6 +226,7 @@ export const initializeDatabase = async () => {
     }
 
     logInfo('Admin', 'Database is empty, initializing schema...');
+    await client.query('BEGIN');
 
     // Initialize users table FIRST (required by schema foreign keys)
     const usersPath = join(__dirname, '..', '..', '..', 'database', 'init-users.sql');
@@ -237,6 +247,7 @@ export const initializeDatabase = async () => {
     const settingsSql = readFileSync(settingsPath, 'utf8');
     await client.query(settingsSql);
     results.steps.push('Initialized default categories, distributors, and specifications');
+    await applyFreshDatabaseMigrations(client);
 
     // Verify tables
     const tablesResult = await client.query(`
@@ -247,11 +258,13 @@ export const initializeDatabase = async () => {
     `);
 
     results.tableCount = tablesResult.rows.length;
+    await client.query('COMMIT');
     results.success = true;
     results.message = `Database initialized successfully with ${results.tableCount} tables.`;
     logInfo('Admin', `Success - created ${results.tableCount} tables`);
     
   } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Maintenance rollback failed:', rollbackError.message));
     results.success = false;
     results.message = `Database initialization failed: ${error.message}`;
     results.errors.push({ general: error.message });
@@ -388,29 +401,33 @@ export const deletePartsAndProjectData = async () => {
   try {
     await client.connect();
 
-    // Disable triggers temporarily to avoid cascade issues
-    await client.query('SET session_replication_role = replica;');
+    await client.query('BEGIN');
 
     for (const table of CLEAR_PARTS_PROJECT_TABLES) {
       try {
+        await client.query('SAVEPOINT clear_table');
         await client.query(`TRUNCATE TABLE ${table} CASCADE`);
         results.clearedTables.push(table);
+        await client.query('RELEASE SAVEPOINT clear_table');
       } catch (error) {
+        await client.query('ROLLBACK TO SAVEPOINT clear_table');
+        await client.query('RELEASE SAVEPOINT clear_table');
         if (error.code !== '42P01') { // undefined_table error
-          results.errors.push({ table, error: error.message });
+          throw error;
         }
       }
     }
 
-    // Re-enable triggers
-    await client.query('SET session_replication_role = DEFAULT;');
 
     // Reset ECO numbering back to 1
     await client.query('UPDATE eco_settings SET next_number = 1');
 
+    await client.query('COMMIT');
     results.success = true;
     results.message = `Successfully cleared ${results.clearedTables.length} tables. Categories, specifications, users, and settings preserved.`;
   } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => logError('Admin', 'Maintenance rollback failed:', rollbackError.message));
+    results.clearedTables = [];
     results.success = false;
     results.message = `Delete parts data failed: ${error.message}`;
     results.errors.push({ general: error.message });

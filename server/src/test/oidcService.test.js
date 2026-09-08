@@ -381,6 +381,7 @@ describe('oidcService', () => {
         null,
         null,
         'user-1',
+        CLAIMS.email,
       ]);
       const emailSql = queryMock.mock.calls[1][0];
       expect(emailSql).toContain("auth_provider = 'local'");

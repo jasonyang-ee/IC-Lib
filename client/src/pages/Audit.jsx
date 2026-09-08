@@ -99,13 +99,13 @@ const Audit = () => {
         item.user_name || '',
         item.part_number || '',
         item.activity_type || '',
-        detailsStr.replace(/"/g, '""')
+        detailsStr
       ];
     });
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -117,6 +117,7 @@ const Audit = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (

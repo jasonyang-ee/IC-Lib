@@ -4,11 +4,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Library from '../pages/Library';
 
-const mocks = vi.hoisted(() => ({ api: {}, showError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: {}, showError: vi.fn(), showSuccess: vi.fn(), editExtras: {} }));
 vi.mock('../utils/api', () => ({ api: mocks.api }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ canWrite: () => true, canApprove: () => false, user: { role: 'admin' } }) }));
 vi.mock('../contexts/FeatureFlagsContext', () => ({ useFeatureFlags: () => ({ ecoEnabled: true }) }));
-vi.mock('../contexts/NotificationContext', () => ({ useNotification: () => ({ showSuccess: vi.fn(), showInfo: vi.fn(), showError: mocks.showError }) }));
+vi.mock('../contexts/NotificationContext', () => ({ useNotification: () => ({ showSuccess: mocks.showSuccess, showInfo: vi.fn(), showError: mocks.showError }) }));
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: ({ count }) => ({
   getTotalSize: () => count * 45, getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, start: index * 45 })), measureElement: () => {},
 }) }));
@@ -18,7 +18,7 @@ vi.mock('../components/library', () => ({
   DistributorInfoSection: () => null,
   ComponentDetailView: ({ componentDetails }) => <div>{componentDetails?.manufacturer_id ? 'Details loaded' : 'Loading details'}</div>,
   ComponentEditForm: ({ onTempFileStaged, setEditData }) => <button onClick={() => {
-    setEditData(current => ({ ...current, category_id: 'category-1', part_number: 'PN-2', manufacturer_id: 'manufacturer-1', manufacturer_pn: 'CHANGED', manufacturer_part_number: 'CHANGED', value: '1k' }));
+    setEditData(current => ({ ...current, category_id: 'category-1', part_number: 'PN-2', manufacturer_id: 'manufacturer-1', manufacturer_pn: 'CHANGED', manufacturer_part_number: 'CHANGED', value: '1k', specifications: [{ spec_name: 'Resistance', spec_value: '1k' }], ...mocks.editExtras }));
     onTempFileStaged({ tempFilename: '100-200-part.psm', filename: 'part.psm', category: 'footprint' });
     onTempFileStaged({ tempFilename: '100-201-part.dra', filename: 'part.dra', category: 'footprint' });
   }}>Stage uploads</button>,
@@ -29,6 +29,7 @@ const second = { tempFilename: '100-201-part.dra', filename: 'part.dra', type: '
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.editExtras = {};
   localStorage.clear();
   sessionStorage.clear();
   for (const method of ['getCategories', 'getManufacturers', 'getProjects', 'getDistributors', 'getComponentSpecifications', 'getComponentDistributors', 'getComponentProjects', 'getComponentAlternatives', 'getCategorySpecifications', 'getSubCategorySuggestions', 'getPackageSuggestions', 'updateComponentSpecifications', 'updateComponentDistributors', 'cleanupTempFiles']) {
@@ -56,6 +57,42 @@ const edit = async () => {
 };
 
 describe('Library upload failure recovery', () => {
+  it('retains already-created alternative IDs across a later alternative failure', async () => {
+    mocks.editExtras = { alternatives: [
+      { manufacturer_id: 'manufacturer-1', manufacturer_pn: 'ALT-1' },
+      { manufacturer_id: 'manufacturer-1', manufacturer_pn: 'ALT-2' },
+    ] };
+    mocks.api.finalizeTempFiles.mockReset().mockResolvedValue({ data: { results: [first, { ...second, error: undefined, cadFileId: 'cad-2' }] } });
+    mocks.api.createComponentAlternative = vi.fn().mockResolvedValueOnce({ data: { id: 'alt-1' } })
+      .mockRejectedValueOnce(new Error('Alternative unavailable')).mockResolvedValueOnce({ data: { id: 'alt-2' } });
+    mocks.api.updateComponentAlternative = vi.fn().mockResolvedValue({ data: {} });
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Component' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stage uploads' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Add' }));
+    await waitFor(() => expect(mocks.showError).toHaveBeenCalledWith(expect.stringContaining('Alternative unavailable')));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Add' }));
+    await waitFor(() => expect(mocks.showSuccess).toHaveBeenCalledWith('Component added successfully!'));
+    expect(mocks.api.createComponent).toHaveBeenCalledTimes(1);
+    expect(mocks.api.createComponentAlternative).toHaveBeenCalledTimes(3);
+    expect(mocks.api.updateComponentAlternative).toHaveBeenCalledWith('new-component', 'alt-1', expect.objectContaining({ manufacturer_pn: 'ALT-1' }));
+  });
+
+  it('retries enrichment on the created component instead of creating it a second time', async () => {
+    mocks.api.finalizeTempFiles.mockReset().mockResolvedValue({ data: { results: [first, { ...second, error: undefined, cadFileId: 'cad-2' }] } });
+    mocks.api.updateComponentSpecifications.mockRejectedValueOnce(new Error('Specifications unavailable'));
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Component' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stage uploads' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Add' }));
+    await waitFor(() => expect(mocks.showError).toHaveBeenCalledWith(expect.stringContaining('Specifications unavailable')));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Add' }));
+    await waitFor(() => expect(mocks.showSuccess).toHaveBeenCalledWith('Component added successfully!'));
+    expect(mocks.api.createComponent).toHaveBeenCalledTimes(1);
+    expect(mocks.api.updateComponentSpecifications).toHaveBeenLastCalledWith('new-component', expect.any(Object));
+    expect(mocks.api.finalizeTempFiles).toHaveBeenCalledTimes(1);
+  });
+
   it('stops component saving on a partial batch and retries only the failed token using the stable component ID', async () => {
     await edit();
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
