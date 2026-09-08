@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 
+
+## [1.11.2] - 2026-09-07
+
+### Added
+
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
 - Catalog field, specification, distributor, alternative and category writes recheck current ECO edit policy under row locks; distributor/alternative saves roll back partial failures and preserve authoritative zero vendor stock. Concurrent manufacturer/specification creation no longer aborts enclosing saves.
 - ECO CAD actions validate persisted file types and reject missing historical actions; specification changes remain scoped to the target category, and category-copy approval retains archived source specifications. Stage deletion checks applicable active siblings, and related CAD binding batches roll back together.
 - Local login, password changes, verified-email SSO linking and SCIM updates recheck current credentials or identity values when concurrent changes occur.
