@@ -26,6 +26,7 @@ import { assertSafeLeafName } from '../utils/safeFsPaths.js';
 import { logError } from '../utils/logger.js';
 import { isEcoEnabled } from '../utils/featureFlags.js';
 import { canDirectEditComponentInEcoMode } from '../services/componentLifecycleService.js';
+import { lockCadFileNames } from '../utils/cadFileLocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -831,10 +832,38 @@ export async function renameFile(req, res) {
       if (isEcoEnabled() && req.user?.role !== 'admin') {
         return res.status(403).json({ error: 'Scan untracked library files before renaming with ECO enabled' });
       }
-      // Untracked file (e.g. legacy nested location): physical-only rename into
-      // the flat directory.
-      const targetDir = ensureDir(path.join(LIBRARY_BASE, config.subdir));
-      fs.renameSync(oldPath, path.join(targetDir, sanitizedNewFilename));
+      // Legacy physical-only moves still share source/destination locks with
+      // tracked operations. Recheck the earlier miss before touching bytes.
+      const client = await pool.connect();
+      const targetDir = path.join(LIBRARY_BASE, config.subdir);
+      let moved = false;
+      try {
+        await client.query('BEGIN');
+        await lockCadFileNames(client, [oldFilename, sanitizedNewFilename].map(fileName => ({
+          file_type: category, file_name: fileName,
+        })));
+        if (VALID_CAD_CATEGORIES.has(category) && await cadFileService.findCadFile(oldFilename, category, client)) {
+          throw Object.assign(new Error('CAD file was registered before rename; refresh and retry'), { status: 409 });
+        }
+        if (!fs.existsSync(oldPath)) throw Object.assign(new Error('File not found'), { status: 404 });
+        if (fs.existsSync(flatNewPath) && !cadFileService.isSameExistingFile(oldPath, flatNewPath)) {
+          throw Object.assign(new Error(`A file named "${sanitizedNewFilename}" already exists`), { status: 409 });
+        }
+        ensureDir(targetDir);
+        fs.renameSync(oldPath, flatNewPath);
+        moved = true;
+        await client.query('COMMIT');
+      } catch (renameError) {
+        if (moved) {
+          try { fs.renameSync(flatNewPath, oldPath); } catch (restoreError) {
+            logError('FileUpload', 'Failed to restore untracked rename:', restoreError);
+          }
+        }
+        try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+        throw renameError;
+      } finally {
+        client.release();
+      }
 
       // Clean up empty legacy directory after the rename.
       const oldDir = path.dirname(oldPath);
@@ -858,7 +887,7 @@ export async function renameFile(req, res) {
     if (/^Invalid oldFilename/.test(error.message || '')) {
       return res.status(400).json({ error: error.message });
     }
-    if (error.status === 403) return res.status(403).json({ error: error.message });
+    if ([403, 404, 409].includes(error.status)) return res.status(error.status).json({ error: error.message });
     logError('FileUpload', 'Error renaming file:', error);
     res.status(500).json({ error: 'Failed to rename file' });
   }

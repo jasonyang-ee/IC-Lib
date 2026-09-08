@@ -15,6 +15,7 @@ import { listPackages } from './packageService.js';
 import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 import { logError } from '../utils/logger.js';
+import { lockCadFileNames } from '../utils/cadFileLocks.js';
 import {
   assertNoPlusInFootprintName,
   canonicalizeCadUploadFilename,
@@ -104,6 +105,10 @@ const consumeNextEcoNumber = async (client) => {
 // Used before choosing direct rename versus ECO staging. Caller owns the
 // transaction and must retain these locks through all effects and COMMIT.
 export const lockFileRenameContext = async (client, files) => {
+  await lockCadFileNames(client, files.flatMap(file => [
+    { file_type: file.file_type, file_name: file.old_file_name },
+    { file_type: file.file_type, file_name: file.new_file_name },
+  ]));
   const fileIds = [...new Set(files.map((file) => file.cad_file_id))];
   const currentFiles = await client.query(`
     SELECT id, file_name, file_type FROM cad_files
@@ -411,6 +416,10 @@ export const applyMassFileRenameEco = async (client, ecoId, actorId = null, rena
   const fileTypesByComponentId = new Map();
 
   try {
+    await lockCadFileNames(client, context.files.flatMap(file => [
+      { file_type: file.file_type, file_name: file.old_file_name },
+      { file_type: file.file_type, file_name: file.new_file_name },
+    ]));
     for (const file of context.files) {
       const subdir = FILE_TYPE_SUBDIR[file.file_type];
       if (!subdir) {

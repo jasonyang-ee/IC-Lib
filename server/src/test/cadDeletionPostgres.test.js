@@ -8,7 +8,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const { poolProxy, disk } = vi.hoisted(() => ({
   poolProxy: { connect: vi.fn(), query: vi.fn() },
-  disk: { existsSync: vi.fn(() => true), unlinkSync: vi.fn(), renameSync: vi.fn() },
+  disk: { existsSync: vi.fn(() => true), unlinkSync: vi.fn(), renameSync: vi.fn(),
+    copyFileSync: vi.fn(), mkdirSync: vi.fn(), readdirSync: vi.fn() },
 }));
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
 vi.mock('fs', async (importOriginal) => {
@@ -17,7 +18,8 @@ vi.mock('fs', async (importOriginal) => {
 });
 import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile } from '../controllers/fileUploadController.js';
 import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles, linkFileToComponent, unlinkFileFromComponent } from '../controllers/fileLibraryController.js';
-import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent } from '../services/cadFileService.js';
+import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent, scanAndRegisterFiles, renameCadFile, detectMissingFiles } from '../services/cadFileService.js';
+import { finalizeCadUpload } from '../services/cadUploadService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
   env: { ...process.env, PG_RESTRICT_EXEC: '1' }, stdio: 'ignore', windowsHide: true,
@@ -96,9 +98,10 @@ describe('CAD removal on scratch PostgreSQL', () => {
   }, 15000);
 
   beforeEach(async () => {
+    poolProxy.connect.mockImplementation(() => database.connect());
     vi.stubEnv('CONFIG_ECO', 'false');
-    disk.unlinkSync.mockClear();
-    disk.renameSync.mockClear();
+    disk.unlinkSync.mockReset();
+    disk.renameSync.mockReset();
     disk.existsSync.mockReturnValue(true);
     await database.query(`
       TRUNCATE components, cad_files, component_cad_files, footprint_related_cad_files, eco_orders,
@@ -292,6 +295,306 @@ describe('CAD removal on scratch PostgreSQL', () => {
     expect(res.status).not.toHaveBeenCalled();
     expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(0);
     expect(disk.unlinkSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not delete untracked bytes after a concurrent registration links them', async () => {
+    poolProxy.query.mockImplementationOnce(async (...args) => {
+      const result = await database.query(...args);
+      await link(await addFile(1, 'part_a.psm', 'footprint'));
+      return result;
+    });
+    const res = response();
+    await deletePhysicalFile({ params: { type: 'footprint' }, body: { fileName: 'part_a.psm' } }, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(await linkedNames()).toEqual(['part_a.psm']);
+    expect(disk.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('does not rename untracked bytes after a concurrent registration links them', async () => {
+    disk.existsSync.mockImplementation(filename => !String(filename).endsWith('next.psm'));
+    poolProxy.query.mockImplementation(async (...args) => {
+      const result = await database.query(...args);
+      if (args[0].includes('SELECT * FROM cad_files WHERE file_name') && result.rowCount === 0) {
+        await link(await addFile(1, 'part_a.psm', 'footprint'));
+      }
+      return result;
+    });
+    const res = response();
+    try {
+      await renameFile({ user: { role: 'admin' }, body: {
+        category: 'footprint', mfgPartNumber: 'PART', oldFilename: 'part_a.psm', newFilename: 'next.psm',
+      } }, res);
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(await linkedNames()).toEqual(['part_a.psm']);
+      expect(disk.renameSync).not.toHaveBeenCalled();
+    } finally {
+      poolProxy.query.mockImplementation((...args) => database.query(...args));
+    }
+  });
+
+  it.each([false, true])('preserves untracked rename recovery with commit failure %s', async failCommit => {
+    const files = new Map([['part_a.psm', 'original']]);
+    disk.existsSync.mockImplementation(filename => files.has(path.basename(filename)));
+    disk.renameSync.mockImplementation((from, to) => {
+      files.set(path.basename(to), files.get(path.basename(from)));
+      files.delete(path.basename(from));
+    });
+    if (failCommit) {
+      poolProxy.connect.mockImplementationOnce(async () => {
+        const client = await database.connect();
+        return {
+          query: (...args) => {
+            if (args[0] === 'COMMIT') throw new Error('injected commit failure');
+            return client.query(...args);
+          },
+          release: (...args) => client.release(...args),
+        };
+      });
+    }
+    const res = response();
+    await renameFile({ user: { role: 'admin' }, body: {
+      category: 'footprint', mfgPartNumber: 'PART', oldFilename: 'part_a.psm', newFilename: 'next.psm',
+    } }, res);
+    expect(res.json.mock.lastCall[0]).toEqual(failCommit ? { error: 'Failed to rename file' } : {
+      message: 'File renamed successfully', oldFilename: 'part_a.psm', newFilename: 'next.psm',
+    });
+    expect([...files.entries()]).toEqual([[failCommit ? 'part_a.psm' : 'next.psm', 'original']]);
+    expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(0);
+    expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+  });
+
+  it.each(['use_existing', 'overwrite', 'scan'])('keeps post-commit deletion safe against %s', async operation => {
+    await addFile(1, 'part_a.psm', 'footprint');
+    const files = new Map([['part_a.psm', 'original'], ['upload.psm', 'replacement']]);
+    disk.existsSync.mockImplementation(filename => files.has(path.basename(filename)) || path.basename(filename) === 'footprint');
+    disk.readdirSync.mockImplementation(() => ['part_a.psm']);
+    disk.unlinkSync.mockImplementation(filename => files.delete(path.basename(filename)));
+    disk.copyFileSync.mockImplementation((from, to) => files.set(path.basename(to), files.get(path.basename(from))));
+    disk.renameSync.mockImplementation((from, to) => {
+      files.set(path.basename(to), files.get(path.basename(from)));
+      files.delete(path.basename(from));
+    });
+    let markCommitted;
+    let resumeDelete;
+    const committed = new Promise(resolve => { markCommitted = resolve; });
+    const resume = new Promise(resolve => { resumeDelete = resolve; });
+    poolProxy.connect.mockImplementationOnce(async () => {
+      const client = await database.connect();
+      return {
+        query: async (...args) => {
+          const result = await client.query(...args);
+          if (args[0] === 'COMMIT') { markCommitted(); await resume; }
+          return result;
+        },
+        release: (...args) => client.release(...args),
+      };
+    });
+    const deletion = deleteCadFile(id(1));
+    let competing;
+    let outcome;
+    try {
+      await committed;
+      competing = (operation === 'scan' ? scanAndRegisterFiles() : finalizeCadUpload({
+        tempFilename: 'upload.psm', filename: 'part_a.psm', category: 'footprint',
+        resolution: operation, componentId, user: { role: 'admin' },
+      })).then(value => { outcome = { value }; }, error => { outcome = { error }; });
+      // Wait for either the old unsafe operation to finish or a real lock wait.
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const waiting = await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'");
+        if (outcome || waiting.rowCount) break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      resumeDelete();
+      await deletion;
+      await competing;
+      const publishedFile = expect.objectContaining({ filename: 'part_a.psm' });
+      expect(outcome.error?.status).toBe(operation === 'use_existing' ? 404 : undefined);
+      expect(outcome.value).toEqual(operation === 'scan' ? 0
+        : operation === 'overwrite' ? publishedFile : undefined);
+      expect(files.get('part_a.psm')).toBe(operation === 'overwrite' ? 'replacement' : undefined);
+      expect(await linkedNames()).toEqual(operation === 'overwrite' ? ['part_a.psm'] : []);
+      expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(operation === 'overwrite' ? 1 : 0);
+      expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+    } finally {
+      resumeDelete();
+      await deletion;
+      await competing;
+    }
+  });
+
+  it('leaves a recoverable orphan and releases locks when disk unlink fails', async () => {
+    await addFile(1, 'part_a.psm', 'footprint');
+    disk.unlinkSync.mockImplementationOnce(() => { throw new Error('disk busy'); });
+    await expect(deleteCadFile(id(1))).rejects.toThrow('disk busy');
+    expect((await database.query('SELECT * FROM cad_files')).rowCount).toBe(0);
+    expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+    disk.existsSync.mockImplementation(filename => ['footprint', 'part_a.psm'].includes(path.basename(filename)));
+    disk.readdirSync.mockReturnValue(['part_a.psm']);
+    expect(await scanAndRegisterFiles()).toBe(1);
+    expect((await database.query('SELECT file_name, missing FROM cad_files')).rows).toEqual([{ file_name: 'part_a.psm', missing: false }]);
+  });
+
+  it('rolls back a deferred delete failure without leaking locks or removing bytes', async () => {
+    await addFile(1, 'part_a.psm', 'footprint');
+    await database.query(`
+      CREATE FUNCTION fail_cad_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'deferred delete failure'; END $$;
+      CREATE CONSTRAINT TRIGGER fail_cad_delete AFTER DELETE ON cad_files DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE FUNCTION fail_cad_delete();
+    `);
+    try {
+      await expect(deleteCadFile(id(1))).rejects.toThrow('deferred delete failure');
+      expect((await database.query('SELECT id FROM cad_files')).rows).toEqual([{ id: id(1) }]);
+      expect(disk.unlinkSync).not.toHaveBeenCalled();
+      expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+    } finally {
+      await database.query('DROP TRIGGER fail_cad_delete ON cad_files; DROP FUNCTION fail_cad_delete()');
+    }
+  });
+
+  it('rejects a filename changed between deletion lookup and row locking', async () => {
+    await addFile(1, 'part_a.psm', 'footprint');
+    poolProxy.connect.mockImplementationOnce(async () => {
+      const client = await database.connect();
+      return {
+        query: async (...args) => {
+          const result = await client.query(...args);
+          if (args[0] === 'SELECT * FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id') {
+            await database.query("UPDATE cad_files SET file_name = 'renamed.psm' WHERE id = $1", [id(1)]);
+          }
+          return result;
+        },
+        release: (...args) => client.release(...args),
+      };
+    });
+    await expect(deleteCadFile(id(1))).rejects.toMatchObject({ status: 409 });
+    expect((await database.query('SELECT file_name FROM cad_files')).rows).toEqual([{ file_name: 'renamed.psm' }]);
+    expect(disk.unlinkSync).not.toHaveBeenCalled();
+    expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+  });
+
+  it('does not overwrite a target published after rename preflight', async () => {
+    await addFile(1, 'old.psm', 'footprint');
+    const files = new Map([['old.psm', 'original'], ['upload.psm', 'replacement']]);
+    disk.existsSync.mockImplementation(filename => files.has(path.basename(filename)));
+    disk.unlinkSync.mockImplementation(filename => files.delete(path.basename(filename)));
+    disk.copyFileSync.mockImplementation((from, to) => files.set(path.basename(to), files.get(path.basename(from))));
+    disk.renameSync.mockImplementation((from, to) => {
+      files.set(path.basename(to), files.get(path.basename(from)));
+      files.delete(path.basename(from));
+    });
+    let reachedConsumers;
+    let resumeRename;
+    const consumers = new Promise(resolve => { reachedConsumers = resolve; });
+    const resume = new Promise(resolve => { resumeRename = resolve; });
+    poolProxy.connect.mockImplementationOnce(async () => {
+      const client = await database.connect();
+      return {
+        query: async (...args) => {
+          const result = await client.query(...args);
+          if (args[0].includes('FOR UPDATE OF c')) { reachedConsumers(); await resume; }
+          return result;
+        },
+        release: (...args) => client.release(...args),
+      };
+    });
+    const renaming = renameCadFile(id(1), 'target.psm', { canonicalize: false }).then(value => ({ value }), error => ({ error }));
+    let uploading;
+    let uploadOutcome;
+    try {
+      await consumers;
+      uploading = finalizeCadUpload({ tempFilename: 'upload.psm', filename: 'target.psm', category: 'footprint' })
+        .then(value => { uploadOutcome = { value }; }, error => { uploadOutcome = { error }; });
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const waiting = await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'");
+        if (uploadOutcome || waiting.rowCount) break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      resumeRename();
+      const renameOutcome = await renaming;
+      await uploading;
+      expect(renameOutcome.error).toBeUndefined();
+      expect(uploadOutcome.error?.status).toBe(409);
+      expect([...files.entries()].sort()).toEqual([['target.psm', 'original'], ['upload.psm', 'replacement']]);
+      expect((await database.query('SELECT id, file_name FROM cad_files')).rows).toEqual([{ id: id(1), file_name: 'target.psm' }]);
+    } finally {
+      resumeRename();
+      await renaming;
+      await uploading;
+    }
+  });
+
+  it('does not mark a successfully renamed file missing from a stale scan snapshot', async () => {
+    await addFile(1, 'old.psm', 'footprint');
+    const files = new Set(['old.psm']);
+    disk.existsSync.mockImplementation(filename => files.has(path.basename(filename)));
+    disk.renameSync.mockImplementation((from, to) => {
+      files.delete(path.basename(from));
+      files.add(path.basename(to));
+    });
+    poolProxy.query.mockImplementationOnce(async (...args) => {
+      const result = await database.query(...args);
+      await renameCadFile(id(1), 'renamed.psm', { canonicalize: false });
+      return result;
+    });
+    expect(await detectMissingFiles()).toBe(0);
+    expect((await database.query('SELECT file_name, missing FROM cad_files')).rows).toEqual([{ file_name: 'renamed.psm', missing: false }]);
+  });
+
+  it.each(['part_a.psm', ' legacy.psm'])('tags missing %s and clears the marker when its exact bytes return', async fileName => {
+    await addFile(1, fileName, 'footprint');
+    disk.existsSync.mockReturnValue(false);
+    expect(await detectMissingFiles()).toBe(1);
+    expect(await detectMissingFiles()).toBe(0);
+    expect((await database.query('SELECT missing FROM cad_files')).rows).toEqual([{ missing: true }]);
+    disk.existsSync.mockImplementation(filename => path.basename(filename) === fileName);
+    expect(await detectMissingFiles()).toBe(0);
+    expect((await database.query('SELECT missing FROM cad_files')).rows).toEqual([{ missing: false }]);
+    expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+  });
+
+  it('rechecks disk after waiting for an upload before marking a file missing', async () => {
+    await addFile(1, 'part_a.psm', 'footprint');
+    const files = new Set(['upload.psm']);
+    disk.existsSync.mockImplementation(filename => files.has(path.basename(filename)));
+    disk.copyFileSync.mockImplementation((_from, to) => files.add(path.basename(to)));
+    disk.unlinkSync.mockImplementation(filename => files.delete(path.basename(filename)));
+    let registered;
+    let resumeUpload;
+    const registration = new Promise(resolve => { registered = resolve; });
+    const resume = new Promise(resolve => { resumeUpload = resolve; });
+    poolProxy.connect.mockImplementationOnce(async () => {
+      const client = await database.connect();
+      return {
+        query: async (...args) => {
+          const result = await client.query(...args);
+          if (args[0].includes('INSERT INTO cad_files')) { registered(); await resume; }
+          return result;
+        },
+        release: (...args) => client.release(...args),
+      };
+    });
+    const upload = finalizeCadUpload({ tempFilename: 'upload.psm', filename: 'part_a.psm', category: 'footprint' });
+    let scanning;
+    try {
+      await registration;
+      scanning = detectMissingFiles();
+      let waiting = false;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const result = await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'");
+        if (result.rowCount) { waiting = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      expect(waiting).toBe(true);
+      resumeUpload();
+      await upload;
+      expect(await scanning).toBe(0);
+      expect((await database.query('SELECT missing FROM cad_files')).rows).toEqual([{ missing: false }]);
+      expect([...files]).toEqual(['part_a.psm']);
+    } finally {
+      resumeUpload();
+      await upload;
+      await scanning;
+    }
   });
 
   it('rechecks references after a concurrent component link commits', async () => {

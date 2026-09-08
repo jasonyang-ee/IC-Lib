@@ -8,6 +8,7 @@ import { canDirectEditComponentInEcoMode } from './componentLifecycleService.js'
 import { isEcoEnabled } from '../utils/featureFlags.js';
 import { assertSafeLeafName } from '../utils/safeFsPaths.js';
 import { logError } from '../utils/logger.js';
+import { lockCadFileName } from '../utils/cadFileLocks.js';
 
 const LIBRARY_BASE = fileURLToPath(new URL('../../../library/', import.meta.url));
 const CATEGORIES = new Set(['footprint', 'symbol', 'model', 'pspice', 'pad']);
@@ -57,7 +58,7 @@ export async function finalizeCadUpload({ tempFilename, filename, category, reso
   try {
     await client.query('BEGIN');
     // Serializes finalization/restore of the same destination across requests.
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`cad-upload:${category}:${safeFilename.toLowerCase()}`]);
+    await lockCadFileName(client, category, safeFilename);
     const targetComponentId = await lockUploadComponent(client, { componentId, mfgPartNumber, user });
     if (tempPath && !fs.existsSync(tempPath)) throw reject('Temp file not found', 404);
     // Hold the tracked row through disk publication too, so a tracked rename

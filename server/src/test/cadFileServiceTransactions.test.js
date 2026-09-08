@@ -37,7 +37,7 @@ function makeClient({ failOn, cadFiles = [] } = {}) {
         throw new Error('injected DB failure');
       }
       if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-      if (sql.includes('FROM cad_files') && sql.includes('FOR UPDATE')) return { rows: cadFiles.length ? cadFiles : [mocks.cadFile].filter(Boolean) };
+      if (sql.includes('FROM cad_files') && (sql.includes('SELECT *') || sql.includes('FOR UPDATE'))) return { rows: cadFiles.length ? cadFiles : [mocks.cadFile].filter(Boolean) };
       if (sql.includes('FROM components c')) return { rows: mocks.affected };
       if (typeof sql === 'string' && sql.includes('as base_name')) return { rows: [{ base_name: 'old' }] };
       return { rows: [] };
@@ -266,6 +266,17 @@ describe('renameFootprintGroup', () => {
 });
 
 describe('deleteCadFile (transactional, unlink after commit)', () => {
+  it('discards a connection if session-lock cleanup fails after deletion', async () => {
+    configureFs(['del.psm']);
+    const client = makeClient({ failOn: 'pg_advisory_unlock', cadFiles: [
+      { id: 'cf-9', file_name: 'del.psm', file_type: 'footprint' },
+    ] });
+    mocks.pool.connect.mockResolvedValue(client);
+    await expect(deleteCadFile('cf-9')).resolves.toMatchObject({ fileName: 'del.psm' });
+    expect(mocks.fsState.has('del.psm')).toBe(false);
+    expect(client.release).toHaveBeenCalledWith(expect.objectContaining({ message: 'injected DB failure' }));
+  });
+
   it('commits the DB delete and then unlinks the file', async () => {
     configureFs(['del.psm']);
     configurePool({

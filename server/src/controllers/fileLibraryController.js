@@ -451,13 +451,9 @@ export const deletePhysicalFile = async (req, res) => {
     // Find the cad_file record
     const cadFile = await cadFileService.findCadFile(safeFileName, info.fileType);
     if (!cadFile) {
-      // No DB record — just delete the physical file if it exists
-      const filePath = resolvePathWithinBase(LIBRARY_BASE, info.subdir, safeFileName);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-      logInfo('FileLibrary', `Physical delete (no DB record): "${safeFileName}"`);
-      return res.json({ success: true, fileName: safeFileName, updatedCount: 0, updatedComponents: [] });
+      // An unlocked miss cannot authorize disk deletion: an upload or scan may
+      // register/link the name immediately afterward. Require a tracked identity.
+      return res.status(404).json({ error: 'File not found in database; scan the library and refresh before deleting' });
     }
 
     const linkedComponents = await cadFileService.getComponentsByCadFile(cadFile.id);

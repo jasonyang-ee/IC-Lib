@@ -20,6 +20,7 @@ import {
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 import { logError, logInfo, logWarn } from '../utils/logger.js';
 import { listPackages } from './packageService.js';
+import { cadFileLockKey, lockCadFileName, lockCadFileNames } from '../utils/cadFileLocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -337,7 +338,7 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
   try {
     await client.query('BEGIN');
     transactionStarted = true;
-    const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1 FOR UPDATE', [cadFileId]);
+    const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
 
     if (cfResult.rows.length === 0) {
       throw new Error('CAD file not found');
@@ -353,6 +354,12 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
     }
 
     if (!subdir) throw new Error(`Invalid file type: ${cadFile.file_type}`);
+
+    await lockCadFileNames(client, [cadFile, { file_type: cadFile.file_type, file_name: safeNewFileName }]);
+    const locked = await client.query('SELECT * FROM cad_files WHERE id = $1 FOR UPDATE', [cadFileId]);
+    if (locked.rows[0]?.file_name !== cadFile.file_name || locked.rows[0]?.file_type !== cadFile.file_type) {
+      throw Object.assign(new Error('CAD file changed before rename; refresh and retry'), { status: 409 });
+    }
 
     const oldPath = resolvePathWithinBase(LIBRARY_BASE, subdir, oldFileName);
     const newPath = resolvePathWithinBase(LIBRARY_BASE, subdir, safeNewFileName);
@@ -434,11 +441,27 @@ export async function deleteCadFiles(cadFileIds) {
   if (ids.length === 0) return [];
   const client = await pool.connect();
   let files;
+  const namespaceLocks = [];
   try {
     await client.query('BEGIN');
+    const candidates = await client.query('SELECT * FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id', [ids]);
+    if (candidates.rows.length !== ids.length) {
+      throw Object.assign(new Error('CAD file not found'), { status: 404 });
+    }
+    // Session locks survive COMMIT until disk unlink finishes. Acquire names
+    // before rows, matching upload's lock order; validate identities afterward.
+    const keys = uniqueValues(candidates.rows.map(file => cadFileLockKey(file.file_type, file.file_name))).sort();
+    for (const key of keys) {
+      namespaceLocks.push(key);
+      await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key]);
+    }
     const locked = await client.query('SELECT * FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
     if (locked.rows.length !== ids.length) {
       throw Object.assign(new Error('CAD file not found'), { status: 404 });
+    }
+    if (locked.rows.some((file, index) => file.file_name !== candidates.rows[index].file_name
+      || file.file_type !== candidates.rows[index].file_type)) {
+      throw Object.assign(new Error('CAD file changed while deletion was waiting; refresh and retry'), { status: 409 });
     }
     files = locked.rows.map((file) => ({
       fileName: assertSafeLeafName(file.file_name, 'fileName'),
@@ -454,17 +477,26 @@ export async function deleteCadFiles(cadFileIds) {
     }
     await client.query('DELETE FROM cad_files WHERE id = ANY($1::uuid[])', [ids]);
     await client.query('COMMIT');
+    for (const file of files) {
+      if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
+    }
+    return files.map(({ filePath: _filePath, ...file }) => file);
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
     throw error;
   } finally {
-    client.release();
+    let unlockError;
+    try {
+      for (const key of namespaceLocks.reverse()) {
+        await client.query('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [key]);
+      }
+    } catch (error) {
+      unlockError = error;
+      logError('CadFiles', 'Failed to release deletion locks; discarding connection:', error);
+    }
+    // Never return a session with potentially held advisory locks to the pool.
+    client.release(unlockError);
   }
-
-  for (const file of files) {
-    if (fs.existsSync(file.filePath)) fs.unlinkSync(file.filePath);
-  }
-  return files.map(({ filePath: _filePath, ...file }) => file);
 }
 
 export async function deleteCadFile(cadFileId) {
@@ -856,8 +888,8 @@ export async function syncFootprintRelatedCadFilesForComponent(componentId, db =
 /**
  * Find a cad_file record by file name and type.
  */
-export async function findCadFile(fileName, fileType) {
-  const result = await pool.query(`
+export async function findCadFile(fileName, fileType, db = pool) {
+  const result = await db.query(`
     SELECT * FROM cad_files WHERE file_name = $1 AND file_type = $2
   `, [fileName, fileType]);
   return result.rows[0] || null;
@@ -917,11 +949,21 @@ export async function scanAndRegisterFiles() {
     for (const filename of files) {
       const existing = await findCadFile(filename, config.fileType);
       if (!existing) {
+        const client = await pool.connect();
         try {
-          await registerCadFile(filename, config.fileType);
-          totalRegistered++;
+          await client.query('BEGIN');
+          await lockCadFileName(client, config.fileType, filename);
+          // Directory listings can predate a concurrent deletion or upload.
+          const current = await findCadFile(filename, config.fileType, client);
+          const shouldRegister = !current && fs.existsSync(resolvePathWithinBase(dirPath, filename));
+          if (shouldRegister) await registerCadFile(filename, config.fileType, null, client);
+          await client.query('COMMIT');
+          if (shouldRegister) totalRegistered++;
         } catch (e) {
+          try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
           logError('Scan', `Failed to register ${filename}: ${e.message}`);
+        } finally {
+          client.release();
         }
       }
     }
@@ -944,19 +986,38 @@ export async function detectMissingFiles() {
     const subdir = TYPE_SUBDIR[row.file_type];
     if (!subdir) continue;
 
-    const fullPath = path.join(LIBRARY_BASE, subdir, row.file_name);
+    assertSafeLeafName(row.file_name, 'fileName');
+    const fullPath = resolvePathWithinBase(LIBRARY_BASE, subdir, row.file_name);
     const existsOnDisk = fs.existsSync(fullPath);
-
-    if (!existsOnDisk && !row.missing) {
-      // File is missing from disk but not yet tagged — mark as missing
-      await pool.query('UPDATE cad_files SET missing = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
-      taggedCount++;
-      logWarn('Scan', `Removed missing file: ${row.file_name} (${row.file_type})`);
-    } else if (existsOnDisk && row.missing) {
-      // File was previously missing but has been restored — clear the flag
-      await pool.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id]);
-      restoredCount++;
-      logInfo('Scan', `Restored file: ${row.file_name} (${row.file_type})`);
+    // Most files need no write or extra database round trips. A suspected
+    // change must be rechecked after any publication/rename/delete completes.
+    if (existsOnDisk !== row.missing) continue;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await lockCadFileName(client, row.file_type, row.file_name);
+      const current = (await client.query('SELECT * FROM cad_files WHERE id = $1 FOR UPDATE', [row.id])).rows[0];
+      let changedTo = null;
+      if (current?.file_name === row.file_name && current.file_type === row.file_type) {
+        const missing = !fs.existsSync(fullPath);
+        if (missing !== current.missing) {
+          await client.query('UPDATE cad_files SET missing = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [missing, row.id]);
+          changedTo = missing;
+        }
+      }
+      await client.query('COMMIT');
+      if (changedTo === true) {
+        taggedCount++;
+        logWarn('Scan', `Tagged missing file: ${row.file_name} (${row.file_type})`);
+      } else if (changedTo === false) {
+        restoredCount++;
+        logInfo('Scan', `Restored file: ${row.file_name} (${row.file_type})`);
+      }
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+      throw error;
+    } finally {
+      client.release();
     }
   }
 

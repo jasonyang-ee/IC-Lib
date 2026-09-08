@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CAD deletion retains filename locks through disk cleanup, preventing concurrent uploads or scans from publishing records or bytes that deletion then removes. Failed disk cleanup remains scan-recoverable, and untracked deletes require a scan and refresh.
+- CAD single/group/shared-ECO renames coordinate source and destination names with uploads and scans, preventing a publication between collision checks and physical moves. Legacy untracked renames recheck registration and restore their original path on transaction failure.
+- Missing-file detection rechecks suspected changes under filename and row locks, so a stale scan cannot mark a successfully renamed or concurrently uploaded file as missing.
 - File Library pad/model binding uploads expose partial failures, retain failed temp tokens for retry, and clean them up on discard or cancel while preserving successful selections.
 - File Library single-file and footprint-pair renames choose direct changes or ECO staging from locked current consumers. Competing renames reject stale source names; pair failures restore both files and their database references.
 - ECO alternative and distributor changes validate component ownership at submission and approval. Category-change ECOs edit the copied alternatives rather than archived originals, and preserve explicitly cleared field values.

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const { poolProxy, disk, bytes } = vi.hoisted(() => ({
   poolProxy: { connect: vi.fn(), query: vi.fn() },
-  disk: { existsSync: vi.fn(), renameSync: vi.fn() },
+  disk: { existsSync: vi.fn(), renameSync: vi.fn(), copyFileSync: vi.fn(), unlinkSync: vi.fn(), mkdirSync: vi.fn() },
   bytes: new Map(),
 }));
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
@@ -24,6 +24,7 @@ vi.mock('../services/packageService.js', () => ({ listPackages: vi.fn().mockReso
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
 import { createECO, approveECO, rejectECO, deleteECO, deleteApprovalStage, reorderApprovalStages, setStageApprovers } from '../controllers/ecoController.js';
 import { renamePhysicalFile, renameFootprintGroup } from '../controllers/fileLibraryController.js';
+import { finalizeCadUpload } from '../services/cadUploadService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
   env: { ...process.env, PG_RESTRICT_EXEC: '1' }, stdio: 'ignore', windowsHide: true,
@@ -110,6 +111,8 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
       bytes.set(target, bytes.get(source));
       bytes.delete(source);
     });
+    disk.copyFileSync.mockImplementation((from, to) => bytes.set(path.basename(to), bytes.get(path.basename(from))));
+    disk.unlinkSync.mockImplementation(file => bytes.delete(path.basename(file)));
     poolProxy.connect.mockImplementation(() => database.connect());
     poolProxy.query.mockImplementation((...args) => database.query(...args));
     await database.query(`
@@ -183,6 +186,56 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
       user: { id: id(1), role },
     };
   };
+
+  it.each(['group', 'shared'])('holds %s rename destinations against concurrent uploads', async operation => {
+    const req = operation === 'group' ? await footprintRequest('admin') : request(await stagedEco());
+    const target = operation === 'group' ? 'new.dra' : 'new.pad';
+    bytes.set('upload.tmp', 'uploaded bytes');
+    let paused;
+    let resumeRename;
+    const pause = new Promise(resolve => { paused = resolve; });
+    const resume = new Promise(resolve => { resumeRename = resolve; });
+    let didPause = false;
+    poolProxy.connect.mockImplementationOnce(async () => {
+      const client = await database.connect();
+      return {
+        query: async (...args) => {
+          const result = await client.query(...args);
+          const barrier = operation === 'group'
+            ? args[0].includes('UPDATE cad_files SET file_name')
+            : args[0].includes('SELECT id, file_name, file_type FROM cad_files WHERE id = $1 FOR UPDATE');
+          if (barrier && !didPause) { didPause = true; paused(); await resume; }
+          return result;
+        },
+        release: (...args) => client.release(...args),
+      };
+    });
+    const res = response();
+    const renaming = (operation === 'group' ? renameFootprintGroup : approveECO)(req, res);
+    let uploading;
+    let outcome;
+    try {
+      await pause;
+      uploading = finalizeCadUpload({ tempFilename: 'upload.tmp', filename: target,
+        category: operation === 'group' ? 'footprint' : 'pad',
+      }).then(value => { outcome = { value }; }, error => { outcome = { error }; });
+      await waitForLock();
+      resumeRename();
+      await renaming;
+      await uploading;
+      expect(res.status).not.toHaveBeenCalled();
+      expect(outcome.error?.status).toBe(409);
+      expect(bytes.get(target)).toBe(operation === 'group' ? 'drawing bytes' : 'original bytes');
+      expect(bytes.get('upload.tmp')).toBe('uploaded bytes');
+      expect((await database.query('SELECT file_name FROM cad_files ORDER BY file_name')).rows)
+        .toEqual((operation === 'group' ? ['new.dra', 'new.psm'] : ['new.pad']).map(file_name => ({ file_name })));
+      expect((await database.query("SELECT * FROM pg_locks WHERE locktype = 'advisory'")).rowCount).toBe(0);
+    } finally {
+      resumeRename();
+      await renaming;
+      await uploading;
+    }
+  });
 
   const seedAlternative = async (owner = componentId) => {
     await database.query(`
