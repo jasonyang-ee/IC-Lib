@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- 
+- Dry-run legacy CSV imports now report an empty input set when the optional git-ignored `import/` directory is absent, while real imports still fail fast when their source directory is missing.
 
 ## [1.11.2] - 2026-09-07
 

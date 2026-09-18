@@ -705,15 +705,26 @@ async function main() {
   }
 
   const importDir = path.join(__dirname, '..', 'import');
+  const importDirExists = fs.existsSync(importDir);
+
+  if (!importDirExists && !isDryRun) {
+    throw new Error(`Import directory not found: ${importDir}`);
+  }
+
+  if (!importDirExists) {
+    console.warn(`Import directory not found; dry run has no CSV files to process: ${importDir}`);
+  }
 
   // Get all CSV files
-  let files = fs
-    .readdirSync(importDir)
-    .filter((f) => f.endsWith('.csv'))
-    .map((f) => path.join(importDir, f));
+  let files = importDirExists
+    ? fs
+      .readdirSync(importDir)
+      .filter((f) => f.endsWith('.csv'))
+      .map((f) => path.join(importDir, f))
+    : [];
 
   // Filter by specific file if requested
-  if (specificFile) {
+  if (specificFile && importDirExists) {
     files = files.filter((f) => path.basename(f).includes(specificFile));
     if (files.length === 0) {
       console.error(`\nNo CSV files found matching: ${specificFile}\n`);
