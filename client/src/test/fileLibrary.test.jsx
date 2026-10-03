@@ -16,8 +16,6 @@ const getCadFilesForComponentMock = vi.fn();
 const getSharingComponentsMock = vi.fn();
 const renamePhysicalFileMock = vi.fn();
 const renameFootprintGroupMock = vi.fn();
-const linkFootprintRelatedFilesMock = vi.fn();
-const unlinkFootprintRelatedFilesMock = vi.fn();
 const showSuccessMock = vi.fn();
 const showErrorMock = vi.fn();
 
@@ -58,8 +56,6 @@ vi.mock('../utils/api', () => ({
     getSharingComponents: (...args) => getSharingComponentsMock(...args),
     renamePhysicalFile: (...args) => renamePhysicalFileMock(...args),
     renameFootprintGroup: (...args) => renameFootprintGroupMock(...args),
-    linkFootprintRelatedFiles: (...args) => linkFootprintRelatedFilesMock(...args),
-    unlinkFootprintRelatedFiles: (...args) => unlinkFootprintRelatedFilesMock(...args),
   },
 }));
 
@@ -180,8 +176,6 @@ const primeMocks = () => {
   getSharingComponentsMock.mockReset();
   renamePhysicalFileMock.mockReset();
   renameFootprintGroupMock.mockReset();
-  linkFootprintRelatedFilesMock.mockReset();
-  unlinkFootprintRelatedFilesMock.mockReset();
   showSuccessMock.mockReset();
   showErrorMock.mockReset();
 
@@ -191,13 +185,12 @@ const primeMocks = () => {
   getFilesByTypeMock.mockResolvedValue({ data: { files: [] } });
   getOrphanFilesMock.mockResolvedValue({ data: { orphans: [] } });
   searchFilesMock.mockResolvedValue({ data: { results: [] } });
+  getComponentsByFileMock.mockResolvedValue({ data: { components: [] } });
   getCategoriesMock.mockResolvedValue({ data: [] });
   getComponentsByCategoryForFilesMock.mockResolvedValue({ data: { components: [] } });
   getCadFilesForComponentMock.mockResolvedValue({ data: { files: {} } });
   getSharingComponentsMock.mockResolvedValue({ data: { components: [] } });
   renameFootprintGroupMock.mockResolvedValue({ data: { success: true } });
-  linkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
-  unlinkFootprintRelatedFilesMock.mockResolvedValue({ data: { success: true } });
   renamePhysicalFileMock.mockResolvedValue({
     data: {
       success: true,
@@ -235,6 +228,7 @@ describe('FileLibrary shared rename flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     expect(renamePhysicalFileMock).not.toHaveBeenCalled();
@@ -266,6 +260,7 @@ describe('FileLibrary shared rename flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     await waitFor(() => {
@@ -285,6 +280,7 @@ describe('FileLibrary shared rename flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     await waitFor(() => {
@@ -294,7 +290,7 @@ describe('FileLibrary shared rename flow', () => {
       });
     });
 
-    expect(getComponentsByFileMock).not.toHaveBeenCalled();
+    expect(getComponentsByFileMock).toHaveBeenCalledWith('schematic', 'shared-symbol.olb', undefined);
     expect(screen.queryByText('Create Shared Rename ECO')).not.toBeInTheDocument();
   });
 });
@@ -314,6 +310,7 @@ describe('FileLibrary footprint "+" rejection (V28)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set Plus Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     expect(showErrorMock).toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
@@ -329,6 +326,7 @@ describe('FileLibrary footprint "+" rejection (V28)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Pair Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set Plus Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     expect(showErrorMock).toHaveBeenCalledWith(FOOTPRINT_PLUS_ERROR_MESSAGE);
@@ -342,6 +340,7 @@ describe('FileLibrary footprint "+" rejection (V28)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open Footprint Pair Rename' }));
     fireEvent.click(screen.getByRole('button', { name: 'Set New Name' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Rename' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Submit Rename' }));
 
     await waitFor(() => {

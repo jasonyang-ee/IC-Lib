@@ -80,10 +80,10 @@ if [ "$MODE" = "development" ]; then
         [ ! -z "$BACKEND_PID" ] && kill $BACKEND_PID 2>/dev/null || true
         [ ! -z "$FRONTEND_PID" ] && kill $FRONTEND_PID 2>/dev/null || true
         echo "Stopped."
-        exit 0
     }
 
-    trap cleanup SIGTERM SIGINT
+    trap cleanup EXIT
+    trap 'exit 0' SIGTERM SIGINT
 
     # Start backend with hot reload
     cd server
@@ -106,7 +106,6 @@ if [ "$MODE" = "development" ]; then
     sleep 2
     if ! kill -0 $FRONTEND_PID 2>/dev/null; then
         echo -e "${RED}ERROR: Frontend failed to start${NC}"
-        kill $BACKEND_PID 2>/dev/null || true
         exit 1
     fi
 
@@ -118,16 +117,14 @@ if [ "$MODE" = "development" ]; then
     echo ""
 
     # Wait for either process to exit
-    wait -n $BACKEND_PID $FRONTEND_PID
-
-    EXIT_CODE=$?
+    EXIT_CODE=0
+    wait -n $BACKEND_PID $FRONTEND_PID || EXIT_CODE=$?
     if ! kill -0 $BACKEND_PID 2>/dev/null; then
         echo -e "${RED}ERROR: Backend exited unexpectedly${NC}"
     elif ! kill -0 $FRONTEND_PID 2>/dev/null; then
         echo -e "${RED}ERROR: Frontend exited unexpectedly${NC}"
     fi
 
-    cleanup
     exit $EXIT_CODE
 
 # ============================================================
@@ -145,10 +142,10 @@ else
         wait $BACKEND_PID 2>/dev/null || true
         wait $NGINX_PID 2>/dev/null || true
         echo "Stopped."
-        exit 0
     }
 
-    trap cleanup SIGTERM SIGINT
+    trap cleanup EXIT
+    trap 'exit 0' SIGTERM SIGINT
 
     # Validate environment
     if [ -z "$DB_HOST" ]; then
@@ -191,7 +188,7 @@ else
     chmod -R 1777 /tmp/nginx
 
     # Start nginx
-    nginx -g 'daemon off;' 2>&1 | sed 's/^/[nginx] /' &
+    nginx -g 'daemon off;' > >(sed 's/^/[nginx] /') 2>&1 &
     NGINX_PID=$!
     sleep 2
 
@@ -202,13 +199,12 @@ else
 
     # Start backend
     cd /app/server
-    node src/index.js 2>&1 | sed 's/^/[backend] /' &
+    node src/index.js > >(sed 's/^/[backend] /') 2>&1 &
     BACKEND_PID=$!
     sleep 2
 
     if ! kill -0 $BACKEND_PID 2>/dev/null; then
         echo "ERROR: Backend failed to start"
-        kill $NGINX_PID 2>/dev/null || true
         exit 1
     fi
 
@@ -256,21 +252,18 @@ else
 
     # Wait for backend readiness instead of process liveness so startup logs reflect
     # completed initialization, including database verification and migrations.
-    HEALTH_URL="http://127.0.0.1:${PORT:-3500}/api/health"
+    HEALTH_URL="http://127.0.0.1:${PORT:-3500}/api/ready"
     MAX_HEALTH_RETRIES=60
     HEALTH_RETRY_COUNT=0
     until node -e "fetch(process.argv[1]).then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))" "$HEALTH_URL" 2>/dev/null; do
         HEALTH_RETRY_COUNT=$((HEALTH_RETRY_COUNT + 1))
         if ! kill -0 $BACKEND_PID 2>/dev/null; then
             echo "ERROR: Backend exited before initialization completed"
-            kill $NGINX_PID 2>/dev/null || true
             exit 1
         fi
 
         if [ $HEALTH_RETRY_COUNT -ge $MAX_HEALTH_RETRIES ]; then
             echo "ERROR: Backend readiness check timed out"
-            kill $BACKEND_PID 2>/dev/null || true
-            kill $NGINX_PID 2>/dev/null || true
             exit 1
         fi
 
@@ -283,15 +276,13 @@ else
     echo ""
 
     # Wait for either process to exit
-    wait -n $BACKEND_PID $NGINX_PID
-
-    EXIT_CODE=$?
+    EXIT_CODE=0
+    wait -n $BACKEND_PID $NGINX_PID || EXIT_CODE=$?
     if ! kill -0 $NGINX_PID 2>/dev/null; then
         echo "ERROR: nginx exited unexpectedly"
     elif ! kill -0 $BACKEND_PID 2>/dev/null; then
         echo "ERROR: Backend exited unexpectedly"
     fi
 
-    cleanup
     exit $EXIT_CODE
 fi

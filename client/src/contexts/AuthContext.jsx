@@ -61,12 +61,14 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.logout();
     } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      queryClient.clear();
-      setUser(null);
-      setIsAuthenticated(false);
+      if (error.response?.status !== 401) {
+        return { success: false, error: 'Sign out failed. Please try again.' };
+      }
     }
+    queryClient.clear();
+    setUser(null);
+    setIsAuthenticated(false);
+    return { success: true };
   };
 
   const hasRole = (...roles) => {

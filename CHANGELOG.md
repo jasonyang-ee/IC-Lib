@@ -7,17 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- 
-
 ### Changed
 
-- 
+- New ECO submissions are blocked while any affected part already belongs to a pending or in-review ECO, including shared file renames.
+- Authenticated SMTP requires a persistent 32-byte `SMTP_ENCRYPTION_KEY`; credentialed connections verify TLS certificates. Deployments that previously used a generated key must configure a persistent key and save their SMTP password again.
+- Development uses Node's native watch mode. Removed unused vendor helpers, inventory handlers, Library state/modal code, eight unused UI components, unused client API wrappers, and import dependencies; consolidated repeated settings-import and file-grouping logic.
 
 ### Fixed
 
-- Dry-run legacy CSV imports now report an empty input set when the optional git-ignored `import/` directory is absent, while real imports still fail fast when their source directory is missing.
+- File Library retains missing database records, shows consistent missing/pending-ECO and part-status tags, preserves case-sensitive identities and complete footprint pairs, and refreshes affected pages after CAD changes. Searches include short filenames and all selected-type matches; deep links retain literal percent characters.
+- Component CAD listing, deletion and export use component IDs rather than potentially shared manufacturer part numbers. Saved downloads and explicit staged downloads use separate identities; supported upload formats and template download base paths agree across pages.
+- Footprint pad/model binding saves are atomic, retain drafts during background refresh, and recover from load/upload errors. Filename sanitization rolls back an entire pair after late failures and refuses stale rename plans. Library clearing leaves physical files intact if its database transaction fails; scans ignore directories named like CAD files.
+- Inventory rejects stale absolute quantities, preserves successful partial-save baselines and retries only failed edits. Project writes, audit history and response reads commit together; project forms retain failed work, validate whole quantities, distinguish missing prices from zero, and export BOMs using the correct component identity/status.
+- Alternative-part editing preserves vendor metadata without updating parent state during render. Alternative promotion and package-catalog writes roll back when their response cannot be built. Package alias edits recheck concurrent canonical promotion; manufacturer merges preserve both primary and alternative references, including same-name and failed-merge cases.
+- Settings imports roll back SQL failures instead of reporting rolled-back changes as successes. Settings-file saves publish atomically and preserve concurrent independent edits; category/global-prefix updates retain data on failure, handle literal punctuation and record the signed-in actor. ECO branding refreshes preserve unsaved drafts.
+- Dashboard and Reports agree on CAD health; dashboard distinguishes incomplete schema from ordinary request failure. File Library, ECO, reports, audit, profiles and admin editors expose load failures and retry controls. Logout failures preserve the local session; login/SSO preserve valid return paths; notification timers no longer dismiss newer messages.
+- Mouser stock parsing accepts formatted availability and reports malformed provider payloads. Footprint downloads have size limits and clean partial staging; PDF table sizing uses consistent body text and zero values. SMTP connection tests explicitly use saved settings and surface configuration errors.
+- Legacy CSV dry runs remain read-only even with populated inputs; per-record failures roll back counters, missing category mappings fail clearly, and absent optional input directories still produce an empty dry run.
+- Root development startup uses the shared launcher without an undeclared dependency; both startup modes clean up on exit. Production startup tracks the actual services and preserves failure exit codes. nginx routes API downloads before static assets and leaves credentialed CORS to Express; Compose/README use the bundled database hostname and persist application settings.
+- Coverage tooling matches Vitest, generated coverage stays untracked, and vulnerable obsolete development/import dependencies were removed or updated.
 
 ## [1.11.2] - 2026-09-07
 

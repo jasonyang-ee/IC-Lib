@@ -12,8 +12,7 @@ const AlternativePartsEditor = ({
   onAddAlternative,
   onDeleteAlternative,
   onPromoteToPrimary,
-  onUpdateAlternative,
-  onUpdateAlternativeDistributor
+  onUpdateAlternative
 }) => {
   const alternatives = editData.alternatives || [];
 
@@ -53,7 +52,6 @@ const AlternativePartsEditor = ({
               onDelete={() => onDeleteAlternative(altIndex)}
               onPromote={() => onPromoteToPrimary(altIndex)}
               onUpdate={(field, value) => onUpdateAlternative(altIndex, field, value)}
-              onUpdateDistributor={(distIndex, field, value) => onUpdateAlternativeDistributor(altIndex, distIndex, field, value)}
             />
           ))}
         </div>
@@ -74,8 +72,7 @@ const AlternativeCard = ({
   onManufacturerOpenToggle,
   onDelete,
   onPromote,
-  onUpdate,
-  onUpdateDistributor
+  onUpdate
 }) => {
   const distributorOrder = ['Digikey', 'Mouser', 'Arrow', 'Newark'];
   const altDistributors = alt.distributors || [];
@@ -87,6 +84,7 @@ const AlternativeCard = ({
       return existingDistName === distName;
     });
     return {
+      ...existing,
       distributor_id: dist?.id || null,
       distributor_name: distName,
       sku: existing?.sku || '',
@@ -94,10 +92,16 @@ const AlternativeCard = ({
     };
   });
 
-  // Normalize distributors if needed
-  if (JSON.stringify(altDistributors) !== JSON.stringify(normalizedDistributors)) {
-    onUpdate('distributors', normalizedDistributors);
-  }
+  // Keep custom distributors and vendor metadata. Merely opening the editor
+  // must not rewrite the draft while the distributor catalog is loading.
+  const displayedDistributors = [...normalizedDistributors, ...altDistributors.filter(existing => (
+    !normalizedDistributors.some(dist => dist.distributor_id && dist.distributor_id === existing.distributor_id)
+  ))];
+  const onUpdateDistributor = (index, field, value) => {
+    onUpdate('distributors', displayedDistributors.map((dist, distIndex) => (
+      distIndex === index ? { ...dist, [field]: value } : dist
+    )));
+  };
 
   return (
     <div className="border border-gray-300 dark:border-[#444444] rounded-md p-4 bg-white dark:bg-[#2a2a2a]">
@@ -224,13 +228,15 @@ const AlternativeCard = ({
           Distributors
         </label>
         <div className="space-y-1">
-          {normalizedDistributors.map((dist, distIndex) => (
+          {displayedDistributors.map((dist, distIndex) => (
             <div key={distIndex} className="grid grid-cols-[80px_1fr_1fr] gap-2 items-center">
               <div className="text-xs text-gray-700 dark:text-gray-300 font-medium">
                 {dist.distributor_name}
               </div>
               <input
                 type="text"
+                aria-label={`${dist.distributor_name || 'Distributor'} SKU`}
+                disabled={!dist.distributor_id}
                 value={dist.sku || ''}
                 onChange={(e) => onUpdateDistributor(distIndex, 'sku', e.target.value)}
                 placeholder="SKU"
@@ -238,6 +244,8 @@ const AlternativeCard = ({
               />
               <input
                 type="text"
+                aria-label={`${dist.distributor_name || 'Distributor'} product URL`}
+                disabled={!dist.distributor_id}
                 value={dist.url || ''}
                 onChange={(e) => onUpdateDistributor(distIndex, 'url', e.target.value)}
                 placeholder="Product URL"

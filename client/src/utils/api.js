@@ -58,7 +58,7 @@ export const api = {
   changePassword: (data) => apiClient.post('/auth/change-password', data),
   getOidcStatus: () => apiClient.get('/auth/oidc/status'),
   // Full-page navigation target (not an XHR) for the SSO redirect flow
-  getOidcLoginUrl: () => `${API_BASE_URL}/auth/oidc/login`,
+  getOidcLoginUrl: (returnTo = '') => `${API_BASE_URL}/auth/oidc/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`,
   
   // User Management (Admin only)
   getAllUsers: () => apiClient.get('/auth/users'),
@@ -73,11 +73,9 @@ export const api = {
   updateNotificationPreferences: (data) => apiClient.put('/auth/notification-preferences', data),
   getFileStoragePath: () => apiClient.get('/auth/file-storage-path'),
 
-  patch: (url, data, config) => apiClient.patch(url, data, config),
 
   // Dashboard
   getDashboardStats: () => apiClient.get('/dashboard/stats'),
-  getRecentActivities: () => apiClient.get('/dashboard/recent-activities'),
   getCategoryBreakdown: () => apiClient.get('/dashboard/category-breakdown'),
   getExtendedDashboardStats: () => apiClient.get('/dashboard/extended-stats'),
   getDatabaseInfo: () => apiClient.get('/dashboard/db-info'),
@@ -100,7 +98,6 @@ export const api = {
   createComponentAlternative: (id, data) => apiClient.post(`/components/${id}/alternatives`, data),
   updateComponentAlternative: (id, altId, data) => apiClient.put(`/components/${id}/alternatives/${altId}`, data),
   deleteComponentAlternative: (id, altId) => apiClient.delete(`/components/${id}/alternatives/${altId}`),
-  promoteAlternative: (id, altId) => apiClient.post(`/components/${id}/alternatives/${altId}/promote`),
   
   // Component Approval
   updateComponentApproval: (id, action, user_id) => apiClient.post(`/components/${id}/approval`, { action, user_id }),
@@ -128,26 +125,18 @@ export const api = {
 
   // Categories
   getCategories: () => apiClient.get('/categories'),
-  getCategoryById: (id) => apiClient.get(`/categories/${id}`),
   getNextPartNumber: (categoryId) => apiClient.get(`/categories/${categoryId}/next-part-number`),
-  getComponentsByCategory: (id, params) => apiClient.get(`/categories/${id}/components`, { params }),
   updateCategoryOrder: (categories) => apiClient.put('/settings/categories/reorder', { categories }),
 
   // Inventory
   getInventory: () => apiClient.get('/inventory'),
-  getInventoryById: (id) => apiClient.get(`/inventory/${id}`),
-  getInventoryByComponent: (componentId) => apiClient.get(`/inventory/component/${componentId}`),
-  createInventory: (data) => apiClient.post('/inventory', data),
   updateInventory: (id, data) => apiClient.put(`/inventory/${id}`, data),
-  deleteInventory: (id) => apiClient.delete(`/inventory/${id}`),
   getLowStockItems: () => apiClient.get('/inventory/alerts/low-stock'),
   searchByBarcode: (barcode) => apiClient.post('/inventory/search/barcode', { barcode }),
   getInventoryAlternatives: (componentId) => apiClient.get(`/inventory/${componentId}/alternatives`),
   updateAlternativeInventory: (altId, data) => apiClient.put(`/inventory/alternatives/${altId}`, data),
 
   // Search
-  searchDigikey: (partNumber) => apiClient.post('/search/digikey', { partNumber }),
-  searchMouser: (partNumber) => apiClient.post('/search/mouser', { partNumber }),
   searchAllVendors: (partNumber) => apiClient.post('/search/all', { partNumber }),
   addVendorPartToLibrary: (data) => apiClient.post('/search/add-to-library', data),
   downloadUltraLibrarianFootprint: (data) => apiClient.post('/search/footprint/ultra-librarian', data),
@@ -171,11 +160,8 @@ export const api = {
 
   // Manufacturers
   getManufacturers: (params) => apiClient.get('/manufacturers', { params }),
-  getManufacturerById: (id) => apiClient.get(`/manufacturers/${id}`),
   createManufacturer: (data) => apiClient.post('/manufacturers', data),
-  updateManufacturer: (id, data) => apiClient.put(`/manufacturers/${id}`, data),
   renameManufacturer: (id, newName) => apiClient.put(`/manufacturers/${id}/rename`, { newName }),
-  deleteManufacturer: (id) => apiClient.delete(`/manufacturers/${id}`),
 
   // Settings
   getSettings: () => apiClient.get('/settings'),
@@ -188,16 +174,11 @@ export const api = {
   previewECONumber: () => apiClient.get('/settings/eco/preview'),
   getEcoPdfBranding: () => apiClient.get('/settings/eco/logo'),
   updateEcoPdfBranding: (data) => apiClient.put('/settings/eco/logo', data),
-  getEcoLogoFilename: () => apiClient.get('/settings/eco/logo'),
-  updateEcoLogoFilename: (filenameOrData) => apiClient.put(
-    '/settings/eco/logo',
-    typeof filenameOrData === 'string'
-      ? { eco_logo_filename: filenameOrData }
-      : filenameOrData,
-  ),
 
   // CIS Config & Label Templates
+  getLabelTemplateDownloadUrl: (filename) => `${API_BASE_URL}/settings/label-templates/${encodeURIComponent(filename)}`,
   getCISFiles: () => apiClient.get('/settings/cis-files'),
+  getCISFileDownloadUrl: (filename) => `${API_BASE_URL}/settings/cis-files/${encodeURIComponent(filename)}`,
   getLabelTemplates: () => apiClient.get('/settings/label-templates'),
 
   // Category Specifications
@@ -208,22 +189,16 @@ export const api = {
   reorderCategorySpecifications: (categoryId, data) => apiClient.put(`/settings/categories/${categoryId}/specifications/reorder`, data),
 
   // Export/Import Settings
-  exportAllSettings: () => apiClient.post('/settings/export'),
-  importAllSettings: (data) => apiClient.post('/settings/import', { data }),
   exportUsers: () => apiClient.post('/settings/export/users'),
   importUsers: (users) => apiClient.post('/settings/import/users', { users }),
   exportCategories: () => apiClient.post('/settings/export/categories'),
   importCategories: (categories) => apiClient.post('/settings/import/categories', { categories }),
   
   // Database Management (Silent Mode API - No User Prompts)
-  getDatabaseStatus: () => apiClient.get('/settings/database/status'),
-  clearDatabase: () => apiClient.post('/settings/database/clear'),
   resetDatabase: (confirm = false) => apiClient.post('/settings/database/reset', { confirm: confirm === true }),
   verifyDatabase: () => apiClient.get('/settings/database/verify'),
-  syncInventory: () => apiClient.post('/settings/database/sync-inventory'),
   initSettings: () => apiClient.post('/settings/database/init-settings'),
   deletePartsData: (confirm) => apiClient.post('/settings/database/delete-parts', { confirm }),
-  deleteLibraryFiles: (confirm) => apiClient.post('/settings/database/delete-library-files', { confirm }),
   deleteUserRecords: (confirm) => apiClient.post('/settings/database/delete-users', { confirm }),
   exportDatabase: () => apiClient.get('/settings/database/export', { responseType: 'blob' }),
   importDatabase: (file) => {
@@ -260,7 +235,6 @@ export const api = {
   createECO: (data) => apiClient.post('/eco', data),
   approveECO: (id, data) => apiClient.post(`/eco/${id}/approve`, data),
   rejectECO: (id, data) => apiClient.post(`/eco/${id}/reject`, data),
-  deleteECO: (id) => apiClient.delete(`/eco/${id}`),
   downloadECOPDF: (id) => apiClient.get(`/eco/${id}/pdf`, { responseType: 'blob' }),
   getLastRejectedECO: (componentId) => apiClient.get(`/eco/component/${componentId}/last-rejected`),
 
@@ -293,18 +267,18 @@ export const api = {
   cleanupTempFiles: (data) => apiClient.post('/files/cleanup-temp', data),
   restoreDeletedFiles: (files) => apiClient.post('/files/restore-deleted', { files }),
   confirmDeleteFiles: (tempFilenames) => apiClient.post('/files/confirm-delete', { tempFilenames }),
-  listComponentFiles: (mfgPartNumber) => 
-    apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`),
-  deleteComponentFile: (category, mfgPartNumber, filename) =>
-    apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename } }),
+  listComponentFiles: (mfgPartNumber, componentId) =>
+    apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`, { params: { componentId } }),
+  deleteComponentFile: (category, mfgPartNumber, filename, componentId) =>
+    apiClient.delete('/files/delete', { data: { category, mfgPartNumber, filename, componentId } }),
   renameComponentFile: (category, mfgPartNumber, oldFilename, newFilename, tempFilename) =>
     apiClient.put('/files/rename', { category, mfgPartNumber, oldFilename, newFilename, tempFilename }),
   renameStagedFootprintGroup: (files, newBaseName) =>
     apiClient.put('/files/rename-staged-footprint-group', { files, newBaseName }),
-  getFileDownloadUrl: (category, mfgPartNumber, filename) =>
-    `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}`,
-  getFileExportUrl: (mfgPartNumber) =>
-    `${API_BASE_URL}/files/export/${encodeURIComponent(mfgPartNumber)}`,
+  getFileDownloadUrl: (category, mfgPartNumber, filename, tempFilename) =>
+    `${API_BASE_URL}/files/download/${category}/${encodeURIComponent(mfgPartNumber)}/${encodeURIComponent(filename)}${tempFilename ? `?tempFilename=${encodeURIComponent(tempFilename)}` : ''}`,
+  getFileExportUrl: (mfgPartNumber, componentId) =>
+    `${API_BASE_URL}/files/export/${encodeURIComponent(mfgPartNumber)}${componentId ? `?componentId=${encodeURIComponent(componentId)}` : ''}`,
     
   // File Library (CAD file management)
   getFileTypeStats: () => apiClient.get('/file-library/stats'),
@@ -312,7 +286,6 @@ export const api = {
   getComponentsByFile: (type, fileName, fileNames) => apiClient.get(`/file-library/type/${type}/components`, {
     params: fileNames?.length ? { fileNames } : { fileName },
   }),
-  searchFiles: (query, type) => apiClient.get('/file-library/search', { params: { query, type } }),
   renamePhysicalFile: (type, data) => apiClient.put(`/file-library/type/${type}/rename-file`, data),
   renameFootprintGroup: (fileNames, newBaseName) => apiClient.put('/file-library/type/footprint/rename-group', { fileNames, newBaseName }),
   deletePhysicalFile: (type, data) => apiClient.delete(`/file-library/type/${type}/delete-file`, { data }),
@@ -328,9 +301,7 @@ export const api = {
   getComponentsByCategoryForFiles: (categoryId) => apiClient.get(`/file-library/category/${categoryId}`),
   getSharingComponents: (componentId) => apiClient.get(`/file-library/sharing/${componentId}`),
   linkFileToComponent: (cadFileId, componentId) => apiClient.post('/file-library/link', { cadFileId, componentId }),
-  unlinkFileFromComponent: (cadFileId, componentId) => apiClient.post('/file-library/unlink', { cadFileId, componentId }),
-  linkFootprintRelatedFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.post('/file-library/footprint-related-links', { sourceCadFileIds, targetCadFileIds }),
-  unlinkFootprintRelatedFiles: (sourceCadFileIds, targetCadFileIds) => apiClient.delete('/file-library/footprint-related-links', { data: { sourceCadFileIds, targetCadFileIds } }),
+  updateFootprintRelatedFiles: (data) => apiClient.put('/file-library/footprint-related-links', data),
   scanLibraryFiles: () => apiClient.post('/file-library/scan'),
 };
 

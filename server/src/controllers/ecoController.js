@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { assertNoPendingComponentEcos } from '../services/ecoConflictService.js';
 import { sendApprovedECODocumentControlNotification, sendECONotification } from '../services/emailService.js';
 import {
   autoLinkRelatedCadFilesForComponent,
@@ -896,8 +897,9 @@ export const getAllECOs = async (req, res) => {
 
 // Get single ECO order with all details
 export const getECOById = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { id } = req.params;
 
     // Get ECO order with stage info
@@ -1109,14 +1111,15 @@ export const getECOById = async (req, res) => {
     logError('ECO', 'Error fetching ECO details:', error);
     res.status(500).json({ error: 'Failed to fetch ECO details' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
 // Get last rejected ECO for a specific component (for retry panel)
 export const getLastRejectedECOByComponent = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { componentId } = req.params;
 
     const ecoResult = await client.query(`
@@ -1220,7 +1223,7 @@ export const getLastRejectedECOByComponent = async (req, res) => {
     logError('ECO', 'Error fetching last rejected ECO:', error);
     res.status(500).json({ error: 'Failed to fetch last rejected ECO' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1258,8 +1261,9 @@ export const createECO = async (req, res) => {
     return res.status(400).json({ error: ALTERNATIVE_CLASS_ERROR_MESSAGE });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     
     const {
@@ -1278,12 +1282,12 @@ export const createECO = async (req, res) => {
       .some(group => Array.isArray(group) && group.length > 0);
 
     if (!component_id || !part_number) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'component_id and part_number are required' });
     }
 
     if (!hasStagedChanges) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'ECO requires at least one staged change' });
     }
 
@@ -1300,22 +1304,23 @@ export const createECO = async (req, res) => {
     );
 
     if (componentContextResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Component not found' });
     }
 
     const componentContext = componentContextResult.rows[0];
+    await assertNoPendingComponentEcos(client, [component_id]);
     await validateEcoAlternativeOwnership(client, component_id, alternatives, distributors);
     const specificationCategoryId = categoryChange?.new_value || componentContext.category_id || null;
     const proposedApprovalStatus = statusProposal?.new_value || null;
 
     if (statusProposal && !proposedApprovalStatus) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'A status proposal requires a target status' });
     }
 
     if (componentContext.approval_status === 'new' && !proposedApprovalStatus) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({
         error: 'New parts can be edited directly. Use ECO only when proposing Prototype status.',
       });
@@ -1326,7 +1331,7 @@ export const createECO = async (req, res) => {
       proposedStatus: proposedApprovalStatus,
     })) {
       const allowedTransitions = getAllowedEcoStatusProposals(componentContext.approval_status);
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({
         error: `Status proposal "${proposedApprovalStatus}" is not allowed from "${componentContext.approval_status}". Allowed ECO proposals: ${allowedTransitions.join(', ') || 'none'}.`,
       });
@@ -1370,7 +1375,7 @@ export const createECO = async (req, res) => {
     });
 
     if (pipelineTypes.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'ECO requires at least one approval-relevant change' });
     }
 
@@ -1502,11 +1507,11 @@ export const createECO = async (req, res) => {
     
     res.status(201).json(ecoResult.rows[0]);
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error creating ECO order:', error);
     res.status(error.status || 500).json({ error: error.message || 'Failed to create ECO order' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1999,10 +2004,11 @@ const applyECOChanges = async (client, eco, id) => {
 
 // Approve ECO order (vote-based multi-stage)
 export const approveECO = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
   const renamedPaths = [];
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     transactionStarted = true;
 
@@ -2228,19 +2234,20 @@ export const approveECO = async (req, res) => {
     try {
       if (transactionStarted) {
         rollbackMassFileRenames(renamedPaths);
-        await client.query('ROLLBACK');
+        await client?.query('ROLLBACK');
       }
     } finally {
-      client.release();
+      client?.release();
     }
   }
 };
 
 // Reject ECO order (vote-based, records rejection at current stage)
 export const rejectECO = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     transactionStarted = true;
 
@@ -2331,18 +2338,19 @@ export const rejectECO = async (req, res) => {
   } finally {
     try {
       if (transactionStarted) {
-        await client.query('ROLLBACK');
+        await client?.query('ROLLBACK');
       }
     } finally {
-      client.release();
+      client?.release();
     }
   }
 };
 
 // Generate PDF for an ECO order
 export const generateECOPDFEndpoint = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { id } = req.params;
 
     const pdfPayload = await buildEcoPdfPayload(client, id);
@@ -2363,15 +2371,16 @@ export const generateECOPDFEndpoint = async (req, res) => {
     logError('ECO', 'Error generating ECO PDF:', error);
     res.status(500).json({ error: 'Failed to generate ECO PDF' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
 // Delete ECO order (only if pending/in_review and created by user, or admin)
 export const deleteECO = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
   try {
+    client = await pool.connect();
     const { id } = req.params;
     await client.query('BEGIN');
     transactionStarted = true;
@@ -2414,10 +2423,10 @@ export const deleteECO = async (req, res) => {
   } finally {
     try {
       if (transactionStarted) {
-        await client.query('ROLLBACK');
+        await client?.query('ROLLBACK');
       }
     } finally {
-      client.release();
+      client?.release();
     }
   }
 };
@@ -2484,9 +2493,10 @@ export const exportApprovalStages = async (req, res) => {
 };
 
 export const importApprovalStages = async (req, res) => {
-  const client = await pool.connect();
+  let client;
 
   try {
+    client = await pool.connect();
     const importedStages = normalizeImportedApprovalStages(req.body?.stages);
     const results = {
       stages: { created: 0, updated: 0, deactivated: 0 },
@@ -2603,12 +2613,12 @@ export const importApprovalStages = async (req, res) => {
       results,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error importing approval stages:', error);
     const statusCode = error instanceof ApprovalStageImportValidationError ? 400 : 500;
     res.status(statusCode).json({ error: error.message || 'Failed to import approval stages' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -2617,8 +2627,14 @@ export const createApprovalStage = async (req, res) => {
   try {
     const { stage_name, required_approvals, required_role, pipeline_types } = req.body;
 
-    if (!stage_name) {
+    if (typeof stage_name !== 'string' || !stage_name.trim()) {
       return res.status(400).json({ error: 'Stage name is required' });
+    }
+    if (required_approvals !== undefined && (!Number.isInteger(required_approvals) || required_approvals < 1)) {
+      return res.status(400).json({ error: 'Required approvals must be a positive integer' });
+    }
+    if (required_role !== undefined && !['reviewer', 'read-write', 'approver', 'admin'].includes(required_role)) {
+      return res.status(400).json({ error: 'Invalid required role' });
     }
 
     const requestedPipelineTypes = Array.isArray(pipeline_types) ? pipeline_types : [];
@@ -2654,6 +2670,14 @@ export const updateApprovalStage = async (req, res) => {
   try {
     const { id } = req.params;
     const { stage_name, required_approvals, required_role, is_active, pipeline_types, stage_order } = req.body;
+
+    if ((stage_name !== undefined && (typeof stage_name !== 'string' || !stage_name.trim()))
+      || (required_approvals !== undefined && (!Number.isInteger(required_approvals) || required_approvals < 1))
+      || (stage_order !== undefined && (!Number.isInteger(stage_order) || stage_order < 1))
+      || (required_role !== undefined && !['reviewer', 'read-write', 'approver', 'admin'].includes(required_role))
+      || (is_active !== undefined && typeof is_active !== 'boolean')) {
+      return res.status(400).json({ error: 'Invalid stage name, approval count, order, role or active flag' });
+    }
 
     // Validate pipeline_types if provided
     if (pipeline_types !== undefined) {
@@ -2695,8 +2719,9 @@ export const updateApprovalStage = async (req, res) => {
 
 // Delete an approval stage
 export const deleteApprovalStage = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     const { id } = req.params;
@@ -2711,7 +2736,7 @@ export const deleteApprovalStage = async (req, res) => {
       [id],
     );
     if (stageResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Approval stage not found' });
     }
     const stage = stageResult.rows[0];
@@ -2729,7 +2754,7 @@ export const deleteApprovalStage = async (req, res) => {
       && !siblings.rows.some(sibling => doesStageMatchEcoPipelineTypes(sibling.pipeline_types, getEcoPipelineTypes(eco)))
     ));
     if (removesLastApplicableStage) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({
         error: 'Cannot delete this stage — it is the only applicable stage at its order level for an active ECO order.',
       });
@@ -2741,7 +2766,7 @@ export const deleteApprovalStage = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
@@ -2750,18 +2775,19 @@ export const deleteApprovalStage = async (req, res) => {
     await client.query('COMMIT');
     res.json({ message: 'Approval stage deleted successfully' });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error deleting approval stage:', error);
     res.status(500).json({ error: 'Failed to delete approval stage' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
 // Reorder approval stages
 export const reorderApprovalStages = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     const { stage_ids, stage_orders } = req.body;
@@ -2783,7 +2809,7 @@ export const reorderApprovalStages = async (req, res) => {
         );
       }
     } else {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'Either stage_ids (array) or stage_orders (object) is required' });
     }
 
@@ -2794,11 +2820,11 @@ export const reorderApprovalStages = async (req, res) => {
     await client.query('COMMIT');
     res.json(result.rows);
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error reordering approval stages:', error);
     res.status(500).json({ error: 'Failed to reorder approval stages' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -2808,15 +2834,16 @@ export const reorderApprovalStages = async (req, res) => {
 
 // Set approvers for a stage (replaces existing assignments)
 export const setStageApprovers = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
 
     const { id } = req.params; // stage_id
     const { user_ids } = req.body; // Array of user UUIDs
 
     if (!Array.isArray(user_ids)) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(400).json({ error: 'user_ids array is required' });
     }
 
@@ -2826,7 +2853,7 @@ export const setStageApprovers = async (req, res) => {
       [id],
     );
     if (stageResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
@@ -2854,10 +2881,10 @@ export const setStageApprovers = async (req, res) => {
     await client.query('COMMIT');
     res.json(result.rows);
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error setting stage approvers:', error);
     res.status(500).json({ error: 'Failed to set stage approvers' });
   } finally {
-    client.release();
+    client?.release();
   }
 };

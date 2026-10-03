@@ -21,6 +21,8 @@ const UserSettings = () => {
 
   // Profile state
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [authProvider, setAuthProvider] = useState('local');
   const [profileForm, setProfileForm] = useState({
@@ -43,12 +45,16 @@ const UserSettings = () => {
 
   // Load profile data on mount
   useEffect(() => {
+    let active = true;
+    setIsLoadingProfile(true);
+    setProfileError(false);
     const loadProfile = async () => {
       try {
         const [profileResponse, preferencesResponse] = await Promise.all([
           api.getProfile(),
           api.getNotificationPreferences(),
         ]);
+        if (!active) return;
         const profile = profileResponse.data;
         const preferences = preferencesResponse.data;
         setAuthProvider(profile.authProvider || 'local');
@@ -67,15 +73,18 @@ const UserSettings = () => {
           delegation: preferences.delegation || '',
         });
       } catch (error) {
+        if (!active) return;
+        setProfileError(true);
         console.error('Failed to load profile:', error);
         showError('Failed to load profile settings');
       } finally {
-        setIsLoadingProfile(false);
+        if (active) setIsLoadingProfile(false);
       }
     };
 
     loadProfile();
-  }, [showError]);
+    return () => { active = false; };
+  }, [showError, loadAttempt]);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -190,6 +199,11 @@ const UserSettings = () => {
       {isLoadingProfile ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+        </div>
+      ) : profileError ? (
+        <div role="alert" className="p-4 text-red-700 dark:text-red-300">
+          Unable to load your settings.
+          <button className="btn-secondary ml-3" onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button>
         </div>
       ) : (
         <div className="space-y-6">

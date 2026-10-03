@@ -23,6 +23,7 @@ import {
   linkFootprintRelatedFiles,
   unlinkFileFromComponent,
   unlinkFootprintRelatedFiles,
+  updateFootprintRelatedFiles,
   getComponentsByCategory,
   getSharingComponents,
   getAvailableFiles,
@@ -94,5 +95,6 @@ router.post('/footprint-related-links', canAccessFileLibrary, isAdmin, linkFootp
 
 // Remove footprint-driven pad or 3D model history records (admin only)
 router.delete('/footprint-related-links', canAccessFileLibrary, isAdmin, unlinkFootprintRelatedFiles);
+router.put('/footprint-related-links', canAccessFileLibrary, isAdmin, updateFootprintRelatedFiles);
 
 export default router;

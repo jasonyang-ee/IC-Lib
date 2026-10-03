@@ -15,6 +15,8 @@ import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
 import StatusBadge from './StatusBadge';
 import { FilterSelect, SidebarCard } from '../common';
 import { getCadFileTypeLabel } from './constants';
+import CadFileStatus from '../common/CadFileStatus';
+import { api } from '../../utils/api';
 
 const buildRelatedFileEntries = (fileType, relatedFiles) => {
   if (!Array.isArray(relatedFiles) || relatedFiles.length === 0) {
@@ -45,8 +47,8 @@ const buildRelatedFileEntries = (fileType, relatedFiles) => {
 
   return relatedFiles.map((file) => ({
     key: file.id || file.file_name,
-    label: file.file_name,
-    tooltip: file.file_name,
+    label: formatCadFileDisplayName(file.file_name, fileType),
+    tooltip: formatCadFileDisplayName(file.file_name, fileType),
     files: [file],
   }));
 };
@@ -242,7 +244,7 @@ const FileTypesView = ({
             </select>
             <a
               href={selectedCISFile
-                ? `${import.meta.env.VITE_API_URL || '/api'}/settings/cis-files/${encodeURIComponent(selectedCISFile)}`
+                ? api.getCISFileDownloadUrl(selectedCISFile)
                 : undefined}
               download
               className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -323,12 +325,14 @@ const FileTypesView = ({
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm" title={formatCadFileDisplayName(entry.displayName, entry.file_type)}>
                             {formatCadFileDisplayName(entry.displayName, entry.file_type)}
+                            {entry.kind !== 'pair' && <CadFileStatus file={entry.files?.[0]} />}
                           </p>
                           {entry.kind === 'pair' ? (
                             <div className="mt-0.5 space-y-0.5">
                               {entry.files.map((file) => (
                                 <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400 truncate" title={formatCadFileDisplayName(file.file_name, entry.file_type)}>
                                   {formatCadFileDisplayName(file.file_name, entry.file_type)}
+                                  <CadFileStatus file={file} />
                                 </p>
                               ))}
                             </div>
@@ -396,6 +400,7 @@ const FileTypesView = ({
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" title={formatCadFileDisplayName(selectedEntry.displayName, selectedEntry.file_type)}>
                     {formatCadFileDisplayName(selectedEntry.displayName, selectedEntry.file_type)}
+                    {selectedEntry.kind !== 'pair' && <CadFileStatus file={selectedEntry.files?.[0]} />}
                   </h2>
                   <button
                     onClick={() => onCopyPath(selectedEntry.fileNames, selectedType)}
@@ -409,6 +414,7 @@ const FileTypesView = ({
                     {selectedEntry.files.map((file) => (
                       <p key={file.file_name} className="text-xs text-gray-500 dark:text-gray-400">
                         {formatCadFileDisplayName(file.file_name, selectedEntry.file_type)}
+                        <CadFileStatus file={file} />
                       </p>
                     ))}
                   </div>
@@ -433,6 +439,7 @@ const FileTypesView = ({
                                 title={entry.tooltip}
                               >
                                 <span>{entry.label}</span>
+                                <CadFileStatus file={{ missing: entry.files.some(file => file.missing) }} />
                               </div>
                             ))}
                           </div>
@@ -450,7 +457,8 @@ const FileTypesView = ({
                 <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
                   <button
                     onClick={() => onOpenRename(selectedEntry)}
-                    className="btn-action-secondary text-sm"
+                    disabled={selectedEntry.files.some(file => file.missing)}
+                    className="btn-action-secondary text-sm disabled:opacity-50"
                   >
                     Rename
                   </button>

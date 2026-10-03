@@ -93,6 +93,18 @@ describe('ComponentFiles rendered selection orchestration', () => {
     expect(api.deleteComponentFile).not.toHaveBeenCalled();
   });
 
+  it('scopes saved file lists to the selected component ID', async () => {
+    await renderSelection('direct');
+    expect(api.listComponentFiles).toHaveBeenCalledWith('PART', 'component');
+  });
+
+  it('does not load another component files into an unsaved part with the same MPN', async () => {
+    serverFiles = { model: [{ ...oldModel, name: oldModel.file_name }] };
+    await renderSelection('add');
+    expect(api.listComponentFiles).not.toHaveBeenCalled();
+    expect(screen.queryByText('old.step')).not.toBeInTheDocument();
+  });
+
   it('shows archive rejection reasons while retaining successful staged files', async () => {
     api.uploadTempFiles.mockResolvedValue({ data: { results: [
       { originalName: 'large.zip', error: 'Archive exceeds the 250 MiB expanded-size limit' },

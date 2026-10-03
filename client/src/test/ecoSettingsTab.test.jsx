@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const getECOSettingsMock = vi.fn();
 const previewECONumberMock = vi.fn();
 const getEcoPdfBrandingMock = vi.fn();
+const updateEcoPdfBrandingMock = vi.fn();
 
 vi.mock('../utils/api', () => ({
   api: {
@@ -12,7 +13,7 @@ vi.mock('../utils/api', () => ({
     previewECONumber: (...args) => previewECONumberMock(...args),
     getEcoPdfBranding: (...args) => getEcoPdfBrandingMock(...args),
     updateECOSettings: vi.fn(),
-    updateEcoPdfBranding: vi.fn(),
+    updateEcoPdfBranding: (...args) => updateEcoPdfBrandingMock(...args),
   },
 }));
 
@@ -86,6 +87,16 @@ describe('ECOSettingsTab', () => {
       expect(companyLogoInput).toHaveValue('new-logo.png');
       expect(notificationInput).toHaveValue('new-doc.control@example.com');
     });
+  });
+
+  it('saves only branding fields and keeps an unsaved notification address', async () => {
+    updateEcoPdfBrandingMock.mockResolvedValue({ data: { eco_logo_filename: 'new-logo.png', eco_pdf_header_text: 'Engineer Change Order', eco_complete_notification_email: 'doc.control@example.com' } });
+    renderComponent();
+    fireEvent.change(await screen.findByDisplayValue('logo.png'), { target: { value: 'new-logo.png' } });
+    fireEvent.change(await screen.findByDisplayValue('doc.control@example.com'), { target: { value: 'unsaved@example.com' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save', exact: true })[0]);
+    await waitFor(() => expect(updateEcoPdfBrandingMock).toHaveBeenCalledWith({ eco_logo_filename: 'new-logo.png', eco_pdf_header_text: 'Engineer Change Order' }));
+    expect(screen.getByDisplayValue('unsaved@example.com')).toBeInTheDocument();
   });
 
   it('allows editing ECO number settings without resetting the form', async () => {

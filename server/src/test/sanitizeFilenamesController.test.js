@@ -4,7 +4,7 @@ import { mockReq, mockRes } from './fixtures/controllerTestKit.js';
 const mocks = vi.hoisted(() => ({
   listPackages: vi.fn(),
   getCadFilesByType: vi.fn(),
-  renameCadFile: vi.fn(),
+  renameCadFileGroup: vi.fn(),
   fs: { existsSync: vi.fn(() => true) },
 }));
 
@@ -14,7 +14,7 @@ vi.mock('../services/cadFileService.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    renameCadFile: mocks.renameCadFile,
+    renameCadFileGroup: mocks.renameCadFileGroup,
     default: { ...actual.default, getCadFilesByType: mocks.getCadFilesByType },
   };
 });
@@ -47,7 +47,7 @@ describe('sanitizeFilenames', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(mocks.getCadFilesByType).not.toHaveBeenCalled();
-    expect(mocks.renameCadFile).not.toHaveBeenCalled();
+    expect(mocks.renameCadFileGroup).not.toHaveBeenCalled();
   });
 
   it('renames in scope and reports every skip with its reason', async () => {
@@ -56,7 +56,7 @@ describe('sanitizeFilenames', () => {
     await sanitizeFilenames(mockReq({ body: { confirmation: 'SANITIZE' } }), res);
 
     expect(mocks.getCadFilesByType.mock.calls.map(([type]) => type)).toEqual(['footprint', 'symbol', 'model']);
-    expect(mocks.renameCadFile).toHaveBeenCalledWith('cf-1', 'soic-8_c.psm');
+    expect(mocks.renameCadFileGroup).toHaveBeenCalledWith([expect.objectContaining({ cadFileId: 'cf-1', newName: 'soic-8_c.psm' })]);
     expect(res.json).toHaveBeenCalledWith({
       renamed: 1,
       skipped: 1,
@@ -69,7 +69,7 @@ describe('sanitizeFilenames', () => {
   });
 
   it('counts a failed rename separately and still answers 200', async () => {
-    mocks.renameCadFile.mockRejectedValueOnce(new Error('permission denied'));
+    mocks.renameCadFileGroup.mockRejectedValueOnce(new Error('permission denied'));
     const res = mockRes();
 
     await sanitizeFilenames(mockReq({ body: { confirmation: 'SANITIZE' } }), res);

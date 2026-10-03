@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../utils/cadQueries';
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
@@ -31,7 +32,7 @@ const ECO = () => {
   }, []);
 
   // Fetch ECO orders
-  const { data: ecoOrders = [], isLoading } = useQuery({
+  const { data: ecoOrders = [], isLoading, error: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ['ecos', selectedStatus, user?.id || 'anonymous'],
     queryFn: async () => {
       const response = await api.getECOs({ status: selectedStatus });
@@ -61,7 +62,7 @@ const ECO = () => {
   });
 
   // Fetch ECO details when expanded
-  const { data: ecoDetails, isLoading: isLoadingDetails } = useQuery({
+  const { data: ecoDetails, isLoading: isLoadingDetails, error: detailsError, refetch: refetchDetails } = useQuery({
     queryKey: ['eco', expandedECO, user?.id || 'anonymous'],
     queryFn: async () => {
       if (!expandedECO) return null;
@@ -75,7 +76,7 @@ const ECO = () => {
   const approveMutation = useMutation({
     mutationFn: ({ id, comments }) => api.approveECO(id, { comments }),
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['ecos'] });
+      invalidateCadQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
       queryClient.invalidateQueries({ queryKey: ['components'] });
       queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
@@ -97,7 +98,7 @@ const ECO = () => {
   const rejectMutation = useMutation({
     mutationFn: ({ id, rejection_reason }) => api.rejectECO(id, { rejection_reason }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ecos'] });
+      invalidateCadQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
       setShowRejectModal(null);
       setRejectionReason('');
@@ -169,6 +170,8 @@ const ECO = () => {
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
                 Loading ECO orders...
               </div>
+            ) : ordersError ? (
+              <div role="alert">Unable to load ECO orders. <button onClick={() => refetchOrders()}>Retry</button></div>
             ) : filteredECOs.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md border border-gray-200 dark:border-[#3a3a3a]">
                 {hasActiveFilters
@@ -183,6 +186,8 @@ const ECO = () => {
                   expandedECO={expandedECO}
                   ecoDetails={ecoDetails}
                   isLoadingDetails={isLoadingDetails}
+                  detailsError={detailsError}
+                  onRetryDetails={refetchDetails}
                   canApprove={canApprove()}
                   currentUserCanAct={Boolean(eco.current_user_can_act)}
                   approvalComments={approvalComments}

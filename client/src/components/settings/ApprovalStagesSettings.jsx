@@ -28,7 +28,7 @@ const ApprovalStagesSettings = () => {
   ];
 
   // Fetch stages
-  const { data: stages = [], isLoading } = useQuery({
+  const { data: stages = [], isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['approvalStages'],
     queryFn: async () => {
       const response = await api.getApprovalStages();
@@ -320,6 +320,8 @@ const ApprovalStagesSettings = () => {
       </div>
     );
   }
+
+  if (loadError) return <div role="alert">Unable to load settings. <button onClick={() => refetch()}>Retry</button></div>;
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

@@ -14,7 +14,7 @@ const Audit = () => {
   const [itemsPerPage, setItemsPerPage] = useState(15);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  const { data: auditData, isLoading } = useQuery({
+  const { data: auditData, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['auditLog'],
     queryFn: async () => {
       const response = await api.getAuditLog();
@@ -136,7 +136,7 @@ const Audit = () => {
           <button
             onClick={exportToCSV}
             className="btn-primary flex items-center gap-2"
-            disabled={!filteredData || filteredData.length === 0}
+            disabled={isLoading || Boolean(loadError) || !filteredData.length}
           >
             <Download className="w-4 h-4" />
             Export CSV
@@ -150,6 +150,8 @@ const Audit = () => {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
           </div>
+        ) : loadError ? (
+          <div role="alert" className="p-4">Unable to load audit records. <button onClick={() => refetch()}>Retry</button></div>
         ) : (
           <>
             <AuditTable

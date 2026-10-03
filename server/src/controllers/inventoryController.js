@@ -5,6 +5,7 @@ const validStockValues = (...values) => values.every(value => value == null
   || ((typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))
     && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 2147483647));
 const INVALID_STOCK_ERROR = 'Stock quantities must be whole numbers between 0 and 2147483647';
+const STOCK_CONFLICT_ERROR = 'Inventory changed while you were editing. Cancel editing, refresh, and reapply your change.';
 
 export const getAllInventory = async (req, res, next) => {
   try {
@@ -114,9 +115,10 @@ export const updateInventory = async (req, res, next) => {
       quantity,
       minimum_quantity,
       last_counted,
+      expected_quantity,
     } = req.body;
 
-    if (!validStockValues(quantity, minimum_quantity)) {
+    if (!validStockValues(quantity, minimum_quantity, expected_quantity)) {
       return res.status(400).json({ error: INVALID_STOCK_ERROR });
     }
     client = await pool.connect();
@@ -142,6 +144,10 @@ export const updateInventory = async (req, res, next) => {
     }
 
     const oldItem = oldData.rows[0];
+    if (expected_quantity != null && Number(expected_quantity) !== Number(oldItem.quantity || 0)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: STOCK_CONFLICT_ERROR });
+    }
 
     // Update the inventory
     const result = await client.query(`
@@ -350,9 +356,9 @@ export const getAlternativeInventory = async (req, res, next) => {
 export const updateAlternativeInventory = async (req, res, next) => {
   try {
     const { altId } = req.params;
-    const { location, quantity, min_quantity } = req.body;
+    const { location, quantity, min_quantity, expected_quantity } = req.body;
 
-    if (!validStockValues(quantity, min_quantity)) {
+    if (!validStockValues(quantity, min_quantity, expected_quantity)) {
       return res.status(400).json({ error: INVALID_STOCK_ERROR });
     }
 
@@ -360,14 +366,20 @@ export const updateAlternativeInventory = async (req, res, next) => {
     // parameters so insert defaults do not overwrite another request's fields.
     const result = await pool.query(`
       INSERT INTO inventory_alternative (alternative_id, location, quantity, min_quantity)
-      VALUES ($1, COALESCE($2, ''), COALESCE($3, 0), COALESCE($4, 0))
+      SELECT $1, COALESCE($2, ''), COALESCE($3, 0), COALESCE($4, 0)
+      WHERE $5::integer IS NULL OR $5 = 0 OR EXISTS (
+        SELECT 1 FROM inventory_alternative WHERE alternative_id = $1 AND quantity = $5
+      )
       ON CONFLICT (alternative_id) DO UPDATE SET
         location = COALESCE($2, inventory_alternative.location),
         quantity = COALESCE($3, inventory_alternative.quantity),
         min_quantity = COALESCE($4, inventory_alternative.min_quantity),
         updated_at = CURRENT_TIMESTAMP
+      WHERE $5::integer IS NULL OR COALESCE(inventory_alternative.quantity, 0) = $5
       RETURNING *
-    `, [altId, location, quantity, min_quantity]);
+    `, [altId, location, quantity, min_quantity, expected_quantity]);
+
+    if (result.rows.length === 0) return res.status(409).json({ error: STOCK_CONFLICT_ERROR });
 
     res.json(result.rows[0]);
   } catch (error) {

@@ -86,6 +86,8 @@ const ECOListItem = ({
   expandedECO,
   ecoDetails,
   isLoadingDetails,
+  detailsError,
+  onRetryDetails,
   canApprove,
   currentUserCanAct,
   approvalComments,
@@ -104,8 +106,8 @@ const ECOListItem = ({
     ecoDetails?.current_stage_configuration_mismatch ?? eco?.current_stage_configuration_mismatch,
   );
   const canActOnCurrentStage = canApprove && currentUserCanAct;
-  const approvalActionDisabled = !canActOnCurrentStage || approvePending;
-  const rejectionActionDisabled = !canActOnCurrentStage || rejectPending;
+  const approvalActionDisabled = !canActOnCurrentStage || approvePending || rejectPending || Boolean(detailsError);
+  const rejectionActionDisabled = !canActOnCurrentStage || rejectPending || approvePending || Boolean(detailsError);
   const categoryChange = ecoDetails?.changes?.find((change) => change.field_name === 'category_id') || null;
   const componentFieldChanges = ecoDetails?.changes?.filter((change) => change.field_name !== 'category_id') || [];
   const categoryChangePartNumber = ecoDetails?.part_number || ecoDetails?.component_part_number || eco?.component_part_number || eco?.part_number;
@@ -261,7 +263,9 @@ const ECOListItem = ({
       {/* Expanded Details */}
       {isExpanded && (
         <div className="border-t border-gray-200 dark:border-[#3a3a3a] p-4 bg-gray-50 dark:bg-[#222222]">
-          {isLoadingDetails ? (
+          {detailsError ? (
+            <div role="alert">Unable to load ECO details. <button onClick={() => onRetryDetails()}>Retry</button></div>
+          ) : isLoadingDetails ? (
             <div className="text-center py-4 text-gray-500 dark:text-gray-400">
               Loading details...
             </div>

@@ -41,6 +41,7 @@ const { detectEcoPipelineTypes } = await import('../services/ecoPipelineService.
 
 // The DB conversation createECO holds before it reaches the change inserts.
 const createEcoRoutes = () => [
+  ["WHERE eo.status IN ('pending', 'in_review')", { rows: [] }],
   ['SELECT category_id, approval_status FROM components', { rows: [{ category_id: 'cat-1', approval_status: 'prototype' }] }],
   ['SELECT * FROM eco_settings', { rows: [{ id: 'set-1', prefix: 'ECO-', next_number: 7, leading_zeros: 1 }] }],
   ['UPDATE eco_settings', { rows: [] }],

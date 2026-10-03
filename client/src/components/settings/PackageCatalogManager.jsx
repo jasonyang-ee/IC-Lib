@@ -31,7 +31,7 @@ const PackageCatalogManager = () => {
   const [tempPackage, setTempPackage] = useState(EMPTY_PACKAGE);
   const [newAlias, setNewAlias] = useState({});
 
-  const { data: packages = [], isLoading } = useQuery({
+  const { data: packages = [], isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['packages'],
     queryFn: async () => {
       const response = await api.getPackages();
@@ -102,6 +102,8 @@ const PackageCatalogManager = () => {
       </p>
     </div>
   );
+
+  if (loadError) return <div role="alert">Unable to load settings. <button onClick={() => refetch()}>Retry</button></div>;
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

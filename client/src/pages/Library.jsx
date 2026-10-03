@@ -153,7 +153,6 @@ const Library = () => {
   const [autoFillToast, setAutoFillToast] = useState({ show: false, message: '', count: 0 });
   
   // ECO state
-  const [_ecoChanges, setEcoChanges] = useState([]);
   const [ecoNotes, setEcoNotes] = useState('');
   const [ecoStatusProposal, setEcoStatusProposal] = useState(null); // { old_value, new_value }
   const [lastRejectedECO, setLastRejectedECO] = useState(null);
@@ -1330,7 +1329,6 @@ const Library = () => {
       const componentId = component.id;
 
       // Initialize states that don't depend on async data
-      setEcoChanges([]);
       setEcoNotes('');
       setEcoStatusProposal(null);
       setLastRejectedECO(null);
@@ -1891,7 +1889,6 @@ const Library = () => {
       // Reset states
       setIsECOMode(false);
       setIsEditMode(false);
-      setEcoChanges([]);
       setEcoNotes('');
       setEcoStatusProposal(null);
       setParentEcoId(null);
@@ -1928,24 +1925,12 @@ const Library = () => {
     }
     setIsECOMode(false);
     setIsEditMode(false);
-    setEcoChanges([]);
     setEcoNotes('');
     setEcoStatusProposal(null);
     setParentEcoId(null);
     setLastRejectedECO(null);
     setRetryEcoNumber(null);
     setEcoCadStagedFiles([]);
-  };
-
-  const _handleDelete = () => {
-    if (selectedComponent) {
-      setDeleteConfirmation({ 
-        show: true, 
-        type: 'single', 
-        count: 1, 
-        componentName: selectedComponent.part_number || 'this component' 
-      });
-    }
   };
 
   const handleBulkDelete = () => {
@@ -3049,19 +3034,6 @@ const Library = () => {
     }
   };
 
-  const handleUpdateAlternativeDistributor = (altIndex, distIndex, field, value) => {
-    setEditData((prev) => {
-      const updatedAlternatives = [...(prev.alternatives || [])];
-      const updatedDistributors = [...(updatedAlternatives[altIndex].distributors || [])];
-      updatedDistributors[distIndex] = {
-        ...updatedDistributors[distIndex],
-        [field]: value
-      };
-      updatedAlternatives[altIndex].distributors = updatedDistributors;
-      return { ...prev, alternatives: updatedAlternatives };
-    });
-  };
-
   const handleComponentClick = (component) => {
     if (!bulkActionMode) {
       setSelectedComponent(component);
@@ -3705,7 +3677,6 @@ const Library = () => {
               onDeleteAlternative={handleDeleteAlternative}
               onPromoteToPrimary={handlePromoteToPrimary}
               onUpdateAlternative={handleUpdateAlternative}
-              onUpdateAlternativeDistributor={handleUpdateAlternativeDistributor}
             />
 
             {/* ECO Status Proposal - Only shown in ECO mode, above ECO Notes */}

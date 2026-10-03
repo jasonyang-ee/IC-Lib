@@ -28,8 +28,9 @@ export const getSMTPSettings = async (req, res) => {
  * Save/Update SMTP settings
  */
 export const saveSMTPSettings = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const {
       host,
       port,
@@ -105,9 +106,9 @@ export const saveSMTPSettings = async (req, res) => {
     }
   } catch (error) {
     logError('SMTPController', `Error saving SMTP settings: ${error.message}`);
-    res.status(500).json({ error: 'Failed to save SMTP settings' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to save SMTP settings' });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 

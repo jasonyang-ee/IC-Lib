@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../../utils/cadQueries';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../utils/api';
@@ -391,12 +392,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
 
   // Fetch existing files
   const { data: filesData, isLoading } = useQuery({
-    queryKey: ['componentFiles', mfgPartNumber],
+    queryKey: ['componentFiles', componentId],
     queryFn: async () => {
-      const response = await api.listComponentFiles(mfgPartNumber);
+      const response = await api.listComponentFiles(mfgPartNumber, componentId);
       return response.data;
     },
-    enabled: !!mfgPartNumber,
+    enabled: !!componentId,
     refetchOnMount: 'always',
   });
 
@@ -411,7 +412,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
     },
     onSuccess: (response) => {
       if (mfgPartNumber) {
-        queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+        invalidateCadQueries(queryClient);
       }
       const results = response.data.results || [];
       // Normalize file extensions to lowercase (e.g., .OLB → .olb)
@@ -464,14 +465,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   // Delete mutation (supports soft-delete and unlink responses)
   const deleteMutation = useMutation({
     mutationFn: async ({ category, filename }) => {
-      return api.deleteComponentFile(category, mfgPartNumber, filename);
+      return api.deleteComponentFile(category, mfgPartNumber, filename, componentId);
     },
     onSuccess: (response, variables) => {
       const data = response.data;
       const removedFiles = Array.isArray(data.removedFiles) && data.removedFiles.length > 0
         ? data.removedFiles
         : [{ category: variables.category, filename: variables.filename }];
-      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      invalidateCadQueries(queryClient);
 
       if (data.unlinked) {
         showSuccess(removedFiles.length > 1 ? 'Footprint group removed from part' : 'File removed from part');
@@ -548,7 +549,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       const { primaryData, pairedData } = response;
       const pairedRenameFailed = Boolean(response.pairedRenameError && variables.pairedFilename && variables.pairedNewFilename);
 
-      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      invalidateCadQueries(queryClient);
       showSuccess(`Renamed to ${primaryData.newFilename}`);
 
       syncConfirmedCadRename({
@@ -802,12 +803,12 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       return { linkedFiles: [...linkedFiles.values()] };
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      invalidateCadQueries(queryClient);
       const linkedCount = result.linkedFiles?.length || 0;
       showSuccess(linkedCount > 1 ? `${linkedCount} files linked successfully` : 'File linked successfully');
     },
     onError: (error) => {
-      queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      invalidateCadQueries(queryClient);
       showError('Link failed: ' + (error.response?.data?.error || error.message));
     },
   });
@@ -1032,7 +1033,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         notifyCadFileRemoved(fileConflict.category, fileConflict.existingFile);
       } else {
         // Delete/unlink the existing file
-        const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile);
+        const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile, componentId);
         const deleteData = deleteResponse.data;
 
         // Track soft-delete for restore-on-cancel
@@ -1064,7 +1065,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       }
 
       // Refresh files
-      if (!ecoMode && mfgPartNumber) queryClient.invalidateQueries(['componentFiles', mfgPartNumber]);
+      if (!ecoMode && mfgPartNumber) invalidateCadQueries(queryClient);
     } catch (e) {
       showError('Failed to replace file: ' + (e.response?.data?.error || e.message));
     }
@@ -1153,7 +1154,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         <h4 className="font-semibold text-gray-900 dark:text-gray-100">CAD File Management</h4>
         {mfgPartNumber && hasFiles && (
           <a
-            href={api.getFileExportUrl(mfgPartNumber)}
+            href={api.getFileExportUrl(mfgPartNumber, componentId)}
             className="btn-secondary text-xs flex items-center gap-1"
             title="Export all files as ZIP"
           >
@@ -1226,7 +1227,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                               </span>
                             ) : mfgPartNumber ? (
                               <a
-                                href={api.getFileDownloadUrl(category, mfgPartNumber, primary.name)}
+                                href={api.getFileDownloadUrl(category, mfgPartNumber, primary.name, primary.tempFilename)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
@@ -1268,7 +1269,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                               </span>
                             ) : mfgPartNumber ? (
                               <a
-                                href={api.getFileDownloadUrl(category, mfgPartNumber, dra.name)}
+                                href={api.getFileDownloadUrl(category, mfgPartNumber, dra.name, dra.tempFilename)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
@@ -1341,7 +1342,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                         </span>
                       ) : mfgPartNumber ? (
                         <a
-                          href={api.getFileDownloadUrl(category, mfgPartNumber, file.name)}
+                          href={api.getFileDownloadUrl(category, mfgPartNumber, file.name, file.tempFilename)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"

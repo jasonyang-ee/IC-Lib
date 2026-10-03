@@ -15,6 +15,8 @@ const RejectModal = ({
           Please provide a reason for rejecting this ECO:
         </p>
         <textarea
+          aria-label="Rejection reason"
+          disabled={isRejectPending}
           value={rejectionReason}
           onChange={(e) => onRejectionReasonChange(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -24,6 +26,7 @@ const RejectModal = ({
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onCancel}
+            disabled={isRejectPending}
             className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
           >
             Cancel

@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../../../utils/cadQueries';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, AlertTriangle, CheckCircle, Database, Loader2, Package, RefreshCw } from 'lucide-react';
@@ -188,6 +189,7 @@ const UpdateTab = () => {
 
     try {
       const response = await api.scanLibraryFiles();
+      invalidateCadQueries(queryClient);
       setScanResult(response.data.message);
       showToast(response.data.message, 'success');
     } catch (error) {

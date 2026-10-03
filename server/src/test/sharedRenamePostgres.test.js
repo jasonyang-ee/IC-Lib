@@ -23,7 +23,7 @@ vi.mock('../services/emailService.js', () => ({
 vi.mock('../services/packageService.js', () => ({ listPackages: vi.fn().mockResolvedValue([]) }));
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
 import { createECO, approveECO, rejectECO, deleteECO, deleteApprovalStage, reorderApprovalStages, setStageApprovers } from '../controllers/ecoController.js';
-import { renamePhysicalFile, renameFootprintGroup, linkFootprintRelatedFiles, unlinkFootprintRelatedFiles } from '../controllers/fileLibraryController.js';
+import { renamePhysicalFile, renameFootprintGroup, linkFootprintRelatedFiles, unlinkFootprintRelatedFiles, updateFootprintRelatedFiles } from '../controllers/fileLibraryController.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
@@ -252,6 +252,72 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
     user: { id: id(1), role: 'read-write' },
   });
 
+  const descriptionChange = { changes: [{ field_name: 'description', new_value: 'Updated' }] };
+
+  it.each(['pending', 'in_review'])('blocks shared and component submissions while a shared ECO is %s', async status => {
+    const ecoId = await stagedEco();
+    await database.query('UPDATE eco_orders SET status = $1 WHERE id = $2', [status, ecoId]);
+    const before = await state();
+    await expect(stagedEco()).rejects.toMatchObject({ status: 409, message: expect.stringContaining('pending ECO') });
+    const res = response();
+    await createECO(componentEcoRequest(descriptionChange), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    // A new part shares the renamed bytes even though its status was not staged.
+    const newPart = response();
+    await createECO(componentEcoRequest({ component_id: id(101), part_number: 'PN-2',
+      changes: [{ field_name: '_status_proposal', new_value: 'prototype' }],
+    }), newPart);
+    expect(newPart.status).toHaveBeenCalledWith(409);
+    expect(await state()).toEqual(before);
+  });
+
+  it('blocks shared and component submissions while a component ECO is pending', async () => {
+    const first = response();
+    await createECO(componentEcoRequest(descriptionChange), first);
+    expect(first.status).toHaveBeenCalledWith(201);
+    const before = await state();
+    const second = response();
+    await createECO(componentEcoRequest(descriptionChange), second);
+    expect(second.status).toHaveBeenCalledWith(409);
+    await expect(stagedEco()).rejects.toMatchObject({ status: 409 });
+    expect(await state()).toEqual(before);
+  });
+
+  it.each(['approve', 'reject', 'delete'])('allows another ECO after %s restores the original status', async action => {
+    const ecoId = await stagedEco();
+    const res = response();
+    const handler = { approve: approveECO, reject: rejectECO, delete: deleteECO }[action];
+    await handler({ ...request(ecoId), body: { comments: 'Finished' } }, res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect((await database.query('SELECT approval_status FROM components WHERE id = $1', [componentId])).rows[0].approval_status).toBe('production');
+    const next = response();
+    await createECO(componentEcoRequest(descriptionChange), next);
+    expect(next.status).toHaveBeenCalledWith(201);
+  });
+
+  it.each(['component', 'shared'])('serializes a competing %s submission behind the first shared ECO', async kind => {
+    const client = await database.connect();
+    let competing;
+    try {
+      await client.query('BEGIN');
+      await stage(client);
+      const res = response();
+      let sharedError;
+      competing = kind === 'component'
+        ? createECO(componentEcoRequest(descriptionChange), res)
+        : stagedEco().catch(error => { sharedError = error; });
+      await waitForLock();
+      await client.query('COMMIT');
+      await competing;
+      expect(kind === 'component' ? res.status.mock.calls[0]?.[0] : sharedError?.status).toBe(409);
+      expect((await database.query('SELECT status FROM eco_orders')).rows).toEqual([{ status: 'pending' }]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+      await competing;
+    }
+  });
+
   it.each(['link', 'unlink'])('rolls back the whole related-file %s request when a later association fails', async operation => {
     await database.query(`
       INSERT INTO cad_files (id, file_name, file_type, file_path) VALUES
@@ -282,6 +348,30 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect((await database.query('SELECT footprint_cad_file_id, related_cad_file_id FROM footprint_related_cad_files ORDER BY related_cad_file_id')).rows)
       .toEqual(before);
+  });
+
+  it('saves footprint binding additions and removals atomically, including retry after a failed addition', async () => {
+    await database.query(`
+      INSERT INTO cad_files (id, file_name, file_type, file_path) VALUES
+        ('${id(11)}', 'second.pad', 'pad', 'pad/second.pad'),
+        ('${id(12)}', 'related.psm', 'footprint', 'footprint/related.psm');
+      INSERT INTO footprint_related_cad_files (footprint_cad_file_id, related_cad_file_id, related_file_type)
+        VALUES ('${id(12)}', '${id(10)}', 'pad');
+      CREATE OR REPLACE FUNCTION reject_related_write() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'injected addition failure'; END $$;
+      CREATE TRIGGER fail_related_write BEFORE INSERT ON footprint_related_cad_files
+        FOR EACH ROW EXECUTE FUNCTION reject_related_write();
+    `);
+    const req = { body: { sourceCadFileIds: [id(12)], relatedFileType: 'pad', addFileIds: [id(11)], removeFileIds: [id(10)] } };
+    const failed = response();
+    await updateFootprintRelatedFiles(req, failed);
+    expect(failed.status).toHaveBeenCalledWith(500);
+    expect((await database.query('SELECT related_cad_file_id FROM footprint_related_cad_files')).rows).toEqual([{ related_cad_file_id: id(10) }]);
+    await database.query('DROP TRIGGER fail_related_write ON footprint_related_cad_files');
+    const retried = response();
+    await updateFootprintRelatedFiles(req, retried);
+    expect(retried.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    expect((await database.query('SELECT related_cad_file_id FROM footprint_related_cad_files')).rows).toEqual([{ related_cad_file_id: id(11) }]);
   });
 
   it.each(['link', 'unlink'])('rejects a CAD %s whose staged type differs from its persisted identity', async action => {

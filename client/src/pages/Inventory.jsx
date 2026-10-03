@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 import { QRCodeSVG } from 'qrcode.react';
@@ -25,6 +25,7 @@ const getInventoryEdit = item => ({
   minimum_quantity: item.minimum_quantity || 0,
   consumeQty: 0,
   receiveQty: 0,
+  original: { location: item.location || '', quantity: item.quantity || 0, minimum_quantity: item.minimum_quantity || 0 },
 });
 
 const Inventory = () => {
@@ -54,7 +55,6 @@ const Inventory = () => {
   const [storedViewPrefs] = useState(() => loadViewPrefs(INVENTORY_VIEW_PREFS_KEY, INVENTORY_VIEW_PREFS_VALIDATORS));
   const [sortBy, setSortBy] = useState(storedViewPrefs.sortBy ?? 'part_number');
   const [sortOrder, setSortOrder] = useState(storedViewPrefs.sortOrder ?? 'asc');
-  const [_receiveQtyFromQr, _setReceiveQtyFromQr] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
 
   // Search input ref for auto-focus
@@ -121,7 +121,7 @@ const Inventory = () => {
   });
 
   // Fetch inventory with aggressive caching
-  const { data: inventory, isLoading, refetch: refetchInventory } = useQuery({
+  const { data: inventory, isLoading, error: inventoryError, refetch: refetchInventory } = useQuery({
     queryKey: ['inventory'],
     queryFn: async () => {
       const response = await api.getInventory();
@@ -153,20 +153,6 @@ const Inventory = () => {
     },
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 120,
-  });
-
-  // Update quantity mutation
-  const _updateQtyMutation = useMutation({
-    mutationFn: async ({ id, quantity, location: stockLocation }) => {
-      const updateData = {};
-      if (quantity !== undefined) updateData.quantity = quantity;
-      if (stockLocation !== undefined) updateData.location = stockLocation;
-      await api.updateInventory(id, updateData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['inventory']);
-      queryClient.invalidateQueries(['lowStock']);
-    },
   });
 
   // Build set of component IDs from selected project
@@ -390,134 +376,66 @@ const Inventory = () => {
 
   const saveAll = async () => {
     const updates = [];
-    
-    // Save main inventory items
-    for (const [id, changes] of Object.entries(editedItems)) {
-      const originalItem = inventory.find(item => item.id === id);
-      if (!originalItem) continue;
-
-      const updateData = {};
-      
-      // Check if location changed
-      if (changes.location !== originalItem.location) {
-        updateData.location = changes.location;
-      }
-      
-      // Check if minimum_quantity changed
-      if (changes.minimum_quantity !== originalItem.minimum_quantity) {
-        updateData.minimum_quantity = changes.minimum_quantity;
-      }
-      
-      // Check if quantity changed (either set, consume, or receive)
-      let finalQuantity = changes.quantity;
-      if (changes.consumeQty && changes.consumeQty > 0) {
-        finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
-      }
-      if (changes.receiveQty && changes.receiveQty > 0) {
-        finalQuantity += parseInt(changes.receiveQty);
-      }
-      
-      if (finalQuantity !== originalItem.quantity) {
-        updateData.quantity = finalQuantity;
-      }
-      
-      // Only update if there are changes
-      if (Object.keys(updateData).length > 0) {
-        updates.push(api.updateInventory(id, updateData));
-      }
-    }
-    
-    // Save alternative parts
-    if (editingAlternative) {
-      for (const [altId, changes] of Object.entries(editingAlternative)) {
-        // Find the original alternative from alternativesData
-        let originalAlt = null;
-        for (const item of inventory) {
-          const alternatives = alternativesData[item.component_id] || [];
-          originalAlt = alternatives.find(a => a.id === altId);
-          if (originalAlt) break;
-        }
-        
-        if (!originalAlt) continue;
-
-        const updateData = {};
-        
-        // Check if location changed
-        if (changes.location !== originalAlt.location) {
-          updateData.location = changes.location;
-        }
-        
-        // Check if minimum_quantity changed - send as min_quantity to backend
-        if (changes.minimum_quantity !== originalAlt.minimum_quantity) {
-          updateData.min_quantity = changes.minimum_quantity;
-        }
-        
-        // Check if quantity changed (either set, consume, or receive)
-        let finalQuantity = changes.quantity;
-        if (changes.consumeQty && changes.consumeQty > 0) {
-          finalQuantity = Math.max(0, changes.quantity - parseInt(changes.consumeQty));
-        }
-        if (changes.receiveQty && changes.receiveQty > 0) {
-          finalQuantity += parseInt(changes.receiveQty);
-        }
-        
-        if (finalQuantity !== originalAlt.quantity) {
-          updateData.quantity = finalQuantity;
-        }
-        
-        // Only update if there are changes
-        if (Object.keys(updateData).length > 0) {
-          updates.push(api.updateAlternativeInventory(altId, updateData));
-        }
-      }
-    }
-
-    if (updates.length > 0) {
-      try {
-        const outcomes = await Promise.allSettled(updates);
-        const failed = outcomes.filter(outcome => outcome.status === 'rejected');
-        if (failed.length > 0) {
-          showError(`${updates.length - failed.length} change(s) saved; ${failed.length} failed. Your edits are retained for retry: ${failed[0].reason?.response?.data?.error || failed[0].reason?.message || 'Unknown error'}`);
+    for (const [kind, edits] of [['primary', editedItems], ['alternative', editingAlternative || {}]]) {
+      for (const [id, changes] of Object.entries(edits)) {
+        const original = changes.original;
+        const quantity = Number(changes.quantity) - Number(changes.consumeQty || 0) + Number(changes.receiveQty || 0);
+        if (![quantity, Number(changes.minimum_quantity), Number(changes.consumeQty || 0), Number(changes.receiveQty || 0)]
+          .every(value => Number.isInteger(value) && value >= 0 && value <= 2147483647)) {
+          showError('Use whole, non-negative stock quantities. Consumption cannot exceed available stock.');
           return;
         }
-        
-        // Refresh main inventory data
-        queryClient.invalidateQueries(['inventory']);
-        queryClient.invalidateQueries(['lowStock']);
-        
-        // Refresh alternatives data for all affected components
-        const affectedComponentIds = new Set();
-        for (const item of inventory) {
-          const alternatives = alternativesData[item.component_id] || [];
-          if (alternatives.some(alt => editingAlternative?.[alt.id])) {
-            affectedComponentIds.add(item.component_id);
-          }
+        const data = {};
+        if (changes.location !== original.location) data.location = changes.location;
+        if (changes.minimum_quantity !== original.minimum_quantity) {
+          data[kind === 'primary' ? 'minimum_quantity' : 'min_quantity'] = Number(changes.minimum_quantity);
         }
-        
-        // Fetch updated alternatives
-        for (const componentId of affectedComponentIds) {
-          try {
-            const response = await api.getInventoryAlternatives(componentId);
-            setAlternativesData(prev => ({
-              ...prev,
-              [componentId]: response.data
-            }));
-          } catch (error) {
-            console.error('Error refreshing alternatives:', error);
-          }
+        if (quantity !== original.quantity) {
+          data.quantity = quantity;
+          data.expected_quantity = original.quantity;
         }
-        
-        setEditMode(false);
-        setEditedItems({});
-        setEditingAlternative({});
-      } catch (error) {
-        showError('Error saving changes: ' + (error.message || 'Unknown error'));
+        if (Object.keys(data).length) updates.push({ kind, id, data, changes, quantity });
       }
-    } else {
-      setEditMode(false);
-      setEditedItems({});
-      setEditingAlternative({});
     }
+
+    const outcomes = await Promise.allSettled(updates.map(({ kind, id, data }) => (
+      kind === 'primary' ? api.updateInventory(id, data) : api.updateAlternativeInventory(id, data)
+    )));
+    const saved = updates.filter((_, index) => outcomes[index].status === 'fulfilled');
+    // Reset only successful edits. A partial-batch retry must not reapply them.
+    for (const [kind, setEdits] of [['primary', setEditedItems], ['alternative', setEditingAlternative]]) {
+      setEdits(current => {
+        const next = { ...current };
+        saved.filter(update => update.kind === kind).forEach(({ id, changes, quantity }) => {
+          next[id] = getInventoryEdit({ ...changes, quantity });
+        });
+        return next;
+      });
+    }
+    if (saved.length) {
+      for (const key of ['inventory', 'lowStock', 'project', 'dashboardStats', 'extendedStats', 'report']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      const affectedIds = Object.entries(alternativesData)
+        .filter(([, alternatives]) => alternatives.some(alt => saved.some(update => update.kind === 'alternative' && update.id === alt.id)))
+        .map(([componentId]) => componentId);
+      await Promise.all(affectedIds.map(async componentId => {
+        try {
+          const response = await api.getInventoryAlternatives(componentId);
+          setAlternativesData(current => ({ ...current, [componentId]: response.data }));
+        } catch (error) {
+          showError(`Changes saved, but alternative stock could not be refreshed: ${error.message}`);
+        }
+      }));
+    }
+    const failed = outcomes.filter(outcome => outcome.status === 'rejected');
+    if (failed.length) {
+      showError(`${saved.length} change(s) saved; ${failed.length} failed. Failed edits are retained: ${failed[0].reason?.response?.data?.error || failed[0].reason?.message || 'Unknown error'}`);
+      return;
+    }
+    setEditMode(false);
+    setEditedItems({});
+    setEditingAlternative({});
   };
 
   const handleSaveAll = async () => {
@@ -894,28 +812,6 @@ const Inventory = () => {
     }
   };
 
-  // Update alternative inventory
-  const updateAlternativeMutation = useMutation({
-    mutationFn: async ({ altId, data }) => {
-      await api.updateAlternativeInventory(altId, data);
-    },
-    onSuccess: (_, variables) => {
-      // Refresh alternatives data
-      const componentId = Object.keys(alternativesData).find(key => 
-        alternativesData[key].some(alt => alt.id === variables.altId)
-      );
-      if (componentId) {
-        api.getInventoryAlternatives(componentId).then(response => {
-          setAlternativesData(prev => ({
-            ...prev,
-            [componentId]: response.data
-          }));
-        });
-      }
-      setEditingAlternative(null);
-    },
-  });
-
   const handleAlternativeEdit = (altId, field, value) => {
     const alternative = Object.values(alternativesData).flat().find(alt => alt.id === altId);
     if (!alternative) return;
@@ -926,35 +822,6 @@ const Inventory = () => {
         [field]: value
       }
     }));
-  };
-
-  const _saveAlternativeChanges = (alt) => {
-    if (editingAlternative && editingAlternative[alt.id]) {
-      const changes = editingAlternative[alt.id];
-      const updateData = {};
-      
-      // Handle location
-      if (changes.location !== undefined) {
-        updateData.location = changes.location;
-      }
-      
-      // Handle minimum_quantity
-      if (changes.minimum_quantity !== undefined) {
-        updateData.minimum_quantity = changes.minimum_quantity;
-      }
-      
-      // Handle quantity with consume logic
-      let finalQuantity = changes.quantity !== undefined ? changes.quantity : alt.quantity;
-      if (changes.consumeQty && changes.consumeQty > 0) {
-        finalQuantity = Math.max(0, finalQuantity - parseInt(changes.consumeQty));
-      }
-      updateData.quantity = finalQuantity;
-      
-      updateAlternativeMutation.mutate({
-        altId: alt.id,
-        data: updateData
-      });
-    }
   };
 
   // Toggle expand/collapse all rows
@@ -1021,6 +888,10 @@ const Inventory = () => {
       qrUuid
     });
   };
+
+  if (inventoryError) {
+    return <div role="alert" className="p-4 text-red-600">Unable to load inventory. <button onClick={() => refetchInventory()} className="underline">Retry</button></div>;
+  }
 
   if (isLoading) {
     return (

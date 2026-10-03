@@ -6,15 +6,20 @@ import path from 'path';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const faults = vi.hoisted(() => ({ settings: false }));
+const faults = vi.hoisted(() => ({ settings: false, library: false, unlinked: [] }));
 vi.mock('fs', async importOriginal => {
   const actual = await importOriginal();
-  return { ...actual, readFileSync: (...args) => {
+  return { ...actual,
+    readdirSync: (...args) => faults.library && String(args[0]).endsWith('library/symbol') ? ['keep.olb'] : actual.readdirSync(...args),
+    existsSync: (...args) => faults.library && String(args[0]).includes('/library/') ? String(args[0]).endsWith('library/symbol') : actual.existsSync(...args),
+    statSync: (...args) => faults.library && String(args[0]).endsWith('keep.olb') ? { isFile: () => true } : actual.statSync(...args),
+    unlinkSync: file => { if (!faults.library) throw new Error('No live library deletion allowed'); faults.unlinked.push(file); },
+    readFileSync: (...args) => {
     if (faults.settings && String(args[0]).endsWith('init-settings.sql')) return 'SELECT missing_reset_fixture_function()';
     return actual.readFileSync(...args);
   } };
 });
-import { resetDatabase, initializeDatabase, deletePartsAndProjectData } from '../services/databaseService.js';
+import { resetDatabase, initializeDatabase, deletePartsAndProjectData, deleteLibraryFiles } from '../services/databaseService.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
   env: { ...process.env, PG_RESTRICT_EXEC: '1' }, stdio: 'ignore', windowsHide: true,
@@ -58,8 +63,24 @@ describe('Database maintenance on scratch PostgreSQL', () => {
   }, 15000);
   beforeEach(async () => {
     faults.settings = false;
+    faults.library = false;
+    faults.unlinked = [];
     await database.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
   });
+  it('does not delete physical files when clearing their records fails', async () => {
+    await database.query(`CREATE TABLE cad_files (id INTEGER, file_type TEXT, file_name TEXT);
+      INSERT INTO cad_files VALUES (1, 'symbol', 'keep.olb');
+      CREATE TABLE eco_orders (id INTEGER, status TEXT);
+      CREATE TABLE eco_cad_files (eco_id INTEGER);
+      CREATE TABLE eco_file_rename_files (eco_id INTEGER);`);
+    faults.library = true;
+    // Missing components forces failure after TRUNCATE, which must roll back.
+    const result = await deleteLibraryFiles();
+    expect(result.success).toBe(false);
+    expect(faults.unlinked).toEqual([]);
+    expect((await database.query('SELECT file_name FROM cad_files')).rows).toEqual([{ file_name: 'keep.olb' }]);
+  });
+
   it('restores the original schema and rows when a late reset step fails', async () => {
     await database.query('CREATE TABLE sentinel (value TEXT); INSERT INTO sentinel VALUES (\'keep\')');
     faults.settings = true;

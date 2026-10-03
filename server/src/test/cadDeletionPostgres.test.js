@@ -9,17 +9,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const { poolProxy, disk } = vi.hoisted(() => ({
   poolProxy: { connect: vi.fn(), query: vi.fn() },
   disk: { existsSync: vi.fn(() => true), unlinkSync: vi.fn(), renameSync: vi.fn(),
-    copyFileSync: vi.fn(), mkdirSync: vi.fn(), readdirSync: vi.fn() },
+    statSync: vi.fn(() => ({ isFile: () => true })), copyFileSync: vi.fn(), mkdirSync: vi.fn(), readdirSync: vi.fn() },
 }));
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, default: { ...actual.default, ...disk } };
 });
-import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile } from '../controllers/fileUploadController.js';
-import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles, linkFileToComponent, unlinkFileFromComponent } from '../controllers/fileLibraryController.js';
-import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent, scanAndRegisterFiles, renameCadFile, detectMissingFiles } from '../services/cadFileService.js';
+import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile, listFiles } from '../controllers/fileUploadController.js';
+import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles, linkFileToComponent, unlinkFileFromComponent, getFilesByType, searchFiles, getOrphanFiles } from '../controllers/fileLibraryController.js';
+import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent, scanAndRegisterFiles, renameCadFile, renameCadFileGroup, detectMissingFiles, getCadFilesForComponentGrouped, getComponentCadFilesByMPN, searchCadFiles } from '../services/cadFileService.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
+import { getDashboardStats } from '../controllers/dashboardController.js';
 
 const runTool = (tool, args) => execFileSync(tool, args, {
   env: { ...process.env, PG_RESTRICT_EXEC: '1' }, stdio: 'ignore', windowsHide: true,
@@ -70,6 +71,7 @@ describe('CAD removal on scratch PostgreSQL', () => {
         pcb_footprint TEXT, pad_file TEXT, step_model TEXT, schematic TEXT, pspice TEXT, updated_at TIMESTAMP
       );
       CREATE TABLE eco_orders (id UUID PRIMARY KEY, status TEXT);
+      CREATE TABLE inventory (quantity INTEGER, minimum_quantity INTEGER);
     `);
     // Use the real CAD tables and FK actions, including ECO staging cascades.
     const schema = fs.readFileSync(new URL('../../../database/init-schema.sql', import.meta.url), 'utf8');
@@ -103,6 +105,7 @@ describe('CAD removal on scratch PostgreSQL', () => {
     disk.unlinkSync.mockReset();
     disk.renameSync.mockReset();
     disk.existsSync.mockReturnValue(true);
+    disk.statSync.mockReturnValue({ isFile: () => true });
     await database.query(`
       TRUNCATE components, cad_files, component_cad_files, footprint_related_cad_files, eco_orders,
         eco_cad_files, eco_file_rename_files;
@@ -115,6 +118,127 @@ describe('CAD removal on scratch PostgreSQL', () => {
     await database.query('INSERT INTO cad_files (id, file_name, file_type) VALUES ($1, $2, $3)', [id(n), name, type]);
     return id(n);
   };
+
+  it('rolls back both members of a sanitizer pair after a late database failure', async () => {
+    const first = await addFile(1, 'old.psm', 'footprint');
+    const second = await addFile(2, 'old.dra', 'footprint');
+    const files = new Set(['old.psm', 'old.dra']);
+    disk.existsSync.mockImplementation(filePath => files.has(path.basename(filePath)));
+    disk.renameSync.mockImplementation((oldPath, newPath) => {
+      files.delete(path.basename(oldPath)); files.add(path.basename(newPath));
+    });
+    await database.query(`CREATE OR REPLACE FUNCTION fail_pair() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.file_name = 'new.dra' THEN RAISE EXCEPTION 'late failure'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER fail_pair BEFORE UPDATE ON cad_files FOR EACH ROW EXECUTE FUNCTION fail_pair();`);
+    try {
+      await expect(renameCadFileGroup([
+        { cadFileId: first, oldName: 'old.psm', newName: 'new.psm', fileType: 'footprint' },
+        { cadFileId: second, oldName: 'old.dra', newName: 'new.dra', fileType: 'footprint' },
+      ])).rejects.toThrow('late failure');
+      expect((await database.query('SELECT file_name FROM cad_files ORDER BY file_name')).rows.map(row => row.file_name)).toEqual(['old.dra', 'old.psm']);
+      expect([...files].sort()).toEqual(['old.dra', 'old.psm']);
+    } finally {
+      await database.query('DROP TRIGGER fail_pair ON cad_files');
+    }
+  });
+
+  it('refuses a stale sanitizer plan without undoing another rename', async () => {
+    const fileId = await addFile(1, 'changed.psm', 'footprint');
+    await expect(renameCadFileGroup([{ cadFileId: fileId, oldName: 'old.psm', newName: 'new.psm', fileType: 'footprint' }])).rejects.toMatchObject({ status: 409 });
+    expect(disk.renameSync).not.toHaveBeenCalled();
+    expect((await database.query('SELECT file_name FROM cad_files')).rows[0].file_name).toBe('changed.psm');
+  });
+
+  it('does not register directories whose names have CAD extensions', async () => {
+    disk.readdirSync.mockReturnValue(['directory.psm']);
+    disk.statSync.mockReturnValue({ isFile: () => false });
+    await scanAndRegisterFiles();
+    expect((await database.query('SELECT * FROM cad_files')).rows).toEqual([]);
+  });
+
+  it('keeps missing tags when linking a record and exposes them in Category view', async () => {
+    const fileId = await addFile(1, 'missing.olb', 'symbol');
+    await database.query('UPDATE cad_files SET missing = TRUE WHERE id = $1', [fileId]);
+    const res = response();
+    await linkFileToComponent({ body: { cadFileId: fileId, componentId }, user: { role: 'admin' } }, res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect((await database.query('SELECT missing FROM cad_files WHERE id = $1', [fileId])).rows[0].missing).toBe(true);
+    expect((await getCadFilesForComponentGrouped(componentId)).symbol[0].missing).toBe(true);
+  });
+
+  it.each([false, true])('retains missing records across pages until the scanner clears them (disk present: %s)', async (onDisk) => {
+    const fileId = await addFile(1, 'missing.olb', 'symbol');
+    await database.query('UPDATE cad_files SET missing = TRUE WHERE id = $1', [fileId]);
+    disk.existsSync.mockReturnValue(onDisk);
+    for (const [handler, req, field] of [
+      [getFilesByType, { params: { type: 'schematic' } }, 'files'],
+      [searchFiles, { query: { query: 'missing', type: 'schematic' } }, 'results'],
+      [getOrphanFiles, { query: { type: 'schematic' } }, 'orphans'],
+    ]) {
+      const res = response();
+      await handler(req, res);
+      expect(res.json.mock.lastCall[0][field]).toEqual([
+        expect.objectContaining({ id: fileId, file_name: 'missing.olb', missing: true }),
+      ]);
+    }
+    await database.query('INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ($1,$2)', [componentId, fileId]);
+    const partFiles = response();
+    await listFiles({ params: { mfgPartNumber: 'PART' }, query: { componentId } }, partFiles);
+    expect(partFiles.json.mock.lastCall[0].files.symbol).toEqual([
+      expect.objectContaining({ id: fileId, missing: true }),
+    ]);
+  });
+
+  it('lists and removes files by component ID even when manufacturer part numbers repeat or change', async () => {
+    const otherId = id(101);
+    await database.query("INSERT INTO components (id, manufacturer_pn, approval_status) VALUES ($1, 'PART', 'new')", [otherId]);
+    const firstFile = await addFile(1, 'first.olb', 'symbol');
+    const secondFile = await addFile(2, 'second.olb', 'symbol');
+    await link(firstFile);
+    await database.query('INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ($1, $2)', [otherId, secondFile]);
+    const listed = await getComponentCadFilesByMPN('EDITED-PART', 'symbol', otherId);
+    expect(listed.map(file => file.id)).toEqual([secondFile]);
+    const res = response();
+    await deleteFile({ body: { category: 'symbol', mfgPartNumber: 'EDITED-PART', componentId: otherId, filename: 'second.olb' }, user: { role: 'admin' } }, res);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ unlinked: true }));
+    expect((await database.query('SELECT component_id, cad_file_id FROM component_cad_files')).rows).toEqual([
+      { component_id: componentId, cad_file_id: firstFile },
+    ]);
+  });
+
+  it('preserves registered file identities beyond the first hundred search matches', async () => {
+    await database.query("INSERT INTO cad_files (file_name, file_type, file_path) SELECT 'part-' || n || '.pad', 'pad', 'pad/part-' || n || '.pad' FROM generate_series(1, 101) n");
+    const files = await searchCadFiles('part-', 'pad');
+    expect(files).toHaveLength(101);
+    expect(files.every(file => file.id && file.file_type === 'pad')).toBe(true);
+  });
+
+  it('rejects ambiguous legacy removal without changing either component', async () => {
+    const fileId = await addFile(1, 'shared.olb', 'symbol');
+    await link(fileId);
+    await database.query("INSERT INTO components (id, manufacturer_pn, approval_status) VALUES ($1, 'PART', 'new')", [id(101)]);
+    const res = response();
+    await deleteFile({ body: { category: 'symbol', mfgPartNumber: 'PART', filename: 'shared.olb' }, user: { role: 'admin' } }, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(await linkedNames()).toEqual(['shared.olb']);
+  });
+
+  it('counts actual healthy CAD assignments without double-counting undefined missing records', async () => {
+    await database.query("UPDATE components SET pcb_footprint = 'existing' WHERE id = $1", [componentId]);
+    await database.query('INSERT INTO components (id, pcb_footprint) VALUES ($1, \'missing\'), ($2, \'   \')', [id(101), id(102)]);
+    const fileId = await addFile(1, 'missing.psm', 'footprint');
+    const drawingId = await addFile(2, 'only.dra', 'footprint');
+    await database.query('UPDATE cad_files SET missing = TRUE');
+    await database.query('INSERT INTO component_cad_files (component_id, cad_file_id) VALUES ($1, $2), ($3, $4)', [id(101), fileId, id(102), drawingId]);
+    const res = response();
+    const next = vi.fn();
+    await getDashboardStats({}, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      totalComponents: 3, undefinedFootprints: 1, missingFootprints: 2,
+      healthyCad: expect.objectContaining({ footprint: 1 }),
+    }));
+  });
   it.each([
     ['new', 'lab', true, false],
     ['reviewing', 'lab', true, true],

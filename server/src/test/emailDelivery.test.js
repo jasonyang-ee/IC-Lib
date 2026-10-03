@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { query, sendMail } = vi.hoisted(() => ({ query: vi.fn(), sendMail: vi.fn() }));
+const { query, sendMail, createTransport } = vi.hoisted(() => ({ query: vi.fn(), sendMail: vi.fn(), createTransport: vi.fn() }));
 vi.mock('../config/database.js', () => ({ default: { query } }));
-vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail }) } }));
+vi.mock('nodemailer', () => ({ default: { createTransport } }));
 vi.mock('../utils/logger.js', () => ({ logInfo: vi.fn(), logWarn: vi.fn(), logError: vi.fn() }));
-import { sendEmail, sendECONotification } from '../services/emailService.js';
+import { sendEmail, sendECONotification, encrypt, decrypt, createTransporter } from '../services/emailService.js';
 
 describe('email delivery outcomes', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    createTransport.mockReturnValue({ sendMail });
     sendMail.mockResolvedValue({ messageId: 'delivered' });
     query.mockImplementation(async sql => {
       if (sql.includes('SELECT * FROM smtp_settings')) {
@@ -16,6 +17,26 @@ describe('email delivery outcomes', () => {
       }
       throw new Error('log unavailable');
     });
+  });
+
+  it('requires a persistent key and decrypts with that key after module reload', async () => {
+    vi.stubEnv('SMTP_ENCRYPTION_KEY', '');
+    expect(() => encrypt('password')).toThrow('persistent 32-byte');
+    vi.stubEnv('SMTP_ENCRYPTION_KEY', '01234567890123456789012345678901');
+    const ciphertext = encrypt('password');
+    expect(decrypt(ciphertext)).toBe('password');
+    vi.resetModules();
+    const reloaded = await import('../services/emailService.js');
+    expect(reloaded.decrypt(ciphertext)).toBe('password');
+    vi.unstubAllEnvs();
+  });
+
+  it('validates certificates when sending SMTP credentials', async () => {
+    vi.stubEnv('SMTP_ENCRYPTION_KEY', '01234567890123456789012345678901');
+    query.mockResolvedValue({ rows: [{ enabled: true, no_auth: false, auth_user: 'operator', auth_password_encrypted: encrypt('password') }] });
+    await createTransporter();
+    expect(createTransport).toHaveBeenCalledWith(expect.objectContaining({ tls: { rejectUnauthorized: true }, auth: { user: 'operator', pass: 'password' } }));
+    vi.unstubAllEnvs();
   });
 
   it('retains successful delivery when the audit log fails', async () => {

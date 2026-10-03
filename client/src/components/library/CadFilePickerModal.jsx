@@ -109,7 +109,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
 
   const routeType = fileType ? ROUTE_TYPE_MAP[fileType] : null;
 
-  const { data: filesData, isLoading } = useQuery({
+  const { data: filesData, isLoading, error, refetch } = useQuery({
     queryKey: ['available-cad-files', routeType, searchQuery],
     queryFn: async () => {
       const res = await api.getAvailableFiles(routeType, searchQuery || undefined);
@@ -231,7 +231,7 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {pendingFootprintSelection ? 'Choose Related Files' : `Add Existing File ${fileType ? `(${FILE_TYPE_LABELS[fileType] || fileType})` : ''}`}
           </h3>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <button aria-label="Close file picker" onClick={handleClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -317,6 +317,10 @@ export default function CadFilePickerModal({ isOpen, onClose, onSelect, fileType
                   </div>
                 </fieldset>
               ))}
+            </div>
+          ) : error ? (
+            <div role="alert" className="p-4 text-sm text-red-600">
+              Unable to load files. <button type="button" onClick={() => refetch()} className="underline">Retry</button>
             </div>
           ) : isLoading ? (
             <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">Loading files...</div>

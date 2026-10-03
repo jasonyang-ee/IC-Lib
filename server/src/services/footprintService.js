@@ -25,7 +25,13 @@ async function stageFootprintInTemp(fileName, data) {
   }
   const filename = canonicalizeCadUploadFilename(fileName, 'footprint', catalog);
   const tempFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${filename}`;
-  await fs.writeFile(path.join(TEMP_DIR, tempFilename), data);
+  const tempPath = path.join(TEMP_DIR, tempFilename);
+  try {
+    await fs.writeFile(tempPath, data, { flag: 'wx' });
+  } catch (error) {
+    if (error.code !== 'EEXIST') await fs.unlink(tempPath).catch(() => {});
+    throw error;
+  }
   return { filename, tempFilename, category: 'footprint' };
 }
 
@@ -50,6 +56,7 @@ export async function downloadFromUltraLibrarian(partNumber) {
           'Authorization': `Bearer ${token}`,
         },
         timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
+        maxContentLength: 250 * 1024 * 1024,
       },
     );
 
@@ -58,6 +65,7 @@ export async function downloadFromUltraLibrarian(partNumber) {
       const fileResponse = await axios.get(response.data.downloadUrl, {
         responseType: 'arraybuffer',
         timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
+        maxContentLength: 250 * 1024 * 1024,
       });
 
       const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_UL.brd`, fileResponse.data);
@@ -106,6 +114,7 @@ export async function downloadFromSnapEDA(partNumber) {
           api_key: apiKey,
         },
         timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
+        maxContentLength: 250 * 1024 * 1024,
       },
     );
 
@@ -122,6 +131,7 @@ export async function downloadFromSnapEDA(partNumber) {
           },
           responseType: 'arraybuffer',
           timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
+        maxContentLength: 250 * 1024 * 1024,
         });
 
         const staged = await stageFootprintInTemp(`${sanitizeCadBaseName(partNumber)}_SnapEDA.brd`, fileResponse.data);
@@ -147,19 +157,4 @@ export async function downloadFromSnapEDA(partNumber) {
       message: 'Failed to download from SnapEDA',
     };
   }
-}
-
-// Try to download from both sources
-export async function downloadFootprint(partNumber) {
-  // Try Ultra Librarian first
-  let result = await downloadFromUltraLibrarian(partNumber);
-
-  if (result.success) {
-    return result;
-  }
-
-  // If failed, try SnapEDA
-  result = await downloadFromSnapEDA(partNumber);
-
-  return result;
 }

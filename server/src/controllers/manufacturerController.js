@@ -116,62 +116,40 @@ export const deleteManufacturer = async (req, res, next) => {
 };
 
 export const renameManufacturer = async (req, res, next) => {
+  let client;
   try {
     const { id } = req.params;
-    const { newName } = req.body;
-
-    if (!newName) {
-      return res.status(400).json({ error: 'New manufacturer name is required' });
-    }
-
-    // Check if old manufacturer exists
-    const oldManufacturer = await pool.query(
-      'SELECT * FROM manufacturers WHERE id = $1',
-      [id],
-    );
-
-    if (oldManufacturer.rows.length === 0) {
+    const newName = typeof req.body.newName === 'string' ? req.body.newName.trim() : '';
+    if (!newName) return res.status(400).json({ error: 'New manufacturer name is required' });
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const locked = await client.query('SELECT * FROM manufacturers WHERE id = $1 OR name = $2 ORDER BY id FOR UPDATE', [id, newName]);
+    const source = locked.rows.find(row => String(row.id) === String(id));
+    if (!source) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Manufacturer not found' });
     }
-
-    // Check if a manufacturer with the new name already exists
-    const existingManufacturer = await pool.query(
-      'SELECT * FROM manufacturers WHERE name = $1',
-      [newName],
-    );
-
-    if (existingManufacturer.rows.length > 0) {
-      // Merge: Update all components to use the existing manufacturer
-      const targetManufacturerId = existingManufacturer.rows[0].id;
-      
-      await pool.query(`
-        UPDATE components 
-        SET manufacturer_id = $1 
-        WHERE manufacturer_id = $2
-      `, [targetManufacturerId, id]);
-
-      // Delete the old manufacturer
-      await pool.query('DELETE FROM manufacturers WHERE id = $1', [id]);
-
-      res.json({ 
-        message: `Successfully merged "${oldManufacturer.rows[0].name}" into "${newName}"`,
-        manufacturer: existingManufacturer.rows[0],
-      });
+    const target = locked.rows.find(row => row.name === newName);
+    let manufacturer;
+    let message;
+    if (target && target.id !== source.id) {
+      await client.query('UPDATE components SET manufacturer_id = $1 WHERE manufacturer_id = $2', [target.id, id]);
+      await client.query('UPDATE components_alternative SET manufacturer_id = $1 WHERE manufacturer_id = $2', [target.id, id]);
+      await client.query('DELETE FROM manufacturers WHERE id = $1', [id]);
+      manufacturer = target;
+      message = `Successfully merged "${source.name}" into "${newName}"`;
     } else {
-      // Simple rename
-      const result = await pool.query(`
-        UPDATE manufacturers 
-        SET name = $1 
-        WHERE id = $2 
-        RETURNING *
-      `, [newName, id]);
-
-      res.json({ 
-        message: `Successfully renamed to "${newName}"`,
-        manufacturer: result.rows[0],
-      });
+      const renamed = await client.query('UPDATE manufacturers SET name = $1 WHERE id = $2 RETURNING *', [newName, id]);
+      manufacturer = renamed.rows[0];
+      message = `Successfully renamed to "${newName}"`;
     }
+    await client.query('COMMIT');
+    res.json({ message, manufacturer });
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    if (error.code === '23505') return res.status(409).json({ error: 'Manufacturer name changed during the merge; refresh and retry' });
     next(error);
+  } finally {
+    client?.release();
   }
 };

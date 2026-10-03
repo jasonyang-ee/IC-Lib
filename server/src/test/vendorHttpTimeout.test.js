@@ -44,12 +44,6 @@ describe('vendor HTTP timeouts (§V34)', () => {
     configs.forEach(cfg => expect(cfg?.timeout).toBe(VENDOR_HTTP_TIMEOUT_MS));
   });
 
-  it('digikey getPartDetails bounds its call', async () => {
-    await digikey.getPartDetails('DK-123');
-    const configs = configsOf(axiosMock.get);
-    expect(configs.length).toBeGreaterThan(0);
-    configs.forEach(cfg => expect(cfg?.timeout).toBe(VENDOR_HTTP_TIMEOUT_MS));
-  });
 
   it('mouser searchPart bounds its call', async () => {
     await mouser.searchPart('PART-M');
@@ -58,12 +52,6 @@ describe('vendor HTTP timeouts (§V34)', () => {
     configs.forEach(cfg => expect(cfg?.timeout).toBe(VENDOR_HTTP_TIMEOUT_MS));
   });
 
-  it('mouser getPartByMouserPartNumber bounds its call', async () => {
-    await mouser.getPartByMouserPartNumber('M-123');
-    const configs = configsOf(axiosMock.get);
-    expect(configs.length).toBeGreaterThan(0);
-    configs.forEach(cfg => expect(cfg?.timeout).toBe(VENDOR_HTTP_TIMEOUT_MS));
-  });
 
   it('footprint UL + SnapEDA search calls are bounded', async () => {
     await footprint.downloadFromUltraLibrarian('PART-UL');

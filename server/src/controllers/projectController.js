@@ -104,6 +104,7 @@ export const getProjectById = async (req, res) => {
         COALESCE(pc.alt_class, base_component.alt_class) as resolved_alt_class,
         -- Shared component details
         base_component.part_number,
+        base_component.id as parent_component_id,
         CASE WHEN pc.component_id IS NOT NULL THEN base_component.manufacturer_pn ELSE NULL END as manufacturer_pn,
         base_component.description,
         base_component.value,
@@ -164,6 +165,8 @@ export const getProjectById = async (req, res) => {
 
 // Create new project
 export const createProject = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { name, description, status } = req.body;
 
@@ -172,7 +175,10 @@ export const createProject = async (req, res) => {
       return res.status(400).json({ error: INVALID_STATUS_ERROR });
     }
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO projects (name, description, status)
        VALUES ($1, $2, $3)
        RETURNING *`,
@@ -182,7 +188,7 @@ export const createProject = async (req, res) => {
     const project = result.rows[0];
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: null,
       userId: req.user?.id || null,
       partNumber: '',
@@ -194,15 +200,23 @@ export const createProject = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.status(201).json(project);
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     logError('Project', 'Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 
 // Update project
 export const updateProject = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { id } = req.params;
     const { name, description, status } = req.body;
@@ -212,7 +226,10 @@ export const updateProject = async (req, res) => {
       return res.status(400).json({ error: INVALID_STATUS_ERROR });
     }
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `UPDATE projects
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
@@ -223,13 +240,14 @@ export const updateProject = async (req, res) => {
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Project not found' });
     }
     
     const project = result.rows[0];
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: null,
       userId: req.user?.id || null,
       partNumber: '',
@@ -241,37 +259,49 @@ export const updateProject = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.json(project);
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     logError('Project', 'Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 
 // Delete project
 export const deleteProject = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { id } = req.params;
     
     // Get project name before deleting
-    const projectResult = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const projectResult = await client.query(
       'SELECT name FROM projects WHERE id = $1',
       [id],
     );
     
     const projectName = projectResult.rows[0]?.name;
     
-    const result = await pool.query(
+    const result = await client.query(
       'DELETE FROM projects WHERE id = $1 RETURNING *',
       [id],
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Project not found' });
     }
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: null,
       userId: req.user?.id || null,
       partNumber: '',
@@ -282,15 +312,23 @@ export const deleteProject = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     logError('Project', 'Error deleting project:', error);
     res.status(500).json({ error: 'Failed to delete project' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 
 // Add component to project
 export const addComponentToProject = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { projectId } = req.params;
     const { component_id, alternative_id, quantity, notes, alt_class } = req.body;
@@ -316,7 +354,10 @@ export const addComponentToProject = async (req, res) => {
     }
 
     // Check if component already exists in this project
-    const existingCheck = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const existingCheck = await client.query(
       `SELECT id FROM project_components 
        WHERE project_id = $1 AND 
        ((component_id = $2 AND $2 IS NOT NULL) OR (alternative_id = $3 AND $3 IS NOT NULL))`,
@@ -324,12 +365,13 @@ export const addComponentToProject = async (req, res) => {
     );
     
     if (existingCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(409).json({ 
         error: 'This component is already in this project', 
       });
     }
     
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO project_components (project_id, component_id, alternative_id, quantity, notes, alt_class)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
@@ -339,23 +381,23 @@ export const addComponentToProject = async (req, res) => {
     const projectComponent = result.rows[0];
     
     // Get project and component info for audit log
-    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    const projectInfo = await client.query('SELECT name FROM projects WHERE id = $1', [projectId]);
     
     let componentInfo;
     if (component_id) {
-      componentInfo = await pool.query(
+      componentInfo = await client.query(
         'SELECT part_number, description FROM components WHERE id = $1',
         [component_id],
       );
     } else if (alternative_id) {
-      componentInfo = await pool.query(
+      componentInfo = await client.query(
         'SELECT ca.manufacturer_pn as part_number, c.description FROM components_alternative ca JOIN components c ON ca.component_id = c.id WHERE ca.id = $1',
         [alternative_id],
       );
     }
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: component_id || null,
       userId: req.user?.id || null,
       partNumber: componentInfo?.rows[0]?.part_number || '',
@@ -371,15 +413,24 @@ export const addComponentToProject = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.status(201).json(projectComponent);
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
+    if (error.code === '23505') return res.status(409).json({ error: 'This component is already in this project' });
     logError('Project', 'Error adding component to project:', error);
     res.status(500).json({ error: 'Failed to add component to project' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 
 // Update project component
 export const updateProjectComponent = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { projectId, componentId } = req.params;
     const { quantity, notes, alt_class } = req.body;
@@ -396,7 +447,10 @@ export const updateProjectComponent = async (req, res) => {
       return res.status(400).json({ error: altClass.message });
     }
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `UPDATE project_components
        SET quantity = COALESCE($1, quantity),
            notes = COALESCE($2, notes),
@@ -407,16 +461,17 @@ export const updateProjectComponent = async (req, res) => {
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Project component not found' });
     }
     
     const projectComponent = result.rows[0];
     
     // Get project info for audit log
-    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    const projectInfo = await client.query('SELECT name FROM projects WHERE id = $1', [projectId]);
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: projectComponent.component_id || null,
       userId: req.user?.id || null,
       partNumber: '',
@@ -433,37 +488,49 @@ export const updateProjectComponent = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.json(projectComponent);
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     logError('Project', 'Error updating project component:', error);
     res.status(500).json({ error: 'Failed to update project component' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 
 // Remove component from project
 export const removeComponentFromProject = async (req, res) => {
+  let client;
+  let releaseError;
   try {
     const { projectId, componentId } = req.params;
     
     // Get info before deleting
-    const componentResult = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const componentResult = await client.query(
       'SELECT component_id, alternative_id FROM project_components WHERE project_id = $1 AND id = $2',
       [projectId, componentId],
     );
     
-    const projectInfo = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    const projectInfo = await client.query('SELECT name FROM projects WHERE id = $1', [projectId]);
     
-    const result = await pool.query(
+    const result = await client.query(
       'DELETE FROM project_components WHERE project_id = $1 AND id = $2 RETURNING *',
       [projectId, componentId],
     );
     
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Project component not found' });
     }
     
     // Log activity
-    await logActivity(pool, {
+    await logActivity(client, {
       componentId: componentResult.rows[0]?.component_id || null,
       userId: req.user?.id || null,
       partNumber: '',
@@ -476,10 +543,16 @@ export const removeComponentFromProject = async (req, res) => {
       },
     });
     
+    await client.query('COMMIT');
     res.json({ message: 'Component removed from project successfully' });
   } catch (error) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
+    }
     logError('Project', 'Error removing component from project:', error);
     res.status(500).json({ error: 'Failed to remove component from project' });
+  } finally {
+    client?.release(releaseError);
   }
 };
 

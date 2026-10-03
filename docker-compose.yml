@@ -14,12 +14,15 @@ services:
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
-      - DB_HOST=localhost
+      - DB_HOST=iclib-db
       - DB_PORT=5432
       - DB_USER=iclib
       - DB_PASSWORD=change-this-to-a-secure-db-password-minimum-6-characters
       - DB_NAME=iclib
       
+      # Authenticated SMTP requires a persistent secret of exactly 32 bytes.
+      # - SMTP_ENCRYPTION_KEY=your-persistent-32-byte-secret
+
       # Optional: API Keys for vendor integrations
       # - DIGIKEY_CLIENT_ID=your_client_id
       # - DIGIKEY_CLIENT_SECRET=your_client_secret
@@ -70,6 +73,7 @@ services:
       # - SCIM_BEARER_TOKEN=generate_a_random_secret_of_at_least_32_characters
     volumes:
       - ./iclib/library:/app/library
+      - ./iclib/config:/app/config
       # Optional: mount a directory containing your company logo for ECO PDFs
       # - ./iclib/image:/app/image
   

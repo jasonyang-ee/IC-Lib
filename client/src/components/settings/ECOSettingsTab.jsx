@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2 } from 'lucide-react';
 import { api } from '../../utils/api';
@@ -17,10 +17,11 @@ const normalizeEcoPdfBranding = (brandingData) => ({
 const EcoPdfBrandingSettings = () => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
+  const dirtyFields = useRef(new Set());
   const [branding, setBranding] = useState(normalizeEcoPdfBranding());
   const [savedBranding, setSavedBranding] = useState(normalizeEcoPdfBranding());
 
-  const { data: brandingData } = useQuery({
+  const { data: brandingData, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['ecoPdfBranding'],
     queryFn: async () => {
       const response = await api.getEcoPdfBranding();
@@ -35,7 +36,7 @@ const EcoPdfBrandingSettings = () => {
 
     const nextBranding = normalizeEcoPdfBranding(brandingData);
     setSavedBranding(nextBranding);
-    setBranding(nextBranding);
+    setBranding(current => ({ ...nextBranding, ...Object.fromEntries([...dirtyFields.current].map(field => [field, current[field]])) }));
   }, [brandingData]);
 
   const saveBrandingMutation = useMutation({
@@ -43,6 +44,7 @@ const EcoPdfBrandingSettings = () => {
   });
 
   const handleBrandingChange = (field, value) => {
+    dirtyFields.current.add(field);
     setBranding((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -52,15 +54,12 @@ const EcoPdfBrandingSettings = () => {
 
   const saveBrandingSection = async (updates, successMessage) => {
     try {
-      const nextBranding = {
-        ...savedBranding,
-        ...updates,
-      };
-
-      await saveBrandingMutation.mutateAsync(nextBranding);
+      const response = await saveBrandingMutation.mutateAsync(updates);
+      const nextBranding = normalizeEcoPdfBranding(response.data);
+      Object.keys(updates).forEach(field => dirtyFields.current.delete(field));
       setSavedBranding(nextBranding);
-      setBranding(nextBranding);
-      queryClient.invalidateQueries({ queryKey: ['ecoPdfBranding'] });
+      setBranding(current => ({ ...nextBranding, ...Object.fromEntries([...dirtyFields.current].map(field => [field, current[field]])) }));
+      queryClient.setQueryData(['ecoPdfBranding'], nextBranding);
       showSuccess(successMessage);
     } catch (error) {
       const errorMsg = error.response?.data?.error || error.message;
@@ -82,6 +81,8 @@ const EcoPdfBrandingSettings = () => {
   };
 
   const handlePdfBrandingReset = () => {
+    dirtyFields.current.delete('eco_logo_filename');
+    dirtyFields.current.delete('eco_pdf_header_text');
     setBranding((prev) => ({
       ...prev,
       eco_logo_filename: savedBranding.eco_logo_filename,
@@ -90,11 +91,15 @@ const EcoPdfBrandingSettings = () => {
   };
 
   const handleNotificationReset = () => {
+    dirtyFields.current.delete('eco_complete_notification_email');
     setBranding((prev) => ({
       ...prev,
       eco_complete_notification_email: savedBranding.eco_complete_notification_email,
     }));
   };
+
+  if (isLoading) return <p>Loading ECO branding...</p>;
+  if (loadError) return <div role="alert">Unable to load ECO branding. <button onClick={() => refetch()}>Retry</button></div>;
 
   return (
     <div className="space-y-4">
@@ -225,7 +230,7 @@ const EcoNumberSettings = () => {
   });
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { data: ecoSettings, isLoading } = useQuery({
+  const { data: ecoSettings, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['ecoSettings'],
     queryFn: async () => {
       const response = await api.getECOSettings();
@@ -302,6 +307,8 @@ const EcoNumberSettings = () => {
       </div>
     );
   }
+
+  if (loadError) return <div role="alert">Unable to load ECO settings. <button onClick={() => refetch()}>Retry</button></div>;
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

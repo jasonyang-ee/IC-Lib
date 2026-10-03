@@ -29,6 +29,8 @@ import { parse } from 'csv-parse/sync';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { CAD_FILE_TYPE_TO_COLUMN } from '../server/src/constants/cadFiles.js';
+import { lockCadFileName } from '../server/src/utils/cadFileLocks.js';
 import { FOOTPRINT_PRIMARY_EXTENSIONS, FOOTPRINT_SECONDARY_EXTENSION } from '../server/src/utils/footprintFiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,32 +54,32 @@ const categoryCache = new Map();
  * Get category ID by name from database
  * Uses caching to avoid repeated queries
  */
-async function getCategoryIdByName(categoryName) {
+async function getCategoryIdByName(categoryName, db = pool) {
   if (!categoryName) return null;
 
   // Check cache first
-  if (categoryCache.has(categoryName)) {
+  if (db === pool && categoryCache.has(categoryName)) {
     return categoryCache.get(categoryName);
   }
 
   try {
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT id FROM component_categories WHERE name = $1',
       [categoryName],
     );
 
     if (result.rows.length > 0) {
       const categoryId = result.rows[0].id;
-      categoryCache.set(categoryName, categoryId);
+      if (db === pool) categoryCache.set(categoryName, categoryId);
       return categoryId;
     }
 
     // Cache miss - store null to avoid repeated queries
-    categoryCache.set(categoryName, null);
+    if (db === pool) categoryCache.set(categoryName, null);
     return null;
   } catch (error) {
     console.error(`Error looking up category "${categoryName}": ${error.message}`);
-    return null;
+    throw error;
   }
 }
 
@@ -123,15 +125,18 @@ console.log(`Library scan: ${footprintFileMap.size} footprint, ${symbolFileMap.s
 async function registerAndLink(client, fileName, fileType, componentId) {
   const subdir = fileType; // footprint, symbol, model, pspice
   const filePath = path.join(LIBRARY_BASE, subdir, fileName);
-  let fileSize = null;
-  try { fileSize = fs.statSync(filePath).size; } catch { /* file may not exist locally */ }
+  await lockCadFileName(client, fileType, fileName);
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) throw new Error(`Not a CAD file: ${fileName}`);
+  const fileSize = stat.size;
 
   // Register in cad_files (upsert)
   const result = await client.query(`
     INSERT INTO cad_files (file_name, file_type, file_path, file_size)
     VALUES ($1, $2, $3, $4)
     ON CONFLICT (file_name, file_type) DO UPDATE SET
-      file_size = COALESCE(EXCLUDED.file_size, cad_files.file_size),
+      file_size = EXCLUDED.file_size,
+      missing = false,
       updated_at = CURRENT_TIMESTAMP
     RETURNING id
   `, [fileName, fileType, `${subdir}/${fileName}`, fileSize]);
@@ -148,27 +153,18 @@ async function registerAndLink(client, fileName, fileType, componentId) {
   return cadFileId;
 }
 
-// Map cad_files file_type to TEXT column name (mirrors cadFileService.js)
-const FILE_TYPE_TO_COLUMN = {
-  footprint: 'pcb_footprint',
-  symbol: 'schematic',
-  model: 'step_model',
-  pspice: 'pspice',
-  pad: 'pad_file',
-};
-
 /**
  * Regenerate all TEXT columns for a component from the junction table.
  * Mirrors cadFileService.regenerateAllCadText() but uses the import client.
  */
 async function regenerateAllCadText(client, componentId) {
-  for (const [fileType, column] of Object.entries(FILE_TYPE_TO_COLUMN)) {
+  for (const [fileType, column] of Object.entries(CAD_FILE_TYPE_TO_COLUMN)) {
     const result = await client.query(`
-      SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',') as text_value
+      SELECT string_agg(DISTINCT regexp_replace(cf.file_name, '\\.[^.]+$', ''), ',' ORDER BY regexp_replace(cf.file_name, '\\.[^.]+$', '')) as text_value
       FROM component_cad_files ccf
       JOIN cad_files cf ON ccf.cad_file_id = cf.id
       WHERE ccf.component_id = $1 AND cf.file_type = $2
-        AND cf.file_name NOT LIKE '%.dra'
+        AND LOWER(cf.file_name) NOT LIKE '%.dra'
     `, [componentId, fileType]);
 
     const textValue = result.rows[0]?.text_value || '';
@@ -443,23 +439,17 @@ async function getOrCreateManufacturer(client, manufacturerName) {
 /**
  * Import a single CSV file
  */
-async function importCSVFile(filePath) {
+async function importCSVFile(filePath, { db = pool, dryRun = isDryRun } = {}) {
   const filename = path.basename(filePath);
   const categoryName = getCategoryFromFilename(filename);
-  const categoryId = await getCategoryIdByName(categoryName);
+  const categoryId = await getCategoryIdByName(categoryName, db);
 
   console.log(`\n${'='.repeat(80)}`);
   console.log(`Importing: ${filename}`);
   console.log(`Category: ${categoryName} (ID: ${categoryId || 'UNMAPPED'})`);
   console.log(`${'='.repeat(80)}`);
 
-  if (!categoryId) {
-    console.warn(`Warning: No category mapping found for ${categoryName}`);
-    console.warn(
-      '   You may need to create this category in the database first.',
-    );
-    return;
-  }
+  if (!categoryId) throw new Error(`No category mapping found for ${categoryName}`);
 
   // Read and parse CSV
   const fileContent = fs.readFileSync(filePath, 'utf-8');
@@ -472,7 +462,7 @@ async function importCSVFile(filePath) {
 
   console.log(`Found ${records.length} components to import\n`);
 
-  const client = await pool.connect();
+  const client = await db.connect();
 
   try {
     // Get category info for part number formatting
@@ -490,15 +480,17 @@ async function importCSVFile(filePath) {
     let imported = 0;
     let skipped = 0;
 
+    stats.totalComponents += records.length;
     for (const record of records) {
+      const previousCounts = { newManufacturers: stats.newManufacturers, inventoryUpdates: stats.inventoryUpdates, cadFileLinks: stats.cadFileLinks };
       try {
-        await client.query('BEGIN');
+        await client.query(dryRun ? 'BEGIN READ ONLY' : 'BEGIN');
 
         // Extract basic component data
         const originalPartNumber = record.PART_NUMBER;
         const manufacturerName = record.Manufacturer;
         const manufacturerPN = record['Manufacturer PN'];
-        const manufacturerId = manufacturerName
+        const manufacturerId = manufacturerName && !dryRun
           ? await getOrCreateManufacturer(client, manufacturerName)
           : null;
 
@@ -538,7 +530,7 @@ async function importCSVFile(filePath) {
           pad_file: (record.PAD_FILE || record['Pad File'] || '').trim(),
         };
 
-        if (isDryRun) {
+        if (dryRun) {
           console.log(
             `[DRY RUN] Would insert: ${partNumber} (original: ${originalPartNumber})`,
           );
@@ -657,17 +649,13 @@ async function importCSVFile(filePath) {
             }
           }
 
-          imported++;
-          if (imported % 10 === 0) {
-            process.stdout.write(
-              `\r  Progress: ${imported}/${records.length} components imported...`,
-            );
-          }
         }
 
         await client.query('COMMIT');
+        if (!dryRun) imported++;
       } catch (error) {
         await client.query('ROLLBACK');
+        Object.assign(stats, previousCounts);
         console.error(
           `\n  x Error importing ${record.PART_NUMBER}: ${error.message}`,
         );
@@ -739,7 +727,6 @@ async function main() {
   for (const file of files) {
     try {
       await importCSVFile(file);
-      stats.totalComponents++;
     } catch (error) {
       console.error(
         `\nFatal error processing ${path.basename(file)}: ${error.message}\n`,
@@ -779,6 +766,7 @@ async function main() {
   console.log('\nImport process completed\n');
 
   await pool.end();
+  if (stats.errors.length) process.exitCode = 1;
 }
 
 // Run the script

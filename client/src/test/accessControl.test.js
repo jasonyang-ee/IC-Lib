@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canAccessFullNavigation,
   canAccessFileLibrary,
   canAccessUserSettings,
   canDirectEditLibraryComponents,
@@ -10,7 +9,6 @@ import {
 
 describe('accessControl', () => {
   it('limits read-only users to library and eco routes', () => {
-    expect(canAccessFullNavigation('read-only')).toBe(false);
     expect(canAccessUserSettings('read-only')).toBe(false);
     expect(getDefaultRouteForRole('read-only', true)).toBe('/eco');
     expect(getDefaultRouteForRole('read-only', false)).toBe('/library');
@@ -23,7 +21,6 @@ describe('accessControl', () => {
   });
 
   it('treats lab as a write-capable full-nav role without File Library page access', () => {
-    expect(canAccessFullNavigation('lab')).toBe(true);
     expect(canAccessFileLibrary('lab')).toBe(false);
     expect(canAccessUserSettings('lab')).toBe(true);
     expect(getDefaultRouteForRole('lab', true)).toBe('/');

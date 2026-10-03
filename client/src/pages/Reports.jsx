@@ -1,3 +1,5 @@
+import { buildCadHealthRows } from '../utils/cadHealth';
+import { formatCadFileDisplayName } from '../utils/cadFileNaming';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Download, FileText, PieChart } from 'lucide-react';
@@ -50,44 +52,6 @@ const REPORTS = [
   },
 ];
 
-const buildLibraryQualityRows = (stats = {}) => {
-  const totalComponents = Number(stats.totalComponents || 0);
-  const rows = [
-    {
-      type: 'Schematic',
-      undefined_count: Number(stats.undefinedSchematic || 0),
-      missing_count: Number(stats.missingSchematic || 0),
-    },
-    {
-      type: 'Footprint',
-      undefined_count: Number(stats.undefinedFootprints || 0),
-      missing_count: Number(stats.missingFootprints || 0),
-    },
-    {
-      type: 'Pad',
-      undefined_count: Number(stats.undefinedPad || 0),
-      missing_count: Number(stats.missingPad || 0),
-    },
-    {
-      type: '3D Model',
-      undefined_count: Number(stats.undefined3DModel || 0),
-      missing_count: Number(stats.missing3DModel || 0),
-    },
-    {
-      type: 'PSpice',
-      undefined_count: Number(stats.undefinedPspice || 0),
-      missing_count: Number(stats.missingPspice || 0),
-    },
-  ];
-
-  return rows.map((row) => ({
-    ...row,
-    health: totalComponents > 0
-      ? ((totalComponents - row.undefined_count) / totalComponents) * 100
-      : 0,
-  }));
-};
-
 const getHealthTextClass = (health) => {
   if (health < 50) {
     return 'text-red-600 dark:text-red-400';
@@ -105,13 +69,13 @@ const Reports = () => {
   const { showSuccess, showError } = useNotification();
   const activeReportMeta = REPORTS.find((report) => report.id === activeReport) || REPORTS[0];
 
-  const { data: reportData = [], isLoading } = useQuery({
+  const { data: reportData = [], isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['report', activeReport],
     queryFn: async () => {
       switch (activeReport) {
         case 'library-quality': {
           const response = await api.getDashboardStats();
-          return buildLibraryQualityRows(response.data);
+          return buildCadHealthRows(response.data);
         }
         case 'component-summary':
           return (await api.getComponentSummary()).data;
@@ -139,6 +103,8 @@ const Reports = () => {
         </div>
       );
     }
+
+    if (loadError) return <div role="alert" className="py-8 text-red-600">Failed to load report. <button onClick={() => refetch()} className="underline">Retry</button></div>;
 
     if (!reportData || reportData.length === 0) {
       return (
@@ -294,7 +260,7 @@ const Reports = () => {
                   <td className={`px-4 py-3 text-sm font-semibold ${row.issue_type === 'Missing file' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                     {row.issue_type}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.assigned_footprints || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{row.assigned_footprints ? row.assigned_footprints.split(',').map(name => formatCadFileDisplayName(name, 'footprint')).join(', ') : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -451,7 +417,7 @@ const Reports = () => {
 
       const escapeCSV = (value) => {
         const str = String(value);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
           return `"${str.replace(/"/g, '""')}"`;
         }
         return str;
@@ -517,7 +483,7 @@ const Reports = () => {
               </div>
               <button
                 onClick={exportToCSV}
-                disabled={!reportData || reportData.length === 0}
+                disabled={isLoading || Boolean(loadError) || !reportData || reportData.length === 0}
                 className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-4 h-4" />

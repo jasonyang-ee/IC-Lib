@@ -18,42 +18,26 @@ export const getDashboardStats = async (req, res, next) => {
       'SELECT COUNT(*) as count, SUM(quantity) as total_quantity FROM inventory',
     );
 
-    // Get components with undefined CAD files (TEXT columns - empty string or null, never assigned)
-    const undefinedFootprintsResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pcb_footprint IS NULL OR pcb_footprint = ''",
-    );
-
-    const undefinedSchematicResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE schematic IS NULL OR schematic = ''",
-    );
-
-    const undefined3DModelResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE step_model IS NULL OR step_model = ''",
-    );
-
-    const undefinedPspiceResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pspice IS NULL OR pspice = ''",
-    );
-
-    const undefinedPadResult = await pool.query(
-      "SELECT COUNT(*) as count FROM components WHERE pad_file IS NULL OR pad_file = ''",
-    );
-
-    // Get components with missing CAD files (file was assigned but not found on disk)
-    const missingFilesResult = await pool.query(`
-      SELECT
-        cf.file_type,
-        COUNT(DISTINCT ccf.component_id) as count
-      FROM cad_files cf
-      JOIN component_cad_files ccf ON ccf.cad_file_id = cf.id
-      WHERE cf.missing = TRUE
-      GROUP BY cf.file_type
+    // Availability and assignment are independent: a part with only a missing
+    // drawing can be both undefined and missing. Count healthy parts directly.
+    const cadHealthResult = await pool.query(`
+      SELECT cad.file_type,
+        COUNT(*) FILTER (WHERE NULLIF(BTRIM(cad.assigned), '') IS NULL) AS undefined_count,
+        COUNT(*) FILTER (WHERE cad.missing) AS missing_count,
+        COUNT(*) FILTER (WHERE NULLIF(BTRIM(cad.assigned), '') IS NOT NULL AND NOT cad.missing) AS healthy_count
+      FROM components c
+      CROSS JOIN LATERAL (
+        SELECT assigned_files.file_type, assigned_files.assigned,
+          EXISTS (
+            SELECT 1 FROM component_cad_files ccf JOIN cad_files cf ON cf.id = ccf.cad_file_id
+            WHERE ccf.component_id = c.id AND cf.file_type = assigned_files.file_type AND cf.missing = TRUE
+          ) AS missing
+        FROM (VALUES ('footprint', c.pcb_footprint), ('symbol', c.schematic),
+          ('model', c.step_model), ('pspice', c.pspice), ('pad', c.pad_file)) AS assigned_files(file_type, assigned)
+      ) cad
+      GROUP BY cad.file_type
     `);
-
-    const missingByType = {};
-    missingFilesResult.rows.forEach(row => {
-      missingByType[row.file_type] = parseInt(row.count);
-    });
+    const cadHealth = Object.fromEntries(cadHealthResult.rows.map(row => [row.file_type, row]));
 
     // Get low stock count
     const lowStockResult = await pool.query(
@@ -87,17 +71,18 @@ export const getDashboardStats = async (req, res, next) => {
       totalInventoryItems: parseInt(totalInventoryResult.rows[0].count),
       totalInventoryQuantity: parseInt(totalInventoryResult.rows[0].total_quantity || 0),
       // Undefined: components with no file assigned (blank TEXT column)
-      undefinedFootprints: parseInt(undefinedFootprintsResult.rows[0].count),
-      undefinedSchematic: parseInt(undefinedSchematicResult.rows[0].count),
-      undefined3DModel: parseInt(undefined3DModelResult.rows[0].count),
-      undefinedPspice: parseInt(undefinedPspiceResult.rows[0].count),
-      undefinedPad: parseInt(undefinedPadResult.rows[0].count),
+      undefinedFootprints: Number(cadHealth.footprint?.undefined_count || 0),
+      undefinedSchematic: Number(cadHealth.symbol?.undefined_count || 0),
+      undefined3DModel: Number(cadHealth.model?.undefined_count || 0),
+      undefinedPspice: Number(cadHealth.pspice?.undefined_count || 0),
+      undefinedPad: Number(cadHealth.pad?.undefined_count || 0),
       // Missing: components with assigned file that is missing from disk
-      missingFootprints: missingByType.footprint || 0,
-      missingSchematic: missingByType.symbol || 0,
-      missing3DModel: missingByType.model || 0,
-      missingPspice: missingByType.pspice || 0,
-      missingPad: missingByType.pad || 0,
+      missingFootprints: Number(cadHealth.footprint?.missing_count || 0),
+      missingSchematic: Number(cadHealth.symbol?.missing_count || 0),
+      missing3DModel: Number(cadHealth.model?.missing_count || 0),
+      missingPspice: Number(cadHealth.pspice?.missing_count || 0),
+      missingPad: Number(cadHealth.pad?.missing_count || 0),
+      healthyCad: Object.fromEntries(Object.entries(cadHealth).map(([type, row]) => [type, Number(row.healthy_count)])),
       lowStockAlerts: parseInt(lowStockResult.rows[0].count),
       recentlyAdded: parseInt(recentComponentsResult.rows[0].count),
       approvalStatus: {
@@ -110,6 +95,9 @@ export const getDashboardStats = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.status(503).json({ code: 'DATABASE_SCHEMA_INCOMPLETE', error: 'Database setup is incomplete' });
+    }
     next(error);
   }
 };

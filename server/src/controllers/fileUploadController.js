@@ -38,15 +38,15 @@ const LIBRARY_BASE = path.resolve(__dirname, '../../../library');
 // IMPORTANT: Extensions must be unique across categories (except for ambiguous ones handled by path-based logic)
 const FILE_CATEGORIES = {
   footprint: {
-    extensions: ['.brd', '.psm', '.bsm', '.dra'],
+    extensions: ['.brd', '.psm', '.bsm', '.dra', '.kicad_mod', '.lbr', '.fsm', '.bxl'],
     subdir: 'footprint',
   },
   pad: {
-    extensions: ['.pad'],
+    extensions: ['.pad', '.plb'],
     subdir: 'pad',
   },
   symbol: {
-    extensions: PSPICE_SYMBOL_FILE_EXTENSIONS,
+    extensions: [...PSPICE_SYMBOL_FILE_EXTENSIONS, '.kicad_sym', '.schlib'],
     subdir: 'symbol',
   },
   model: {
@@ -134,25 +134,9 @@ function getArchiveBaseName(entryName) {
 }
 
 /**
- * Find file in flat directory first, then fall back to legacy nested directory,
- * then check temp directory for files uploaded during new part creation.
+ * Find a saved file in the flat directory, then the legacy nested directory.
  * Returns the full path if found, null otherwise
  */
-function findFile(category, filename, mfgPartNumber) {
-  if (!FILE_CATEGORIES[category]) return null;
-
-  // Try temp directory first — files during new part creation/editing are here with unique prefix
-  // Temp takes priority so renames during creation don't affect existing library files
-  const tempDir = path.join(LIBRARY_BASE, 'temp');
-  if (fs.existsSync(tempDir)) {
-    const tempFiles = fs.readdirSync(tempDir);
-    const match = tempFiles.find(f => f.endsWith('-' + filename));
-    if (match) return path.join(tempDir, match);
-  }
-
-  return findLibraryFile(category, filename, mfgPartNumber);
-}
-
 function findLibraryFile(category, filename, mfgPartNumber) {
   const config = FILE_CATEGORIES[category];
   if (!config) return null;
@@ -623,7 +607,7 @@ export async function listFiles(req, res) {
       if (dbColumn) {
         try {
           // Query cad_files via junction table for this component (include missing flag)
-          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category);
+          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category, req.query?.componentId);
 
           for (const row of rows) {
             const fname = row.file_name;
@@ -644,6 +628,7 @@ export async function listFiles(req, res) {
                   path: path.join(config.subdir, fname),
                   size: fs.statSync(flatPath).size,
                   storage: 'flat',
+                  missing: Boolean(row.missing),
                 });
               } else {
                 // File is missing from disk — include with missing flag
@@ -660,14 +645,15 @@ export async function listFiles(req, res) {
             }
           }
         } catch (dbError) {
-          // DB query failed, continue with directory scan
+          if (req.query?.componentId) throw dbError;
+          // Legacy paths may still be discoverable without registered records.
           logError('FileUpload', `DB lookup failed for ${mfgPartNumber}: ${dbError.message}`);
         }
       }
 
       // Also check legacy nested directory
       const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
-      if (fs.existsSync(nestedDir)) {
+      if (!req.query?.componentId && fs.existsSync(nestedDir)) {
         const dirFiles = fs.readdirSync(nestedDir).filter((fileName) => (
           !fileName.startsWith('.') && cadFileService.isTrackableCadFile(fileName, category)
         ));
@@ -928,9 +914,13 @@ export async function deleteFile(req, res) {
       await client.query('BEGIN');
 
       const compResult = await client.query(
-        'SELECT id, approval_status FROM components WHERE manufacturer_pn = $1 FOR UPDATE',
-        [mfgPartNumber],
+        `SELECT id, approval_status FROM components WHERE ${req.body.componentId ? 'id' : 'manufacturer_pn'} = $1 FOR UPDATE`,
+        [req.body.componentId || mfgPartNumber],
       );
+      if (compResult.rows.length > 1) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Part number is ambiguous; select a component by ID' });
+      }
       const component = compResult.rows[0];
       if (!component) {
         await client.query('ROLLBACK');
@@ -1044,8 +1034,11 @@ export async function downloadFile(req, res) {
     }
 
     // Find file in flat or nested directory
-    const filePath = findFile(category, filename, mfgPartNumber);
-    if (!filePath) {
+    const tempFilename = req.query?.tempFilename;
+    const filePath = tempFilename
+      ? path.join(LIBRARY_BASE, 'temp', assertSafeLeafName(tempFilename, 'tempFilename'))
+      : findLibraryFile(category, filename, mfgPartNumber);
+    if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
     }
 
@@ -1077,7 +1070,7 @@ export async function exportFiles(req, res) {
       const dbColumn = CATEGORY_TO_COLUMN[category];
       if (dbColumn) {
         try {
-          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category);
+          const rows = await cadFileService.getComponentCadFilesByMPN(mfgPartNumber, category, req.query?.componentId);
 
           for (const row of rows) {
             const fname = row.file_name;
@@ -1096,12 +1089,14 @@ export async function exportFiles(req, res) {
               });
             }
           }
-        } catch { /* continue with directory scan */ }
+        } catch (error) {
+          if (req.query?.componentId) throw error;
+        }
       }
 
       // Check legacy nested directory
       const nestedDir = path.join(LIBRARY_BASE, config.subdir, sanitizedPN);
-      if (fs.existsSync(nestedDir)) {
+      if (!req.query?.componentId && fs.existsSync(nestedDir)) {
         const dirFiles = fs.readdirSync(nestedDir).filter((fileName) => (
           !fileName.startsWith('.') && cadFileService.isTrackableCadFile(fileName, category)
         ));

@@ -46,41 +46,6 @@ export const DeleteConfirmationModal = ({ deleteConfirmation, isPending = false,
   );
 };
 
-// ECO Delete Confirmation Modal
-export const ECODeleteConfirmationModal = ({ show, partNumber, onConfirm, onCancel }) => {
-  if (!show) return null;
-  return (
-    <ModalBackdrop>
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-[#3a3a3a] animate-fadeIn">
-        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
-          <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-        </div>
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 text-center mb-2">
-          Mark Component for Deletion
-        </h3>
-        <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-          This will create an ECO to delete <span className="font-semibold text-gray-900 dark:text-gray-100">&quot;{partNumber}&quot;</span>.
-          The deletion will be pending until an approver reviews and approves this ECO.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-[#333333] text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-[#3a3a3a] transition-colors font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium flex items-center justify-center gap-2"
-          >
-            Mark for Deletion
-          </button>
-        </div>
-      </div>
-    </ModalBackdrop>
-  );
-};
-
 // Promote to Primary Confirmation Modal
 export const PromoteConfirmationModal = ({ promoteConfirmation, onConfirm, onCancel }) => {
   if (!promoteConfirmation.show) return null;

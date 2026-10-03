@@ -16,6 +16,8 @@ vi.mock('../services/cadFileService.js', () => ({ default: { syncComponentCadFil
 import { updateDistributorInfo, updateComponentSpecifications, updateComponent, createAlternative, updateAlternative, deleteAlternative, promoteAlternative, changeComponentCategory } from '../controllers/componentController.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
+import { renameManufacturer } from '../controllers/manufacturerController.js';
+import { createPackage, updatePackage, promoteAlias, deleteAlias, updateAlias } from '../services/packageService.js';
 
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const runTool = (tool, args) => execFileSync(tool, args, {
@@ -57,7 +59,7 @@ describe('Catalog writes on scratch PostgreSQL', () => {
       CREATE FUNCTION created_at(UUID) RETURNS TIMESTAMPTZ LANGUAGE sql AS $$ SELECT NOW() $$;
     `);
     const schema = fs.readFileSync(new URL('../../../database/init-schema.sql', import.meta.url), 'utf8');
-    for (const table of ['components', 'distributors', 'components_alternative', 'distributor_info', 'category_specifications', 'component_specification_values']) {
+    for (const table of ['components', 'distributors', 'components_alternative', 'distributor_info', 'category_specifications', 'component_specification_values', 'packages', 'package_aliases']) {
       const definition = schema.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\);`));
       await database.query(definition[0]);
     }
@@ -80,7 +82,7 @@ describe('Catalog writes on scratch PostgreSQL', () => {
     vendorSearch.mockReset().mockResolvedValue({ results: [] });
     await database.query(`
       TRUNCATE users, manufacturers, component_categories, components, distributors, components_alternative,
-        distributor_info, category_specifications, component_specification_values, activity_log CASCADE;
+        distributor_info, category_specifications, component_specification_values, activity_log, packages, package_aliases CASCADE;
       INSERT INTO component_categories VALUES ('${id(10)}','First','FIRST',5), ('${id(11)}','Second','SECOND',5);
       INSERT INTO components (id,category_id,part_number,approval_status) VALUES ('${id(1)}','${id(10)}','FIRST-00001','new');
       INSERT INTO distributors (id,name) VALUES ('${id(20)}','Digikey'), ('${id(21)}','Mouser');
@@ -97,6 +99,84 @@ describe('Catalog writes on scratch PostgreSQL', () => {
     return { res, next };
   };
   const distributors = async () => (await database.query('SELECT distributor_id,sku,stock_quantity FROM distributor_info ORDER BY distributor_id')).rows;
+
+  it.each(['merge', 'same name', 'late failure'])('preserves primary and alternative manufacturer ownership on %s', async (scenario) => {
+    await database.query(`INSERT INTO manufacturers (id,name) VALUES ('${id(1)}','Source'), ('${id(2)}','Target');
+      UPDATE components SET manufacturer_id = '${id(1)}'; UPDATE components_alternative SET manufacturer_id = '${id(1)}';`);
+    if (scenario === 'late failure') {await database.query(`CREATE FUNCTION fail_merge() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'injected merge failure'; END $$;
+      CREATE TRIGGER fail_merge BEFORE DELETE ON manufacturers FOR EACH ROW EXECUTE FUNCTION fail_merge();`);}
+    try {
+      const { next } = await invoke(renameManufacturer, { newName: scenario === 'same name' ? 'Source' : 'Target' }, 'admin');
+      expect(next.mock.calls.length).toBe(scenario === 'late failure' ? 1 : 0);
+      const expected = scenario === 'merge' ? id(2) : id(1);
+      expect((await database.query('SELECT manufacturer_id FROM components UNION ALL SELECT manufacturer_id FROM components_alternative')).rows)
+        .toEqual([{ manufacturer_id: expected }, { manufacturer_id: expected }]);
+      expect((await database.query('SELECT id FROM manufacturers WHERE id = $1', [expected])).rowCount).toBe(1);
+    } finally {
+      if (scenario === 'late failure') await database.query('DROP TRIGGER fail_merge ON manufacturers; DROP FUNCTION fail_merge()');
+    }
+  });
+
+  it.each(['create', 'update', 'promote'])('rolls back package %s if its response cannot be read', async (operation) => {
+    const original = await createPackage({ short_name: 'BASE', count_policy: 'none', aliases: ['SECOND'] });
+    const failResponse = (sql) => {
+      if (sql.includes('json_agg(')) throw new Error('injected package response failure');
+    };
+    poolProxy.query.mockImplementation((sql, ...args) => { failResponse(sql); return database.query(sql, ...args); });
+    poolProxy.connect.mockImplementation(async () => {
+      const client = await database.connect();
+      return { release: () => client.release(), query: (sql, ...args) => { failResponse(sql); return client.query(sql, ...args); } };
+    });
+    const write = operation === 'create' ? () => createPackage({ short_name: 'NEW', count_policy: 'none' })
+      : operation === 'update' ? () => updatePackage(original.id, { family: 'Changed' })
+        : () => promoteAlias(original.id, 'SECOND');
+    await expect(write()).rejects.toThrow('injected package response failure');
+    expect((await database.query('SELECT short_name, family FROM packages')).rows).toEqual([{ short_name: 'BASE', family: null }]);
+    expect((await database.query('SELECT alias FROM package_aliases ORDER BY alias')).rows).toEqual([{ alias: 'BASE' }, { alias: 'SECOND' }]);
+  });
+
+  it.each(['delete', 'update'])('rechecks the canonical alias after a competing promotion before alias %s', async (operation) => {
+    const original = await createPackage({ short_name: 'BASE', count_policy: 'none', aliases: ['SECOND'] });
+    const aliasId = original.aliases.find(row => row.alias === 'SECOND').id;
+    const writer = await database.connect();
+    let editing;
+    try {
+      await writer.query('BEGIN');
+      await writer.query("UPDATE packages SET short_name = 'SECOND' WHERE id = $1", [original.id]);
+      let finished = false;
+      editing = (operation === 'delete' ? deleteAlias(original.id, aliasId) : updateAlias(original.id, aliasId, 'CHANGED'))
+        .then(value => ({ value }), error => ({ error })).then(result => { finished = true; return result; });
+      await vi.waitFor(async () => {
+        const waiting = await database.query("SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
+        expect(finished || waiting.rowCount > 0).toBe(true);
+      });
+      await writer.query('COMMIT');
+      expect((await editing).error?.message).toMatch(/canonical self-alias cannot/);
+      expect((await database.query('SELECT alias FROM package_aliases ORDER BY alias')).rows).toEqual([{ alias: 'BASE' }, { alias: 'SECOND' }]);
+    } finally {
+      await writer.query('ROLLBACK');
+      writer.release();
+      await editing;
+    }
+  });
+
+  it('rolls back promotion when building its response fails, so retry cannot swap it back', async () => {
+    await database.query("UPDATE components SET manufacturer_pn = 'PRIMARY'");
+    await database.query("CREATE OR REPLACE FUNCTION get_part_type(UUID,TEXT,TEXT,TEXT,TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected response failure'; END $$");
+    try {
+      const { next } = await invoke(promoteAlternative, {});
+      expect(next).toHaveBeenCalled();
+      expect((await database.query('SELECT manufacturer_pn FROM components')).rows).toEqual([{ manufacturer_pn: 'PRIMARY' }]);
+      expect((await database.query('SELECT manufacturer_pn FROM components_alternative')).rows).toEqual([{ manufacturer_pn: 'ALT' }]);
+      expect((await database.query('SELECT * FROM activity_log')).rowCount).toBe(0);
+    } finally {
+      await database.query("CREATE OR REPLACE FUNCTION get_part_type(UUID,TEXT,TEXT,TEXT,TEXT) RETURNS TEXT LANGUAGE sql AS $$ SELECT 'test'::text $$");
+    }
+    const { next, res } = await invoke(promoteAlternative, {});
+    expect(next).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, component: expect.objectContaining({ manufacturer_pn: 'ALT' }) }));
+  });
 
   it('rolls back distributor deletion and earlier upserts after a late invalid reference', async () => {
     const before = await distributors();

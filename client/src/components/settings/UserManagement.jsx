@@ -45,7 +45,7 @@ const UserManagement = () => {
   };
 
   // Fetch all users
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const response = await api.getAllUsers();
@@ -226,6 +226,8 @@ const UserManagement = () => {
         return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300';
     }
   };
+
+  if (loadError) return <div role="alert">Unable to load settings. <button onClick={() => refetch()}>Retry</button></div>;
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../utils/api';
+import { getBasePath } from '../utils/basePath';
 import { LogIn, AlertCircle, Loader2 } from 'lucide-react';
 
 const SSO_ERROR_MESSAGES = {
@@ -51,7 +52,7 @@ const Login = () => {
       
       if (result.success) {
         // Redirect to the page they tried to visit, or dashboard
-        const from = location.state?.from?.pathname || '/';
+        const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search || ''}${location.state.from.hash || ''}` : '/';
         navigate(from, { replace: true });
       } else {
         setError(result.error || 'Login failed');
@@ -70,7 +71,7 @@ const Login = () => {
         <div className="text-center">
           <div className="flex justify-center mb-4">
             <img 
-              src="/logo_bg.png" 
+              src={`${getBasePath()}/logo_bg.png`}
               alt="IC Lib Logo" 
               className="w-20 h-20 rounded-lg"
             />
@@ -166,7 +167,7 @@ const Login = () => {
             <button
               type="button"
               onClick={() => {
-                window.location.href = api.getOidcLoginUrl();
+                window.location.href = api.getOidcLoginUrl(location.state?.from ? `${location.state.from.pathname}${location.state.from.search || ''}${location.state.from.hash || ''}` : '');
               }}
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors mb-3"
@@ -185,7 +186,7 @@ const Login = () => {
               try {
                 const result = await login('guest', 'guest123');
                 if (result.success) {
-                  const from = location.state?.from?.pathname || '/';
+                  const from = location.state?.from ? `${location.state.from.pathname}${location.state.from.search || ''}${location.state.from.hash || ''}` : '/';
                   navigate(from, { replace: true });
                 } else {
                   setError(result.error || 'Guest login failed');

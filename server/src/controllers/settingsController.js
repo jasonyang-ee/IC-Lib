@@ -1,4 +1,6 @@
 import fs from 'fs/promises';
+import { randomUUID } from 'crypto';
+import { importUserRecords, importCategoryRecords, validateSettingsImport } from '../services/settingsImportService.js';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -81,31 +83,35 @@ const resolveBooleanEnv = (...values) => {
  * Ensure settings file exists with default values
  */
 const ensureSettingsFile = async () => {
+  await fs.mkdir(path.dirname(SETTINGS_FILE), { recursive: true });
   try {
-    await fs.access(SETTINGS_FILE);
-  } catch {
-    // File doesn't exist, create it with defaults
-    const dir = path.dirname(SETTINGS_FILE);
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify(DEFAULT_SETTINGS, null, 2));
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify(DEFAULT_SETTINGS, null, 2), { flag: 'wx' });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
   }
 };
 
-/**
- * Read settings from file
- */
 const readSettings = async () => {
   await ensureSettingsFile();
-  const data = await fs.readFile(SETTINGS_FILE, 'utf-8');
-  return JSON.parse(data);
+  return JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf-8'));
 };
 
-/**
- * Write settings to file
- */
-const writeSettings = async (settings) => {
-  await ensureSettingsFile();
-  await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+let settingsWriteQueue = Promise.resolve();
+const writeSettings = update => {
+  const write = settingsWriteQueue.then(async () => {
+    const current = await readSettings();
+    const settings = typeof update === 'function' ? update(current) : update;
+    const temporary = `${SETTINGS_FILE}.${randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(temporary, JSON.stringify(settings, null, 2), { flag: 'wx' });
+      await fs.rename(temporary, SETTINGS_FILE);
+    } finally {
+      await fs.rm(temporary, { force: true });
+    }
+    return settings;
+  });
+  settingsWriteQueue = write.catch(() => {});
+  return write;
 };
 
 /**
@@ -139,21 +145,15 @@ export const getFeatureFlags = async (req, res) => {
  */
 export const updateSettings = async (req, res) => {
   try {
-    const currentSettings = await readSettings();
-    
-    // Merge new settings with existing ones
-    const updatedSettings = {
+    const updatedSettings = await writeSettings(currentSettings => ({
       ...currentSettings,
       ...req.body,
-      // Handle nested partNumberConfigs merge
       partNumberConfigs: {
         ...currentSettings.partNumberConfigs,
         ...(req.body.partNumberConfigs || {}),
       },
-    };
+    }));
 
-    await writeSettings(updatedSettings);
-    
     res.json({
       success: true,
       settings: updatedSettings,
@@ -188,6 +188,7 @@ export const getGlobalPrefix = async (req, res) => {
  * PUT /api/settings/global-prefix - Update global prefix and apply to all categories
  */
 export const updateGlobalPrefix = async (req, res) => {
+  let client;
   try {
     const { enabled, prefix, leading_zeros } = req.body;
 
@@ -199,7 +200,7 @@ export const updateGlobalPrefix = async (req, res) => {
       if (!prefix || typeof prefix !== 'string' || prefix.trim().length === 0) {
         return res.status(400).json({ error: 'prefix is required when enabled' });
       }
-      if (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10) {
+      if (!Number.isInteger(leading_zeros) || leading_zeros < 1 || leading_zeros > 10) {
         return res.status(400).json({ error: 'leading_zeros must be a number between 1 and 10' });
       }
     }
@@ -207,8 +208,11 @@ export const updateGlobalPrefix = async (req, res) => {
     const cleanPrefix = prefix ? prefix.trim() : '';
     const cleanLeadingZeros = leading_zeros || 5;
 
+    client = await pool.connect();
+    await client.query('BEGIN');
+
     // Upsert into admin_settings (singleton row)
-    await pool.query(`
+    await client.query(`
       INSERT INTO admin_settings (global_prefix_enabled, global_prefix, global_leading_zeros)
       VALUES ($1, $2, $3)
       ON CONFLICT ((1)) DO UPDATE SET
@@ -221,21 +225,25 @@ export const updateGlobalPrefix = async (req, res) => {
     // If enabled, update all categories to use the global prefix and leading zeros
     let updatedCount = 0;
     if (enabled) {
-      const result = await pool.query(
+      const result = await client.query(
         'UPDATE component_categories SET prefix = $1, leading_zeros = $2',
         [cleanPrefix, cleanLeadingZeros],
       );
       updatedCount = result.rowCount;
     }
 
+    await client.query('COMMIT');
     res.json({
       success: true,
       globalPrefix: { enabled, prefix: cleanPrefix, leading_zeros: cleanLeadingZeros },
       updatedCategories: updatedCount,
     });
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
     logError('Settings', 'Error updating global prefix settings:', error);
     res.status(500).json({ error: 'Failed to update global prefix settings', message: error.message });
+  } finally {
+    client?.release();
   }
 };
 
@@ -401,8 +409,9 @@ export const getCategoryConfigs = async (req, res) => {
  * Automatically updates all part numbers when prefix or leading_zeros changes
  */
 export const updateCategoryConfig = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { id } = req.params;
     const { name, prefix, leading_zeros } = req.body;
 
@@ -415,7 +424,7 @@ export const updateCategoryConfig = async (req, res) => {
       return res.status(400).json({ error: 'Invalid prefix: must be a non-empty string' });
     }
 
-    if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
+    if (leading_zeros !== undefined && (!Number.isInteger(leading_zeros) || leading_zeros < 1 || leading_zeros > 10)) {
       return res.status(400).json({ error: 'Invalid leading_zeros: must be a number between 1 and 10' });
     }
 
@@ -427,12 +436,12 @@ export const updateCategoryConfig = async (req, res) => {
 
     // Get current category configuration
     const currentResult = await client.query(
-      'SELECT id, name, prefix, leading_zeros FROM component_categories WHERE id = $1',
+      'SELECT id, name, prefix, leading_zeros FROM component_categories WHERE id = $1 FOR UPDATE',
       [id],
     );
 
     if (currentResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Category not found' });
     }
 
@@ -458,7 +467,8 @@ export const updateCategoryConfig = async (req, res) => {
 
       for (const comp of componentsResult.rows) {
         // Extract the numeric part from the current part number
-        const match = comp.part_number.match(new RegExp(`^${oldPrefix}-(\\d+)$`));
+        const suffix = comp.part_number.startsWith(`${oldPrefix}-`) ? comp.part_number.slice(oldPrefix.length + 1) : '';
+        const match = suffix.match(/^(\d+)$/);
         if (match) {
           const numericPart = parseInt(match[1], 10);
           const paddedNumber = String(numericPart).padStart(newLeadingZeros, '0');
@@ -495,7 +505,7 @@ export const updateCategoryConfig = async (req, res) => {
       await logUserActivity(client, {
         typeName: 'category_config_updated',
         description: `Updated category ${currentCategory.name}: prefix ${oldPrefix} -> ${newPrefix}, leading_zeros ${oldLeadingZeros} -> ${newLeadingZeros}, updated ${updatedComponents.length} part numbers`,
-        userId: req.user?.userId || null,
+        userId: req.user?.id || null,
       });
     }
 
@@ -518,14 +528,14 @@ export const updateCategoryConfig = async (req, res) => {
         : 'Category updated, no part numbers needed updating',
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('SettingsController', `Error updating category config: ${error.message}`);
     res.status(500).json({ 
       error: 'Failed to update category configuration',
       message: error.message, 
     });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -986,14 +996,17 @@ export const exportAllSettings = async (req, res) => {
  * Specs not in import will be deleted from database
  */
 export const importAllSettings = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const { data } = req.body;
     
     if (!data) {
       return res.status(400).json({ error: 'Import data is required' });
     }
+
+    validateSettingsImport(data);
 
     const results = {
       users: { created: 0, updated: 0, deactivated: 0, errors: [] },
@@ -1004,206 +1017,27 @@ export const importAllSettings = async (req, res) => {
 
     await client.query('BEGIN');
 
-    // ============================================================
-    // Step 1: Import Users
-    // ============================================================
-    if (data.users && Array.isArray(data.users)) {
-      const importedUsernames = new Set(data.users.map(u => u.username));
-      
-      for (const user of data.users) {
-        if (!user.username || !user.role) {
-          results.users.errors.push(`Invalid user data: ${JSON.stringify(user)}`);
-          continue;
-        }
+    if (data.users !== undefined) results.users = await importUserRecords(client, data.users, req.user?.id);
+    if (data.categories !== undefined) Object.assign(results, await importCategoryRecords(client, data.categories));
+    await client.query('COMMIT');
 
-        try {
-          // Check if user exists
-          const existing = await client.query(
-            'SELECT id FROM users WHERE username = $1',
-            [user.username],
-          );
-
-          if (existing.rows.length > 0) {
-            // Update existing user (don't change password)
-            await client.query(`
-              UPDATE users 
-              SET role = $1, is_active = $2
-              WHERE username = $3
-            `, [user.role, user.is_active !== false, user.username]);
-            results.users.updated++;
-          } else {
-            // Create new user with default password (they should change it)
-            const bcrypt = await import('bcryptjs');
-            const defaultPasswordHash = await bcrypt.hash('changeme123', 10);
-            
-            await client.query(`
-              INSERT INTO users (username, password_hash, role, is_active, created_by)
-              VALUES ($1, $2, $3, $4, $5)
-            `, [user.username, defaultPasswordHash, user.role, user.is_active !== false, req.user?.userId]);
-            results.users.created++;
-          }
-        } catch (userError) {
-          results.users.errors.push(`User ${user.username}: ${userError.message}`);
-        }
-      }
-
-      // Deactivate users not in import (except admin to prevent lockout)
-      const existingUsers = await client.query(
-        'SELECT username FROM users WHERE username != $1',
-        ['admin'],
-      );
-      
-      for (const existingUser of existingUsers.rows) {
-        if (!importedUsernames.has(existingUser.username)) {
-          await client.query(
-            'UPDATE users SET is_active = false WHERE username = $1',
-            [existingUser.username],
-          );
-          results.users.deactivated++;
-        }
-      }
-    }
-
-    // ============================================================
-    // Step 2: Import Categories and Specifications
-    // ============================================================
-    if (data.categories && Array.isArray(data.categories)) {
-      const importedCategoryIds = new Set();
-      const categoryNameToId = new Map();
-
-      for (const category of data.categories) {
-        if (!category.name || !category.prefix) {
-          results.categories.errors.push(`Invalid category data: ${JSON.stringify(category)}`);
-          continue;
-        }
-
-        try {
-          // Check if category exists by name
-          const existing = await client.query(
-            'SELECT id FROM component_categories WHERE name = $1',
-            [category.name],
-          );
-
-          let categoryId;
-
-          if (existing.rows.length > 0) {
-            // Update existing category
-            categoryId = existing.rows[0].id;
-            await client.query(`
-              UPDATE component_categories 
-              SET prefix = $1, leading_zeros = $2, display_order = $3
-              WHERE id = $4
-            `, [category.prefix, category.leading_zeros || 5, category.display_order || 0, categoryId]);
-            results.categories.updated++;
-          } else {
-            // Create new category
-            const newCat = await client.query(`
-              INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
-              VALUES ($1, $2, $3, $4)
-              RETURNING id
-            `, [category.name, category.prefix, category.leading_zeros || 5, category.display_order || 0]);
-            categoryId = newCat.rows[0].id;
-            results.categories.created++;
-          }
-
-          importedCategoryIds.add(categoryId);
-          categoryNameToId.set(category.name, categoryId);
-
-          // ============================================================
-          // Step 3: Import Specifications for this category
-          // ============================================================
-          if (category.specifications && Array.isArray(category.specifications)) {
-            const importedSpecNames = new Set();
-
-            for (const spec of category.specifications) {
-              if (!spec.spec_name) continue;
-              
-              importedSpecNames.add(spec.spec_name);
-
-              try {
-                // Check if spec exists
-                const existingSpec = await client.query(
-                  'SELECT id FROM category_specifications WHERE category_id = $1 AND spec_name = $2',
-                  [categoryId, spec.spec_name],
-                );
-
-                if (existingSpec.rows.length > 0) {
-                  // Update existing spec
-                  await client.query(`
-                    UPDATE category_specifications 
-                    SET unit = $1, mapping_spec_names = $2, display_order = $3, is_required = $4, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = $5
-                  `, [
-                    spec.unit || null,
-                    JSON.stringify(spec.mapping_spec_names || []),
-                    spec.display_order || 0,
-                    spec.is_required || false,
-                    existingSpec.rows[0].id,
-                  ]);
-                  results.specifications.updated++;
-                } else {
-                  // Create new spec
-                  await client.query(`
-                    INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                  `, [
-                    categoryId,
-                    spec.spec_name,
-                    spec.unit || null,
-                    JSON.stringify(spec.mapping_spec_names || []),
-                    spec.display_order || 0,
-                    spec.is_required || false,
-                  ]);
-                  results.specifications.created++;
-                }
-              } catch (specError) {
-                results.specifications.errors.push(`Spec ${spec.spec_name}: ${specError.message}`);
-              }
-            }
-
-            // Delete specs not in import for this category
-            const existingSpecs = await client.query(
-              'SELECT id, spec_name FROM category_specifications WHERE category_id = $1',
-              [categoryId],
-            );
-
-            for (const existingSpec of existingSpecs.rows) {
-              if (!importedSpecNames.has(existingSpec.spec_name)) {
-                // Delete spec and its values (cascade)
-                await client.query(
-                  'DELETE FROM category_specifications WHERE id = $1',
-                  [existingSpec.id],
-                );
-                results.specifications.deleted++;
-              }
-            }
-          }
-        } catch (catError) {
-          results.categories.errors.push(`Category ${category.name}: ${catError.message}`);
-        }
-      }
-    }
-
-    // ============================================================
-    // Step 4: Import Application Settings
-    // ============================================================
-    if (data.settings) {
+    // Settings live outside PostgreSQL; never publish them before DB commit.
+    if (data.settings !== undefined) {
       try {
         await writeSettings(data.settings);
         results.settings.updated = true;
-      } catch (settingsError) {
-        logError('Settings', 'Error updating settings:', settingsError);
+      } catch (error) {
+        results.settings.error = error.message;
+        logError('Settings', 'Error updating settings:', error);
       }
     }
-
-    await client.query('COMMIT');
 
     // Log activity
     try {
       await logUserActivity(pool, {
         typeName: 'settings_import',
         description: `Imported settings: ${results.users.created + results.users.updated} users, ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs`,
-        userId: req.user?.userId,
+        userId: req.user?.id,
       });
     } catch (activityError) {
       logError('Settings', 'Failed to log settings import:', activityError);
@@ -1211,18 +1045,18 @@ export const importAllSettings = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Settings imported successfully',
+      message: results.settings.error ? 'Database records imported; application settings could not be saved' : 'Settings imported successfully',
       results,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('Settings', 'Error importing settings:', error);
-    res.status(500).json({ 
+    res.status(error.status || 500).json({
       error: 'Failed to import settings',
       message: error.message, 
     });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1267,69 +1101,19 @@ export const exportUsers = async (req, res) => {
  * Import only users - overwrites existing
  */
 export const importUsers = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const { users } = req.body;
     
     if (!users || !Array.isArray(users)) {
       return res.status(400).json({ error: 'Users array is required' });
     }
 
-    const results = { created: 0, updated: 0, deactivated: 0, errors: [] };
-    const importedUsernames = new Set(users.map(u => u.username));
-
+    validateSettingsImport({ users });
     await client.query('BEGIN');
-
-    for (const user of users) {
-      if (!user.username || !user.role) {
-        results.errors.push(`Invalid user data: ${JSON.stringify(user)}`);
-        continue;
-      }
-
-      try {
-        const existing = await client.query(
-          'SELECT id FROM users WHERE username = $1',
-          [user.username],
-        );
-
-        if (existing.rows.length > 0) {
-          await client.query(`
-            UPDATE users 
-            SET role = $1, is_active = $2
-            WHERE username = $3
-          `, [user.role, user.is_active !== false, user.username]);
-          results.updated++;
-        } else {
-          const bcrypt = await import('bcryptjs');
-          const defaultPasswordHash = await bcrypt.hash('changeme123', 10);
-          
-          await client.query(`
-            INSERT INTO users (username, password_hash, role, is_active, created_by)
-            VALUES ($1, $2, $3, $4, $5)
-          `, [user.username, defaultPasswordHash, user.role, user.is_active !== false, req.user?.userId]);
-          results.created++;
-        }
-      } catch (userError) {
-        results.errors.push(`User ${user.username}: ${userError.message}`);
-      }
-    }
-
-    // Deactivate users not in import (except admin)
-    const existingUsers = await client.query(
-      'SELECT username FROM users WHERE username != $1',
-      ['admin'],
-    );
-    
-    for (const existingUser of existingUsers.rows) {
-      if (!importedUsernames.has(existingUser.username)) {
-        await client.query(
-          'UPDATE users SET is_active = false WHERE username = $1',
-          [existingUser.username],
-        );
-        results.deactivated++;
-      }
-    }
+    const results = await importUserRecords(client, users, req.user?.id);
 
     await client.query('COMMIT');
 
@@ -1339,14 +1123,14 @@ export const importUsers = async (req, res) => {
       results,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('Settings', 'Error importing users:', error);
-    res.status(500).json({ 
+    res.status(error.status || 500).json({
       error: 'Failed to import users',
       message: error.message, 
     });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1415,121 +1199,19 @@ export const exportCategories = async (req, res) => {
  * Import categories with specifications - overwrites existing, deletes missing specs
  */
 export const importCategories = async (req, res) => {
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const { categories } = req.body;
     
     if (!categories || !Array.isArray(categories)) {
       return res.status(400).json({ error: 'Categories array is required' });
     }
 
-    const results = {
-      categories: { created: 0, updated: 0, errors: [] },
-      specifications: { created: 0, updated: 0, deleted: 0, errors: [] },
-    };
-
+    validateSettingsImport({ categories });
     await client.query('BEGIN');
-
-    for (const category of categories) {
-      if (!category.name || !category.prefix) {
-        results.categories.errors.push(`Invalid category data: ${JSON.stringify(category)}`);
-        continue;
-      }
-
-      try {
-        const existing = await client.query(
-          'SELECT id FROM component_categories WHERE name = $1',
-          [category.name],
-        );
-
-        let categoryId;
-
-        if (existing.rows.length > 0) {
-          categoryId = existing.rows[0].id;
-          await client.query(`
-            UPDATE component_categories 
-            SET prefix = $1, leading_zeros = $2, display_order = $3
-            WHERE id = $4
-          `, [category.prefix, category.leading_zeros || 5, category.display_order || 0, categoryId]);
-          results.categories.updated++;
-        } else {
-          const newCat = await client.query(`
-            INSERT INTO component_categories (name, prefix, leading_zeros, display_order)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id
-          `, [category.name, category.prefix, category.leading_zeros || 5, category.display_order || 0]);
-          categoryId = newCat.rows[0].id;
-          results.categories.created++;
-        }
-
-        // Process specifications
-        if (category.specifications && Array.isArray(category.specifications)) {
-          const importedSpecNames = new Set();
-
-          for (const spec of category.specifications) {
-            if (!spec.spec_name) continue;
-            
-            importedSpecNames.add(spec.spec_name);
-
-            try {
-              const existingSpec = await client.query(
-                'SELECT id FROM category_specifications WHERE category_id = $1 AND spec_name = $2',
-                [categoryId, spec.spec_name],
-              );
-
-              if (existingSpec.rows.length > 0) {
-                await client.query(`
-                  UPDATE category_specifications 
-                  SET unit = $1, mapping_spec_names = $2, display_order = $3, is_required = $4, updated_at = CURRENT_TIMESTAMP
-                  WHERE id = $5
-                `, [
-                  spec.unit || null,
-                  JSON.stringify(spec.mapping_spec_names || []),
-                  spec.display_order || 0,
-                  spec.is_required || false,
-                  existingSpec.rows[0].id,
-                ]);
-                results.specifications.updated++;
-              } else {
-                await client.query(`
-                  INSERT INTO category_specifications (category_id, spec_name, unit, mapping_spec_names, display_order, is_required)
-                  VALUES ($1, $2, $3, $4, $5, $6)
-                `, [
-                  categoryId,
-                  spec.spec_name,
-                  spec.unit || null,
-                  JSON.stringify(spec.mapping_spec_names || []),
-                  spec.display_order || 0,
-                  spec.is_required || false,
-                ]);
-                results.specifications.created++;
-              }
-            } catch (specError) {
-              results.specifications.errors.push(`Spec ${spec.spec_name}: ${specError.message}`);
-            }
-          }
-
-          // Delete specs not in import
-          const existingSpecs = await client.query(
-            'SELECT id, spec_name FROM category_specifications WHERE category_id = $1',
-            [categoryId],
-          );
-
-          for (const existingSpec of existingSpecs.rows) {
-            if (!importedSpecNames.has(existingSpec.spec_name)) {
-              await client.query(
-                'DELETE FROM category_specifications WHERE id = $1',
-                [existingSpec.id],
-              );
-              results.specifications.deleted++;
-            }
-          }
-        }
-      } catch (catError) {
-        results.categories.errors.push(`Category ${category.name}: ${catError.message}`);
-      }
-    }
+    const results = await importCategoryRecords(client, categories);
 
     await client.query('COMMIT');
 
@@ -1538,7 +1220,7 @@ export const importCategories = async (req, res) => {
       await logUserActivity(pool, {
         typeName: 'categories_import',
         description: `Imported: ${results.categories.created + results.categories.updated} categories, ${results.specifications.created + results.specifications.updated} specs created/updated, ${results.specifications.deleted} specs deleted`,
-        userId: req.user?.userId,
+        userId: req.user?.id,
       });
     } catch (activityError) {
       logError('Settings', 'Failed to log categories import:', activityError);
@@ -1550,14 +1232,14 @@ export const importCategories = async (req, res) => {
       results,
     });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('Settings', 'Error importing categories:', error);
-    res.status(500).json({ 
+    res.status(error.status || 500).json({
       error: 'Failed to import categories',
       message: error.message, 
     });
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1604,33 +1286,18 @@ export const updateEcoLogoFilename = async (req, res) => {
       return res.status(400).json({ error: 'eco_complete_notification_email must be a valid email address' });
     }
 
-    const existingResult = await pool.query('SELECT eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email FROM admin_settings LIMIT 1');
-    const existing = existingResult.rows[0] || {};
-    const nextLogoFilename = eco_logo_filename !== undefined
-      ? eco_logo_filename.trim()
-      : (existing.eco_logo_filename || '');
-    const nextHeaderText = eco_pdf_header_text !== undefined
-      ? sanitizeEcoPdfHeaderText(eco_pdf_header_text)
-      : sanitizeEcoPdfHeaderText(existing.eco_pdf_header_text || DEFAULT_ECO_PDF_HEADER);
-    const resolvedNotificationEmail = nextNotificationEmail !== undefined
-      ? nextNotificationEmail
-      : (existing.eco_complete_notification_email || '');
-
-    await pool.query(`
+    const result = await pool.query(`
       INSERT INTO admin_settings (eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email)
       VALUES ($1, $2, $3)
       ON CONFLICT ((1)) DO UPDATE SET
-        eco_logo_filename = EXCLUDED.eco_logo_filename,
-        eco_pdf_header_text = EXCLUDED.eco_pdf_header_text,
-        eco_complete_notification_email = EXCLUDED.eco_complete_notification_email,
+        eco_logo_filename = CASE WHEN $4 THEN EXCLUDED.eco_logo_filename ELSE admin_settings.eco_logo_filename END,
+        eco_pdf_header_text = CASE WHEN $5 THEN EXCLUDED.eco_pdf_header_text ELSE admin_settings.eco_pdf_header_text END,
+        eco_complete_notification_email = CASE WHEN $6 THEN EXCLUDED.eco_complete_notification_email ELSE admin_settings.eco_complete_notification_email END,
         updated_at = CURRENT_TIMESTAMP
-    `, [nextLogoFilename, nextHeaderText, resolvedNotificationEmail]);
-    res.json({
-      success: true,
-      eco_logo_filename: nextLogoFilename,
-      eco_pdf_header_text: nextHeaderText,
-      eco_complete_notification_email: resolvedNotificationEmail,
-    });
+      RETURNING eco_logo_filename, eco_pdf_header_text, eco_complete_notification_email
+    `, [eco_logo_filename?.trim() || '', sanitizeEcoPdfHeaderText(eco_pdf_header_text), nextNotificationEmail || '',
+      eco_logo_filename !== undefined, eco_pdf_header_text !== undefined, eco_complete_notification_email !== undefined]);
+    res.json({ success: true, ...result.rows[0] });
   } catch (error) {
     logError('Settings', 'Error updating ECO logo filename:', error);
     res.status(500).json({ error: 'Failed to update ECO logo filename' });
@@ -1675,7 +1342,7 @@ export const updateECOSettings = async (req, res) => {
       return res.status(400).json({ error: 'Prefix must be a string with max 20 characters' });
     }
     
-    if (leading_zeros !== undefined && (typeof leading_zeros !== 'number' || leading_zeros < 1 || leading_zeros > 10)) {
+    if (leading_zeros !== undefined && (!Number.isInteger(leading_zeros) || leading_zeros < 1 || leading_zeros > 10)) {
       return res.status(400).json({ error: 'Leading zeros must be a number between 1 and 10' });
     }
     

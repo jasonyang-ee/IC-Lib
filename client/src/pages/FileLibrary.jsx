@@ -1,14 +1,14 @@
+import { invalidateCadQueries } from '../utils/cadQueries';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
+import { buildFileEntries, buildFileEntryKey } from '../utils/fileLibraryEntries';
 import { buildCadShortcutFilename, formatCanonicalPackageFilenameBase } from '../utils/cadFileNaming';
 import {
   FOOTPRINT_PLUS_ERROR_MESSAGE,
   getCadFileBaseName,
-  groupFootprintFiles,
   isFootprintSecondaryFile,
-  normalizeFootprintGroupBase,
 } from '../utils/footprintFiles';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,64 +66,6 @@ const selectPreferredCopyFiles = (fileNames, typeId) => {
 
   const draFiles = normalizedFileNames.filter((fileName) => isFootprintSecondaryFile(fileName));
   return draFiles.length > 0 ? draFiles : normalizedFileNames;
-};
-
-const getComponentCount = (file) => Number(file?.component_count || 0);
-
-const buildFileEntryKey = (type, fileNames) => {
-  const normalizedFileNames = Array.isArray(fileNames) ? fileNames : [fileNames];
-  if (type === 'footprint' && normalizedFileNames.length > 1) {
-    return `pair:${normalizeFootprintGroupBase(normalizedFileNames[0])}`;
-  }
-
-  return `file:${String(normalizedFileNames[0] || '').toLowerCase()}`;
-};
-
-const buildSingleFileEntry = (file, selectedType) => ({
-  key: buildFileEntryKey(selectedType, file.file_name),
-  kind: 'single',
-  displayName: file.file_name,
-  file_type: file.file_type || routeTypeToFileType[selectedType],
-  fileNames: [file.file_name],
-  files: [file],
-  componentCount: getComponentCount(file),
-  canDelete: getComponentCount(file) === 0,
-  searchText: file.file_name.toLowerCase(),
-});
-
-const buildFootprintEntries = (files) => {
-  return groupFootprintFiles(files, (file) => file.file_name)
-    .map((item) => {
-      if (item.type !== 'pair') {
-        return buildSingleFileEntry(item.file, 'footprint');
-      }
-
-      const pairFiles = item.files.slice().sort((left, right) => left.file_name.localeCompare(right.file_name, undefined, { sensitivity: 'base' }));
-      const groupKey = normalizeFootprintGroupBase(item.primary.file_name);
-
-      return {
-        key: `pair:${groupKey}`,
-        kind: 'pair',
-        displayName: getCadFileBaseName(item.primary.file_name),
-        file_type: 'footprint',
-        fileNames: pairFiles.map((file) => file.file_name),
-        files: pairFiles,
-        componentCount: Math.max(...pairFiles.map((file) => getComponentCount(file))),
-        canDelete: pairFiles.every((file) => getComponentCount(file) === 0),
-        searchText: `${groupKey} ${pairFiles.map((file) => file.file_name.toLowerCase()).join(' ')}`,
-      };
-    })
-    .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
-};
-
-const buildFileEntries = (files, selectedType) => {
-  if (selectedType === 'footprint') {
-    return buildFootprintEntries(files);
-  }
-
-  return (files || [])
-    .map((file) => buildSingleFileEntry(file, selectedType))
-    .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: 'base' }));
 };
 
 const buildShortcutRenameValue = (renameData, baseName, fileType) => {
@@ -185,15 +127,15 @@ const FileLibrary = () => {
       // Navigate to Category view with a search filter (e.g., from "Files" button in Library)
       setViewMode(VIEW_CATEGORY);
       setSelectedCategoryId(searchParams.get('category') || 'all');
-      setSearchQuery(decodeURIComponent(searchParam));
+      setSearchQuery(searchParam);
       setSearchParams({}, { replace: true });
-    } else if (typeParam) {
+    } else if (routeTypeToFileType[typeParam]) {
       setSelectedType(typeParam);
       setViewMode(VIEW_FILE_TYPES);
       if (fileParam) {
         // Use as search query — file names from Library are base names (no extension)
         // while cad_files store full names with extension, so search provides fuzzy match
-        setSearchQuery(decodeURIComponent(fileParam));
+        setSearchQuery(fileParam);
       }
       // Clear params after applying
       setSearchParams({}, { replace: true });
@@ -236,7 +178,7 @@ const FileLibrary = () => {
   });
 
   // Files by type (File Types view)
-  const { data: filesData, isLoading: isLoadingFiles } = useQuery({
+  const { data: filesData, isLoading: isLoadingFiles, error: filesError } = useQuery({
     queryKey: ['filesByType', selectedType],
     queryFn: async () => {
       const response = await api.getFilesByType(selectedType);
@@ -247,7 +189,7 @@ const FileLibrary = () => {
   });
 
   // Orphan files
-  const { data: orphanData, isLoading: isLoadingOrphans } = useQuery({
+  const { data: orphanData, isLoading: isLoadingOrphans, error: orphanError } = useQuery({
     queryKey: ['orphanFiles', selectedType],
     queryFn: async () => {
       const response = await api.getOrphanFiles(selectedType);
@@ -257,41 +199,16 @@ const FileLibrary = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Search files
-  const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ['fileSearch', searchQuery],
-    queryFn: async () => {
-      const response = await api.searchFiles(searchQuery);
-      return response.data;
-    },
-    enabled: searchQuery.length > 2,
-    staleTime: 5 * 60 * 1000,
-  });
-
   const rawSelectedTypeFiles = useMemo(
     () => (showOrphans ? (orphanData?.orphans || []) : (filesData?.files || [])),
     [filesData?.files, orphanData?.orphans, showOrphans],
   );
 
   const displayedEntries = useMemo(() => {
-    if (selectedType === 'footprint') {
-      const footprintEntries = buildFileEntries(rawSelectedTypeFiles, selectedType);
-      if (!searchQuery.trim()) {
-        return footprintEntries;
-      }
-
-      const normalizedSearch = searchQuery.trim().toLowerCase();
-      return footprintEntries.filter((entry) => entry.searchText.includes(normalizedSearch));
-    }
-
-    const visibleFiles = showOrphans
-      ? rawSelectedTypeFiles.filter((file) => !searchQuery.trim() || file.file_name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-      : searchQuery.length > 2 && searchResults?.results
-        ? searchResults.results.filter((result) => result.file_type === routeTypeToFileType[selectedType])
-        : rawSelectedTypeFiles;
-
-    return buildFileEntries(visibleFiles, selectedType);
-  }, [rawSelectedTypeFiles, searchQuery, searchResults?.results, selectedType, showOrphans]);
+    const entries = buildFileEntries(rawSelectedTypeFiles, selectedType);
+    const search = searchQuery.trim().toLowerCase();
+    return search ? entries.filter(entry => entry.searchText.includes(search)) : entries;
+  }, [rawSelectedTypeFiles, searchQuery, selectedType]);
 
   const displayedEntryMap = useMemo(
     () => new Map(displayedEntries.map((entry) => [entry.key, entry])),
@@ -301,7 +218,7 @@ const FileLibrary = () => {
   const selectedEntry = selectedEntryKey ? displayedEntryMap.get(selectedEntryKey) || null : null;
 
   // Components using selected file (File Types view)
-  const { data: componentsData, isLoading: isLoadingComponents } = useQuery({
+  const { data: componentsData, isLoading: isLoadingComponents, error: componentsError } = useQuery({
     queryKey: ['componentsByFile', selectedType, selectedEntryKey],
     queryFn: async () => {
       const response = await api.getComponentsByFile(
@@ -326,7 +243,7 @@ const FileLibrary = () => {
   });
 
   // Components in selected category (Category view)
-  const { data: categoryComponents, isLoading: isLoadingCategoryComponents } = useQuery({
+  const { data: categoryComponents, isLoading: isLoadingCategoryComponents, error: categoryError } = useQuery({
     queryKey: ['categoryComponentsForFiles', selectedCategoryId],
     queryFn: async () => {
       const response = await api.getComponentsByCategoryForFiles(selectedCategoryId);
@@ -337,7 +254,7 @@ const FileLibrary = () => {
   });
 
   // CAD files for selected component (Category view)
-  const { data: componentFiles, isLoading: isLoadingComponentFiles } = useQuery({
+  const { data: componentFiles, isLoading: isLoadingComponentFiles, error: componentFilesError } = useQuery({
     queryKey: ['cadFilesForComponent', selectedComponentId],
     queryFn: async () => {
       const response = await api.getCadFilesForComponent(selectedComponentId);
@@ -357,6 +274,20 @@ const FileLibrary = () => {
     enabled: viewMode === VIEW_CATEGORY && !!selectedComponentId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Rename context belongs to the files being renamed, including Category view.
+  const { data: renameComponentsData, isLoading: isLoadingRenameContext, error: renameContextError } = useQuery({
+    queryKey: ['componentsByFile', renameData.type, renameData.fileNames],
+    queryFn: async () => (await api.getComponentsByFile(
+      renameData.type, renameData.fileNames[0],
+      renameData.fileNames.length > 1 ? renameData.fileNames : undefined,
+    )).data,
+    enabled: showRenameModal && renameData.fileNames.length > 0,
+  });
+
+  const readError = viewMode === VIEW_FILE_TYPES
+    ? (showOrphans ? orphanError : filesError || componentsError)
+    : categoryError || componentFilesError;
 
   // ==============================
   // MUTATIONS
@@ -447,36 +378,15 @@ const FileLibrary = () => {
     },
   });
 
-  const linkFootprintRelatedMutation = useMutation({
-    mutationFn: async ({ sourceCadFileIds, targetCadFileIds }) => {
-      const response = await api.linkFootprintRelatedFiles(sourceCadFileIds, targetCadFileIds);
-      return response.data;
-    },
-  });
-
-  const unlinkFootprintRelatedMutation = useMutation({
-    mutationFn: async ({ sourceCadFileIds, targetCadFileIds }) => {
-      const response = await api.unlinkFootprintRelatedFiles(sourceCadFileIds, targetCadFileIds);
-      return response.data;
-    },
+  const saveFootprintRelatedMutation = useMutation({
+    mutationFn: async (data) => (await api.updateFootprintRelatedFiles(data)).data,
   });
 
   // ==============================
   // HELPERS
   // ==============================
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['filesByType'] });
-    queryClient.invalidateQueries({ queryKey: ['componentsByFile'] });
-    queryClient.invalidateQueries({ queryKey: ['fileLibraryStats'] });
-    queryClient.invalidateQueries({ queryKey: ['orphanFiles'] });
-    queryClient.invalidateQueries({ queryKey: ['cadFilesForComponent'] });
-    queryClient.invalidateQueries({ queryKey: ['sharingComponents'] });
-    queryClient.invalidateQueries({ queryKey: ['categoryComponentsForFiles'] });
-    queryClient.invalidateQueries({ queryKey: ['fileSearch'] });
-    queryClient.invalidateQueries({ queryKey: ['available-cad-files'] });
-    queryClient.invalidateQueries({ queryKey: ['ecos'] });
-  };
+  const invalidateAll = () => invalidateCadQueries(queryClient);
 
   const getTypeCount = (typeId) => {
     if (!stats) return 0;
@@ -751,7 +661,7 @@ const FileLibrary = () => {
   };
 
   const handleUseMPN = () => {
-    const components = componentsData?.components;
+    const components = renameComponentsData?.components;
     if (components && components.length > 0) {
       const mpn = components[0].manufacturer_pn;
       if (mpn) {
@@ -767,7 +677,7 @@ const FileLibrary = () => {
   };
 
   const handleUsePackage = async () => {
-    const components = componentsData?.components;
+    const components = renameComponentsData?.components;
     if (components && components.length > 0) {
       const pkg = components[0].package_size;
       if (pkg) {
@@ -836,6 +746,8 @@ const FileLibrary = () => {
   const canManageFootprintRelatedLinks = Boolean(
     selectedEntry
     && !showOrphans
+    && !isLoadingComponents
+    && !componentsError
     && user?.role === 'admin'
     && selectedType === 'footprint',
   );
@@ -867,19 +779,7 @@ const FileLibrary = () => {
     const relatedFileLabel = relatedFileType === 'model' ? THREE_D_MODEL_LABEL : 'pad';
 
     try {
-      if (removeFileIds.length > 0) {
-        await unlinkFootprintRelatedMutation.mutateAsync({
-          sourceCadFileIds,
-          targetCadFileIds: removeFileIds,
-        });
-      }
-
-      if (addFileIds.length > 0) {
-        await linkFootprintRelatedMutation.mutateAsync({
-          sourceCadFileIds,
-          targetCadFileIds: addFileIds,
-        });
-      }
+      await saveFootprintRelatedMutation.mutateAsync({ sourceCadFileIds, relatedFileType, addFileIds, removeFileIds });
 
       setFootprintLinkEditor({ show: false, relatedFileType: '' });
       showSuccess(`Updated footprint ${relatedFileLabel} links`);
@@ -935,16 +835,18 @@ const FileLibrary = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={viewMode === VIEW_FILE_TYPES ? 'Search files across all types...' : 'Filter components by name...'}
+            aria-label="Search files or components"
+            placeholder={viewMode === VIEW_FILE_TYPES ? 'Search selected file type...' : 'Filter components by name...'}
             className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 dark:border-[#3a3a3a] rounded-lg bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
-          {isSearching && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-            </div>
-          )}
+
         </div>
       </div>
+
+      {readError && <div role="alert" className="mb-3 rounded border border-red-300 p-3 text-sm text-red-700 dark:text-red-300">
+        Failed to load file records: {readError.response?.data?.error || readError.message}
+        <button className="ml-3 underline" onClick={invalidateAll}>Retry</button>
+      </div>}
 
       {/* Main content depends on view mode */}
       {viewMode === VIEW_FILE_TYPES ? (
@@ -982,7 +884,7 @@ const FileLibrary = () => {
           relatedFileGroups={componentsData?.relatedFileGroups || {}}
           canManageFootprintRelatedLinks={canManageFootprintRelatedLinks}
           onOpenFootprintLinkEditor={handleOpenFootprintLinkEditor}
-          isManagingFootprintRelatedLinks={linkFootprintRelatedMutation.isPending || unlinkFootprintRelatedMutation.isPending}
+          isManagingFootprintRelatedLinks={saveFootprintRelatedMutation.isPending}
         />
       ) : (
         <CategoryView
@@ -1009,14 +911,15 @@ const FileLibrary = () => {
         <RenameModal
           renameData={renameData}
           setRenameData={setRenameData}
-          componentsData={componentsData}
+          componentsData={renameComponentsData}
+          error={renameContextError}
           selectedType={renameData.type || selectedType}
           fileTypes={fileTypes}
           onClose={() => setShowRenameModal(false)}
           onSubmit={handleRenameSubmit}
           onUseMPN={handleUseMPN}
           onUsePackage={handleUsePackage}
-          isPending={physicalRenameMutation.isPending || isPreparingRenameConfirmation}
+          isPending={physicalRenameMutation.isPending || isPreparingRenameConfirmation || isLoadingRenameContext}
           isUnchanged={isRenameUnchanged}
         />
       )}
@@ -1059,7 +962,7 @@ const FileLibrary = () => {
         selectedEntry={selectedEntry}
         relatedFileType={footprintLinkEditor.relatedFileType}
         initialFiles={componentsData?.relatedFileGroups?.[footprintLinkEditor.relatedFileType] || []}
-        isSaving={linkFootprintRelatedMutation.isPending || unlinkFootprintRelatedMutation.isPending}
+        isSaving={saveFootprintRelatedMutation.isPending}
       />
     </div>
   );

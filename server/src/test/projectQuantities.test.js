@@ -15,7 +15,13 @@ const request = (body = {}) => ({
   body, user: { id: 'u1' },
 });
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  connect.mockResolvedValue({
+    query: (sql, ...args) => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) ? Promise.resolve({ rows: [] }) : query(sql, ...args),
+    release: vi.fn(),
+  });
+});
 
 describe.each([
   ['add', addComponentToProject], ['update', updateProjectComponent],

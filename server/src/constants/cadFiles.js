@@ -1,7 +1,3 @@
-// CAD file types tracked in cad_files. These names are also the filesystem
-// subdirectory names under library/ (see CAD_TYPE_SUBDIR).
-export const CAD_FILE_TYPES = Object.freeze(['footprint', 'symbol', 'model', 'pspice', 'pad']);
-
 // Map a cad_files.file_type to its filesystem subdirectory under library/.
 export const CAD_TYPE_SUBDIR = Object.freeze({
   footprint: 'footprint',

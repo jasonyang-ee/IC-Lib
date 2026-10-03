@@ -16,6 +16,7 @@ import { CAD_TYPE_SUBDIR as FILE_TYPE_SUBDIR } from '../constants/cadFiles.js';
 import { assertSafeLeafName, resolvePathWithinBase } from '../utils/safeFsPaths.js';
 import { logError } from '../utils/logger.js';
 import { lockCadFileNames } from '../utils/cadFileLocks.js';
+import { assertNoPendingComponentEcos } from './ecoConflictService.js';
 import {
   assertNoPlusInFootprintName,
   canonicalizeCadUploadFilename,
@@ -151,6 +152,7 @@ export const createMassFileRenameEco = async (client, {
     : [];
   files = canonicalizeMassFileRenameFiles(files, packageCatalog);
   const affectedComponents = await lockFileRenameContext(client, files);
+  await assertNoPendingComponentEcos(client, affectedComponents.map(component => component.id));
 
   const stagedComponents = affectedComponents.filter((component) => (
     shouldStageSharedRenameForStatus(component.approval_status)

@@ -17,10 +17,11 @@ vi.mock('../utils/api', () => ({
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 
 const TestConsumer = () => {
-  const { login, logout } = useAuth();
+  const { login, logout, user } = useAuth();
 
   return (
     <div>
+      <span>{user?.username || 'Signed out'}</span>
       <button onClick={() => login('tester', 'secret')}>login</button>
       <button onClick={() => logout()}>logout</button>
     </div>
@@ -74,6 +75,19 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(loginMock).toHaveBeenCalledWith({ username: 'tester', password: 'secret' }));
     await waitFor(() => expect(clearSpy).toHaveBeenCalledTimes(2));
     expect(setItemSpy).not.toHaveBeenCalledWith('token', expect.anything());
+  });
+
+  it('retains the authenticated user and cache when sign out fails', async () => {
+    const queryClient = new QueryClient();
+    const clearSpy = vi.spyOn(queryClient, 'clear');
+    verifyAuthMock.mockResolvedValue({ data: { user: { username: 'tester' } } });
+    logoutMock.mockRejectedValue(new Error('network unavailable'));
+    renderAuthProvider(queryClient);
+    await screen.findByText('tester');
+    fireEvent.click(screen.getByText('logout'));
+    await waitFor(() => expect(logoutMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 
   it('clears cached queries after logout without removing a local token', async () => {

@@ -6,6 +6,7 @@ const RenameModal = ({
   renameData,
   setRenameData,
   componentsData,
+  error,
   selectedType,
   fileTypes,
   onClose,
@@ -50,18 +51,21 @@ const RenameModal = ({
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rename File: {renameData.oldName}</h3>
             </div>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <button onClick={onClose} disabled={isPending} aria-label="Close rename" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {error && <p role="alert" className="px-6 pt-4 text-sm text-red-600">Failed to load affected parts. Close and retry.</p>}
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {isGroupedFootprint ? 'New Base Name' : 'New File Name'}
             </label>
             <input
+              aria-label={isGroupedFootprint ? 'New Base Name' : 'New File Name'}
+              disabled={isPending}
               ref={renameInputRef}
               type="text"
               value={renameData.newName}
@@ -118,10 +122,10 @@ const RenameModal = ({
         </div>
 
         <div className="p-6 border-t border-gray-200 dark:border-[#3a3a3a] shrink-0 flex justify-end gap-3">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={onClose} disabled={isPending} className="btn-secondary">Cancel</button>
           <button
             onClick={onSubmit}
-            disabled={isPending || !renameData.newName.trim() || isUnchanged}
+            disabled={isPending || Boolean(error) || !renameData.newName.trim() || isUnchanged}
             className="btn-primary flex items-center gap-2 disabled:opacity-50"
           >
             {isPending ? (

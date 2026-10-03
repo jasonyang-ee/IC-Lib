@@ -107,73 +107,24 @@ describe('planFilenameSanitization', () => {
 });
 
 describe('applyFilenameSanitization', () => {
-  const renameSpy = () => {
-    const calls = [];
-    const renameFile = vi.fn(async (cadFileId, newName, options) => {
-      calls.push({ cadFileId, newName, options });
-    });
-    return { calls, renameFile };
-  };
-
-  it('renames every planned file through the atomic rename path', async () => {
-    const entries = plan([file(1, 'soic8_l.psm'), file(2, '8-soic_n.olb', 'symbol')]);
-    const { calls, renameFile } = renameSpy();
-
-    const results = await applyFilenameSanitization(entries, { renameFile });
-
-    expect(calls).toEqual([
-      { cadFileId: 1, newName: 'soic-8_c.psm', options: undefined },
-      { cadFileId: 2, newName: 'SOIC-8_B.olb', options: undefined },
+  it('submits each footprint pair as one atomic group', async () => {
+    const entries = plan([file(1, 'soic8_l.psm'), file(2, 'soic8_l.dra'), file(3, '8-soic_n.olb', 'symbol')]);
+    const renameGroup = vi.fn().mockResolvedValue();
+    const results = await applyFilenameSanitization(entries, { renameGroup });
+    expect(renameGroup.mock.calls.map(([group]) => group.map(entry => entry.newName))).toEqual([
+      ['soic-8_c.psm', 'soic-8_c.dra'], ['SOIC-8_B.olb'],
     ]);
-    expect(results.every((entry) => entry.action === 'rename')).toBe(true);
+    expect(results.every(entry => entry.action === 'rename')).toBe(true);
   });
 
-  it('renames a footprint pair together', async () => {
-    const entries = plan([file(1, 'soic8_l.psm'), file(2, 'soic8_l.dra')]);
-    const { calls, renameFile } = renameSpy();
-
-    await applyFilenameSanitization(entries, { renameFile });
-
-    expect(calls.map((call) => call.newName)).toEqual(['soic-8_c.psm', 'soic-8_c.dra']);
-  });
-
-  it('unwinds a half-renamed pair and reports both files as failed', async () => {
-    const entries = plan([file(1, 'soic8_l.psm'), file(2, 'soic8_l.dra')]);
-    const calls = [];
-    const renameFile = vi.fn(async (cadFileId, newName, options) => {
-      calls.push({ cadFileId, newName, options });
-      if (newName === 'soic-8_c.dra') throw new Error('disk full');
-    });
-
-    const results = await applyFilenameSanitization(entries, { renameFile });
-
-    // Reverting must not re-resolve the catalog, or the old name would map
-    // straight back onto the name being undone.
-    expect(calls[2]).toEqual({ cadFileId: 1, newName: 'soic8_l.psm', options: { canonicalize: false } });
-    expect(results).toEqual(entries.map((entry) => ({
-      ...entry,
-      newName: entry.oldName,
-      action: 'skip',
-      reason: 'rename-failed',
-    })));
-  });
-
-  it('continues the pass after a failure and leaves planned skips untouched', async () => {
-    const entries = plan([
-      file(1, 'soic8_l.psm'),
-      file(2, 'soic_a.psm'),
-      file(3, '8-soic_n.psm'),
+  it('reports the whole failed group and continues with unrelated files', async () => {
+    const entries = plan([file(1, 'soic8_l.psm'), file(2, 'soic8_l.dra'), file(3, 'soic_a.psm'), file(4, '8-soic_n.psm')]);
+    const renameGroup = vi.fn().mockRejectedValueOnce(new Error('disk full')).mockResolvedValue();
+    const results = await applyFilenameSanitization(entries, { renameGroup });
+    expect(results.map(entry => [entry.cadFileId, entry.action, entry.reason])).toEqual([
+      [1, 'skip', 'rename-failed'], [2, 'skip', 'rename-failed'], [3, 'skip', 'no-pin-count'], [4, 'rename', null],
     ]);
-    const renameFile = vi.fn(async (cadFileId) => {
-      if (cadFileId === 1) throw new Error('permission denied');
-    });
-
-    const results = await applyFilenameSanitization(entries, { renameFile });
-
-    expect(results.map((entry) => [entry.cadFileId, entry.action, entry.reason])).toEqual([
-      [1, 'skip', 'rename-failed'],
-      [2, 'skip', 'no-pin-count'],
-      [3, 'rename', null],
-    ]);
+    expect(results.slice(0, 2).map(entry => entry.newName)).toEqual(['soic8_l.psm', 'soic8_l.dra']);
+    expect(renameGroup).toHaveBeenCalledTimes(2);
   });
 });

@@ -56,7 +56,7 @@ describe('inventory edit preservation', () => {
     fireEvent.change(within(alternativeRow).getAllByRole('spinbutton')[2], { target: { value: '2' } });
     mocks.getInventoryAlternatives.mockResolvedValue({ data: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
-    await waitFor(() => expect(mocks.updateAlternativeInventory).toHaveBeenCalledWith('alt1', { quantity: 9 }));
+    await waitFor(() => expect(mocks.updateAlternativeInventory).toHaveBeenCalledWith('alt1', { quantity: 9, expected_quantity: 7 }));
   });
 
   it('prevents duplicate saves and changes to the submitted edit while requests are pending', async () => {
@@ -74,5 +74,30 @@ describe('inventory edit preservation', () => {
     expect(mocks.updateInventory).toHaveBeenCalledTimes(1);
     await act(async () => resolveUpdate({ data: {} }));
     expect(screen.getByRole('button', { name: 'Edit All' })).toBeEnabled();
+  });
+
+  it('retains the original stock precondition across a background refresh', async () => {
+    const { rerender } = renderInventory();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit All' }));
+    fireEvent.change(within(rowFor('PART-1')).getAllByRole('spinbutton')[2], { target: { value: '2' } });
+    mocks.inventory = [{ ...mocks.inventory[0], quantity: 7 }];
+    rerender(<MemoryRouter><Inventory /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    await waitFor(() => expect(mocks.updateInventory).toHaveBeenCalledWith('i1', { quantity: 12, expected_quantity: 10 }));
+  });
+
+  it('retries failed rows without replaying successful stock changes', async () => {
+    mocks.inventory.push({ ...mocks.inventory[0], id: 'i2', component_id: 'c2', part_number: 'PART-2' });
+    mocks.updateInventory.mockResolvedValueOnce({ data: {} }).mockRejectedValueOnce(new Error('Offline')).mockResolvedValue({ data: {} });
+    renderInventory();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit All' }));
+    for (const part of ['PART-1', 'PART-2']) {
+      fireEvent.change(within(rowFor(part)).getAllByRole('spinbutton')[2], { target: { value: '2' } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    await waitFor(() => expect(mocks.showError).toHaveBeenCalledWith(expect.stringContaining('1 failed')));
+    fireEvent.click(screen.getByRole('button', { name: 'Save All' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit All' })).toBeEnabled());
+    expect(mocks.updateInventory.mock.calls.map(([id]) => id)).toEqual(['i1', 'i2', 'i2']);
   });
 });

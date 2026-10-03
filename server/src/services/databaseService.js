@@ -4,10 +4,11 @@
  */
 
 import { Client } from 'pg';
-import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, unlinkSync, existsSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { logError, logInfo } from '../utils/logger.js';
+import { cadFileLockKey } from '../utils/cadFileLocks.js';
 import { compareMigrationFilenames, parseMigrationFilename } from './migrationNaming.js';
 
 // Deliberate clear-order subsets of the schema (D11): membership is locked to
@@ -454,38 +455,48 @@ export const deleteLibraryFiles = async () => {
   };
 
   try {
-    // Delete files from library subdirectories
     const libraryBase = join(__dirname, '..', '..', '..', 'library');
-    const subDirs = ['footprint', 'symbol', 'model', 'pspice', 'pad'];
-
-    for (const subDir of subDirs) {
-      const dirPath = join(libraryBase, subDir);
-      if (!existsSync(dirPath)) continue;
-
-      try {
-        const files = readdirSync(dirPath);
-        for (const file of files) {
-          try {
-            unlinkSync(join(dirPath, file));
-            results.deletedFiles++;
-          } catch (fileError) {
-            results.errors.push({ file: `${subDir}/${file}`, error: fileError.message });
-          }
-        }
-      } catch (dirError) {
-        results.errors.push({ directory: subDir, error: dirError.message });
+    const files = [];
+    for (const fileType of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
+      const directory = join(libraryBase, fileType);
+      if (!existsSync(directory)) continue;
+      for (const fileName of readdirSync(directory)) {
+        const filePath = join(directory, fileName);
+        if (statSync(filePath).isFile()) files.push({ file_type: fileType, file_name: fileName, filePath });
       }
     }
 
-    // Clear CAD file tracking in database
     await client.connect();
+    await client.query('BEGIN');
+    const tracked = await client.query('SELECT file_type, file_name FROM cad_files');
+    const keys = [...new Set([...files, ...tracked.rows].map(file => cadFileLockKey(file.file_type, file.file_name)))].sort();
+    // Session locks survive COMMIT until disk cleanup; client.end releases them.
+    for (const key of keys) await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [key]);
+    await client.query('LOCK TABLE cad_files IN ACCESS EXCLUSIVE MODE');
+    const active = await client.query(`SELECT 1 FROM eco_orders eo
+      WHERE eo.status IN ('pending', 'in_review') AND (
+        EXISTS (SELECT 1 FROM eco_cad_files ecf WHERE ecf.eco_id = eo.id)
+        OR EXISTS (SELECT 1 FROM eco_file_rename_files erf WHERE erf.eco_id = eo.id)
+      ) LIMIT 1`);
+    if (active.rows.length) throw new Error('Complete or cancel pending CAD ECOs before clearing the library');
     await client.query('TRUNCATE TABLE cad_files CASCADE');
-    // Reset component TEXT columns to empty
     await client.query("UPDATE components SET pcb_footprint = '', schematic = '', step_model = '', pspice = '', pad_file = ''");
+    await client.query('COMMIT');
 
-    results.success = true;
-    results.message = `Deleted ${results.deletedFiles} library files and cleared CAD file tracking.`;
+    for (const file of files) {
+      try {
+        unlinkSync(file.filePath);
+        results.deletedFiles++;
+      } catch (error) {
+        if (error.code !== 'ENOENT') results.errors.push({ file: `${file.file_type}/${file.file_name}`, error: error.message });
+      }
+    }
+    results.success = results.errors.length === 0;
+    results.message = results.success
+      ? `Deleted ${results.deletedFiles} library files and cleared CAD file tracking.`
+      : `CAD records cleared; ${results.errors.length} disk files could not be removed. Scan the library to recover their records.`;
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     results.success = false;
     results.message = `Delete library files failed: ${error.message}`;
     results.errors.push({ general: error.message });

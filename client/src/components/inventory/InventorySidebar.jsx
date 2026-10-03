@@ -1,3 +1,4 @@
+import { api } from '../../utils/api';
 import { Search, AlertCircle, Download } from 'lucide-react';
 import { SidebarCard, FilterSelect, SearchInput, SortControls, VendorBarcodeScanPanel } from '../common';
 
@@ -186,7 +187,7 @@ const InventorySidebar = ({
           ))}
         </select>
         <a
-          href={selectedTemplate ? `${import.meta.env.VITE_API_URL || '/api'}/settings/label-templates/${encodeURIComponent(selectedTemplate)}` : undefined}
+          href={selectedTemplate ? api.getLabelTemplateDownloadUrl(selectedTemplate) : undefined}
           download
           className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
             selectedTemplate

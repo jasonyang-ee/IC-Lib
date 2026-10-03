@@ -109,10 +109,11 @@ const drawTable = (doc, headers, rows, colWidths) => {
   // Data rows
   for (const row of rows) {
     // Calculate row height based on content
+    doc.font('Helvetica').fontSize(FONT_SIZE.body);
     let maxHeight = rowHeight;
     const cellHeights = [];
     for (let i = 0; i < row.length; i++) {
-      const text = String(row[i] || '');
+      const text = String(row[i] ?? '');
       const h = doc.heightOfString(text, {
         width: colWidths[i] - cellPadding * 2,
         fontSize: FONT_SIZE.body,

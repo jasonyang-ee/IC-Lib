@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../../../utils/cadQueries';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle, Database, Download, Loader2, Package, Trash2, Upload, Users } from 'lucide-react';
@@ -174,8 +175,7 @@ const OperationTab = () => {
     onSuccess: (data) => {
       setSanitizeReport(data.data);
       setSanitizeConfirmation('');
-      queryClient.invalidateQueries({ queryKey: ['filesByType'] });
-      queryClient.invalidateQueries({ queryKey: ['fileLibraryStats'] });
+      invalidateCadQueries(queryClient);
       showSuccess(`Sanitization complete: ${data.data.renamed} renamed, ${data.data.skipped} skipped, ${data.data.failed} failed.`);
     },
     onError: (error) => {

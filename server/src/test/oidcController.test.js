@@ -118,6 +118,24 @@ describe('oidcController', () => {
       originalUrl: '/api/auth/oidc/callback?code=abc&state=state-1',
     });
 
+    it.each([
+      ['/file-library?filename=a%25b.psm#files', 'https://app.example.com/app/file-library?filename=a%25b.psm#files'],
+      ['//evil.example', 'https://app.example.com/app'],
+      ['/\\evil.example', 'https://app.example.com/app'],
+      ['https://evil.example', 'https://app.example.com/app'],
+    ])('retains only a local requested route through SSO: %s', async (returnTo, destination) => {
+      serviceMocks.getPostLoginRedirect.mockReturnValue('https://app.example.com/app');
+      serviceMocks.buildAuthorizationRequest.mockResolvedValue({ authorizationUrl: 'https://idp.example.com', state: 'state-1', nonce: 'nonce-1', codeVerifier: 'verifier-1' });
+      serviceMocks.exchangeAuthorizationCode.mockResolvedValue({ issuer: 'i', subject: 's' });
+      serviceMocks.findOrCreateOidcUser.mockResolvedValue(ACTIVE_USER);
+      const login = mockRes();
+      await oidcLogin({ query: { returnTo } }, login);
+      const token = login.cookie.mock.calls[0][1];
+      const callback = mockRes();
+      await oidcCallback(callbackReq({ oidc_state: token }), callback);
+      expect(callback.redirect).toHaveBeenCalledWith(destination);
+    });
+
     it('rejects a callback with no state cookie', async () => {
       const res = mockRes();
 

@@ -445,8 +445,9 @@ export const createComponent = async (req, res, next) => {
  * Handles collision detection automatically
  */
 export const changeComponentCategory = async (req, res, next) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { id } = req.params;
     const { new_category_id } = req.body;
 
@@ -465,7 +466,7 @@ export const changeComponentCategory = async (req, res, next) => {
     );
 
     if (componentResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Component not found' });
     }
 
@@ -475,7 +476,7 @@ export const changeComponentCategory = async (req, res, next) => {
 
     // Check if category is actually changing
     if (oldCategoryId === new_category_id) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.json({ 
         success: true, 
         message: 'Category unchanged',
@@ -490,7 +491,7 @@ export const changeComponentCategory = async (req, res, next) => {
     );
 
     if (categoryResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'New category not found' });
     }
 
@@ -591,11 +592,11 @@ export const changeComponentCategory = async (req, res, next) => {
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ComponentController', `Error changing category: ${error.message}`);
     next(error);
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -1766,8 +1767,9 @@ export const deleteAlternative = async (req, res, next) => {
  * with the primary component's, demoting the current primary to an alternative
  */
 export const promoteAlternative = async (req, res, next) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { id, altId } = req.params;
 
     await client.query('BEGIN');
@@ -1783,7 +1785,7 @@ export const promoteAlternative = async (req, res, next) => {
     )).rows[0];
 
     if (!comp || !altPart) {
-      await client.query('ROLLBACK');
+      await client?.query('ROLLBACK');
       return res.status(404).json({ error: 'Component or alternative not found' });
     }
 
@@ -1858,10 +1860,8 @@ export const promoteAlternative = async (req, res, next) => {
       },
     });
 
-    await client.query('COMMIT');
-
     // Fetch and return updated component
-    const fullComponent = await pool.query(`
+    const fullComponent = await client.query(`
       SELECT
         c.*,
         cat.name as category_name,
@@ -1875,17 +1875,18 @@ export const promoteAlternative = async (req, res, next) => {
       WHERE c.id = $1
     `, [id]);
 
+    await client.query('COMMIT');
     res.json({
       success: true,
       component: fullComponent.rows[0],
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client?.query('ROLLBACK');
     logError('ComponentController', `Error promoting alternative: ${error.message}`);
     next(error);
   } finally {
-    client.release();
+    client?.release();
   }
 };
 

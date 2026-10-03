@@ -90,6 +90,27 @@ const requirePackage = async (db, id, options) => {
   return packageRow;
 };
 
+const withPackageTransaction = async (operation) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const lockPackage = async (client, id) => {
+  const result = await client.query('SELECT * FROM packages WHERE id = $1 FOR UPDATE', [id]);
+  if (!result.rows.length) throw new PackageServiceError('Package not found', 404);
+  return result.rows[0];
+};
+
 const findActiveAlias = async (db, value) => {
   const aliasKey = foldAliasKey(value);
   if (!aliasKey) return null;
@@ -197,10 +218,7 @@ export const createPackage = async (payload) => {
   const displayOrder = normalizeDisplayOrder(payload?.display_order);
   const aliases = Array.isArray(payload?.aliases) ? payload.aliases.map(normalizeAlias) : [];
   const aliasValues = [...new Map([shortName, ...aliases].map(alias => [foldAliasKey(alias), alias])).values()];
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
+  return withPackageTransaction(async (client) => {
     const created = await client.query(`
       INSERT INTO packages (short_name, family, mount, count_policy, display_order)
       VALUES ($1, $2, $3, $4, $5)
@@ -210,14 +228,8 @@ export const createPackage = async (payload) => {
     for (const alias of aliasValues) {
       await client.query('INSERT INTO package_aliases (package_id, alias) VALUES ($1, $2)', [created.rows[0].id, alias]);
     }
-    await client.query('COMMIT');
-    return requirePackage(pool, created.rows[0].id, { includeInactive: true });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    return requirePackage(client, created.rows[0].id, { includeInactive: true });
+  });
 };
 
 export const updatePackage = async (id, payload) => {
@@ -235,63 +247,69 @@ export const updatePackage = async (id, payload) => {
   if (fields.length === 0) throw new PackageServiceError('No package fields to update');
 
   values.push(id);
-  const result = await pool.query(`
-    UPDATE packages SET ${fields.join(', ')}
-    WHERE id = $${values.length}
-    RETURNING id
-  `, values);
-  if (result.rows.length === 0) throw new PackageServiceError('Package not found', 404);
-  return requirePackage(pool, id, { includeInactive: true });
+  return withPackageTransaction(async (client) => {
+    const result = await client.query(`
+      UPDATE packages SET ${fields.join(', ')}
+      WHERE id = $${values.length}
+      RETURNING id
+    `, values);
+    if (result.rows.length === 0) throw new PackageServiceError('Package not found', 404);
+    return requirePackage(client, id, { includeInactive: true });
+  });
 };
 
-export const deletePackage = async (id) => {
-  const packageRow = await requirePackage(pool, id, { includeInactive: true });
+export const deletePackage = (id) => withPackageTransaction(async (client) => {
+  const packageRow = await lockPackage(client, id);
   if (packageRow.is_builtin) {
-    await pool.query('UPDATE packages SET is_active = false WHERE id = $1', [id]);
+    await client.query('UPDATE packages SET is_active = false WHERE id = $1', [id]);
     return { deleted: false, deactivated: true };
   }
 
-  await pool.query('DELETE FROM packages WHERE id = $1', [id]);
+  await client.query('DELETE FROM packages WHERE id = $1', [id]);
   return { deleted: true, deactivated: false };
-};
+});
 
 export const createAlias = async (packageId, value) => {
   const alias = normalizeAlias(value);
-  await requirePackage(pool, packageId, { includeInactive: true });
-  const result = await pool.query(`
-    INSERT INTO package_aliases (package_id, alias)
-    VALUES ($1, $2)
-    RETURNING id, package_id, alias
-  `, [packageId, alias]);
-  return result.rows[0];
+  return withPackageTransaction(async (client) => {
+    await lockPackage(client, packageId);
+    const result = await client.query(`
+      INSERT INTO package_aliases (package_id, alias)
+      VALUES ($1, $2)
+      RETURNING id, package_id, alias
+    `, [packageId, alias]);
+    return result.rows[0];
+  });
 };
 
 export const updateAlias = async (packageId, aliasId, value) => {
   const alias = normalizeAlias(value);
-  const packageRow = await requirePackage(pool, packageId, { includeInactive: true });
-  const currentAlias = await pool.query(
-    'SELECT alias FROM package_aliases WHERE id = $1 AND package_id = $2',
-    [aliasId, packageId],
-  );
-  if (currentAlias.rows.length === 0) throw new PackageServiceError('Package alias not found', 404);
-  if (foldAliasKey(currentAlias.rows[0].alias) === foldAliasKey(packageRow.short_name)) {
-    throw new PackageServiceError('The canonical self-alias cannot be changed');
-  }
-  if (foldAliasKey(alias) === foldAliasKey(packageRow.short_name)) {
-    throw new PackageServiceError('The canonical self-alias cannot be changed');
-  }
+  return withPackageTransaction(async (client) => {
+    const packageRow = await lockPackage(client, packageId);
+    const currentAlias = await client.query(
+      'SELECT alias FROM package_aliases WHERE id = $1 AND package_id = $2',
+      [aliasId, packageId],
+    );
+    if (currentAlias.rows.length === 0) throw new PackageServiceError('Package alias not found', 404);
+    if (foldAliasKey(currentAlias.rows[0].alias) === foldAliasKey(packageRow.short_name)) {
+      throw new PackageServiceError('The canonical self-alias cannot be changed');
+    }
+    if (foldAliasKey(alias) === foldAliasKey(packageRow.short_name)) {
+      throw new PackageServiceError('The canonical self-alias cannot be changed');
+    }
 
-  const result = await pool.query(`
-    UPDATE package_aliases SET alias = $1
-    WHERE id = $2 AND package_id = $3
-    RETURNING id, package_id, alias
-  `, [alias, aliasId, packageId]);
-  return result.rows[0];
+    const result = await client.query(`
+      UPDATE package_aliases SET alias = $1
+      WHERE id = $2 AND package_id = $3
+      RETURNING id, package_id, alias
+    `, [alias, aliasId, packageId]);
+    return result.rows[0];
+  });
 };
 
-export const deleteAlias = async (packageId, aliasId) => {
-  const packageRow = await requirePackage(pool, packageId, { includeInactive: true });
-  const aliasResult = await pool.query(
+export const deleteAlias = (packageId, aliasId) => withPackageTransaction(async (client) => {
+  const packageRow = await lockPackage(client, packageId);
+  const aliasResult = await client.query(
     'SELECT id, alias FROM package_aliases WHERE id = $1 AND package_id = $2',
     [aliasId, packageId],
   );
@@ -300,23 +318,14 @@ export const deleteAlias = async (packageId, aliasId) => {
     throw new PackageServiceError('The canonical self-alias cannot be deleted');
   }
 
-  await pool.query('DELETE FROM package_aliases WHERE id = $1 AND package_id = $2', [aliasId, packageId]);
-};
+  await client.query('DELETE FROM package_aliases WHERE id = $1 AND package_id = $2', [aliasId, packageId]);
+});
 
 export const promoteAlias = async (packageId, value) => {
   const aliasKey = foldAliasKey(value);
   if (!aliasKey) throw new PackageServiceError('Alias is required');
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const packageResult = await client.query(
-      'SELECT id, short_name FROM packages WHERE id = $1 FOR UPDATE',
-      [packageId],
-    );
-    if (packageResult.rows.length === 0) throw new PackageServiceError('Package not found', 404);
-
-    const packageRow = packageResult.rows[0];
+  return withPackageTransaction(async (client) => {
+    const packageRow = await lockPackage(client, packageId);
     const aliasResult = await client.query(
       'SELECT alias FROM package_aliases WHERE package_id = $1 AND alias_key = $2',
       [packageId, aliasKey],
@@ -335,12 +344,6 @@ export const promoteAlias = async (packageId, value) => {
     if (conflict.rows.length > 0) throw new PackageServiceError('Alias already serves as another package canonical name', 409);
 
     await client.query('UPDATE packages SET short_name = $1 WHERE id = $2', [target, packageId]);
-    await client.query('COMMIT');
-    return requirePackage(pool, packageId, { includeInactive: true });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    return requirePackage(client, packageId, { includeInactive: true });
+  });
 };

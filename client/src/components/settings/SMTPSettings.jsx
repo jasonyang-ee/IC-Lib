@@ -14,6 +14,7 @@ export default function SMTPSettings() {
   const { showSuccess, showError } = useNotification();
   
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [testing, setTesting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingPreview, setSendingPreview] = useState('');
@@ -41,6 +42,8 @@ export default function SMTPSettings() {
   }, []);
 
   const loadSettings = async () => {
+    setLoading(true);
+    setLoadError(false);
     try {
       const response = await api.smtp.get();
       if (response.data.configured) {
@@ -60,6 +63,7 @@ export default function SMTPSettings() {
         });
       }
     } catch (error) {
+      setLoadError(true);
       console.error('Failed to load SMTP settings:', error);
     } finally {
       setLoading(false);
@@ -86,24 +90,17 @@ export default function SMTPSettings() {
   };
 
   const handleTestConnection = async () => {
-    if (!formData.host || !formData.port) {
-      showError('Please fill in host and port');
+    if (!configured) {
+      showError('Save SMTP settings before testing the connection');
       return;
     }
 
     setTesting(true);
     try {
-      await api.smtp.test({
-        host: formData.host,
-        port: parseInt(formData.port),
-        secure: formData.secure,
-        no_auth: formData.no_auth,
-        auth_user: formData.auth_user,
-        auth_password: formData.auth_password
-      });
+      await api.smtp.test();
       showSuccess('SMTP connection successful');
     } catch (error) {
-      showError(error.response?.data?.details || 'Connection test failed');
+      showError(error.response?.data?.error || error.response?.data?.details || 'Connection test failed');
     } finally {
       setTesting(false);
     }
@@ -172,6 +169,8 @@ export default function SMTPSettings() {
       </div>
     );
   }
+
+  if (loadError) return <div role="alert">Unable to load email settings. <button onClick={loadSettings}>Retry</button></div>;
 
   return (
     <div className="space-y-6">
@@ -340,7 +339,7 @@ export default function SMTPSettings() {
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2"
           >
             {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Test Connection
+            Test Saved Connection
           </button>
           <button
             onClick={handleSave}

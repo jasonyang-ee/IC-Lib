@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 const NotificationContext = createContext();
@@ -14,19 +14,23 @@ export const useNotification = () => {
 
 export const NotificationProvider = ({ children }) => {
   const [notification, setNotification] = useState(null);
+  const dismissTimer = useRef(null);
+  useEffect(() => () => clearTimeout(dismissTimer.current), []);
 
   const showNotification = useCallback((message, type = 'success', duration = 5000) => {
+    clearTimeout(dismissTimer.current);
     setNotification({ message, type, duration });
     
     // Auto-dismiss after duration
     if (duration > 0) {
-      setTimeout(() => {
+      dismissTimer.current = setTimeout(() => {
         setNotification(null);
       }, duration);
     }
   }, []);
 
   const hideNotification = useCallback(() => {
+    clearTimeout(dismissTimer.current);
     setNotification(null);
   }, []);
 
@@ -65,7 +69,7 @@ export const NotificationProvider = ({ children }) => {
       
       {/* Universal Notification Display */}
       {notification && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+        <div role={notification.type === 'error' ? 'alert' : 'status'} className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
           <div className={`px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 min-w-87.5 ${
             notification.type === 'success' ? 'bg-green-500 text-white' :
             notification.type === 'error' ? 'bg-red-500 text-white' :
@@ -97,6 +101,7 @@ export const NotificationProvider = ({ children }) => {
             </div>
             {notification.duration === 0 && (
               <button
+                aria-label="Dismiss notification"
                 onClick={hideNotification}
                 className="text-white hover:text-gray-200 transition-colors"
               >

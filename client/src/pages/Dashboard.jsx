@@ -1,7 +1,9 @@
+import { buildCadHealthRows } from '../utils/cadHealth';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { Settings, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 // Compact stat card component without icon
 const StatCard = ({ title, value, small = false }) => {
@@ -32,40 +34,32 @@ const CategoryBar = ({ name, count, total }) => {
 };
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-
-  const { data: stats, isLoading, error: statsError } = useQuery({
+  const { user } = useAuth();
+  const { data: stats, isLoading, error: statsError, refetch: refetchStats } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: async () => (await api.getDashboardStats()).data,
     retry: false,
   });
 
-  const { data: categoryBreakdown, error: categoryError } = useQuery({
+  const { data: categoryBreakdown, error: categoryError, refetch: refetchCategories } = useQuery({
     queryKey: ['categoryBreakdown'],
     queryFn: async () => (await api.getCategoryBreakdown()).data,
     retry: false,
   });
 
-  const { data: extendedStats } = useQuery({
+  const { data: extendedStats, isLoading: extendedLoading, error: extendedError, refetch: refetchExtended } = useQuery({
     queryKey: ['extendedStats'],
     queryFn: async () => (await api.getExtendedDashboardStats()).data,
     retry: false,
   });
 
-  const { data: dbInfo } = useQuery({
+  const { data: dbInfo, error: databaseError, refetch: refetchDatabase } = useQuery({
     queryKey: ['databaseInfo'],
     queryFn: async () => (await api.getDatabaseInfo()).data,
     retry: false,
   });
 
-  const isDatabaseNotInitialized =
-    statsError?.response?.status === 500 ||
-    categoryError?.response?.status === 500;
-
-  // Calculate library quality percentage
-  const totalComponents = stats?.totalComponents || 0;
-
-  if (isLoading) {
+  if (isLoading || extendedLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
@@ -73,7 +67,8 @@ const Dashboard = () => {
     );
   }
 
-  if (isDatabaseNotInitialized) {
+  if (statsError || categoryError || extendedError || databaseError) {
+    const incompleteSchema = statsError?.response?.data?.code === 'DATABASE_SCHEMA_INCOMPLETE';
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
@@ -81,16 +76,16 @@ const Dashboard = () => {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-6 w-6 text-yellow-500 shrink-0" />
             <div>
-              <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">Database Not Initialized</h3>
+              <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">{incompleteSchema ? 'Database setup required' : 'Unable to load dashboard'}</h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                Initialize the database in Settings to get started.
+                {incompleteSchema ? 'The database schema is incomplete. An administrator can verify and initialize it in Settings.' : 'The request failed. Retry to load the current library data.'}
               </p>
+              {incompleteSchema && user?.role === 'admin' && <Link to="/admin-settings" className="mt-3 mr-4 inline-block underline">Open Settings</Link>}
               <button
-                onClick={() => navigate('/settings')}
+                onClick={() => { void refetchStats(); void refetchCategories(); void refetchExtended(); void refetchDatabase(); }}
                 className="mt-3 inline-flex items-center px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded transition-colors"
               >
-                <Settings className="w-4 h-4 mr-1.5" />
-                Go to Settings
+                Retry
               </button>
             </div>
           </div>
@@ -233,26 +228,18 @@ const Dashboard = () => {
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Missing</span>
                 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-right">Health</span>
               </div>
-              {[
-                { label: 'Schematic', undefined: stats?.undefinedSchematic || 0, missing: stats?.missingSchematic || 0 },
-                { label: 'Footprint', undefined: stats?.undefinedFootprints || 0, missing: stats?.missingFootprints || 0 },
-                { label: 'Pad', undefined: stats?.undefinedPad || 0, missing: stats?.missingPad || 0 },
-                { label: '3D Model', undefined: stats?.undefined3DModel || 0, missing: stats?.missing3DModel || 0 },
-                { label: 'PSpice', undefined: stats?.undefinedPspice || 0, missing: stats?.missingPspice || 0 },
-              ].map(item => {
-                const rate = totalComponents > 0
-                  ? ((totalComponents - item.undefined) / totalComponents * 100)
-                  : 0;
+              {buildCadHealthRows(stats).map(item => {
+                const rate = item.health;
                 const colorClass = rate < 50
                   ? 'text-red-600 dark:text-red-400'
                   : rate < 80
                     ? 'text-yellow-600 dark:text-yellow-400'
                     : 'text-green-600 dark:text-green-400';
                 return (
-                  <div key={item.label} className="grid grid-cols-[5rem_1fr_1fr_5.5rem] items-center gap-2 py-2 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">Undefined: {item.undefined}</span>
-                    <span className={`text-sm ${item.missing > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>Missing: {item.missing}</span>
+                  <div key={item.type} className="grid grid-cols-[5rem_1fr_1fr_5.5rem] items-center gap-2 py-2 border-b border-gray-100 dark:border-[#3a3a3a] last:border-0">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{item.type}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Undefined: {item.undefined_count}</span>
+                    <span className={`text-sm ${item.missing_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>Missing: {item.missing_count}</span>
                     <span className={`text-sm font-semibold text-right ${colorClass}`} title="Health Ratio">{rate.toFixed(1)}%</span>
                   </div>
                 );

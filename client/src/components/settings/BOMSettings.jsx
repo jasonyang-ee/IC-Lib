@@ -18,7 +18,7 @@ const BOMSettings = () => {
   const [selectedColumnIds, setSelectedColumnIds] = useState([...DEFAULT_BOM_COLUMN_IDS]);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const { data: settingsData } = useQuery({
+  const { data: settingsData, isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['appSettings'],
     queryFn: async () => {
       const response = await api.getSettings();
@@ -100,6 +100,9 @@ const BOMSettings = () => {
 
     saveBomDefaultsMutation.mutate(selectedColumnIds);
   };
+
+  if (loadError) return <div role="alert">Unable to load settings. <button onClick={() => refetch()}>Retry</button></div>;
+  if (isLoading) return <p>Loading settings...</p>;
 
   return (
     <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">

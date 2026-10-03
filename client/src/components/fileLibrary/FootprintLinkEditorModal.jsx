@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, X } from 'lucide-react';
 import { api } from '../../utils/api';
+import { invalidateCadQueries } from '../../utils/cadQueries';
 import { MODEL_FILE_EXTENSIONS, THREE_D_MODEL_LABEL } from '../../utils/cadFileTypes';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -36,8 +37,11 @@ export default function FootprintLinkEditorModal({
   initialFiles = EMPTY_FILES,
   isSaving = false,
 }) {
+  const queryClient = useQueryClient();
   const { showError, showSuccess } = useNotification();
   const fileInputRef = useRef(null);
+  const openSessionRef = useRef(null);
+  const [baselineFiles, setBaselineFiles] = useState(EMPTY_FILES);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFileIds, setSelectedFileIds] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -46,19 +50,23 @@ export default function FootprintLinkEditorModal({
 
   useEffect(() => {
     if (!isOpen) {
+      openSessionRef.current = null;
       return;
     }
-
+    const session = `${selectedEntry?.key || ''}:${relatedFileType}`;
+    if (openSessionRef.current === session) return;
+    openSessionRef.current = session;
+    setBaselineFiles(Array.isArray(initialFiles) ? initialFiles : []);
     setSearchQuery('');
     setSelectedFileIds((Array.isArray(initialFiles) ? initialFiles : []).map((file) => file.id).filter(Boolean));
     setUploadedFiles([]);
     setPendingUploads([]);
-  }, [initialFiles, isOpen, relatedFileType]);
+  }, [initialFiles, isOpen, relatedFileType, selectedEntry?.key]);
 
   const routeType = ROUTE_TYPE_BY_RELATED_FILE_TYPE[relatedFileType] || null;
   const relatedFileLabel = LABEL_BY_RELATED_FILE_TYPE[relatedFileType] || 'File';
 
-  const { data: files = [], isLoading, refetch } = useQuery({
+  const { data: files = [], isLoading, error: loadError, refetch } = useQuery({
     queryKey: ['available-cad-files', routeType, searchQuery],
     queryFn: async () => {
       const response = await api.getAvailableFiles(routeType, searchQuery || undefined);
@@ -69,12 +77,12 @@ export default function FootprintLinkEditorModal({
   });
 
   const initialIdSet = useMemo(() => new Set(
-    (Array.isArray(initialFiles) ? initialFiles : []).map((file) => file.id).filter(Boolean),
-  ), [initialFiles]);
+    baselineFiles.map((file) => file.id).filter(Boolean),
+  ), [baselineFiles]);
   const selectedIdSet = useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
 
   const fileById = useMemo(() => {
-    const allFiles = [...(Array.isArray(initialFiles) ? initialFiles : []), ...files, ...uploadedFiles];
+    const allFiles = [...baselineFiles, ...files, ...uploadedFiles];
     const nextMap = new Map();
 
     allFiles.forEach((file) => {
@@ -84,7 +92,7 @@ export default function FootprintLinkEditorModal({
     });
 
     return nextMap;
-  }, [files, initialFiles, uploadedFiles]);
+  }, [files, baselineFiles, uploadedFiles]);
 
   const linkedFiles = useMemo(() => sortFilesByName(
     selectedFileIds.map((fileId) => fileById.get(fileId)).filter(Boolean),
@@ -141,6 +149,7 @@ export default function FootprintLinkEditorModal({
       }
       if (finalizedFiles.length > 0) {
         showSuccess(`Added ${finalizedFiles.length} ${relatedFileLabel.toLowerCase()} file${finalizedFiles.length !== 1 ? 's' : ''}`);
+        await invalidateCadQueries(queryClient);
         await refetch();
       }
     } catch (error) {
@@ -193,6 +202,10 @@ export default function FootprintLinkEditorModal({
       const stagedFiles = (uploadResponse.data?.results || []).filter((result) => (
         result?.tempFilename && result.type === relatedFileType
       ));
+      const unexpected = (uploadResponse.data?.results || []).filter(result => result?.tempFilename && result.type !== relatedFileType);
+      if (unexpected.length > 0) {
+        await api.cleanupTempFiles({ tempFilenames: unexpected.map(file => file.tempFilename) });
+      }
       const uploadErrors = (uploadResponse.data?.results || []).filter(result => result?.error);
       if (uploadErrors.length > 0) {
         showError(uploadErrors.map(result => `${result.filename || 'File'}: ${result.error}`).join('; '));
@@ -231,6 +244,7 @@ export default function FootprintLinkEditorModal({
         className="w-full max-w-4xl rounded-lg border border-gray-200 bg-white shadow-xl dark:border-[#3a3a3a] dark:bg-[#2a2a2a]"
         onClick={(event) => event.stopPropagation()}
       >
+        {loadError && <div role="alert" className="p-4 text-sm text-red-600">Unable to load files. <button type="button" onClick={() => refetch()} className="underline">Retry</button></div>}
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-[#3a3a3a]">
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -274,7 +288,7 @@ export default function FootprintLinkEditorModal({
                   </div>
                   <button
                     onClick={() => handleRemoveFile(file.id)}
-                    disabled={isSaving}
+                    disabled={isBusy}
                     className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/20"
                   >
                     Remove
@@ -340,7 +354,7 @@ export default function FootprintLinkEditorModal({
                   </div>
                   <button
                     onClick={() => handleAddFile(file.id)}
-                    disabled={isSaving}
+                    disabled={isBusy}
                     className="rounded-md px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:opacity-50 dark:hover:bg-primary-950/20"
                   >
                     Add

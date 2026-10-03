@@ -246,9 +246,11 @@ export async function getCadFilesByType(fileType) {
       cf.file_name,
       cf.file_type,
       cf.file_size,
+      cf.missing,
       created_at(cf.id) as created_at,
       cf.updated_at,
-      COUNT(ccf.component_id) as component_count
+      COUNT(ccf.component_id) as component_count,
+      (${CAD_FILE_ACTIVE_ECO_SQL}) AS pending_eco
     FROM cad_files cf
     LEFT JOIN component_cad_files ccf ON cf.id = ccf.cad_file_id
     WHERE cf.file_type = $1
@@ -325,19 +327,21 @@ export function isSameExistingFile(firstPath, secondPath) {
  * catalog there would map the old name straight back onto the name being
  * undone.
  */
-export async function renameCadFile(cadFileId, newFileName, { canonicalize = true, user } = {}) {
+export async function renameCadFile(cadFileId, newFileName, { canonicalize = true, user, transactionClient, renameJournal } = {}) {
   let catalog = [];
   if (canonicalize) {
     try { catalog = await listPackages(); } catch (error) {
       logError('CadFile', `Failed to load package catalog: ${error.message}`);
     }
   }
-  const client = await pool.connect();
+  const client = transactionClient || await pool.connect();
   let physicalRenamed = null;
   let transactionStarted = false;
   try {
-    await client.query('BEGIN');
-    transactionStarted = true;
+    if (!transactionClient) {
+      await client.query('BEGIN');
+      transactionStarted = true;
+    }
     const cfResult = await client.query('SELECT * FROM cad_files WHERE id = $1', [cadFileId]);
 
     if (cfResult.rows.length === 0) {
@@ -388,6 +392,7 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
     if (isRename && fs.existsSync(oldPath)) {
       fs.renameSync(oldPath, newPath);
       physicalRenamed = { oldPath, newPath };
+      renameJournal?.push(physicalRenamed);
     }
 
     await client.query(`
@@ -400,12 +405,14 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
       await regenerateCadText(comp.id, cadFile.file_type, client);
     }
 
-    await client.query('COMMIT');
-    transactionStarted = false;
+    if (!transactionClient) {
+      await client.query('COMMIT');
+      transactionStarted = false;
+    }
 
     return { oldFileName, newFileName: safeNewFileName, fileType: cadFile.file_type };
   } catch (error) {
-    if (physicalRenamed && fs.existsSync(physicalRenamed.newPath)) {
+    if (!transactionClient && physicalRenamed && fs.existsSync(physicalRenamed.newPath)) {
       try { fs.renameSync(physicalRenamed.newPath, physicalRenamed.oldPath); } catch { /* best-effort revert */ }
     }
     if (transactionStarted) {
@@ -413,14 +420,48 @@ export async function renameCadFile(cadFileId, newFileName, { canonicalize = tru
     }
     throw error;
   } finally {
+    if (!transactionClient) client.release();
+  }
+}
+
+// A sanitizer plan may be stale by the time it runs. Lock and verify the whole
+// group before touching disk, and keep its journal until the single COMMIT.
+export async function renameCadFileGroup(entries) {
+  const client = await pool.connect();
+  const renameJournal = [];
+  try {
+    await client.query('BEGIN');
+    await lockCadFileNames(client, entries.flatMap(entry => [
+      { file_type: entry.fileType, file_name: entry.oldName },
+      { file_type: entry.fileType, file_name: entry.newName },
+    ]));
+    const current = await client.query('SELECT * FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [entries.map(entry => entry.cadFileId)]);
+    for (const entry of entries) {
+      const file = current.rows.find(row => row.id === entry.cadFileId);
+      if (file?.file_name !== entry.oldName || file?.file_type !== entry.fileType) {
+        throw Object.assign(new Error('CAD file changed before sanitization; refresh and retry'), { status: 409 });
+      }
+    }
+    for (const entry of entries) {
+      await renameCadFile(entry.cadFileId, entry.newName, { canonicalize: false, transactionClient: client, renameJournal });
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    for (const { oldPath, newPath } of renameJournal.reverse()) {
+      try { if (fs.existsSync(newPath)) fs.renameSync(newPath, oldPath); } catch (revertError) {
+        logError('CadFile', `Failed to restore ${oldPath}: ${revertError.message}`);
+      }
+    }
+    try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+    throw error;
+  } finally {
     client.release();
   }
 }
 
 // Reuse the same definition for orphan discovery and the locked delete check.
-const CAD_FILE_IN_USE_SQL = `
-  EXISTS (SELECT 1 FROM component_cad_files ccf WHERE ccf.cad_file_id = cf.id)
-  OR EXISTS (
+const CAD_FILE_ACTIVE_ECO_SQL = `
+  EXISTS (
     SELECT 1 FROM eco_cad_files ecf JOIN eco_orders eo ON eo.id = ecf.eco_id
     WHERE ecf.cad_file_id = cf.id AND eo.status IN ('pending', 'in_review')
   )
@@ -428,6 +469,11 @@ const CAD_FILE_IN_USE_SQL = `
     SELECT 1 FROM eco_file_rename_files erf JOIN eco_orders eo ON eo.id = erf.eco_id
     WHERE erf.cad_file_id = cf.id AND eo.status IN ('pending', 'in_review')
   )
+`;
+
+const CAD_FILE_IN_USE_SQL = `
+  EXISTS (SELECT 1 FROM component_cad_files ccf WHERE ccf.cad_file_id = cf.id)
+  OR (${CAD_FILE_ACTIVE_ECO_SQL})
 `;
 
 /**
@@ -513,6 +559,7 @@ export async function getOrphanCadFiles(fileType = null) {
       cf.file_name,
       cf.file_type,
       cf.file_size,
+      cf.missing,
       created_at(cf.id) as created_at,
       cf.updated_at
     FROM cad_files cf
@@ -542,8 +589,10 @@ export async function searchCadFiles(searchQuery, fileType = null) {
       cf.file_name,
       cf.file_type,
       cf.file_size,
+      cf.missing,
       created_at(cf.id) as created_at,
-      COUNT(ccf.component_id) as component_count
+      COUNT(ccf.component_id) as component_count,
+      (${CAD_FILE_ACTIVE_ECO_SQL}) AS pending_eco
     FROM cad_files cf
     LEFT JOIN component_cad_files ccf ON cf.id = ccf.cad_file_id
     WHERE cf.file_name ILIKE $1
@@ -555,7 +604,7 @@ export async function searchCadFiles(searchQuery, fileType = null) {
     params.push(fileType);
   }
 
-  query += ' GROUP BY cf.id ORDER BY cf.file_type, cf.file_name LIMIT 100';
+  query += ' GROUP BY cf.id ORDER BY cf.file_type, cf.file_name';
 
   const result = await pool.query(query, params);
   return filterTrackableCadRows(result.rows, fileType);
@@ -572,7 +621,9 @@ export async function getCadFilesForComponentGrouped(componentId) {
       cf.file_name,
       cf.file_type,
       cf.file_path,
-      cf.file_size
+      cf.file_size,
+      cf.missing,
+      (${CAD_FILE_ACTIVE_ECO_SQL}) AS pending_eco
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     WHERE ccf.component_id = $1
@@ -955,7 +1006,8 @@ export async function scanAndRegisterFiles() {
           await lockCadFileName(client, config.fileType, filename);
           // Directory listings can predate a concurrent deletion or upload.
           const current = await findCadFile(filename, config.fileType, client);
-          const shouldRegister = !current && fs.existsSync(resolvePathWithinBase(dirPath, filename));
+          const filePath = resolvePathWithinBase(dirPath, filename);
+          const shouldRegister = !current && fs.existsSync(filePath) && fs.statSync(filePath).isFile();
           if (shouldRegister) await registerCadFile(filename, config.fileType, null, client);
           await client.query('COMMIT');
           if (shouldRegister) totalRegistered++;
@@ -1154,14 +1206,14 @@ export async function getComponentsWithCadFiles(categoryId = null) {
  * Get the CAD files of one type linked to a component by manufacturer PN.
  * Shared by the part-page file list and the file export ZIP.
  */
-export async function getComponentCadFilesByMPN(mfgPartNumber, fileType) {
+export async function getComponentCadFilesByMPN(mfgPartNumber, fileType, componentId = null) {
   const result = await pool.query(`
     SELECT cf.id, cf.file_name, cf.file_type, cf.missing
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     JOIN components c ON ccf.component_id = c.id
-    WHERE c.manufacturer_pn = $1 AND cf.file_type = $2
-  `, [mfgPartNumber, fileType]);
+    WHERE ${componentId ? 'c.id' : 'c.manufacturer_pn'} = $1 AND cf.file_type = $2
+  `, [componentId || mfgPartNumber, fileType]);
   return result.rows;
 }
 

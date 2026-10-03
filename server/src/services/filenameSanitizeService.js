@@ -6,7 +6,7 @@ import {
   resolveCanonicalCadFilename,
 } from '../utils/footprintFiles.js';
 import { logInfo, logWarn } from '../utils/logger.js';
-import { isTrackableCadFile, renameCadFile } from './cadFileService.js';
+import { isTrackableCadFile, renameCadFileGroup } from './cadFileService.js';
 
 /** Typed confirmation the admin must supply before a run may start (SPEC V64). */
 export const SANITIZE_CONFIRMATION_TOKEN = 'SANITIZE';
@@ -129,7 +129,7 @@ export function planFilenameSanitization(files, catalog) {
  * whole group to a reported skip and the pass continues (SPEC V64); a footprint
  * pair that fails halfway is unwound so the pair never splits (SPEC V53).
  */
-export async function applyFilenameSanitization(entries, { renameFile = renameCadFile } = {}) {
+export async function applyFilenameSanitization(entries, { renameGroup = renameCadFileGroup } = {}) {
   const groups = new Map();
   for (const entry of entries) {
     if (entry.action !== 'rename') continue;
@@ -139,22 +139,13 @@ export async function applyFilenameSanitization(entries, { renameFile = renameCa
 
   const failedGroups = new Set();
   for (const [groupKey, members] of groups) {
-    const renamed = [];
     try {
+      await renameGroup(members);
       for (const entry of members) {
-        await renameFile(entry.cadFileId, entry.newName);
-        renamed.push(entry);
         logInfo('Sanitize', `${entry.oldName} -> ${entry.newName}`);
       }
     } catch (error) {
       failedGroups.add(groupKey);
-      for (const entry of renamed.reverse()) {
-        try {
-          await renameFile(entry.cadFileId, entry.oldName, { canonicalize: false });
-        } catch (revertError) {
-          logWarn('Sanitize', `Failed to restore ${entry.newName} to ${entry.oldName}: ${revertError.message}`);
-        }
-      }
       logWarn('Sanitize', `skip ${members.map((entry) => entry.oldName).join(', ')} (${SANITIZE_SKIP_REASONS.RENAME_FAILED}: ${error.message})`);
     }
   }

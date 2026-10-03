@@ -15,6 +15,7 @@ import { logError } from '../utils/logger.js';
 
 const OIDC_STATE_COOKIE = 'oidc_state';
 const STATE_TTL = '10m';
+const safeReturnPath = value => typeof value === 'string' && /^\/(?![/\\])/.test(value) && !/[\\\r\n]/.test(value) ? value : '';
 
 // The state cookie carries the transaction artifacts (state, nonce, PKCE
 // verifier) JWT-signed for integrity + expiry; httpOnly and SameSite=lax so
@@ -55,7 +56,7 @@ export const oidcLogin = async (req, res) => {
     const { authorizationUrl, state, nonce, codeVerifier } = await buildAuthorizationRequest();
 
     const stateToken = jwt.sign(
-      { state, nonce, codeVerifier },
+      { state, nonce, codeVerifier, returnTo: safeReturnPath(req.query?.returnTo) },
       process.env.JWT_SECRET,
       { expiresIn: STATE_TTL },
     );
@@ -123,7 +124,8 @@ export const oidcCallback = async (req, res) => {
     const token = generateToken(user);
     res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
 
-    res.redirect(getPostLoginRedirect());
+    const returnTo = safeReturnPath(transaction.returnTo);
+    res.redirect(returnTo ? `${getPostLoginRedirect().replace(/\/$/, '')}${returnTo}` : getPostLoginRedirect());
   } catch (error) {
     if (error.message === 'Account is disabled') {
       logError('OIDC', 'SSO login rejected: account disabled');

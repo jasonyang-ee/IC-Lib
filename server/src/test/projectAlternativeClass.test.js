@@ -9,7 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const queryMock = vi.fn();
 
 vi.mock('../config/database.js', () => ({
-  default: { query: (...args) => queryMock(...args) },
+  default: {
+    query: (...args) => queryMock(...args),
+    connect: async () => ({
+      query: (sql, ...args) => ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) ? Promise.resolve({ rows: [] }) : queryMock(sql, ...args),
+      release: vi.fn(),
+    }),
+  },
 }));
 
 const logActivityMock = vi.fn();

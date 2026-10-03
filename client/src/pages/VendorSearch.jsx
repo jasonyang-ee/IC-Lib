@@ -16,7 +16,6 @@ const VendorSearch = () => {
   const [selectedParts, setSelectedParts] = useState([]); // Changed to array for multi-selection
   const [showPartSelectionModal, setShowPartSelectionModal] = useState(false);
   const [libraryPartsForAppend, setLibraryPartsForAppend] = useState([]);
-  const [_selectedLibraryPart, setSelectedLibraryPart] = useState(null);
   const [appendMode, setAppendMode] = useState(''); // 'distributor' or 'alternative'
   const [partSearchTerm, setPartSearchTerm] = useState('');
   const [allLibraryParts, setAllLibraryParts] = useState([]);
@@ -143,11 +142,11 @@ const VendorSearch = () => {
 
   const searchMutation = useMutation({
     mutationFn: (partNumber) => api.searchAllVendors(partNumber),
-    onSuccess: (response) => {
+    onSuccess: (response, submittedTerm) => {
       setSearchResults(response.data);
       // Cache results in sessionStorage
       sessionStorage.setItem('vendorSearchResults', JSON.stringify(response.data));
-      sessionStorage.setItem('vendorSearchTerm', searchTerm);
+      sessionStorage.setItem('vendorSearchTerm', submittedTerm);
     },
   });
 
@@ -179,14 +178,12 @@ const VendorSearch = () => {
   });
 
   const downloadFootprintMutation = useMutation({
-    mutationFn: ({ partNumber, source }) => {
-      if (source === 'ultra-librarian') {
-        return api.downloadUltraLibrarianFootprint({ partNumber });
-      } else {
-        return api.downloadSnapEDAFootprint({ partNumber });
-      }
-    },
-    onSuccess: () => {
+    mutationFn: async ({ partNumber, source }) => {
+      const response = await (source === 'ultra-librarian'
+        ? api.downloadUltraLibrarianFootprint({ partNumber })
+        : api.downloadSnapEDAFootprint({ partNumber }));
+      if (!response.data?.success) throw new Error(response.data?.message || response.data?.error || 'Footprint download failed');
+      return response.data;
     },
     onError: (error) => {
       console.error('Footprint download error:', error);
@@ -251,7 +248,6 @@ const VendorSearch = () => {
 
       if (exactMatches.length === 1 && alternativeMatches.length === 0) {
         // Exact match found on primary component - append distributors directly
-        setSelectedLibraryPart(exactMatches[0]);
         setAppendMode('distributor');
         await appendDistributorsToComponent(exactMatches[0]);
       } else if (exactMatches.length === 0 && alternativeMatches.length === 1) {

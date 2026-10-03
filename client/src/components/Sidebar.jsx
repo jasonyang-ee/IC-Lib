@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Package, Search, FileText, Sun, Moon, LogOut, User, UserCog, Shield, FileEdit, FolderOpen, ChevronLeft, ChevronRight, Layers, Cpu, TriangleAlert } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import { useFeatureFlags } from '../contexts/FeatureFlagsContext';
 import { canAccessFileLibrary, canAccessUserSettings, isLimitedNavigationRole } from '../utils/accessControl';
 
@@ -14,6 +15,7 @@ const Sidebar = () => {
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true');
   const { user, logout, isAdmin } = useAuth();
+  const { showError } = useNotification();
   const { ecoEnabled } = useFeatureFlags();
   const navigate = useNavigate();
   const isLimitedNavigation = isLimitedNavigationRole(user?.role);
@@ -43,7 +45,8 @@ const Sidebar = () => {
   };
 
   const handleLogout = async () => {
-    await logout();
+    const result = await logout();
+    if (!result.success) { showError(result.error); return; }
     navigate('/login');
   };
 

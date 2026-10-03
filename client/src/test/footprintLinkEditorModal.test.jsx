@@ -21,6 +21,7 @@ const showErrorMock = vi.fn();
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => queryState,
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock('../utils/api', () => ({
@@ -164,5 +165,16 @@ describe('FootprintLinkEditorModal', () => {
     expect(screen.getByRole('button', { name: 'Save Links' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Discard Failed Uploads' }));
     await waitFor(() => expect(apiMocks.cleanupTempFiles).toHaveBeenCalledWith({ tempFilenames: ['temp-retry.step'] }));
+  });
+
+  it('retains unsaved binding changes when background queries refresh the initial records', () => {
+    const onSave = vi.fn();
+    const original = { id: 'model-1', file_name: 'existing.step', file_type: 'model' };
+    const props = { isOpen: true, onClose: vi.fn(), onSave, relatedFileType: 'model', selectedEntry: { key: 'pair:part' } };
+    const { rerender } = render(<FootprintLinkEditorModal {...props} initialFiles={[original]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    rerender(<FootprintLinkEditorModal {...props} initialFiles={[{ ...original }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save Links' }));
+    expect(onSave).toHaveBeenCalledWith({ relatedFileType: 'model', addFileIds: [], removeFileIds: ['model-1'] });
   });
 });

@@ -231,29 +231,3 @@ export async function searchPart(partNumber, skipCache = false) {
     pendingRequests.delete(cacheKey);
   }
 }
-
-// Get detailed part information
-export async function getPartDetails(digikeyPartNumber) {
-  try {
-    const token = await getAccessToken();
-
-    const response = await axios.get(
-      `${DIGIKEY_API_BASE}/products/v4/search/${digikeyPartNumber}/productdetails`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-DIGIKEY-Client-Id': process.env.DIGIKEY_CLIENT_ID,
-          'X-DIGIKEY-Locale-Site': 'US',
-          'X-DIGIKEY-Locale-Language': 'en',
-          'X-DIGIKEY-Locale-Currency': 'USD',
-        },
-        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
-      },
-    );
-
-    return response.data;
-  } catch (error) {
-    logError('Digikey', 'Digikey part details error:', error.message);
-    throw error;
-  }
-}

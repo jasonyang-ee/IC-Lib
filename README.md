@@ -37,7 +37,7 @@ services:
       
       # Database Connection (External PostgreSQL)
       # Update these to match your PostgreSQL server
-      - DB_HOST=localhost
+      - DB_HOST=iclib-db
       - DB_PORT=5432
       - DB_USER=iclib
       - DB_PASSWORD=change-this-to-a-secure-db-password-in-production-minimum-6-characters
@@ -49,6 +49,7 @@ services:
       # - MOUSER_API_KEY=your_api_key
     volumes:
       - ./iclib/library:/app/library
+      - ./iclib/config:/app/config
   
   iclib-db:
     image: postgres:18
@@ -72,6 +73,10 @@ services:
   - Password: `admin123` (Change this immediately after first login)
 
 ### Environment Variables
+- `SMTP_ENCRYPTION_KEY`
+
+  Authenticated SMTP requires a persistent secret of exactly 32 bytes. Set it before saving an SMTP password and retain it across restarts. If an older deployment used an automatically generated key, configure a persistent key and save its SMTP password again. SMTP settings and connection tests are available in Admin Settings → Email.
+
 - `CONFIG_ECO=true`
 
   Enable ECO mode to process any parts update with approval stages.

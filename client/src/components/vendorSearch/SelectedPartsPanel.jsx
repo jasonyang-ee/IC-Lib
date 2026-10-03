@@ -1,4 +1,5 @@
 import { Plus, Download } from 'lucide-react';
+import { api } from '../../utils/api';
 
 const SelectedPartsPanel = ({
   selectedParts,
@@ -101,18 +102,20 @@ const SelectedPartsPanel = ({
       </div>
       {addToLibraryMutation.isSuccess && (
         <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-          Part successfully added to library!
+          Part data prepared for Library review.
         </p>
       )}
       {downloadFootprintMutation.isSuccess && (
         <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-          Footprint download completed! Check the downloads folder.
+          <a className="underline" download href={api.getFileDownloadUrl('footprint', 'vendor', downloadFootprintMutation.data.filename, downloadFootprintMutation.data.tempFilename)}>
+            Download {downloadFootprintMutation.data.filename}
+          </a>
         </p>
       )}
       {downloadFootprintMutation.isError && (
         <p className="mt-3 text-sm text-red-600 dark:text-red-400">
           {downloadFootprintMutation.error?.response?.data?.message ||
-           downloadFootprintMutation.error?.response?.data?.error ||
+           downloadFootprintMutation.error?.response?.data?.error || downloadFootprintMutation.error?.message ||
            'Failed to download footprint. The API may not be configured.'}
         </p>
       )}

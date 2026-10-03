@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Confirmation modal for delete/destructive actions
  */
@@ -12,6 +14,8 @@ const ConfirmationModal = ({
   confirmStyle = 'danger',
   isLoading = false 
 }) => {
+  const titleId = useId();
+  const messageId = useId();
   if (!isOpen) return null;
 
   const confirmButtonStyles = {
@@ -22,11 +26,11 @@ const ConfirmationModal = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId} className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <h3 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
           {title}
         </h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <p id={messageId} className="text-gray-600 dark:text-gray-400 mb-6">
           {message}
         </p>
         <div className="flex justify-end gap-3">

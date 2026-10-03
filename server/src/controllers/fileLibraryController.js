@@ -56,9 +56,16 @@ function mapCadFileResponse(file) {
     file_type: file.file_type,
     file_size: file.file_size,
     missing: file.missing,
+    pending_eco: file.pending_eco,
     component_count: file.component_count,
     related_files: file.related_files,
   };
+}
+
+// A read may discover an absent file, but only scan/upload clears a missing tag.
+function withFileAvailability(file) {
+  const subdir = CAD_TYPE_SUBDIR[file.file_type];
+  return { ...file, missing: Boolean(file.missing) || !subdir || !fs.existsSync(path.join(LIBRARY_BASE, subdir, file.file_name)) };
 }
 
 function buildRelatedFileGroups(relatedFiles) {
@@ -80,10 +87,11 @@ function shouldStageSharedFileRename(req, affectedCount, ecoAffectedCount) {
 }
 
 async function renameTrackedLibraryFiles(req, files, notes) {
-  const client = await pool.connect();
+  let client;
   const renamedPaths = [];
   let transactionStarted = false;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     transactionStarted = true;
     const affectedComponents = await lockFileRenameContext(client, files);
@@ -146,11 +154,11 @@ async function renameTrackedLibraryFiles(req, files, notes) {
     // Recover physical names before releasing locks to another writer.
     rollbackMassFileRenames(renamedPaths);
     if (transactionStarted) {
-      try { await client.query('ROLLBACK'); } catch { /* original error wins */ }
+      try { await client?.query('ROLLBACK'); } catch { /* original error wins */ }
     }
     throw error;
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
@@ -183,15 +191,12 @@ export const getFilesByType = async (req, res) => {
 
     const files = await cadFileService.getCadFilesByType(info.fileType);
 
-    // Only return files that physically exist on disk
-    const existingFiles = files.filter(f =>
-      fs.existsSync(path.join(LIBRARY_BASE, info.subdir, f.file_name)),
-    );
+    const visibleFiles = files.map(withFileAvailability);
 
     res.json({
       type,
       column: info.column,
-      files: existingFiles.map((file) => mapCadFileResponse(file)),
+      files: visibleFiles.map((file) => mapCadFileResponse(file)),
     });
   } catch (error) {
     logError('FileLibrary', 'Error fetching files by type:', error.message);
@@ -201,17 +206,14 @@ export const getFilesByType = async (req, res) => {
 
 /**
  * Get all file type statistics (distinct filename counts per category).
- * Filters by physical file existence to match the center column counts.
+ * Includes missing records, matching the browsable database inventory.
  */
 export const getFileTypeStats = async (req, res) => {
   try {
     const result = {};
     for (const [routeType, info] of Object.entries(TYPE_MAP)) {
       const files = await cadFileService.getCadFilesByType(info.fileType);
-      const existing = files.filter(f =>
-        fs.existsSync(path.join(LIBRARY_BASE, info.subdir, f.file_name)),
-      );
-      result[routeType] = existing.length;
+      result[routeType] = files.length;
     }
 
     res.json(result);
@@ -290,24 +292,7 @@ export const searchFiles = async (req, res) => {
 
     const results = await cadFileService.searchCadFiles(searchQuery, fileType);
 
-    // Only return files that physically exist on disk
-    const existingResults = results.filter(f => {
-      const subdir = CAD_TYPE_SUBDIR[f.file_type];
-      if (!subdir) return false;
-      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
-    });
-
-    res.json({
-      searchQuery,
-      results: existingResults.map(f => ({
-        id: f.id,
-        file_name: f.file_name,
-        file_type: f.file_type,
-        component_count: f.component_count,
-        file_size: f.file_size,
-        missing: f.missing,
-      })),
-    });
+    res.json({ searchQuery, results: results.map(withFileAvailability).map(mapCadFileResponse) });
   } catch (error) {
     logError('FileLibrary', 'Error searching files:', error.message);
     res.status(500).json({ error: 'Failed to search files' });
@@ -542,14 +527,7 @@ export const getOrphanFiles = async (req, res) => {
 
     const orphans = await cadFileService.getOrphanCadFiles(fileType);
 
-    // Only return orphans that physically exist on disk
-    const existingOrphans = orphans.filter(f => {
-      const subdir = CAD_TYPE_SUBDIR[f.file_type];
-      if (!subdir) return false;
-      return fs.existsSync(path.join(LIBRARY_BASE, subdir, f.file_name));
-    });
-
-    res.json({ orphans: existingOrphans });
+    res.json({ orphans: orphans.map(withFileAvailability) });
   } catch (error) {
     logError('FileLibrary', 'Error fetching orphan files:', error.message);
     res.status(500).json({ error: 'Failed to fetch orphan files' });
@@ -613,7 +591,7 @@ export const getCadFilesForComponent = async (req, res) => {
   try {
     const { componentId } = req.params;
     const files = await cadFileService.getCadFilesForComponentGrouped(componentId);
-    res.json({ files });
+    res.json({ files: Object.fromEntries(Object.entries(files).map(([type, entries]) => [type, entries.map(withFileAvailability)])) });
   } catch (error) {
     logError('FileLibrary', 'Error fetching component CAD files:', error.message);
     res.status(500).json({ error: 'Failed to fetch component CAD files' });
@@ -657,11 +635,6 @@ export const linkFileToComponent = async (req, res) => {
       await cadFileService.regenerateCadText(componentId, fileType, client);
     }
     await cadFileService.syncFootprintRelatedCadFilesForComponent(componentId, client);
-
-    // Clear missing flag when user manually links a file (indicates server-side file management)
-    if (cadFile.missing) {
-      await client.query('UPDATE cad_files SET missing = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [cadFileId]);
-    }
 
     await client.query('COMMIT');
 
@@ -788,6 +761,46 @@ export const unlinkFootprintRelatedFiles = async (req, res) => {
   }
 };
 
+// Save the editor's additions and removals together: a failed addition must
+// retain the old bindings, and retries must not lose the operator's selection.
+export const updateFootprintRelatedFiles = async (req, res) => {
+  const sourceIds = normalizeCadFileIds(req.body?.sourceCadFileIds);
+  const addIds = normalizeCadFileIds(req.body?.addFileIds);
+  const removeIds = normalizeCadFileIds(req.body?.removeFileIds);
+  const { relatedFileType } = req.body || {};
+  if (!sourceIds.length || !['pad', 'model'].includes(relatedFileType)
+    || !Array.isArray(req.body?.addFileIds) || !Array.isArray(req.body?.removeFileIds)
+    || addIds.some(id => removeIds.includes(id))) {
+    return res.status(400).json({ error: 'Select footprint files and distinct pad or 3D model additions/removals' });
+  }
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const ids = [...new Set([...sourceIds, ...addIds, ...removeIds])];
+    const result = await client.query('SELECT id, file_type FROM cad_files WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE', [ids]);
+    if (result.rows.length !== ids.length) {
+      throw Object.assign(new Error('One or more CAD records no longer exist; refresh and retry'), { status: 404 });
+    }
+    const byId = new Map(result.rows.map(file => [file.id, file]));
+    if (sourceIds.some(id => byId.get(id).file_type !== 'footprint')
+      || [...addIds, ...removeIds].some(id => byId.get(id).file_type !== relatedFileType)) {
+      throw Object.assign(new Error('CAD record types do not match the selected footprint binding'), { status: 400 });
+    }
+    await cadFileService.unlinkFootprintRelatedCadFiles({ footprintCadFileIds: sourceIds, relatedCadFileIds: removeIds }, client);
+    await cadFileService.linkFootprintRelatedCadFiles({ footprintCadFileIds: sourceIds, relatedCadFileIds: addIds }, client);
+    const relatedFiles = await cadFileService.getLinkedCadFiles(sourceIds, client);
+    await client.query('COMMIT');
+    res.json({ success: true, relatedFileGroups: buildRelatedFileGroups(relatedFiles) });
+  } catch (error) {
+    try { await client?.query('ROLLBACK'); } catch { /* original error wins */ }
+    logError('FileLibrary', 'Error saving footprint bindings:', error.message);
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to save footprint bindings' });
+  } finally {
+    client?.release();
+  }
+};
+
 /**
  * Unlink a CAD file from a component.
  */
@@ -909,20 +922,14 @@ export const getAvailableFiles = async (req, res) => {
     const fileType = info ? info.fileType : null;
 
     let dbFiles = [];
-    try {
-      if (search) {
-        dbFiles = await cadFileService.searchCadFiles(search, fileType);
-      } else if (fileType) {
-        dbFiles = await cadFileService.getCadFilesByType(fileType);
-      } else {
-        for (const ft of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
-          const typeFiles = await cadFileService.getCadFilesByType(ft);
-          dbFiles.push(...typeFiles);
-        }
+    if (search) {
+      dbFiles = await cadFileService.searchCadFiles(search, fileType);
+    } else if (fileType) {
+      dbFiles = await cadFileService.getCadFilesByType(fileType);
+    } else {
+      for (const ft of ['footprint', 'symbol', 'model', 'pspice', 'pad']) {
+        dbFiles.push(...await cadFileService.getCadFilesByType(ft));
       }
-    } catch (dbError) {
-      // cad_files table may not exist yet - continue with disk scan
-      logError('FileLibrary', 'DB query failed, falling back to disk scan:', dbError.message);
     }
 
     // Filter DB files to only those that physically exist on disk

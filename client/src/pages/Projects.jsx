@@ -15,14 +15,7 @@ import {
 } from '../utils/bomExport';
 import { countRestrictedLines } from '../utils/alternativeClass';
 
-const getResponseData = async (request, fallbackValue) => {
-  try {
-    const response = await request;
-    return response.data;
-  } catch {
-    return fallbackValue;
-  }
-};
+const getResponseData = async request => (await request).data;
 
 const Projects = () => {
   const queryClient = useQueryClient();
@@ -32,6 +25,8 @@ const Projects = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [projectDraft, setProjectDraft] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
   const [showAddComponentModal, setShowAddComponentModal] = useState(false);
   const [componentSearchTerm, setComponentSearchTerm] = useState('');
   const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active' });
@@ -50,7 +45,7 @@ const Projects = () => {
   const [confirmAction, setConfirmAction] = useState(null);
 
   // Fetch all projects
-  const { data: projects, isLoading } = useQuery({
+  const { data: projects, isLoading, error: projectsError, refetch: refetchProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       const response = await api.getProjects();
@@ -72,7 +67,7 @@ const Projects = () => {
   }, [location.state, projects]);
 
   // Fetch project details with components
-  const { data: projectDetails } = useQuery({
+  const { data: projectDetails, isLoading: detailsLoading, error: detailsError, refetch: refetchDetails } = useQuery({
     queryKey: ['project', selectedProject?.id],
     queryFn: async () => {
       const response = await api.getProjectById(selectedProject.id);
@@ -111,22 +106,25 @@ const Projects = () => {
       await api.createProject(projectData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       setShowCreateModal(false);
       setNewProject({ name: '', description: '', status: 'active' });
-    }
+    },
+    onError: error => showError(error.response?.data?.error || error.message)
   });
 
   // Update project mutation
   const updateProjectMutation = useMutation({
     mutationFn: async ({ id, data }) => {
-      await api.updateProject(id, data);
+      return (await api.updateProject(id, data)).data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['projects']);
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
+    onSuccess: (updated) => {
+      setSelectedProject(updated);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
       setShowEditModal(false);
-    }
+    },
+    onError: error => showError(error.response?.data?.error || error.message)
   });
 
   // Delete project mutation
@@ -135,7 +133,7 @@ const Projects = () => {
       await api.deleteProject(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       setSelectedProject(null);
       setShowDeleteConfirm(null);
       setShowEditModal(false);
@@ -151,11 +149,13 @@ const Projects = () => {
       await api.addComponentToProject(projectId, { component_id, quantity, alt_class });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
-      queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       setShowAddComponentModal(false);
       setComponentSearchTerm('');
-    }
+      setShowQuantityInput(null);
+    },
+    onError: error => showError(error.response?.data?.error || error.message)
   });
 
   // Remove component from project
@@ -164,8 +164,8 @@ const Projects = () => {
       await api.removeComponentFromProject(projectId, componentId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
-      queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
     onError: (error) => {
       showError('Error removing component: ' + (error.response?.data?.error || error.message));
@@ -178,8 +178,9 @@ const Projects = () => {
       await api.updateProjectComponent(projectId, componentId, { quantity, alt_class });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
-      queryClient.invalidateQueries(['projects']);
+      setShowQuantityInput(null);
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
     onError: (error) => {
       showError('Error updating quantity: ' + (error.response?.data?.error || error.message));
@@ -193,8 +194,8 @@ const Projects = () => {
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
-      queryClient.invalidateQueries(['inventory']);
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      for (const key of ['inventory', 'lowStock', 'dashboardStats', 'extendedStats', 'report']) queryClient.invalidateQueries({ queryKey: [key] });
       showSuccess(data?.message || 'All project components consumed successfully!');
     },
     onError: (error) => {
@@ -215,7 +216,7 @@ const Projects = () => {
     if (!selectedProject) return;
     updateProjectMutation.mutate({
       id: selectedProject.id,
-      data: selectedProject
+      data: projectDraft
     });
   };
 
@@ -245,8 +246,8 @@ const Projects = () => {
 
   const confirmQuantityInput = () => {
     if (!showQuantityInput || !selectedProject) return;
-    const qty = parseInt(quantityValue, 10);
-    if (qty && qty > 0) {
+    const qty = Number(quantityValue);
+    if (Number.isInteger(qty) && qty > 0 && qty <= 2147483647) {
       if (showQuantityInput.mode === 'update') {
         updateComponentQuantityMutation.mutate({
           projectId: selectedProject.id,
@@ -263,9 +264,6 @@ const Projects = () => {
         });
       }
 
-      setShowQuantityInput(null);
-      setQuantityValue('1');
-      setAltClassValue(null);
     } else {
       showError('Please enter a valid quantity');
     }
@@ -292,9 +290,8 @@ const Projects = () => {
           const response = await api.getComponents({ search: pn });
           const components = response.data;
           // Find exact or close match by manufacturer_pn
-          const match = components.find(c =>
-            c.manufacturer_pn?.toLowerCase() === pn.toLowerCase()
-          ) || components[0]; // Take first result if no exact match
+          const matches = components.filter(c => c.manufacturer_pn?.toLowerCase() === pn.toLowerCase());
+          const match = matches.length === 1 ? matches[0] : null;
 
           return {
             searchTerm: pn,
@@ -320,17 +317,25 @@ const Projects = () => {
   };
 
   const handleBulkImportAdd = async () => {
+    if (isImporting) return;
     const toAdd = bulkImportResults.filter(r => r.found && r.quantity > 0);
+
+    if (toAdd.some(item => !Number.isInteger(item.quantity))) {
+      showError('Please enter whole-number quantities');
+      return;
+    }
 
     if (toAdd.length === 0) {
       showError('No valid components to add');
       return;
     }
 
+    setIsImporting(true);
     try {
       let successCount = 0;
       let duplicateCount = 0;
       const errors = [];
+      const failedItems = [];
 
       // Add all components
       for (const item of toAdd) {
@@ -348,20 +353,22 @@ const Projects = () => {
               error.response?.data?.error?.toLowerCase().includes('duplicate')) {
             duplicateCount++;
           } else {
-            errors.push(`${item.searchTerm}: ${error.message}`);
+            failedItems.push(item);
+            errors.push(`${item.searchTerm}: ${error.response?.data?.error || error.message}`);
           }
         }
       }
 
       // Refresh project data
-      queryClient.invalidateQueries(['project', selectedProject?.id]);
-      queryClient.invalidateQueries(['projects']);
+      queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
 
-      // Close modal and reset
-      setShowAddComponentModal(false);
-      setBulkImportMode(false);
-      setBulkImportText('');
-      setBulkImportResults([]);
+      setBulkImportResults(failedItems);
+      if (!failedItems.length) {
+        setShowAddComponentModal(false);
+        setBulkImportMode(false);
+        setBulkImportText('');
+      }
 
       // Show results
       if (successCount > 0) {
@@ -372,6 +379,8 @@ const Projects = () => {
       }
     } catch (error) {
       showError('Error adding components: ' + error.message);
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -399,15 +408,18 @@ const Projects = () => {
     try {
       const detailedComponents = await Promise.all(
         projectDetails.components.map(async (projectComponent) => {
-          const componentDetails = projectComponent.component_id
-            ? await getResponseData(api.getComponentById(projectComponent.component_id), null)
-            : null;
-          const distributors = projectComponent.component_id
-            ? await getResponseData(api.getComponentDistributors(projectComponent.component_id), [])
-            : [];
-          const alternatives = projectComponent.component_id
-            ? await getResponseData(api.getComponentAlternatives(projectComponent.component_id), [])
-            : [];
+          const ownerId = projectComponent.component_id || projectComponent.parent_component_id;
+          const [componentDetails, primaryDistributors, allAlternatives] = ownerId
+            ? await Promise.all([
+              getResponseData(api.getComponentById(ownerId)),
+              getResponseData(api.getComponentDistributors(ownerId)),
+              getResponseData(api.getComponentAlternatives(ownerId)),
+            ])
+            : [null, [], []];
+          const distributors = projectComponent.alternative_id
+            ? allAlternatives.find(alt => alt.id === projectComponent.alternative_id)?.distributors || []
+            : primaryDistributors;
+          const alternatives = allAlternatives.filter(alt => alt.id !== projectComponent.alternative_id);
 
           return {
             part_number: projectComponent.part_number || componentDetails?.part_number || '',
@@ -420,7 +432,7 @@ const Projects = () => {
             available_quantity: projectComponent.available_quantity || 0,
             location: projectComponent.location || '',
             approval_status: componentDetails?.approval_status || '',
-            status: selectedProject.status,
+            status: componentDetails?.approval_status || '',
             part_type: componentDetails?.part_type || '',
             package_size: componentDetails?.package_size || '',
             datasheet_url: componentDetails?.datasheet_url || '',
@@ -475,7 +487,7 @@ const Projects = () => {
 
   const updateBulkImportQuantity = (index, quantity) => {
     const updated = [...bulkImportResults];
-    updated[index].quantity = parseInt(quantity) || 0;
+    updated[index] = { ...updated[index], quantity: Number(quantity) || 0 };
     setBulkImportResults(updated);
   };
 
@@ -580,6 +592,12 @@ const Projects = () => {
     setAltClassValue(null);
   };
 
+  const isSaving = isImporting || createProjectMutation.isPending || updateProjectMutation.isPending
+    || deleteProjectMutation.isPending || addComponentMutation.isPending || removeComponentMutation.isPending
+    || updateComponentQuantityMutation.isPending || consumeProjectMutation.isPending;
+
+  if (projectsError) return <div role="alert">Unable to load projects. <button onClick={() => refetchProjects()}>Retry</button></div>;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -589,7 +607,7 @@ const Projects = () => {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <fieldset disabled={isSaving} className="h-full flex flex-col min-w-0">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1 overflow-hidden">
         <ProjectsList
           projects={projects}
@@ -599,17 +617,18 @@ const Projects = () => {
           onSelectProject={handleSelectProject}
         />
 
-        <ProjectDetails
+        {detailsError ? <div role="alert">Unable to load project details. <button onClick={() => refetchDetails()}>Retry</button></div>
+          : detailsLoading ? <div role="status">Loading project...</div> : <ProjectDetails
           selectedProject={selectedProject}
           projectDetails={projectDetails}
           canWrite={canWrite}
-          onEditClick={() => setShowEditModal(true)}
+          onEditClick={() => { setProjectDraft({ ...(projectDetails || selectedProject) }); setShowEditModal(true); }}
           onGenerateBomClick={handleOpenBomModal}
           onConsumeAll={handleConsumeAll}
           onAddComponentClick={() => setShowAddComponentModal(true)}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveComponent={handleRemoveComponent}
-        />
+        />}
       </div>
 
       <ProjectModals
@@ -619,8 +638,8 @@ const Projects = () => {
         onCreateProject={handleCreateProject}
         onCloseCreateModal={handleCloseCreateModal}
         showEditModal={showEditModal}
-        selectedProject={selectedProject}
-        setSelectedProject={setSelectedProject}
+        selectedProject={projectDraft}
+        setSelectedProject={setProjectDraft}
         onUpdateProject={handleUpdateProject}
         onOpenDeleteProject={handleDeleteProject}
         onCloseEditModal={() => setShowEditModal(false)}
@@ -669,7 +688,7 @@ const Projects = () => {
         confirmText={confirmAction?.confirmText || 'Confirm'}
         confirmStyle={confirmAction?.confirmStyle || 'primary'}
       />
-    </div>
+    </fieldset>
   );
 };
 

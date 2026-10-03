@@ -20,7 +20,7 @@ const CategorySpecificationsManager = () => {
   const categoryFileInputRef = useRef(null);
 
   // Fetch categories
-  const { data: categories } = useQuery({
+  const { data: categories, error: categoriesError, refetch: refetchCategories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await api.getCategories();
@@ -29,7 +29,7 @@ const CategorySpecificationsManager = () => {
   });
 
   // Fetch specifications for selected category
-  const { data: specifications, isLoading: loadingSpecs } = useQuery({
+  const { data: specifications, isLoading: loadingSpecs, error: specsError, refetch: refetchSpecs } = useQuery({
     queryKey: ['categorySpecifications', selectedCategory],
     enabled: !!selectedCategory,
     queryFn: async () => {
@@ -49,6 +49,7 @@ const CategorySpecificationsManager = () => {
       setNewSpec({ spec_name: '', unit: '', mapping_spec_names: [], is_required: false });
       setNewMappingInput('');
     },
+    onError: error => showError(error.response?.data?.error || error.message),
   });
 
   // Update specification mutation
@@ -60,6 +61,7 @@ const CategorySpecificationsManager = () => {
       queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
       setEditingSpec(null);
     },
+    onError: error => showError(error.response?.data?.error || error.message),
   });
 
   // Delete specification mutation
@@ -69,7 +71,10 @@ const CategorySpecificationsManager = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      setShowDeleteConfirm(null);
+      setEditingSpec(null);
     },
+    onError: error => showError(error.response?.data?.error || error.message),
   });
 
   // Reorder specifications mutation
@@ -177,7 +182,7 @@ const CategorySpecificationsManager = () => {
   };
 
   const handleDropSpec = (targetSpec) => {
-    if (!draggedSpec || draggedSpec.id === targetSpec.id) {
+    if (reorderSpecsMutation.isPending || !draggedSpec || draggedSpec.id === targetSpec.id) {
       setDraggedSpec(null);
       return;
     }
@@ -233,12 +238,15 @@ const CategorySpecificationsManager = () => {
   const confirmDeleteSpec = () => {
     if (showDeleteConfirm) {
       deleteSpecMutation.mutate(showDeleteConfirm.id);
-      setShowDeleteConfirm(null);
     }
   };
 
+  if (categoriesError || specsError) {
+    return <div role="alert" className="p-4">Unable to load category specifications. <button type="button" className="btn-secondary" onClick={() => { void refetchCategories(); if (selectedCategory) void refetchSpecs(); }}>Retry</button></div>;
+  }
+
   return (
-    <div className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
+    <fieldset disabled={createSpecMutation.isPending || updateSpecMutation.isPending || deleteSpecMutation.isPending || reorderSpecsMutation.isPending} className="bg-white dark:bg-[#2a2a2a] rounded-lg shadow-md p-6 border border-gray-200 dark:border-[#3a3a3a]">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -278,6 +286,7 @@ const CategorySpecificationsManager = () => {
           Select Category
         </label>
         <select
+          aria-label="Select Category"
           value={selectedCategory}
           onChange={(e) => {
             setSelectedCategory(e.target.value);
@@ -301,6 +310,7 @@ const CategorySpecificationsManager = () => {
           <div className="mb-4">
             <button
               onClick={() => setIsAddingSpec(!isAddingSpec)}
+              disabled={loadingSpecs}
               className="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
             >
               {isAddingSpec ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -690,7 +700,7 @@ const CategorySpecificationsManager = () => {
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 };
 

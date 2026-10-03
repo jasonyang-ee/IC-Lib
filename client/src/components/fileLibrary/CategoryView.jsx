@@ -9,6 +9,8 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { getCadFileTypeLabel, routeTypeToFileType } from './constants';
 import { formatCadFileDisplayName } from '../../utils/cadFileNaming';
+import { buildFileEntries } from '../../utils/fileLibraryEntries';
+import CadFileStatus from '../common/CadFileStatus';
 
 const CategoryView = ({
   categories,
@@ -47,9 +49,10 @@ const CategoryView = ({
   // Memoize file entries
   const fileEntries = useMemo(() => {
     if (!componentFiles?.files) return [];
-    return Object.entries(componentFiles.files).flatMap(([fileType, files]) =>
-      files.map(f => ({ ...f, file_type: fileType }))
-    );
+    return Object.entries(componentFiles.files).flatMap(([fileType, files]) => {
+      const routeType = Object.entries(routeTypeToFileType).find(([, type]) => type === fileType)?.[0] || fileType;
+      return buildFileEntries(files, routeType);
+    });
   }, [componentFiles?.files]);
 
   // Memoize sharing-by-file grouping
@@ -237,25 +240,29 @@ const CategoryView = ({
                         // Map file_type to route type for rename/delete operations
                         const routeType = Object.entries(routeTypeToFileType).find(([, ft]) => ft === file.file_type)?.[0] || file.file_type;
                         return (
-                          <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-[#333]">
+                          <tr key={`${routeType}:${file.key}`} className="hover:bg-gray-50 dark:hover:bg-[#333]">
                             <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
-                              {getCadFileTypeLabel(file.file_type, file.file_name)}
+                              {getCadFileTypeLabel(file.file_type, file.fileNames[0])}
                             </td>
-                            <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-gray-100 truncate max-w-xs" title={formatCadFileDisplayName(file.file_name, file.file_type)}>
-                              {formatCadFileDisplayName(file.file_name, file.file_type)}
+                            <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-gray-100 max-w-xs">
+                              {file.files.map(member => <div key={member.id || member.file_name}>
+                                {formatCadFileDisplayName(member.file_name, file.file_type)}
+                                <CadFileStatus file={member} />
+                              </div>)}
                             </td>
                             <td className="px-3 py-2 text-right">
                               <div className="flex items-center justify-end gap-3 flex-wrap">
                                 <button
-                                  onClick={() => onCopyPath(file.file_name, routeType)}
+                                  onClick={() => onCopyPath(file.kind === 'pair' ? file.fileNames : file.fileNames[0], routeType)}
                                   className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                                 >
                                   Copy File Path
                                 </button>
                                 {canWrite() && (
                                   <button
-                                    onClick={() => onOpenRename(file.file_name, routeType)}
-                                    className="btn-action-secondary"
+                                    onClick={() => onOpenRename(file.kind === 'pair' ? file : file.fileNames[0], routeType)}
+                                    disabled={file.files.some(member => member.missing)}
+                                    className="btn-action-secondary disabled:opacity-50"
                                   >
                                     Rename
                                   </button>

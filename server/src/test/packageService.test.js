@@ -86,6 +86,7 @@ describe('packageService promoteAlias', () => {
       'FROM packages WHERE id = $1': { rows: [{ id: 'package-1', short_name: 'TO-236-3' }] },
       'FROM package_aliases': { rows: [{ alias: 'SOT-23-3' }] },
       'FROM packages WHERE lower(short_name)': { rows: [] },
+      'FROM packages p': { rows: [{ ...catalogPackage, short_name: 'SOT-23-3' }] },
     });
     connectMock.mockResolvedValue(client);
     queryMock.mockResolvedValue({ rows: [{ ...catalogPackage, short_name: 'SOT-23-3' }] });

@@ -1,13 +1,13 @@
 import axios from 'axios';
-import { logError } from '../utils/logger.js';
 import { VENDOR_HTTP_TIMEOUT_MS } from '../constants/vendorHttp.js';
 
 const MOUSER_API_BASE = 'https://api.mouser.com/api/v1';
-const API_KEY = process.env.MOUSER_API_KEY;
 
 // Search for a part
 export async function searchPart(partNumber, retryCount = 0) {
   const MAX_RETRIES = 3;
+  const apiKey = process.env.MOUSER_API_KEY;
+  if (!apiKey || apiKey === 'your_mouser_api_key') return { source: 'mouser', error: 'API not configured. Please set MOUSER_API_KEY', results: [] };
   
   try {
     const response = await axios.post(
@@ -24,13 +24,14 @@ export async function searchPart(partNumber, retryCount = 0) {
           'Content-Type': 'application/json',
         },
         params: {
-          apiKey: API_KEY,
+          apiKey,
         },
         timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
       },
     );
 
     const data = response.data.SearchResults;
+    if (!data) return { source: 'mouser', results: [], error: response.data.Errors?.[0]?.Message || 'Mouser returned no search results' };
 
     return {
       source: 'mouser',
@@ -57,7 +58,7 @@ export async function searchPart(partNumber, retryCount = 0) {
             price: parseFloat(price.Price.replace(/[^0-9.]/g, '')),
             currency: price.Currency,
           })),
-          stock: part.Availability ? parseInt(part.Availability.split(' ')[0]) : 0,
+          stock: Number.parseInt(String(part.AvailabilityInStock || part.Availability || '0').replace(/,/g, ''), 10) || 0,
           productUrl: part.ProductDetailUrl,
           leadTime: part.LeadTime,
           lifecycle: part.LifecycleStatus,
@@ -89,36 +90,6 @@ export async function searchPart(partNumber, retryCount = 0) {
       }
     }
     
-    // Return empty results for API errors
-    if (!API_KEY || API_KEY === 'your_mouser_api_key') {
-      return {
-        source: 'mouser',
-        error: 'API not configured. Please set MOUSER_API_KEY',
-        results: [],
-      };
-    }
-    
-    throw error;
-  }
-}
-
-// Get part by Mouser part number
-export async function getPartByMouserPartNumber(mouserPartNumber) {
-  try {
-    const response = await axios.get(
-      `${MOUSER_API_BASE}/search/partnumber`,
-      {
-        params: {
-          apiKey: API_KEY,
-          partNumber: mouserPartNumber,
-        },
-        timeout: VENDOR_HTTP_TIMEOUT_MS, // §V34
-      },
-    );
-
-    return response.data;
-  } catch (error) {
-    logError('Mouser', 'Mouser part details error:', error.message);
     throw error;
   }
 }

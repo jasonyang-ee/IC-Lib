@@ -4,7 +4,13 @@ import pool from '../config/database.js';
 import { logError, logInfo, logWarn } from '../utils/logger.js';
 
 // Encryption key for SMTP password (should be set in environment variables)
-const ENCRYPTION_KEY = process.env.SMTP_ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+const encryptionKey = () => {
+  const value = process.env.SMTP_ENCRYPTION_KEY;
+  if (!value || Buffer.byteLength(value) !== 32) {
+    throw Object.assign(new Error('Set a persistent 32-byte SMTP_ENCRYPTION_KEY before saving or using an SMTP password'), { status: 503 });
+  }
+  return Buffer.from(value);
+};
 const IV_LENGTH = 16;
 const DEFAULT_CONFIG_BASE_URL = 'http://localhost:3000';
 
@@ -439,7 +445,7 @@ export function buildPreviewEmail(templateType = 'system_test') {
 export function encrypt(text) {
   if (!text) return null;
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', encryptionKey(), iv);
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
   return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -454,13 +460,13 @@ export function decrypt(text) {
     const parts = text.split(':');
     const iv = Buffer.from(parts.shift(), 'hex');
     const encryptedText = Buffer.from(parts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', encryptionKey(), iv);
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
     return decrypted.toString();
   } catch (error) {
     logError('EmailService', `Error decrypting: ${error.message}`);
-    return null;
+    throw error;
   }
 }
 
@@ -493,9 +499,10 @@ export async function createTransporter() {
     host: settings.host,
     port: settings.port,
     secure: settings.secure,
-    // Allow self-signed/expired certificates for open relay servers
+    // Unauthenticated internal relays retain their existing self-signed support.
+    // Credential-bearing connections must verify the server certificate.
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: !settings.no_auth,
     },
     // Connection timeout settings
     connectionTimeout: 10000, // 10 seconds
@@ -613,12 +620,13 @@ async function getECONotificationRecipients(notificationType) {
       FROM users u
       LEFT JOIN email_notification_preferences enp ON u.id = enp.user_id
       WHERE u.email IS NOT NULL
+        AND u.is_active = true
         AND u.role <> 'read-only'
         AND enp.${column} = true
     `;
 
     if (notificationType === 'eco_pending_approval') {
-      query += ' AND u.role IN (\'admin\', \'approver\')';
+      query += ' AND u.role IN (\'admin\', \'approver\', \'reviewer\')';
     }
 
     const result = await pool.query(query);
