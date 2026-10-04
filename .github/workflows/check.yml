@@ -126,9 +126,16 @@ jobs:
         with:
           node-version: '25'
           cache: 'npm'
-          cache-dependency-path: './server/package-lock.json'
+          cache-dependency-path: |
+            ./server/package-lock.json
+            ./scripts/package-lock.json
 
       - name: Install dependencies
+        run: npm ci
+
+      # The admin recovery tests import the legacy CSV importer.
+      - name: Install scripts dependencies
+        working-directory: ./scripts
         run: npm ci
 
       - name: Install PostgreSQL 18 binaries

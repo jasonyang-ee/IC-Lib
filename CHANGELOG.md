@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Server CI installs the legacy CSV importer's dependencies before running tests, fixing the admin recovery suite's missing `csv-parse/sync` import.
 - Component file lists show pending-ECO and missing-file tags consistently, format paired footprint names like other views, and offer Retry after load errors. Missing files cannot be renamed.
 - Partial upload saves retain each completed file's database identity and download path; failed discard keeps the draft and remaining upload tokens available for retry. Removed obsolete soft-delete client state, unused component barrels and the unused MPN-based file-link helper.
 - Component saves preserve case-sensitive CAD links and reject ambiguous legacy filename matches. Component create/update rolls back if its response read fails, preventing false failed-save responses after committed writes.
