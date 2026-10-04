@@ -122,6 +122,7 @@ const Projects = () => {
       setSelectedProject(updated);
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
       setShowEditModal(false);
     },
     onError: error => showError(error.response?.data?.error || error.message)
@@ -134,6 +135,7 @@ const Projects = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
       setSelectedProject(null);
       setShowDeleteConfirm(null);
       setShowEditModal(false);
@@ -151,6 +153,7 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
       setShowAddComponentModal(false);
       setComponentSearchTerm('');
       setShowQuantityInput(null);
@@ -166,6 +169,7 @@ const Projects = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
     },
     onError: (error) => {
       showError('Error removing component: ' + (error.response?.data?.error || error.message));
@@ -181,6 +185,7 @@ const Projects = () => {
       setShowQuantityInput(null);
       queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
     },
     onError: (error) => {
       showError('Error updating quantity: ' + (error.response?.data?.error || error.message));
@@ -362,6 +367,7 @@ const Projects = () => {
       // Refresh project data
       queryClient.invalidateQueries({ queryKey: ['project', selectedProject?.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['componentProjects'] });
 
       setBulkImportResults(failedItems);
       if (!failedItems.length) {

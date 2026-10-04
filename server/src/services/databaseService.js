@@ -447,6 +447,7 @@ export const deletePartsAndProjectData = async () => {
 export const deleteLibraryFiles = async () => {
   const config = getDbConfig();
   const client = new Client(config);
+  let transactionStarted = false;
   const results = {
     success: false,
     message: '',
@@ -468,6 +469,7 @@ export const deleteLibraryFiles = async () => {
 
     await client.connect();
     await client.query('BEGIN');
+    transactionStarted = true;
     const tracked = await client.query('SELECT file_type, file_name FROM cad_files');
     const keys = [...new Set([...files, ...tracked.rows].map(file => cadFileLockKey(file.file_type, file.file_name)))].sort();
     // Session locks survive COMMIT until disk cleanup; client.end releases them.
@@ -482,6 +484,7 @@ export const deleteLibraryFiles = async () => {
     await client.query('TRUNCATE TABLE cad_files CASCADE');
     await client.query("UPDATE components SET pcb_footprint = '', schematic = '', step_model = '', pspice = '', pad_file = ''");
     await client.query('COMMIT');
+    transactionStarted = false;
 
     for (const file of files) {
       try {
@@ -496,7 +499,7 @@ export const deleteLibraryFiles = async () => {
       ? `Deleted ${results.deletedFiles} library files and cleared CAD file tracking.`
       : `CAD records cleared; ${results.errors.length} disk files could not be removed. Scan the library to recover their records.`;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (transactionStarted) await client.query('ROLLBACK').catch(() => {});
     results.success = false;
     results.message = `Delete library files failed: ${error.message}`;
     results.errors.push({ general: error.message });

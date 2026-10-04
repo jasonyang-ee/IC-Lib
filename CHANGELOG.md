@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Library clearing reports directory and file-inspection failures without hanging on a rollback before the database transaction starts.
+- Project edits, deletions, component changes, and bulk imports refresh Library project assignments immediately, including cached names, statuses, and quantities.
 - Server CI installs the legacy CSV importer's dependencies before running tests, fixing the admin recovery suite's missing `csv-parse/sync` import.
 - Component file lists show pending-ECO and missing-file tags consistently, format paired footprint names like other views, and offer Retry after load errors. Missing files cannot be renamed.
 - Partial upload saves retain each completed file's database identity and download path; failed discard keeps the draft and remaining upload tokens available for retry. Removed obsolete soft-delete client state, unused component barrels and the unused MPN-based file-link helper.

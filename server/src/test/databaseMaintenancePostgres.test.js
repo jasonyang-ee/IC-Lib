@@ -6,13 +6,25 @@ import path from 'path';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const faults = vi.hoisted(() => ({ settings: false, library: false, unlinked: [] }));
+const faults = vi.hoisted(() => ({ settings: false, library: false, scanError: null, unlinked: [] }));
 vi.mock('fs', async importOriginal => {
   const actual = await importOriginal();
   return { ...actual,
-    readdirSync: (...args) => faults.library && String(args[0]).endsWith('library/symbol') ? ['keep.olb'] : actual.readdirSync(...args),
+    readdirSync: (...args) => {
+      if (faults.library && String(args[0]).endsWith('library/symbol')) {
+        if (faults.scanError?.operation === 'readdirSync') throw faults.scanError.error;
+        return ['keep.olb'];
+      }
+      return actual.readdirSync(...args);
+    },
     existsSync: (...args) => faults.library && String(args[0]).includes('/library/') ? String(args[0]).endsWith('library/symbol') : actual.existsSync(...args),
-    statSync: (...args) => faults.library && String(args[0]).endsWith('keep.olb') ? { isFile: () => true } : actual.statSync(...args),
+    statSync: (...args) => {
+      if (faults.library && String(args[0]).endsWith('keep.olb')) {
+        if (faults.scanError?.operation === 'statSync') throw faults.scanError.error;
+        return { isFile: () => true };
+      }
+      return actual.statSync(...args);
+    },
     unlinkSync: file => { if (!faults.library) throw new Error('No live library deletion allowed'); faults.unlinked.push(file); },
     readFileSync: (...args) => {
     if (faults.settings && String(args[0]).endsWith('init-settings.sql')) return 'SELECT missing_reset_fixture_function()';
@@ -64,9 +76,28 @@ describe('Database maintenance on scratch PostgreSQL', () => {
   beforeEach(async () => {
     faults.settings = false;
     faults.library = false;
+    faults.scanError = null;
     faults.unlinked = [];
     await database.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
   });
+  it.each([
+    ['readdirSync', 'EACCES: library directory is unreadable'],
+    ['statSync', 'ENOENT: file disappeared after directory listing'],
+  ])('returns the %s failure without waiting for an unconnected database client', async (operation, message) => {
+    faults.library = true;
+    faults.scanError = { operation, error: new Error(message) };
+
+    const result = await deleteLibraryFiles();
+
+    expect(result).toEqual({
+      success: false,
+      message: `Delete library files failed: ${message}`,
+      deletedFiles: 0,
+      errors: [{ general: message }],
+    });
+    expect(faults.unlinked).toEqual([]);
+  }, 1000);
+
   it('does not delete physical files when clearing their records fails', async () => {
     await database.query(`CREATE TABLE cad_files (id INTEGER, file_type TEXT, file_name TEXT);
       INSERT INTO cad_files VALUES (1, 'symbol', 'keep.olb');
