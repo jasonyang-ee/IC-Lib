@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 
+
+### Changed
+
+- 
+
+### Fixed
+
+- 
+
+## [1.12.0] - 2026-10-04
+
 ### Changed
 
 - New ECO submissions are blocked while any affected part already belongs to a pending or in-review ECO, including shared file renames.
