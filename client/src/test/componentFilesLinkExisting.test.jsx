@@ -8,7 +8,7 @@ const { api, notifications } = vi.hoisted(() => ({
   api: {
     listComponentFiles: vi.fn(), getAvailableFiles: vi.fn(), linkFileToComponent: vi.fn(),
     deleteComponentFile: vi.fn(), cleanupTempFiles: vi.fn(), uploadTempFiles: vi.fn(),
-    getFileExportUrl: vi.fn(() => '/export'), getFileDownloadUrl: vi.fn(() => '/download'),
+    getFileExportUrl: vi.fn(() => '/export'), getFileDownloadUrl: vi.fn((_category, _part, name, temp) => `/download/${temp || name}`),
   },
   notifications: { showSuccess: vi.fn(), showError: vi.fn() },
 }));
@@ -84,6 +84,46 @@ describe('ComponentFiles rendered selection orchestration', () => {
     ] } });
   });
 
+  it('shows independent record tags on footprint pairs and disables missing-file renames', async () => {
+    serverFiles = { footprint: [
+      { id: 'psm', name: 'part.psm', size: 1, pending_eco: true },
+      { id: 'dra', name: 'part.dra', size: 0, missing: true, pending_eco: true },
+    ] };
+    await renderSelection('direct');
+    expect(await screen.findByText('PART.psm')).toBeInTheDocument();
+    expect(screen.getByText('PART.dra')).toBeInTheDocument();
+    expect(screen.getAllByText('Pending ECO')).toHaveLength(2);
+    expect(screen.getByText('Missing file')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename', exact: true })).not.toBeInTheDocument();
+  });
+
+  it('uses persisted identity after one upload is finalized while the draft stays open', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const onCadSelectionChange = vi.fn();
+    const view = (finalizedCadUploads) => <QueryClientProvider client={queryClient}>
+      <ComponentFiles mfgPartNumber="PART" componentId="component" canEdit ecoMode
+        onCadSelectionChange={onCadSelectionChange} finalizedCadUploads={finalizedCadUploads} />
+    </QueryClientProvider>;
+    const { rerender } = render(view());
+    fireEvent.drop(await screen.findByText('Drag and drop files here, or click to browse'), {
+      dataTransfer: { files: [new File(['model'], 'old.step')] },
+    });
+    expect(await screen.findByRole('link', { name: 'old.step' })).toHaveAttribute('href', '/download/temp-old.step');
+    rerender(view({ 'temp-old.step': { cadFileId: 'saved-model', filename: 'old.step', type: 'model' } }));
+    await waitFor(() => expect(screen.getByRole('link', { name: 'old.step' })).toHaveAttribute('href', '/download/old.step'));
+    expect(onCadSelectionChange).toHaveBeenLastCalledWith([{ id: 'saved-model', file_type: 'model', file_name: 'old.step' }]);
+    expect(screen.queryByRole('button', { name: 'Rename', exact: true })).not.toBeInTheDocument();
+  });
+
+  it('offers retry when persisted file records cannot be loaded', async () => {
+    api.listComponentFiles.mockRejectedValueOnce(new Error('Disconnected'));
+    await renderSelection('direct');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load CAD files');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(api.listComponentFiles).toHaveBeenCalledTimes(2);
+  });
+
   it('stages explicit ambiguous pad/model choices exactly once without live ECO writes', async () => {
     const utils = await renderSelection('eco');
     await selectPair();
@@ -150,7 +190,7 @@ describe('ComponentFiles rendered selection orchestration', () => {
     for (const variant of ['A', 'B', 'C']) {
       await selectPair({ name: `PART_${variant}` });
     }
-    await screen.findByTitle('part_c.psm');
+    await screen.findByTitle('PART_C.psm');
     utils.onCadFileRemoved.mockClear();
     fireEvent.click(screen.getAllByTitle('Delete file')[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));

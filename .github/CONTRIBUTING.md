@@ -15,7 +15,7 @@
 ### Lint and Unit Test
 
 ```bash
-./check.sh
+bash ./test.sh
 ```
 
 ### Commit Style

@@ -629,6 +629,7 @@ export async function listFiles(req, res) {
                   size: fs.statSync(flatPath).size,
                   storage: 'flat',
                   missing: Boolean(row.missing),
+                  pending_eco: Boolean(row.pending_eco),
                 });
               } else {
                 // File is missing from disk — include with missing flag
@@ -640,6 +641,7 @@ export async function listFiles(req, res) {
                   size: 0,
                   storage: 'flat',
                   missing: true,
+                  pending_eco: Boolean(row.pending_eco),
                 });
               }
             }

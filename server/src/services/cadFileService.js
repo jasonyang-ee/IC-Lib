@@ -184,22 +184,6 @@ export async function linkCadFileToComponent(cadFileId, componentId, fileType, f
 }
 
 /**
- * Link a CAD file to a component by manufacturer part number.
- * Used during file upload when we only have the MPN.
- */
-export async function linkCadFileToComponentByMPN(cadFileId, mfgPartNumber, fileType, fileName, db = pool) {
-  const compResult = await db.query(`
-    SELECT id FROM components WHERE manufacturer_pn = $1
-  `, [mfgPartNumber]);
-
-  if (compResult.rows.length === 0) return null;
-
-  const componentId = compResult.rows[0].id;
-  await linkCadFileToComponent(cadFileId, componentId, fileType, fileName, db);
-  return componentId;
-}
-
-/**
  * Unlink a CAD file from a component.
  * Removes junction record and regenerates TEXT column.
  */
@@ -1108,18 +1092,21 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool, opt
     WHERE ccf.component_id = $1
   `, [componentId]);
 
-  // Build desired base names per file type (lowercase for case-insensitive matching)
+  // Footprints are case-insensitive groups; other files retain their stored identity.
+  const baseKey = (name, fileType) => fileType === 'footprint' ? name.toLowerCase() : name;
+
+  // Build desired base names per file type.
   const desiredBaseNames = {};
   for (const [column, fileType] of Object.entries(columnToFileType)) {
     const names = cadData[column] || [];
     desiredBaseNames[fileType] = new Set(
-      (Array.isArray(names) ? names : []).filter(n => n && typeof n === 'string').map(n => n.toLowerCase()),
+      (Array.isArray(names) ? names : []).filter(n => n && typeof n === 'string').map(n => baseKey(n, fileType)),
     );
   }
 
   // Remove junction records where the base name is no longer desired for that file type
   for (const row of currentLinks.rows) {
-    const baseName = row.file_name.replace(/\.[^.]+$/, '').toLowerCase();
+    const baseName = baseKey(row.file_name.replace(/\.[^.]+$/, ''), row.file_type);
     const desired = desiredBaseNames[row.file_type];
     if (desired && !desired.has(baseName)) {
       await db.query('DELETE FROM component_cad_files WHERE id = $1', [row.id]);
@@ -1129,7 +1116,7 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool, opt
   // Build set of already-linked base names per file type
   const linkedBaseNames = {};
   for (const row of currentLinks.rows) {
-    const baseName = row.file_name.replace(/\.[^.]+$/, '').toLowerCase();
+    const baseName = baseKey(row.file_name.replace(/\.[^.]+$/, ''), row.file_type);
     const desired = desiredBaseNames[row.file_type];
     // Only count as linked if it survived the deletion above
     if (desired && desired.has(baseName)) {
@@ -1146,16 +1133,26 @@ export async function syncComponentCadFiles(componentId, cadData, db = pool, opt
 
     for (const baseName of arr) {
       if (!baseName || typeof baseName !== 'string') continue;
-      if (alreadyLinked.has(baseName)) continue;
+      if (alreadyLinked.has(baseKey(baseName, fileType))) continue;
 
       // Find ALL existing cad_files by base name pattern match (case-insensitive).
       // This keeps footprint pairs linked together for either .psm/.dra or .bsm/.dra.
       const matches = await db.query(`
-        SELECT id FROM cad_files
+        SELECT id, file_name FROM cad_files
         WHERE file_type = $1 AND LOWER(regexp_replace(file_name, '\\.[^.]+$', '')) = LOWER($2)
       `, [fileType, baseName]);
 
-      for (const match of matches.rows) {
+      let filesToLink = matches.rows;
+      if (fileType !== 'footprint') {
+        const exact = filesToLink.filter(file => file.file_name.replace(/\.[^.]+$/, '') === baseName);
+        if (exact.length) filesToLink = exact;
+        else if (new Set(filesToLink.map(file => file.file_name.replace(/\.[^.]+$/, ''))).size > 1) {
+          const error = new Error(`Multiple ${fileType} files match "${baseName}". Select the exact file from the CAD picker.`);
+          error.status = 409;
+          throw error;
+        }
+      }
+      for (const match of filesToLink) {
         await db.query(`
           INSERT INTO component_cad_files (component_id, cad_file_id)
           VALUES ($1, $2)
@@ -1208,7 +1205,8 @@ export async function getComponentsWithCadFiles(categoryId = null) {
  */
 export async function getComponentCadFilesByMPN(mfgPartNumber, fileType, componentId = null) {
   const result = await pool.query(`
-    SELECT cf.id, cf.file_name, cf.file_type, cf.missing
+    SELECT cf.id, cf.file_name, cf.file_type, cf.missing,
+      (${CAD_FILE_ACTIVE_ECO_SQL}) AS pending_eco
     FROM component_cad_files ccf
     JOIN cad_files cf ON ccf.cad_file_id = cf.id
     JOIN components c ON ccf.component_id = c.id
@@ -1244,7 +1242,6 @@ export default {
   regenerateAllCadText,
   registerCadFile,
   linkCadFileToComponent,
-  linkCadFileToComponentByMPN,
   unlinkCadFileFromComponent,
   lockDirectCadComponent,
   getCadFilesByType,

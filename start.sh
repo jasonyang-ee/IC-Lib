@@ -73,12 +73,17 @@ if [ "$MODE" = "development" ]; then
         cd client && npm install && cd ..
     fi
 
-    # Cleanup function
+    # Put each npm launcher and its shell/Node children in their own job group.
+    # Stopping just npm leaves the actual dev servers holding their ports.
+    set -m
+
     cleanup() {
         echo ""
         echo "Shutting down..."
-        [ ! -z "$BACKEND_PID" ] && kill $BACKEND_PID 2>/dev/null || true
-        [ ! -z "$FRONTEND_PID" ] && kill $FRONTEND_PID 2>/dev/null || true
+        [ -n "$BACKEND_PID" ] && kill -- "-$BACKEND_PID" 2>/dev/null || true
+        [ -n "$FRONTEND_PID" ] && kill -- "-$FRONTEND_PID" 2>/dev/null || true
+        [ -n "$BACKEND_PID" ] && wait "$BACKEND_PID" 2>/dev/null || true
+        [ -n "$FRONTEND_PID" ] && wait "$FRONTEND_PID" 2>/dev/null || true
         echo "Stopped."
     }
 

@@ -68,9 +68,6 @@ export const validateScimConfiguration = () => {
   return { enabled: errors.length === 0, errors };
 };
 
-/** Local `users.id` values are UUIDs; anything else can never name a row. */
-export const isUuid = value => Boolean(canonicalizeScimGuid(value));
-
 /**
  * §V60: the SCIM representation of a linked user. `id` is the retained local
  * `users.id` and `externalId` is the immutable Entra `objectId` - the sole

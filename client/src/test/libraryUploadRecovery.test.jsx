@@ -110,6 +110,23 @@ describe('Library upload failure recovery', () => {
     ], componentId: component.id });
   });
 
+  it.each(['add', 'edit'])('keeps the %s draft and upload tokens when discard fails', async mode => {
+    if (mode === 'edit') await edit();
+    else {
+      mount();
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Component' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Stage uploads' }));
+    }
+    mocks.api.cleanupTempFiles.mockRejectedValueOnce(new Error('Disconnected'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(mocks.showError).toHaveBeenCalledWith(expect.stringContaining('Unable to discard uploaded files')));
+    expect(screen.getByRole('button', { name: 'Stage uploads' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Stage uploads' })).not.toBeInTheDocument());
+    expect(mocks.api.cleanupTempFiles).toHaveBeenCalledTimes(2);
+    expect(mocks.api.cleanupTempFiles.mock.calls[1]).toEqual(mocks.api.cleanupTempFiles.mock.calls[0]);
+  });
+
   it('cancels only the remaining staged uploads after a partial batch', async () => {
     await edit();
     fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));

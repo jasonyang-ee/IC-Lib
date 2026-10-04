@@ -23,6 +23,58 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # -----------------------------------------------------------------------------
+# Parse Arguments
+# -----------------------------------------------------------------------------
+
+FORCE_TYPE=""
+SKIP_CONFIRM=false
+
+for arg in "$@"; do
+    case $arg in
+        --major)
+            FORCE_TYPE="major"
+            ;;
+        --minor)
+            FORCE_TYPE="minor"
+            ;;
+        --patch)
+            FORCE_TYPE="patch"
+            ;;
+        --yes|-y)
+            SKIP_CONFIRM=true
+            ;;
+        --help|-h)
+            echo -e "${BOLD}IC-Lib Release Script${NC}"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --major       Force a major release (x.0.0)"
+            echo "  --minor       Force a minor release (x.y.0)"
+            echo "  --patch       Force a patch release (x.y.z)"
+            echo "  --yes, -y     Skip confirmation prompts"
+            echo "  --help, -h    Show this help message"
+            echo ""
+            echo "If no type is specified, the script will auto-detect based on commits:"
+            echo "  - 'feat:' commits → minor release"
+            echo "  - 'fix:' commits → patch release"
+            echo "  - 'feat!:', 'fix!:' or 'BREAKING CHANGE:' → major release"
+            echo ""
+            echo "Examples:"
+            echo "  $0              # Auto-detect release type"
+            echo "  $0 --patch      # Force patch release"
+            echo "  $0 --minor -y   # Force minor release, skip confirmation"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $arg${NC}"
+            echo "Run '$0 --help' for usage information."
+            exit 1
+            ;;
+    esac
+done
+
+# -----------------------------------------------------------------------------
 # Pre-flight Checks
 # -----------------------------------------------------------------------------
 
@@ -51,10 +103,12 @@ fi
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 if [ "$CURRENT_BRANCH" != "main" ]; then
     echo -e "${YELLOW}Warning: You are on branch '$CURRENT_BRANCH', not 'main'.${NC}"
-    read -p "Do you want to continue anyway? (y/n) " CONTINUE
-    if [[ "$CONTINUE" != "y" ]]; then
-        echo "Release process canceled."
-        exit 1
+    if [ "$SKIP_CONFIRM" != true ]; then
+        read -p "Do you want to continue anyway? (y/n) " CONTINUE
+        if [[ "$CONTINUE" != "y" ]]; then
+            echo "Release process canceled."
+            exit 1
+        fi
     fi
 fi
 
@@ -62,10 +116,12 @@ fi
 if ! git diff-index --quiet HEAD --; then
     echo -e "${YELLOW}Warning: You have uncommitted changes.${NC}"
     git status --short
-    read -p "Do you want to continue anyway? (y/n) " CONTINUE
-    if [[ "$CONTINUE" != "y" ]]; then
-        echo "Release process canceled. Please commit or stash your changes."
-        exit 1
+    if [ "$SKIP_CONFIRM" != true ]; then
+        read -p "Do you want to continue anyway? (y/n) " CONTINUE
+        if [[ "$CONTINUE" != "y" ]]; then
+            echo "Release process canceled. Please commit or stash your changes."
+            exit 1
+        fi
     fi
 fi
 
@@ -111,62 +167,9 @@ increment_version() {
 
 # Extract changelog content for the latest release
 extract_changelog() {
-    local version=$1
     # Extract content between the first and second version headers
     awk '/^## \[?v?[0-9]/ { if (found) exit; found=1; next } found' CHANGELOG.md
 }
-
-# -----------------------------------------------------------------------------
-# Parse Arguments
-# -----------------------------------------------------------------------------
-
-FORCE_TYPE=""
-SKIP_CONFIRM=false
-
-for arg in "$@"; do
-    case $arg in
-        --major)
-            FORCE_TYPE="major"
-            ;;
-        --minor)
-            FORCE_TYPE="minor"
-            ;;
-        --patch)
-            FORCE_TYPE="patch"
-            ;;
-        --yes|-y)
-            SKIP_CONFIRM=true
-            ;;
-        --help|-h)
-            echo -e "${BOLD}IC-Lib Release Script${NC}"
-            echo ""
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  --major       Force a major release (x.0.0)"
-            echo "  --minor       Force a minor release (x.y.0)"
-            echo "  --patch       Force a patch release (x.y.z)"
-            echo "  --yes, -y     Skip confirmation prompts"
-            echo "  --help, -h    Show this help message"
-            echo ""
-            echo "If no type is specified, the script will auto-detect based on commits:"
-            echo "  - 'feat:' commits → minor release"
-            echo "  - 'fix:' commits → patch release"
-            echo "  - 'BREAKING CHANGE:' → major release"
-            echo ""
-            echo "Examples:"
-            echo "  $0              # Auto-detect release type"
-            echo "  $0 --patch      # Force patch release"
-            echo "  $0 --minor -y   # Force minor release, skip confirmation"
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}Unknown option: $arg${NC}"
-            echo "Run '$0 --help' for usage information."
-            exit 1
-            ;;
-    esac
-done
 
 # -----------------------------------------------------------------------------
 # Determine Release Type
@@ -189,7 +192,7 @@ else
         echo -e "${BLUE}Latest tag: ${BOLD}$LATEST_TAG${NC}"
         
         # Check commit messages since last tag
-        COMMITS_SINCE_TAG=$(git log "$LATEST_TAG"..HEAD --oneline 2>/dev/null || echo "")
+        COMMITS_SINCE_TAG=$(git log "$LATEST_TAG"..HEAD --format=%B)
         
         if [ -z "$COMMITS_SINCE_TAG" ]; then
             echo -e "${YELLOW}No commits since last tag. Nothing to release.${NC}"
@@ -197,11 +200,11 @@ else
         fi
         
         # Auto-detect release type
-        if echo "$COMMITS_SINCE_TAG" | grep -qi "BREAKING CHANGE\|breaking:"; then
+        if echo "$COMMITS_SINCE_TAG" | grep -Eqi '^([[:alnum:]_-]+(\([^)]*\))?!:|BREAKING[ -]CHANGE:|breaking:)'; then
             RELEASE_TYPE="major"
-        elif echo "$COMMITS_SINCE_TAG" | grep -qi "^[a-f0-9]* feat"; then
+        elif echo "$COMMITS_SINCE_TAG" | grep -Eqi '^feat(\([^)]*\))?:'; then
             RELEASE_TYPE="minor"
-        elif echo "$COMMITS_SINCE_TAG" | grep -qi "^[a-f0-9]* fix"; then
+        elif echo "$COMMITS_SINCE_TAG" | grep -Eqi '^fix(\([^)]*\))?:'; then
             RELEASE_TYPE="patch"
         else
             echo -e "${YELLOW}No conventional commits found (feat:/fix:). Defaulting to patch.${NC}"
@@ -237,35 +240,20 @@ echo -e "${BOLD}Starting release process...${NC}"
 
 echo -e "${BLUE}Updating version in package.json files...${NC}"
 
-# Update root package.json if exists
-if [ -f package.json ]; then
-    npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
-    git add package.json package-lock.json 2>/dev/null || true
-fi
-
-# Update client/package.json if exists
-if [ -f client/package.json ]; then
-    cd client
-    npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
-    cd ..
-    git add client/package.json client/package-lock.json 2>/dev/null || true
-fi
-
-# Update server/package.json if exists
-if [ -f server/package.json ]; then
-    cd server
-    npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
-    cd ..
-    git add server/package.json server/package-lock.json 2>/dev/null || true
-fi
-
-# Update scripts/package.json if exists
-if [ -f scripts/package.json ]; then
-    cd scripts
-    npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version 2>/dev/null || true
-    cd ..
-    git add scripts/package.json scripts/package-lock.json 2>/dev/null || true
-fi
+# A missing optional lockfile must not prevent staging its manifest, and a
+# failed version update must stop before creating a release commit or tag.
+for package_dir in . client server scripts; do
+    if [ -f "$package_dir/package.json" ]; then
+        (
+            cd "$package_dir"
+            npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
+        )
+        git add -- "$package_dir/package.json"
+        if [ -f "$package_dir/package-lock.json" ]; then
+            git add -- "$package_dir/package-lock.json"
+        fi
+    fi
+done
 
 # -----------------------------------------------------------------------------
 # Update CHANGELOG.md
@@ -328,7 +316,7 @@ git push --tags
 echo -e "${BLUE}Creating GitHub release...${NC}"
 
 # Extract changelog for this release
-CHANGELOG_CONTENT=$(extract_changelog "$NEW_VERSION")
+CHANGELOG_CONTENT=$(extract_changelog)
 
 if [ -z "$CHANGELOG_CONTENT" ]; then
     CHANGELOG_CONTENT="Release v$NEW_VERSION"

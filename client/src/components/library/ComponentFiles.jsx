@@ -1,3 +1,4 @@
+import CadFileStatus from '../common/CadFileStatus';
 import { invalidateCadQueries } from '../../utils/cadQueries';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -278,7 +279,7 @@ function applyLocalUploadRename(file, renameData) {
  * Component file upload and listing section
  * Shows below distributor info in component detail view
  */
-const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, ecoMode = false, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onFileSoftDeleted, onTempFileRemoved, onCadFileAdded, onCadFileRemoved, onCadFileRenamed, onCadSelectionChange }) => {
+const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = false, showRename = true, showDelete = true, ecoMode = false, onFileUploaded, onFileRenamed, onFileDeleted, onTempFileStaged, onTempFileRemoved, onCadFileAdded, onCadFileRemoved, onCadFileRenamed, onCadSelectionChange, finalizedCadUploads }) => {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotification();
   const [isDragging, setIsDragging] = useState(false);
@@ -295,6 +296,23 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   const [stagedRemovals, setStagedRemovals] = useState({});
   const [olbAssignment, setOlbAssignment] = useState({ show: false, files: [] });
   const [olbAssignmentPending, setOlbAssignmentPending] = useState(false);
+
+  useEffect(() => {
+    if (!finalizedCadUploads) return;
+    setLocalUploads(current => {
+      let changed = false;
+      const updated = Object.fromEntries(Object.entries(current).map(([category, entries]) => [
+        category, entries.map(file => {
+          const finalized = finalizedCadUploads[file.tempFilename];
+          if (!finalized) return file;
+          changed = true;
+          return { ...file, id: finalized.cadFileId, name: finalized.filename,
+            file_type: finalized.type || category, storage: 'flat', tempFilename: undefined };
+        }),
+      ]));
+      return changed ? updated : current;
+    });
+  }, [finalizedCadUploads]);
 
   const removeLocalUpload = (category, filename) => {
     setLocalUploads(prev => {
@@ -391,7 +409,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   }, [mergeLocalUploads, notifyCadFileAdded, onFileUploaded, onTempFileStaged]);
 
   // Fetch existing files
-  const { data: filesData, isLoading } = useQuery({
+  const { data: filesData, isLoading, error: filesError, refetch: refetchFiles } = useQuery({
     queryKey: ['componentFiles', componentId],
     queryFn: async () => {
       const response = await api.listComponentFiles(mfgPartNumber, componentId);
@@ -474,16 +492,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         : [{ category: variables.category, filename: variables.filename }];
       invalidateCadQueries(queryClient);
 
-      if (data.unlinked) {
-        showSuccess(removedFiles.length > 1 ? 'Footprint group removed from part' : 'File removed from part');
-      } else if (data.softDeleted) {
-        showSuccess('File moved to trash');
-        if (onFileSoftDeleted) {
-          onFileSoftDeleted({ tempFilename: data.tempFilename, category: variables.category, filename: variables.filename });
-        }
-      } else {
-        showSuccess('File deleted');
-      }
+      showSuccess(removedFiles.length > 1 ? 'Footprint group removed from part' : 'File removed from part');
 
       // Remove from local uploads cache
       setLocalUploads(prev => {
@@ -961,7 +970,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
   };
 
   const canRenameCadFile = (category, file, pairedFile = null) => {
-    if (!showRename || !mfgPartNumber || !RENAMEABLE_CATEGORIES.includes(category)) {
+    if (!showRename || !mfgPartNumber || file?.missing || pairedFile?.missing || !RENAMEABLE_CATEGORIES.includes(category)) {
       return false;
     }
 
@@ -1033,14 +1042,7 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
         notifyCadFileRemoved(fileConflict.category, fileConflict.existingFile);
       } else {
         // Delete/unlink the existing file
-        const deleteResponse = await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile, componentId);
-        const deleteData = deleteResponse.data;
-
-        // Track soft-delete for restore-on-cancel
-        if (deleteData.softDeleted && onFileSoftDeleted) {
-          onFileSoftDeleted({ tempFilename: deleteData.tempFilename, category: fileConflict.category, filename: fileConflict.existingFile });
-        }
-
+        await api.deleteComponentFile(fileConflict.category, mfgPartNumber, fileConflict.existingFile, componentId);
         // Remove old file from localUploads
         removeLocalUpload(fileConflict.category, fileConflict.existingFile);
         stageRemoval(fileConflict.category, fileConflict.existingFile);
@@ -1165,7 +1167,10 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
       </div>
 
       {/* File listing */}
-      {isLoading && mfgPartNumber ? (
+      {filesError && <div role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
+        Unable to load CAD files. <button type="button" className="underline" onClick={() => refetchFiles()}>Retry</button>
+      </div>}
+      {isLoading && componentId ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">Loading files...</p>
       ) : hasFiles ? (
         <div className="space-y-2 mb-3">
@@ -1221,9 +1226,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                           {/* Primary footprint file line */}
                           <div className="flex items-start justify-between gap-2 py-1 px-2">
                             {primary.missing ? (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={primary.name}>
-                                {primary.name}
-                                <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(primary.name, category)}>
+                                {formatCadFileDisplayName(primary.name, category)}
                               </span>
                             ) : mfgPartNumber ? (
                               <a
@@ -1231,13 +1235,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                                title={primary.name}
+                                title={formatCadFileDisplayName(primary.name, category)}
                               >
-                                {primary.name}
+                                {formatCadFileDisplayName(primary.name, category)}
                               </a>
                             ) : (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={primary.name}>{primary.name}</span>
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(primary.name, category)}>{formatCadFileDisplayName(primary.name, category)}</span>
                             )}
+                            <CadFileStatus file={primary} />
                             {!primary.missing && (
                               <span className="text-gray-400 dark:text-gray-500 shrink-0">
                                 {primary.size < 1024 ? `${primary.size} B` : primary.size < 1024 * 1024 ? `${(primary.size / 1024).toFixed(1)} KB` : `${(primary.size / (1024 * 1024)).toFixed(1)} MB`}
@@ -1263,9 +1268,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                           {/* .dra file line */}
                           <div className="flex items-start justify-between gap-2 py-1 px-2 border-t border-gray-200 dark:border-[#444]">
                             {dra.missing ? (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={dra.name}>
-                                {dra.name}
-                                <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(dra.name, category)}>
+                                {formatCadFileDisplayName(dra.name, category)}
                               </span>
                             ) : mfgPartNumber ? (
                               <a
@@ -1273,13 +1277,14 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                                title={dra.name}
+                                title={formatCadFileDisplayName(dra.name, category)}
                               >
-                                {dra.name}
+                                {formatCadFileDisplayName(dra.name, category)}
                               </a>
                             ) : (
-                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={dra.name}>{dra.name}</span>
+                              <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(dra.name, category)}>{formatCadFileDisplayName(dra.name, category)}</span>
                             )}
+                            <CadFileStatus file={dra} />
                             {!dra.missing && (
                               <span className="text-gray-400 dark:text-gray-500 shrink-0">
                                 {dra.size < 1024 ? `${dra.size} B` : dra.size < 1024 * 1024 ? `${(dra.size / 1024).toFixed(1)} KB` : `${(dra.size / (1024 * 1024)).toFixed(1)} MB`}
@@ -1336,9 +1341,8 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                     /* Normal file row */
                     <div className="flex items-start justify-between gap-2 py-1 px-2 rounded text-xs bg-gray-50 dark:bg-[#333333]">
                       {file.missing ? (
-                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name)}>
-                          {formatCadFileDisplayName(file.name)}
-                          <span className="text-red-600 dark:text-red-400 font-semibold ml-1.5">Missing</span>
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name, category)}>
+                          {formatCadFileDisplayName(file.name, category)}
                         </span>
                       ) : mfgPartNumber ? (
                         <a
@@ -1346,15 +1350,16 @@ const ComponentFiles = ({ mfgPartNumber, componentId, packageSize, canEdit = fal
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 dark:text-blue-400 hover:underline break-all flex-1"
-                          title={formatCadFileDisplayName(file.name)}
+                          title={formatCadFileDisplayName(file.name, category)}
                         >
-                          {formatCadFileDisplayName(file.name)}
+                          {formatCadFileDisplayName(file.name, category)}
                         </a>
                       ) : (
-                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name)}>
-                          {formatCadFileDisplayName(file.name)}
+                        <span className="text-gray-700 dark:text-gray-300 break-all flex-1" title={formatCadFileDisplayName(file.name, category)}>
+                          {formatCadFileDisplayName(file.name, category)}
                         </span>
                       )}
+                      <CadFileStatus file={file} />
                       {!file.missing && (
                         <span className="text-gray-400 dark:text-gray-500 shrink-0">
                           {file.size < 1024 ? `${file.size} B` : file.size < 1024 * 1024 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}

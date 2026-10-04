@@ -13,6 +13,9 @@ import { useNotification } from '../../contexts/NotificationContext';
 // Approval Stages Settings Component
 const ApprovalStagesSettings = () => {
   const queryClient = useQueryClient();
+  const refreshStages = () => {
+    for (const key of ['approvalStages', 'ecos', 'eco']) queryClient.invalidateQueries({ queryKey: [key] });
+  };
   const { showSuccess, showError } = useNotification();
   const [isAdding, setIsAdding] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
@@ -49,7 +52,7 @@ const ApprovalStagesSettings = () => {
   const createMutation = useMutation({
     mutationFn: (data) => api.createApprovalStage(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
       setIsAdding(false);
       setNewStage({ stage_name: '', required_approvals: 1, required_role: 'approver', pipeline_types: [...DEFAULT_STAGE_PIPELINE_TYPES] });
       showSuccess('Approval stage created.');
@@ -63,7 +66,7 @@ const ApprovalStagesSettings = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => api.updateApprovalStage(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
       setEditingStage(null);
       showSuccess('Approval stage updated.');
     },
@@ -76,7 +79,7 @@ const ApprovalStagesSettings = () => {
   const deleteMutation = useMutation({
     mutationFn: (id) => api.deleteApprovalStage(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
       setDeleteConfirm(null);
       showSuccess('Approval stage deleted.');
     },
@@ -89,7 +92,7 @@ const ApprovalStagesSettings = () => {
   const reorderMutation = useMutation({
     mutationFn: (data) => api.reorderApprovalStages(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
     },
     onError: (error) => {
       showError(error.response?.data?.error || 'Failed to reorder stages.');
@@ -100,7 +103,7 @@ const ApprovalStagesSettings = () => {
   const setApproversMutation = useMutation({
     mutationFn: ({ stageId, userIds }) => api.setStageApprovers(stageId, userIds),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
       showSuccess('Stage approvers updated.');
     },
     onError: (error) => {
@@ -139,7 +142,7 @@ const ApprovalStagesSettings = () => {
   const importMutation = useMutation({
     mutationFn: (stagesToImport) => api.importApprovalStages(stagesToImport),
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['approvalStages'] });
+      refreshStages();
       setEditingStage(null);
       setManagingApprovers(null);
       setDeleteConfirm(null);

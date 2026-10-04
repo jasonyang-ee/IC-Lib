@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../utils/cadQueries';
 import { startTransition, useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -132,6 +133,7 @@ const Library = () => {
     try {
       await save();
     } finally {
+      invalidateCadQueries(queryClient);
       saveInProgress.current = false;
       setIsSaving(false);
     }
@@ -161,6 +163,7 @@ const Library = () => {
 
   // Temp file tracking for buffered uploads (finalize on save, cleanup on cancel)
   const [tempFiles, setTempFiles] = useState([]);
+  const [finalizedCadUploads, setFinalizedCadUploads] = useState({});
   const [selectedCadFilesForCreate, setSelectedCadFilesForCreate] = useState([]);
 
   // File conflict modal state (save-time collision resolution)
@@ -169,8 +172,7 @@ const Library = () => {
   const createdDraftRef = useRef(null);
   const resolvedConflicts = useRef(null); // Pre-resolved conflict resolutions from modal
 
-  // Soft-deleted file tracking (confirm-delete on save, restore on cancel)
-  const [deletedFiles, setDeletedFiles] = useState([]);
+  // CAD additions staged for the current ECO.
   const [ecoCadStagedFiles, setEcoCadStagedFiles] = useState([]);
   
   // Sub-category suggestions and dropdown states
@@ -225,16 +227,18 @@ const Library = () => {
     });
   };
 
-  const restoreSoftDeletedFiles = async (mfgPartNumber) => {
-    if (deletedFiles.length === 0) return;
-
-    await api.restoreDeletedFiles(deletedFiles.map(file => ({
-      tempFilename: file.tempFilename,
-      category: file.category,
-      filename: file.filename,
-      mfgPartNumber,
-    })));
-    setDeletedFiles([]);
+  const discardTempUploads = async () => {
+    try {
+      if (tempFiles.length) {
+        await api.cleanupTempFiles({ tempFilenames: tempFiles.map(file => file.tempFilename) });
+      }
+      setTempFiles([]);
+      setFinalizedCadUploads({});
+      return true;
+    } catch (error) {
+      showError(`Unable to discard uploaded files. Retry Cancel. ${error.response?.data?.error || error.message}`);
+      return false;
+    }
   };
 
   const finalizeEcoCadUploads = async () => {
@@ -472,8 +476,7 @@ const Library = () => {
       }));
       
       // Invalidate queries to refresh data
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+      invalidateCadQueries(queryClient);
     } catch (error) {
       console.error('Error updating approval status:', error);
       setWarningModal({ 
@@ -640,10 +643,10 @@ const Library = () => {
     if (selectedComponent && (location.state?.refreshDistributors || location.state?.refreshAlternatives)) {
       // Invalidate queries to force refetch
       if (location.state.refreshDistributors) {
-        queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+        queryClient.invalidateQueries({ queryKey: ['componentDetails', selectedComponent.id] });
       }
       if (location.state.refreshAlternatives) {
-        queryClient.invalidateQueries(['componentAlternatives', selectedComponent.id]);
+        queryClient.invalidateQueries({ queryKey: ['componentAlternatives', selectedComponent.id] });
       }
       // Clear the state to prevent re-fetching on subsequent renders
       window.history.replaceState({}, document.title);
@@ -864,7 +867,7 @@ const Library = () => {
       return api.deleteComponent(ids[0]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['components']);
+      invalidateCadQueries(queryClient);
       setSelectedComponent(null);
       setBulkActionMode(null);
       setSelectedForBulk(new Set());
@@ -894,7 +897,7 @@ const Library = () => {
   const createManufacturerMutation = useMutation({
     mutationFn: (data) => api.createManufacturer(data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['manufacturers']);
+      queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
     },
   });
 
@@ -1068,15 +1071,18 @@ const Library = () => {
     setIsAddMode(false);
   };
 
-  /**
-   * Finalize temp files and confirm soft-deletes.
-   * Returns false if interrupted by conflict resolution modal (caller should return early).
-   */
+  // Retain the persisted identity of each completed file when a batch partly fails.
   const acceptFinalizedUploads = (response) => {
     const results = response.data?.results || [];
     const completed = new Set(results.filter(result => !result.error && result.cadFileId).map(result => result.tempFilename));
     const remaining = tempFiles.filter(file => !completed.has(file.tempFilename));
     setTempFiles(remaining);
+    if (completed.size) {
+      setFinalizedCadUploads(current => ({ ...current, ...Object.fromEntries(
+        results.filter(result => completed.has(result.tempFilename)).map(result => [result.tempFilename, result]),
+      ) }));
+      invalidateCadQueries(queryClient);
+    }
     if (remaining.length > 0) {
       const errors = remaining.map(file => {
         const result = results.find(item => item.tempFilename === file.tempFilename);
@@ -1086,6 +1092,7 @@ const Library = () => {
     }
   };
 
+  // Returns false when the caller must wait for conflict resolution.
   const finalizeFiles = async (callerName) => {
     if (tempFiles.length > 0) {
       const preResolved = resolvedConflicts.current;
@@ -1120,10 +1127,6 @@ const Library = () => {
       acceptFinalizedUploads(response);
     }
 
-    if (deletedFiles.length > 0) {
-      await api.confirmDeleteFiles(deletedFiles.map(f => f.tempFilename));
-      setDeletedFiles([]);
-    }
     return true;
   };
 
@@ -1307,13 +1310,8 @@ const Library = () => {
           }
         }
 
-        // Refresh alternatives data
-        queryClient.invalidateQueries(['componentAlternatives']);
-        
-        // Refresh the component details
-        queryClient.invalidateQueries(['components']);
-        queryClient.invalidateQueries(['componentDetails']);
         setIsEditMode(false);
+        setFinalizedCadUploads({});
         setManufacturerInput('');
         setAltManufacturerInputs({});
       } catch (error) {
@@ -1635,8 +1633,6 @@ const Library = () => {
       const canContinue = await finalizeEcoCadUploads();
       if (!canContinue) return;
 
-      await restoreSoftDeletedFiles(componentDetails?.manufacturer_pn || selectedComponent?.manufacturer_pn || editData.manufacturer_pn);
-
       // Collect all changes
       const changes = [];
       const specifications = [];
@@ -1895,34 +1891,19 @@ const Library = () => {
       setLastRejectedECO(null);
       setRetryEcoNumber(null);
       setEcoCadStagedFiles([]);
-      setDeletedFiles([]);
       setTempFiles([]);
-      queryClient.invalidateQueries(['components']);
-      queryClient.invalidateQueries(['ecos']);
-      queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
-      queryClient.invalidateQueries(['componentAlternatives', selectedComponent.id]);
+      setFinalizedCadUploads({});
 
       // Show success message
       showSuccess('ECO submitted successfully! It will be reviewed by an approver.');
     } catch (error) {
       console.error('Error submitting ECO:', error);
-      showError('Failed to submit ECO. Please try again.');
+      showError(error.response?.data?.error || error.message || 'Failed to submit ECO. Please try again.');
     }
   };
 
   const handleCancelECO = async () => {
-    if (tempFiles.length > 0) {
-      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(file => file.tempFilename) }); }
-      catch (error) { console.error('Cleanup failed:', error); }
-      setTempFiles([]);
-    }
-    if (deletedFiles.length > 0) {
-      try {
-        await restoreSoftDeletedFiles(componentDetails?.manufacturer_pn || selectedComponent?.manufacturer_pn || editData.manufacturer_pn);
-      } catch (error) {
-        console.error('Restore failed:', error);
-      }
-    }
+    if (!await discardTempUploads()) return;
     setIsECOMode(false);
     setIsEditMode(false);
     setEcoNotes('');
@@ -2256,8 +2237,7 @@ const Library = () => {
         showSuccess(`Category changed to ${newCategoryName}. New part number: ${response.data.new_part_number}`);
         
         // Invalidate queries to refresh data
-        queryClient.invalidateQueries(['components']);
-        queryClient.invalidateQueries(['componentDetails', selectedComponent.id]);
+        invalidateCadQueries(queryClient);
       }
     } catch (error) {
       console.error('Error changing category:', error);
@@ -2519,9 +2499,9 @@ const Library = () => {
         // All operations completed successfully - show success notification
         showSuccess('Component added successfully!');
 
-        // Refresh and cleanup — done here so all async operations complete before resetting state
-        queryClient.invalidateQueries(['components']);
+        // Reset the draft only after all save operations complete.
         setIsAddMode(false);
+        setFinalizedCadUploads({});
         setEditData({});
         setSelectedComponent(null);
         setSelectedCadFilesForCreate([]);
@@ -2537,22 +2517,11 @@ const Library = () => {
   };
 
   const handleCancelAdd = async () => {
+    if (!await discardTempUploads()) return;
     if (createdDraftRef.current) {
-      queryClient.invalidateQueries({ queryKey: ['components'] });
+      invalidateCadQueries(queryClient);
       showInfo('The created component remains in the library. Unsaved details will be discarded.');
       createdDraftRef.current = null;
-    }
-    if (tempFiles.length > 0) {
-      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
-      catch (e) { console.error('Cleanup failed:', e); }
-      setTempFiles([]);
-    }
-    if (deletedFiles.length > 0) {
-      try { await api.restoreDeletedFiles(deletedFiles.map(f => ({
-        tempFilename: f.tempFilename, category: f.category, filename: f.filename,
-        mfgPartNumber: editData.manufacturer_pn,
-      }))); } catch (e) { console.error('Restore failed:', e); }
-      setDeletedFiles([]);
     }
     setIsAddMode(false);
     setEditData({});
@@ -2563,18 +2532,7 @@ const Library = () => {
   };
 
   const handleCancelEdit = async () => {
-    if (tempFiles.length > 0) {
-      try { await api.cleanupTempFiles({ tempFilenames: tempFiles.map(f => f.tempFilename) }); }
-      catch (e) { console.error('Cleanup failed:', e); }
-      setTempFiles([]);
-    }
-    if (deletedFiles.length > 0) {
-      try { await api.restoreDeletedFiles(deletedFiles.map(f => ({
-        tempFilename: f.tempFilename, category: f.category, filename: f.filename,
-        mfgPartNumber: editData.manufacturer_pn,
-      }))); } catch (e) { console.error('Restore failed:', e); }
-      setDeletedFiles([]);
-    }
+    if (!await discardTempUploads()) return;
     setIsEditMode(false);
     setSelectedCadFilesForCreate([]);
     setManufacturerInput('');
@@ -3597,13 +3555,13 @@ const Library = () => {
                   onSubCat2Change={handleSubCat2Change}
                   onSubCat3Change={handleSubCat3Change}
                   selectedComponent={selectedComponent}
+                  finalizedCadUploads={finalizedCadUploads}
                   onTempFileStaged={(info) => setTempFiles(prev => {
                     // Deduplicate: skip if same filename+category already tracked (e.g., from ZIP with duplicate subdirs)
                     if (prev.some(f => f.filename === info.filename && f.category === info.category)) return prev;
                     return [...prev, info];
                   })}
                   onTempFileRemoved={(tempFilename) => setTempFiles(prev => prev.filter(f => f.tempFilename !== tempFilename))}
-                  onFileSoftDeleted={(info) => setDeletedFiles(prev => [...prev, info])}
                   onCadFileAdded={(info) => {
                     if (!isECOMode) return;
                     trackEcoCadAddedFile(info);

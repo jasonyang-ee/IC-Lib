@@ -22,7 +22,7 @@ vi.mock('../services/emailService.js', () => ({
 }));
 vi.mock('../services/packageService.js', () => ({ listPackages: vi.fn().mockResolvedValue([]) }));
 import { createMassFileRenameEco } from '../services/massFileRenameEcoService.js';
-import { createECO, approveECO, rejectECO, deleteECO, deleteApprovalStage, reorderApprovalStages, setStageApprovers } from '../controllers/ecoController.js';
+import { createECO, approveECO, rejectECO, deleteECO, updateApprovalStage, importApprovalStages, deleteApprovalStage, reorderApprovalStages, setStageApprovers } from '../controllers/ecoController.js';
 import { renamePhysicalFile, renameFootprintGroup, linkFootprintRelatedFiles, unlinkFootprintRelatedFiles, updateFootprintRelatedFiles } from '../controllers/fileLibraryController.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
 
@@ -65,7 +65,7 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
     poolProxy.connect.mockImplementation(() => database.connect());
     poolProxy.query.mockImplementation((...args) => database.query(...args));
     await database.query(`
-      CREATE TABLE users (id UUID PRIMARY KEY, username TEXT, display_name TEXT, delegation UUID, role TEXT);
+      CREATE TABLE users (id UUID PRIMARY KEY, username TEXT, display_name TEXT, delegation UUID, role TEXT, is_active BOOLEAN DEFAULT true);
       CREATE TABLE manufacturers (id UUID PRIMARY KEY, name TEXT);
       CREATE TABLE component_categories (id UUID PRIMARY KEY, name TEXT, prefix TEXT, leading_zeros INTEGER);
       CREATE TABLE activity_log (id UUID DEFAULT uuidv7(), component_id UUID, user_id UUID,
@@ -942,6 +942,51 @@ describe('Shared rename lifecycle on scratch PostgreSQL', () => {
       .toEqual([{ id: id(20) }, { id: id(21) }]);
     expect((await database.query('SELECT current_stage_order FROM eco_orders WHERE id = $1', [ecoId])).rows)
       .toEqual([{ current_stage_order: 1 }]);
+  });
+
+  it.each([
+    ['disable', updateApprovalStage, { is_active: false }],
+    ['retag', updateApprovalStage, { pipeline_types: ['spec'] }],
+    ['move', updateApprovalStage, { stage_order: 2 }],
+    ['reorder', reorderApprovalStages, { stage_orders: { [id(20)]: 2 } }],
+    ['import', importApprovalStages, { stages: [{ stage_name: 'Inactive', is_active: false }] }],
+  ])('refuses to %s the last applicable stage for an active ECO', async (_, handler, body) => {
+    await database.query(`INSERT INTO eco_approval_stages (id, stage_name, stage_order, pipeline_types)
+      VALUES ('${id(20)}', 'Shared review', 1, ARRAY['shared_file_rename'])`);
+    const ecoId = await stagedEco();
+    const res = response();
+    await handler({ ...request(id(20)), body }, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect((await database.query('SELECT stage_order, is_active, pipeline_types FROM eco_approval_stages')).rows)
+      .toEqual([{ stage_order: 1, is_active: true, pipeline_types: ['shared_file_rename'] }]);
+    const approved = response();
+    await approveECO(request(ecoId), approved);
+    expect(approved.json.mock.lastCall[0].status).toBe('approved');
+  });
+
+  it('uses the committed approval count after waiting for configuration changes', async () => {
+    await database.query(`INSERT INTO eco_approval_stages (id, stage_name, stage_order)
+      VALUES ('${id(20)}', 'Review', 1)`);
+    const ecoId = await stagedEco();
+    const writer = await database.connect();
+    let operation;
+    try {
+      await writer.query('BEGIN');
+      await writer.query('LOCK TABLE eco_approval_stages IN SHARE ROW EXCLUSIVE MODE');
+      await writer.query('UPDATE eco_approval_stages SET required_approvals = 2 WHERE id = $1', [id(20)]);
+      const res = response();
+      operation = approveECO(request(ecoId), res);
+      await waitForLock();
+      await writer.query('COMMIT');
+      await operation;
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json.mock.lastCall[0]).toMatchObject({ status: 'in_review', approvals_received: 1 });
+      expect((await database.query('SELECT file_name FROM cad_files')).rows).toEqual([{ file_name: 'old.pad' }]);
+    } finally {
+      await writer.query('ROLLBACK');
+      writer.release();
+      await operation;
+    }
   });
 
   it('serializes concurrent replacement of stage approver assignments', async () => {

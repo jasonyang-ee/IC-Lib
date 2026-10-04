@@ -16,3 +16,16 @@ it.each([createECO, approveECO, rejectECO, getECOById, deleteECO, importApproval
   await expect(handler({ params: {}, body: {}, user: {} }, res, next)).resolves.toBeUndefined();
   expect(res.status.mock.calls.some(([status]) => status === 500) || next.mock.calls.some(([received]) => received === error)).toBe(true);
 });
+
+it.each([approveECO, rejectECO, deleteECO])('rolls back %s if the configuration lock fails', async handler => {
+  const client = { release: vi.fn(), query: vi.fn(async sql => {
+    if (sql.startsWith('LOCK TABLE')) throw new Error('lock timeout');
+    return { rows: [] };
+  }) };
+  connect.mockResolvedValue(client);
+  const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+  await handler({ params: {}, body: {}, user: {} }, res);
+  expect(res.status).toHaveBeenCalledWith(500);
+  expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+  expect(client.release).toHaveBeenCalledOnce();
+});

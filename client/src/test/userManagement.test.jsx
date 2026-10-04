@@ -25,13 +25,12 @@ vi.mock('../contexts/NotificationContext', () => ({
 
 import UserManagement from '../components/settings/UserManagement';
 
-const renderComponent = () => {
-  const queryClient = new QueryClient({
+const renderComponent = (queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
-  });
+  })) => {
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -102,7 +101,9 @@ describe('UserManagement', () => {
   });
 
   it('deactivate confirmation retains the user row', async () => {
-    renderComponent();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(['filesByType', 'footprint'], { files: [] });
+    renderComponent(queryClient);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     expect(screen.getByRole('heading', { name: 'Edit User' })).toBeInTheDocument();
@@ -121,6 +122,7 @@ describe('UserManagement', () => {
     });
 
     expect(screen.getByText('test-user')).toBeInTheDocument();
+    expect(queryClient.getQueryState(['filesByType', 'footprint']).isInvalidated).toBe(false);
   });
 
   it('makes an already inactive account explicit without another deactivate action', async () => {

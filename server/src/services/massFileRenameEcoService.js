@@ -1,3 +1,4 @@
+import { lockApprovalConfiguration } from './ecoStageConfigurationService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -106,6 +107,7 @@ const consumeNextEcoNumber = async (client) => {
 // Used before choosing direct rename versus ECO staging. Caller owns the
 // transaction and must retain these locks through all effects and COMMIT.
 export const lockFileRenameContext = async (client, files) => {
+  await lockApprovalConfiguration(client);
   await lockCadFileNames(client, files.flatMap(file => [
     { file_type: file.file_type, file_name: file.old_file_name },
     { file_type: file.file_type, file_name: file.new_file_name },

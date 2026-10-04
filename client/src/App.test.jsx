@@ -3,6 +3,11 @@ import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
+// Login checks SSO availability on mount; keep smoke tests off the real API.
+vi.mock('./utils/api', () => ({
+  api: { getOidcStatus: vi.fn().mockResolvedValue({ data: { enabled: false } }) },
+}));
+
 // Mock the contexts
 vi.mock('./contexts/AuthContext', () => ({
   AuthProvider: ({ children }) => children,
@@ -25,23 +30,23 @@ vi.mock('./contexts/NotificationContext', () => ({
 }));
 
 describe('App', () => {
-  it('renders without crashing', () => {
+  it('renders without crashing', async () => {
     render(
       <BrowserRouter>
         <App />
       </BrowserRouter>
     );
 
-    expect(screen.getByRole('heading', { name: 'IC-Lib' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'IC-Lib' })).toBeInTheDocument();
   });
 
-  it('shows login page when not authenticated', () => {
+  it('shows login page when not authenticated', async () => {
     render(
       <BrowserRouter>
         <App />
       </BrowserRouter>
     );
 
-    expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Username')).toBeInTheDocument();
   });
 });

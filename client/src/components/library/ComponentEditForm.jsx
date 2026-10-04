@@ -47,12 +47,9 @@ const ComponentEditForm = ({
   onSubCat1Change, onSubCat2Change, onSubCat3Change,
   // File management
   selectedComponent,
+  finalizedCadUploads,
   onTempFileStaged,
   onTempFileRemoved,
-  onFileSoftDeleted,
-  onFileUploaded: _onFileUploaded,
-  onFileRenamed: _onFileRenamed,
-  onFileDeleted: _onFileDeleted,
   onCadFileAdded,
   onCadFileRemoved,
   onCadFileRenamed,
@@ -319,9 +316,9 @@ const ComponentEditForm = ({
           canEdit={true}
           ecoMode={isECOMode}
           showRename={true}
+          finalizedCadUploads={finalizedCadUploads}
           onTempFileStaged={onTempFileStaged}
           onTempFileRemoved={onTempFileRemoved}
-          onFileSoftDeleted={onFileSoftDeleted}
           onCadFileAdded={onCadFileAdded}
           onCadFileRemoved={onCadFileRemoved}
           onCadFileRenamed={onCadFileRenamed}

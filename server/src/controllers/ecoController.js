@@ -1,3 +1,4 @@
+import { lockApprovalConfiguration, getActiveStageContexts, assertActiveStagesPreserved } from '../services/ecoStageConfigurationService.js';
 import pool from '../config/database.js';
 import { assertNoPendingComponentEcos } from '../services/ecoConflictService.js';
 import { sendApprovedECODocumentControlNotification, sendECONotification } from '../services/emailService.js';
@@ -1265,6 +1266,7 @@ export const createECO = async (req, res) => {
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    await lockApprovalConfiguration(client);
     
     const {
       component_id,
@@ -2011,6 +2013,7 @@ export const approveECO = async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
     transactionStarted = true;
+    await lockApprovalConfiguration(client);
 
     const { id } = req.params;
     const { comments } = req.body;
@@ -2250,6 +2253,7 @@ export const rejectECO = async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
     transactionStarted = true;
+    await lockApprovalConfiguration(client);
 
     const { id } = req.params;
     const { rejection_reason } = req.body;
@@ -2384,6 +2388,7 @@ export const deleteECO = async (req, res) => {
     const { id } = req.params;
     await client.query('BEGIN');
     transactionStarted = true;
+    await lockApprovalConfiguration(client);
 
     // Check if user can delete (must be creator or admin)
     let selectQuery = `
@@ -2504,6 +2509,8 @@ export const importApprovalStages = async (req, res) => {
     };
 
     await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
+    const activeStageContexts = await getActiveStageContexts(client);
 
     const existingStagesResult = await client.query(`
       SELECT id, stage_order
@@ -2605,6 +2612,7 @@ export const importApprovalStages = async (req, res) => {
       results.stages.deactivated += 1;
     }
 
+    await assertActiveStagesPreserved(client, activeStageContexts);
     await client.query('COMMIT');
 
     res.json({
@@ -2615,7 +2623,7 @@ export const importApprovalStages = async (req, res) => {
   } catch (error) {
     await client?.query('ROLLBACK');
     logError('ECO', 'Error importing approval stages:', error);
-    const statusCode = error instanceof ApprovalStageImportValidationError ? 400 : 500;
+    const statusCode = error.status || (error instanceof ApprovalStageImportValidationError ? 400 : 500);
     res.status(statusCode).json({ error: error.message || 'Failed to import approval stages' });
   } finally {
     client?.release();
@@ -2624,6 +2632,7 @@ export const importApprovalStages = async (req, res) => {
 
 // Create a new approval stage
 export const createApprovalStage = async (req, res) => {
+  let client;
   try {
     const { stage_name, required_approvals, required_role, pipeline_types } = req.body;
 
@@ -2637,7 +2646,10 @@ export const createApprovalStage = async (req, res) => {
       return res.status(400).json({ error: 'Invalid required role' });
     }
 
-    const requestedPipelineTypes = Array.isArray(pipeline_types) ? pipeline_types : [];
+    if (pipeline_types !== undefined && (!Array.isArray(pipeline_types) || pipeline_types.length === 0)) {
+      return res.status(400).json({ error: 'pipeline_types must be a non-empty array' });
+    }
+    const requestedPipelineTypes = pipeline_types || [];
     const invalidTypes = requestedPipelineTypes.filter((pipelineType) => !VALID_ECO_PIPELINE_TYPES.includes(pipelineType));
     if (invalidTypes.length > 0) {
       return res.status(400).json({ error: `Invalid pipeline types: ${invalidTypes.join(', ')}. Valid values: ${VALID_ECO_PIPELINE_TYPES.join(', ')}` });
@@ -2646,27 +2658,36 @@ export const createApprovalStage = async (req, res) => {
       ? normalizeStagePipelineTypes(requestedPipelineTypes)
       : [...DEFAULT_STAGE_PIPELINE_TYPES];
 
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
+
     // Get the next stage_order
-    const maxOrderResult = await pool.query(
+    const maxOrderResult = await client.query(
       'SELECT COALESCE(MAX(stage_order), 0) + 1 as next_order FROM eco_approval_stages',
     );
     const nextOrder = maxOrderResult.rows[0].next_order;
 
-    const result = await pool.query(`
+    const result = await client.query(`
       INSERT INTO eco_approval_stages (stage_name, stage_order, required_approvals, required_role, pipeline_types)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `, [stage_name, nextOrder, required_approvals || 1, required_role || 'approver', resolvedPipelineTypes]);
 
+    await client.query('COMMIT');
     res.status(201).json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error creating approval stage:', error);
     res.status(500).json({ error: 'Failed to create approval stage' });
+  } finally {
+    client?.release();
   }
 };
 
 // Update an approval stage
 export const updateApprovalStage = async (req, res) => {
+  let client;
   try {
     const { id } = req.params;
     const { stage_name, required_approvals, required_role, is_active, pipeline_types, stage_order } = req.body;
@@ -2694,7 +2715,12 @@ export const updateApprovalStage = async (req, res) => {
       ? null
       : normalizeStagePipelineTypes(pipeline_types);
 
-    const result = await pool.query(`
+    client = await pool.connect();
+    await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
+    const activeStageContexts = await getActiveStageContexts(client);
+
+    const result = await client.query(`
       UPDATE eco_approval_stages
       SET stage_name = COALESCE($1, stage_name),
           required_approvals = COALESCE($2, required_approvals),
@@ -2707,13 +2733,19 @@ export const updateApprovalStage = async (req, res) => {
     `, [stage_name, required_approvals, required_role, is_active, resolvedPipelineTypes, stage_order, id]);
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Approval stage not found' });
     }
 
+    await assertActiveStagesPreserved(client, activeStageContexts);
+    await client.query('COMMIT');
     res.json(normalizeStageRecord(result.rows[0]));
   } catch (error) {
+    await client?.query('ROLLBACK');
     logError('ECO', 'Error updating approval stage:', error);
-    res.status(500).json({ error: 'Failed to update approval stage' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to update approval stage' });
+  } finally {
+    client?.release();
   }
 };
 
@@ -2723,6 +2755,7 @@ export const deleteApprovalStage = async (req, res) => {
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
 
     const { id } = req.params;
 
@@ -2789,10 +2822,16 @@ export const reorderApprovalStages = async (req, res) => {
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
+    const activeStageContexts = await getActiveStageContexts(client);
 
     const { stage_ids, stage_orders } = req.body;
 
     if (stage_orders && typeof stage_orders === 'object' && !Array.isArray(stage_orders)) {
+      if (Object.keys(stage_orders).length === 0 || Object.values(stage_orders).some(order => !Number.isInteger(order) || order < 1)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Stage orders must be positive integers' });
+      }
       // Explicit ordering: { stageId: orderNumber } — allows duplicates for parallel stages
       for (const [stageId, orderNumber] of Object.entries(stage_orders)) {
         await client.query(
@@ -2817,12 +2856,13 @@ export const reorderApprovalStages = async (req, res) => {
     const result = await client.query(
       'SELECT * FROM eco_approval_stages ORDER BY stage_order ASC, id ASC',
     );
+    await assertActiveStagesPreserved(client, activeStageContexts);
     await client.query('COMMIT');
     res.json(result.rows);
   } catch (error) {
     await client?.query('ROLLBACK');
     logError('ECO', 'Error reordering approval stages:', error);
-    res.status(500).json({ error: 'Failed to reorder approval stages' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to reorder approval stages' });
   } finally {
     client?.release();
   }
@@ -2838,6 +2878,7 @@ export const setStageApprovers = async (req, res) => {
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    await lockApprovalConfiguration(client, true);
 
     const { id } = req.params; // stage_id
     const { user_ids } = req.body; // Array of user UUIDs

@@ -18,7 +18,7 @@ vi.mock('fs', async (importOriginal) => {
 });
 import { deleteFile, finalizeTempFile, restoreDeletedFile, renameFile, listFiles } from '../controllers/fileUploadController.js';
 import { deletePhysicalFile, deleteFileGroup, bulkDeleteOrphanFiles, linkFileToComponent, unlinkFileFromComponent, getFilesByType, searchFiles, getOrphanFiles } from '../controllers/fileLibraryController.js';
-import { deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent, scanAndRegisterFiles, renameCadFile, renameCadFileGroup, detectMissingFiles, getCadFilesForComponentGrouped, getComponentCadFilesByMPN, searchCadFiles } from '../services/cadFileService.js';
+import { syncComponentCadFiles, deleteCadFile, getOrphanCadFiles, regenerateAllCadText, unlinkCadFileFromComponent, scanAndRegisterFiles, renameCadFile, renameCadFileGroup, detectMissingFiles, getCadFilesForComponentGrouped, getComponentCadFilesByMPN, searchCadFiles } from '../services/cadFileService.js';
 import { finalizeCadUpload } from '../services/cadUploadService.js';
 import { getDashboardStats } from '../controllers/dashboardController.js';
 
@@ -187,6 +187,43 @@ describe('CAD removal on scratch PostgreSQL', () => {
     expect(partFiles.json.mock.lastCall[0].files.symbol).toEqual([
       expect.objectContaining({ id: fileId, missing: true }),
     ]);
+  });
+
+  it('keeps pending ECO tags on the component file list, including missing records', async () => {
+    const fileId = await addFile(1, 'missing.olb', 'symbol');
+    await link(fileId);
+    await database.query('UPDATE cad_files SET missing = true WHERE id = $1', [fileId]);
+    await database.query("INSERT INTO eco_orders VALUES ($1, 'pending')", [id(200)]);
+    await database.query("INSERT INTO eco_cad_files (eco_id, cad_file_id, file_type, file_name, action) VALUES ($1, $2, 'symbol', 'missing.olb', 'unlink')", [id(200), fileId]);
+    const res = response();
+    await listFiles({ params: { mfgPartNumber: 'PART' }, query: { componentId } }, res);
+    expect(res.json.mock.lastCall[0].files.symbol).toEqual([
+      expect.objectContaining({ id: fileId, missing: true, pending_eco: true }),
+    ]);
+  });
+
+  it.each(['unchanged', 'case change', 'new link'])('preserves case-sensitive symbol identity during %s text synchronization', async mode => {
+    const upper = await addFile(1, 'PART.olb', 'symbol');
+    const lower = await addFile(2, 'part.olb', 'symbol');
+    if (mode !== 'new link') await link(upper);
+    await syncComponentCadFiles(componentId, { schematic: [mode === 'case change' ? 'part' : 'PART'] }, database);
+    expect((await database.query('SELECT cad_file_id FROM component_cad_files')).rows)
+      .toEqual([{ cad_file_id: mode === 'case change' ? lower : upper }]);
+  });
+
+  it('retains unambiguous legacy case-insensitive symbol lookup', async () => {
+    const fileId = await addFile(1, 'PART.olb', 'symbol');
+    await syncComponentCadFiles(componentId, { schematic: ['part'] }, database);
+    expect((await database.query('SELECT cad_file_id FROM component_cad_files')).rows)
+      .toEqual([{ cad_file_id: fileId }]);
+  });
+
+  it('rejects ambiguous legacy symbol lookup without linking both case variants', async () => {
+    await addFile(1, 'PART.olb', 'symbol');
+    await addFile(2, 'part.olb', 'symbol');
+    await expect(syncComponentCadFiles(componentId, { schematic: ['Part'] }, database))
+      .rejects.toMatchObject({ status: 409 });
+    expect((await database.query('SELECT cad_file_id FROM component_cad_files')).rows).toEqual([]);
   });
 
   it('lists and removes files by component ID even when manufacturer part numbers repeat or change', async () => {

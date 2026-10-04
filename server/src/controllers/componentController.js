@@ -404,12 +404,8 @@ export const createComponent = async (req, res, next) => {
     await cadFileService.regenerateAllCadText(component.id, client);
     await cadFileService.syncFootprintRelatedCadFilesForComponent(component.id, client);
 
-    await client.query('COMMIT');
-    client.release();
-    client = null;
-
     // Fetch the complete component with joined data
-    const fullComponent = await pool.query(`
+    const fullComponent = await client.query(`
       SELECT
         c.*,
         cat.name as category_name,
@@ -422,6 +418,10 @@ export const createComponent = async (req, res, next) => {
       LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
       WHERE c.id = $1
     `, [component.id]);
+
+    await client.query('COMMIT');
+    client.release();
+    client = null;
 
     res.status(201).json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {
@@ -705,6 +705,21 @@ export const updateComponent = async (req, res, next) => {
       pad_file: parseCadField(updatedComponent.pad_file),
     }, client);
 
+    // Fetch the complete component with joined data
+    const fullComponent = await client.query(`
+      SELECT
+        c.*,
+        cat.name as category_name,
+        cat.prefix as category_prefix,
+        m.name as manufacturer_name,
+        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
+        created_at(c.id) as created_at
+      FROM components c
+      LEFT JOIN component_categories cat ON c.category_id = cat.id
+      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
+      WHERE c.id = $1
+    `, [id]);
+
     await client.query('COMMIT');
     client.release();
     client = null;
@@ -727,21 +742,6 @@ export const updateComponent = async (req, res, next) => {
     } catch (activityError) {
       logError('Component', 'Failed to log component update activity:', activityError.message);
     }
-
-    // Fetch the complete component with joined data
-    const fullComponent = await pool.query(`
-      SELECT
-        c.*,
-        cat.name as category_name,
-        cat.prefix as category_prefix,
-        m.name as manufacturer_name,
-        get_part_type(c.category_id, c.sub_category1, c.sub_category2, c.sub_category3, c.sub_category4) as part_type,
-        created_at(c.id) as created_at
-      FROM components c
-      LEFT JOIN component_categories cat ON c.category_id = cat.id
-      LEFT JOIN manufacturers m ON c.manufacturer_id = m.id
-      WHERE c.id = $1
-    `, [id]);
 
     res.json(transformCadFields(fullComponent.rows[0]));
   } catch (error) {

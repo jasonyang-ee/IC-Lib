@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Plus, Loader2, Check, GripVertical, Download, Upload, AlertTriangle } from 'lucide-react';
 import { api } from '../../utils/api';
+import { invalidateCadQueries } from '../../utils/cadQueries';
 import { useNotification } from '../../contexts/NotificationContext';
 
 // Category Specifications Manager Component
@@ -44,7 +45,8 @@ const CategorySpecificationsManager = () => {
       await api.createCategorySpecification(selectedCategory, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      queryClient.invalidateQueries({ queryKey: ['categorySpecifications', selectedCategory] });
+      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
       setIsAddingSpec(false);
       setNewSpec({ spec_name: '', unit: '', mapping_spec_names: [], is_required: false });
       setNewMappingInput('');
@@ -58,7 +60,8 @@ const CategorySpecificationsManager = () => {
       await api.updateCategorySpecification(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      queryClient.invalidateQueries({ queryKey: ['categorySpecifications', selectedCategory] });
+      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
       setEditingSpec(null);
     },
     onError: error => showError(error.response?.data?.error || error.message),
@@ -70,7 +73,8 @@ const CategorySpecificationsManager = () => {
       await api.deleteCategorySpecification(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      queryClient.invalidateQueries({ queryKey: ['categorySpecifications', selectedCategory] });
+      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
       setShowDeleteConfirm(null);
       setEditingSpec(null);
     },
@@ -83,7 +87,8 @@ const CategorySpecificationsManager = () => {
       await api.reorderCategorySpecifications(selectedCategory, { specifications: specs });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['categorySpecifications', selectedCategory]);
+      queryClient.invalidateQueries({ queryKey: ['categorySpecifications', selectedCategory] });
+      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
       showSuccess('Specification order updated successfully!');
     },
     onError: (error) => {
@@ -154,8 +159,10 @@ const CategorySpecificationsManager = () => {
         const result = response.data;
 
         if (result.success) {
-          queryClient.invalidateQueries(['categories']);
-          queryClient.invalidateQueries(['categorySpecifications']);
+          queryClient.invalidateQueries({ queryKey: ['categories'] });
+          queryClient.invalidateQueries({ queryKey: ['categorySpecifications'] });
+          queryClient.invalidateQueries({ queryKey: ['categoryConfigs'] });
+          invalidateCadQueries(queryClient);
           const catStats = result.results.categories;
           const specStats = result.results.specifications;
           showSuccess(`Import complete: ${catStats.created} categories created, ${catStats.updated} updated; ${specStats.created} specs created, ${specStats.updated} updated, ${specStats.deleted} deleted`);

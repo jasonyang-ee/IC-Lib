@@ -1,6 +1,7 @@
+import { invalidateCadQueries } from '../utils/cadQueries';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +9,7 @@ import { VendorSearchForm, VendorSearchResults, SelectedPartsPanel, PartSelectio
 
 const VendorSearch = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { showSuccess } = useNotification();
   const { canWrite } = useAuth();
@@ -406,6 +408,7 @@ const VendorSearch = () => {
 
       // Update distributors - wrap in object as backend expects { distributors: [...] }
       await api.updateComponentDistributors(component.id, { distributors: mergedDistributors });
+      invalidateCadQueries(queryClient);
 
       // Show success notification
       showSuccess(`Successfully appended ${newDistributors.length} distributor(s) to ${component.part_number}`);
@@ -455,6 +458,7 @@ const VendorSearch = () => {
       };
 
       await api.createComponentAlternative(component.id, alternativeData);
+      invalidateCadQueries(queryClient);
 
       // Show success notification
       showSuccess(`Successfully added ${primaryPart.manufacturerPartNumber} as alternative to ${component.part_number}`);

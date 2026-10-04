@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Component file lists show pending-ECO and missing-file tags consistently, format paired footprint names like other views, and offer Retry after load errors. Missing files cannot be renamed.
+- Partial upload saves retain each completed file's database identity and download path; failed discard keeps the draft and remaining upload tokens available for retry. Removed obsolete soft-delete client state, unused component barrels and the unused MPN-based file-link helper.
+- Component saves preserve case-sensitive CAD links and reject ambiguous legacy filename matches. Component create/update rolls back if its response read fails, preventing false failed-save responses after committed writes.
+- Approval-stage edits cannot strand active ECOs; configuration changes serialize with ECO submission and decisions. Related Library, vendor, settings and ECO changes refresh affected cached views without invalidating unrelated queries.
+- Development shutdown stops npm's child servers after signals and failures. Release planning recognizes conventional breaking changes, stages manifests without optional lockfiles, stops when a version update fails, and honors help/confirmation options before preflight checks.
 - File Library retains missing database records, shows consistent missing/pending-ECO and part-status tags, preserves case-sensitive identities and complete footprint pairs, and refreshes affected pages after CAD changes. Searches include short filenames and all selected-type matches; deep links retain literal percent characters.
 - Component CAD listing, deletion and export use component IDs rather than potentially shared manufacturer part numbers. Saved downloads and explicit staged downloads use separate identities; supported upload formats and template download base paths agree across pages.
 - Footprint pad/model binding saves are atomic, retain drafts during background refresh, and recover from load/upload errors. Filename sanitization rolls back an entire pair after late failures and refuses stale rename plans. Library clearing leaves physical files intact if its database transaction fails; scans ignore directories named like CAD files.

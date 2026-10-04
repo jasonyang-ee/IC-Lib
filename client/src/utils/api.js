@@ -265,8 +265,6 @@ export const api = {
     }),
   finalizeTempFiles: (data) => apiClient.post('/files/finalize-temp', data),
   cleanupTempFiles: (data) => apiClient.post('/files/cleanup-temp', data),
-  restoreDeletedFiles: (files) => apiClient.post('/files/restore-deleted', { files }),
-  confirmDeleteFiles: (tempFilenames) => apiClient.post('/files/confirm-delete', { tempFilenames }),
   listComponentFiles: (mfgPartNumber, componentId) =>
     apiClient.get(`/files/list/${encodeURIComponent(mfgPartNumber)}`, { params: { componentId } }),
   deleteComponentFile: (category, mfgPartNumber, filename, componentId) =>

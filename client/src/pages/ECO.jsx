@@ -77,10 +77,6 @@ const ECO = () => {
     mutationFn: ({ id, comments }) => api.approveECO(id, { comments }),
     onSuccess: (response) => {
       invalidateCadQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
-      queryClient.invalidateQueries({ queryKey: ['components'] });
-      queryClient.invalidateQueries({ queryKey: ['componentDetails'] });
-      queryClient.invalidateQueries({ queryKey: ['componentAlternatives'] });
       setApprovalComments('');
       const msg = response.data?.message || 'Approval vote recorded.';
       showSuccess(msg);
@@ -99,7 +95,6 @@ const ECO = () => {
     mutationFn: ({ id, rejection_reason }) => api.rejectECO(id, { rejection_reason }),
     onSuccess: () => {
       invalidateCadQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['eco', expandedECO] });
       setShowRejectModal(null);
       setRejectionReason('');
       setExpandedECO(null);

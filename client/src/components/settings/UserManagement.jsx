@@ -16,6 +16,9 @@ const ROLE_OPTIONS = [
 // User Management Component (Admin Only)
 const UserManagement = () => {
   const queryClient = useQueryClient();
+  const refreshUsers = () => {
+    for (const key of ['users', 'approvalStages', 'ecos', 'eco']) queryClient.invalidateQueries({ queryKey: [key] });
+  };
   const { showSuccess, showError } = useNotification();
   const modalBackdropClass = 'fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50 p-4';
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -59,7 +62,7 @@ const UserManagement = () => {
       await api.createUser(userData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['users']);
+      refreshUsers();
       closeCreateModal();
       showSuccess('User created successfully!');
     },
@@ -75,7 +78,7 @@ const UserManagement = () => {
       await api.updateUser(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['users']);
+      refreshUsers();
       closeEditModal();
       showSuccess('User updated successfully!');
     },
@@ -91,7 +94,7 @@ const UserManagement = () => {
       await api.deleteUser(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['users']);
+      refreshUsers();
       setShowDeactivateConfirm(null);
       closeEditModal();
       showSuccess('User deactivated successfully!');
@@ -164,7 +167,7 @@ const UserManagement = () => {
         const result = response.data;
 
         if (result.success) {
-          queryClient.invalidateQueries(['users']);
+          refreshUsers();
           const stats = result.results;
           showSuccess(`Import complete: ${stats.created} created, ${stats.updated} updated, ${stats.deactivated} deactivated`);
         } else {

@@ -12,8 +12,10 @@ const { poolProxy, vendorSearch } = vi.hoisted(() => ({
 vi.mock('../config/database.js', () => ({ default: poolProxy }));
 vi.mock('../services/digikeyService.js', () => ({ searchPart: vendorSearch }));
 vi.mock('../services/mouserService.js', () => ({ searchPart: vendorSearch }));
-vi.mock('../services/cadFileService.js', () => ({ default: { syncComponentCadFiles: vi.fn() } }));
-import { updateDistributorInfo, updateComponentSpecifications, updateComponent, createAlternative, updateAlternative, deleteAlternative, promoteAlternative, changeComponentCategory } from '../controllers/componentController.js';
+vi.mock('../services/cadFileService.js', () => ({ default: { syncComponentCadFiles: vi.fn(), getCadFilesByIds: vi.fn().mockResolvedValue([]),
+  linkCadFilesToComponentByIds: vi.fn(), autoLinkRelatedCadFilesForComponent: vi.fn(),
+  regenerateAllCadText: vi.fn(), syncFootprintRelatedCadFilesForComponent: vi.fn() } }));
+import { createComponent, updateDistributorInfo, updateComponentSpecifications, updateComponent, createAlternative, updateAlternative, deleteAlternative, promoteAlternative, changeComponentCategory } from '../controllers/componentController.js';
 import { syncCategorySpecification } from '../services/specificationService.js';
 import { getOrCreateManufacturer } from '../services/manufacturerService.js';
 import { renameManufacturer } from '../controllers/manufacturerController.js';
@@ -59,7 +61,7 @@ describe('Catalog writes on scratch PostgreSQL', () => {
       CREATE FUNCTION created_at(UUID) RETURNS TIMESTAMPTZ LANGUAGE sql AS $$ SELECT NOW() $$;
     `);
     const schema = fs.readFileSync(new URL('../../../database/init-schema.sql', import.meta.url), 'utf8');
-    for (const table of ['components', 'distributors', 'components_alternative', 'distributor_info', 'category_specifications', 'component_specification_values', 'packages', 'package_aliases']) {
+    for (const table of ['components', 'distributors', 'components_alternative', 'distributor_info', 'category_specifications', 'component_specification_values', 'packages', 'package_aliases', 'inventory']) {
       const definition = schema.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\);`));
       await database.query(definition[0]);
     }
@@ -99,6 +101,24 @@ describe('Catalog writes on scratch PostgreSQL', () => {
     return { res, next };
   };
   const distributors = async () => (await database.query('SELECT distributor_id,sku,stock_quantity FROM distributor_info ORDER BY distributor_id')).rows;
+
+  it.each([['create', createComponent], ['update', updateComponent]])('rolls back component %s when its response read fails', async (operation, handler) => {
+    const before = (await database.query('SELECT part_number, description FROM components ORDER BY id')).rows;
+    const failResponse = sql => {
+      if (sql.includes('get_part_type(c.category_id')) throw new Error('injected component response failure');
+    };
+    poolProxy.query.mockImplementation((sql, ...args) => { failResponse(sql); return database.query(sql, ...args); });
+    poolProxy.connect.mockImplementation(async () => {
+      const client = await database.connect();
+      return { release: () => client.release(), query: (sql, ...args) => { failResponse(sql); return client.query(sql, ...args); } };
+    });
+    const { next } = await invoke(handler, operation === 'create'
+      ? { category_id: id(10), part_number: 'FIRST-00002', description: 'new' }
+      : { description: 'changed' });
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'injected component response failure' }));
+    expect((await database.query('SELECT part_number, description FROM components ORDER BY id')).rows).toEqual(before);
+    expect((await database.query('SELECT * FROM inventory')).rows).toEqual([]);
+  });
 
   it.each(['merge', 'same name', 'late failure'])('preserves primary and alternative manufacturer ownership on %s', async (scenario) => {
     await database.query(`INSERT INTO manufacturers (id,name) VALUES ('${id(1)}','Source'), ('${id(2)}','Target');

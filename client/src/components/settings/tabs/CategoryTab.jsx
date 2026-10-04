@@ -1,3 +1,4 @@
+import { invalidateCadQueries } from '../../../utils/cadQueries';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, GripVertical, Loader2, Plus, X } from 'lucide-react';
@@ -79,6 +80,7 @@ const CategoryTab = () => {
       queryClient.invalidateQueries({ queryKey: ['categoryConfigs'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       if (data.updatedCategories > 0) {
+        invalidateCadQueries(queryClient);
         showSuccess(`Global prefix applied to ${data.updatedCategories} categories.`);
         return;
       }
@@ -98,7 +100,8 @@ const CategoryTab = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['categoryConfigs'] });
-      queryClient.invalidateQueries({ queryKey: ['components'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      invalidateCadQueries(queryClient);
       setEditingCategoryId(null);
       setTempConfig(EMPTY_EDIT_CONFIG);
       if (data.updated_part_count > 0) {
@@ -121,7 +124,9 @@ const CategoryTab = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categoryConfigs'] });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       setIsAddingCategory(false);
+      invalidateCadQueries(queryClient);
       setNewCategory(EMPTY_CATEGORY);
       showSuccess('Category created successfully!');
     },
@@ -154,7 +159,8 @@ const CategoryTab = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manufacturers'] });
-      queryClient.invalidateQueries({ queryKey: ['components'] });
+      invalidateCadQueries(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
       setSourceManufacturerName('');
       setTargetManufacturerName('');
       setMergeConfirmation({ isOpen: false, oldId: '', newName: '', message: '' });
